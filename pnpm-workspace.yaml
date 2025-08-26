@@ -1,0 +1,7 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+  - 'tools/*'
+
+# Shared dependencies hoisted to root
+shared-workspace-lockfile: true

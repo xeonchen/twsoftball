@@ -1,0 +1,40 @@
+{
+  "name": "@twsoftball/application",
+  "version": "0.1.0",
+  "description": "Application layer - Use cases and ports",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./use-cases/*": {
+      "types": "./dist/use-cases/*.d.ts",
+      "import": "./dist/use-cases/*.js"
+    },
+    "./ports/*": {
+      "types": "./dist/ports/*.d.ts",
+      "import": "./dist/ports/*.js"
+    },
+    "./services/*": {
+      "types": "./dist/services/*.d.ts",
+      "import": "./dist/services/*.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@twsoftball/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

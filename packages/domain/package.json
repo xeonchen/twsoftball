@@ -1,0 +1,41 @@
+{
+  "name": "@twsoftball/domain",
+  "version": "0.1.0",
+  "description": "Domain layer - Core business logic",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./entities/*": {
+      "types": "./dist/entities/*.d.ts",
+      "import": "./dist/entities/*.js"
+    },
+    "./value-objects/*": {
+      "types": "./dist/value-objects/*.d.ts",
+      "import": "./dist/value-objects/*.js"
+    },
+    "./events/*": {
+      "types": "./dist/events/*.d.ts",
+      "import": "./dist/events/*.js"
+    },
+    "./rules/*": {
+      "types": "./dist/rules/*.d.ts",
+      "import": "./dist/rules/*.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "name": "@twsoftball/infrastructure",
+  "version": "0.1.0",
+  "description": "Infrastructure layer - Adapters and implementations",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./persistence/*": {
+      "types": "./dist/persistence/*.d.ts",
+      "import": "./dist/persistence/*.js"
+    },
+    "./config/*": {
+      "types": "./dist/config/*.d.ts",
+      "import": "./dist/config/*.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@twsoftball/domain": "workspace:*",
+    "@twsoftball/application": "workspace:*",
+    "@twsoftball/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "twsoftball",
+  "version": "0.1.0",
+  "description": "Slow-pitch softball game recording PWA",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @twsoftball/web dev",
+    "build": "pnpm --recursive run build",
+    "test": "pnpm --recursive run test",
+    "test:watch": "pnpm --recursive run test:watch",
+    "test:coverage": "pnpm --recursive run test:coverage && node tools/scripts/merge-coverage.js",
+    "typecheck": "pnpm --recursive run typecheck",
+    "lint": "pnpm --recursive run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",
+    "deps:check": "dependency-cruiser --config .dependency-cruiser.js packages apps",
+    "clean": "pnpm --recursive run clean && rm -rf node_modules/.cache",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "dependency-cruiser": "^16.3.10",
+    "eslint": "^8.57.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-airbnb-typescript": "^17.1.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-boundaries": "^4.2.2",
+    "eslint-plugin-import": "^2.29.1",
+    "husky": "^9.1.4",
+    "lint-staged": "^15.2.8",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  },
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=8"
+  },
+  "packageManager": "pnpm@8.15.6"
+}
