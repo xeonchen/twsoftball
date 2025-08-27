@@ -9,8 +9,8 @@ module.exports = {
   plugins: ['@typescript-eslint', 'boundaries'],
   extends: [
     'eslint:recommended',
-    '@typescript-eslint/recommended',
-    '@typescript-eslint/recommended-requiring-type-checking',
+    'plugin:@typescript-eslint/recommended',
+    'plugin:@typescript-eslint/recommended-requiring-type-checking',
     'airbnb-base',
     'airbnb-typescript/base',
     'prettier',

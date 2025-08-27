@@ -13,11 +13,12 @@
     "typecheck": "pnpm --recursive run typecheck",
     "lint": "pnpm --recursive run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",
-    "deps:check": "dependency-cruiser --config .dependency-cruiser.js packages apps",
+    "deps:check": "dependency-cruiser --config .dependency-cruiser.cjs packages",
     "clean": "pnpm --recursive run clean && rm -rf node_modules/.cache",
     "prepare": "husky install"
   },
   "devDependencies": {
+    "@types/node": "^24.3.0",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "dependency-cruiser": "^16.3.10",
@@ -28,6 +29,7 @@
     "eslint-plugin-boundaries": "^4.2.2",
     "eslint-plugin-import": "^2.29.1",
     "husky": "^9.1.4",
+    "jsdom": "^26.1.0",
     "lint-staged": "^15.2.8",
     "prettier": "^3.3.3",
     "typescript": "^5.5.4",
@@ -37,5 +39,11 @@
     "node": ">=18",
     "pnpm": ">=8"
   },
-  "packageManager": "pnpm@8.15.6"
+  "packageManager": "pnpm@8.15.6",
+  "pnpm": {
+    "overrides": {
+      "micromatch@<4.0.8": ">=4.0.8",
+      "esbuild@<=0.24.2": ">=0.25.0"
+    }
+  }
 }

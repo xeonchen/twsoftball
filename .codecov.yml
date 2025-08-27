@@ -1,0 +1,65 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 90%
+        threshold: 1%
+        if_not_found: success
+        if_ci_failed: error
+    patch:
+      default:
+        target: 80%
+        threshold: 1%
+        if_not_found: success
+        if_ci_failed: error
+  precision: 2
+  round: down
+  range: 70...100
+
+flags:
+  domain:
+    paths:
+      - packages/domain/
+    carryforward: false
+  application:
+    paths:
+      - packages/application/
+    carryforward: false
+  infrastructure:
+    paths:
+      - packages/infrastructure/
+    carryforward: false
+  shared:
+    paths:
+      - packages/shared/
+    carryforward: false
+  web:
+    paths:
+      - apps/web/
+    carryforward: false
+
+comment:
+  layout: 'reach, diff, flags, files'
+  behavior: default
+  require_changes: false
+  require_base: no
+  require_head: yes
+
+github_checks:
+  annotations: true
+
+ignore:
+  - '**/*.test.ts'
+  - '**/*.spec.ts'
+  - '**/test/**'
+  - '**/tests/**'
+  - '**/__tests__/**'
+  - '**/coverage/**'
+  - '**/node_modules/**'
+  - '**/dist/**'
+  - '**/build/**'
+  - '**/*.d.ts'
+  - '**/vite.config.ts'
+  - '**/vitest.config.ts'
+  - '**/*.config.js'
+  - '**/*.config.ts'

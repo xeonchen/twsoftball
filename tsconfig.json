@@ -4,15 +4,14 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
-    
+
     /* Bundler mode */
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    
+
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,
@@ -20,7 +19,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
-    
+
     /* Path mapping */
     "baseUrl": ".",
     "paths": {
@@ -29,7 +28,7 @@
       "@twsoftball/infrastructure/*": ["./packages/infrastructure/src/*"],
       "@twsoftball/shared/*": ["./packages/shared/src/*"]
     },
-    
+
     /* Additional strict checks */
     "noImplicitReturns": true,
     "noImplicitOverride": true,
@@ -40,12 +39,9 @@
     "packages/*/src/**/*",
     "apps/*/src/**/*",
     "tools/**/*",
-    "tests/**/*"
+    "tests/**/*",
+    "*.config.ts",
+    "packages/*/vitest.config.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "build",
-    ".next"
-  ]
+  "exclude": ["node_modules", "dist", "build", ".next"]
 }
