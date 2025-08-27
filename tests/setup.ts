@@ -1,30 +1,12 @@
-import { vi } from 'vitest';
+import { vi, beforeEach, afterEach } from 'vitest';
 
 // Mock IndexedDB for testing
-const mockIndexedDB = (() => {
-  let store: Record<string, any> = {};
-
-  return {
-    open: vi.fn(() => ({
-      result: {
-        createObjectStore: vi.fn(),
-        transaction: vi.fn(() => ({
-          objectStore: vi.fn(() => ({
-            add: vi.fn(),
-            get: vi.fn((key: string) => ({ result: store[key] })),
-            put: vi.fn((value: any, key: string) => { store[key] = value; }),
-            delete: vi.fn((key: string) => { delete store[key]; }),
-            getAll: vi.fn(() => ({ result: Object.values(store) })),
-            clear: vi.fn(() => { store = {}; }),
-          })),
-        })),
-      },
-      onsuccess: null,
-      onerror: null,
-    })),
-    deleteDatabase: vi.fn(),
-  };
-})();
+const mockIndexedDB = {
+  open: vi.fn(),
+  deleteDatabase: vi.fn(),
+  databases: vi.fn(),
+  cmp: vi.fn(),
+} as unknown as IDBFactory;
 
 // Setup global mocks
 Object.defineProperty(globalThis, 'indexedDB', {
