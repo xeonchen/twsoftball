@@ -230,7 +230,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Build
     timeout-minutes: 10
-    needs: [test, security-audit]
+    needs: [setup, test, security-audit]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
