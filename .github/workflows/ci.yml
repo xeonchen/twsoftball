@@ -7,9 +7,13 @@ on:
     branches: [main]
 
 jobs:
-  lint:
+  # Phase 1: Setup shared dependencies
+  setup:
     runs-on: ubuntu-latest
-    name: Lint & Format
+    name: Setup Dependencies
+    timeout-minutes: 5
+    outputs:
+      cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,8 +27,49 @@ jobs:
           node-version: '18'
           cache: 'pnpm'
 
+      - name: Generate cache key
+        id: cache-key
+        run: echo "key=${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}" >> $GITHUB_OUTPUT
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Cache node_modules
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            apps/*/node_modules
+          key: ${{ steps.cache-key.outputs.key }}
+
+  # Phase 2: Quality Gates (parallel)
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint & Format
+    timeout-minutes: 10
+    needs: [setup]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      - name: Restore dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            apps/*/node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
 
       - name: Type check
         run: pnpm typecheck
@@ -38,6 +83,8 @@ jobs:
   architecture:
     runs-on: ubuntu-latest
     name: Architecture Check
+    timeout-minutes: 5
+    needs: [setup]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,15 +98,23 @@ jobs:
           node-version: '18'
           cache: 'pnpm'
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Restore dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            apps/*/node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
 
       - name: Check architecture violations
         run: pnpm deps:check
 
-  test:
+  security-audit:
     runs-on: ubuntu-latest
-    name: Test
+    name: Security Audit
+    timeout-minutes: 5
+    needs: [setup]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -73,8 +128,80 @@ jobs:
           node-version: '18'
           cache: 'pnpm'
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Restore dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            apps/*/node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Run security audit
+        run: pnpm audit --audit-level moderate
+
+  security-codeql:
+    runs-on: ubuntu-latest
+    name: CodeQL Analysis
+    timeout-minutes: 10
+    needs: [setup]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      - name: Restore dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            apps/*/node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Run CodeQL Analysis
+        uses: github/codeql-action/init@v3
+        with:
+          languages: typescript
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  # Phase 3: Testing with Coverage
+  test:
+    runs-on: ubuntu-latest
+    name: Test & Coverage
+    timeout-minutes: 15
+    needs: [setup, lint, architecture]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      - name: Restore dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            apps/*/node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
 
       - name: Run tests with coverage
         run: pnpm test:coverage
@@ -84,12 +211,26 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
+          flags: all
+          name: coverage-report
           fail_ci_if_error: true
+          verbose: true
 
+      - name: Upload domain package coverage
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/domain/coverage/lcov.info
+          flags: domain
+          name: domain-coverage
+          fail_ci_if_error: false
+
+  # Phase 4: Build
   build:
     runs-on: ubuntu-latest
     name: Build
-    needs: [lint, architecture, test]
+    timeout-minutes: 10
+    needs: [test, security-audit]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -103,8 +244,14 @@ jobs:
           node-version: '18'
           cache: 'pnpm'
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Restore dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            apps/*/node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
 
       - name: Build packages
         run: pnpm build
@@ -118,32 +265,21 @@ jobs:
             apps/*/dist/
           retention-days: 7
 
-  security:
+  # Phase 5: Final Status Check
+  ci-status:
     runs-on: ubuntu-latest
-    name: Security Audit
+    name: CI Status Check
+    timeout-minutes: 5
+    needs: [build, security-codeql]
+    if: always()
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run security audit
-        run: pnpm audit --audit-level moderate
-
-      - name: Run CodeQL Analysis
-        uses: github/codeql-action/init@v3
-        with:
-          languages: typescript
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+      - name: Check all jobs status
+        run: |
+          if [ "${{ needs.build.result }}" != "success" ] || [ "${{ needs.security-codeql.result }}" != "success" ]; then
+            echo "❌ CI pipeline failed"
+            echo "Build status: ${{ needs.build.result }}"
+            echo "CodeQL status: ${{ needs.security-codeql.result }}"
+            exit 1
+          else
+            echo "✅ All CI checks passed successfully"
+          fi
