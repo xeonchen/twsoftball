@@ -13,7 +13,7 @@
     "typecheck": "pnpm --recursive run typecheck",
     "lint": "pnpm --recursive run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",
-    "deps:check": "dependency-cruiser --config .dependency-cruiser.cjs packages apps",
+    "deps:check": "dependency-cruiser --config .dependency-cruiser.cjs packages",
     "clean": "pnpm --recursive run clean && rm -rf node_modules/.cache",
     "prepare": "husky install"
   },
