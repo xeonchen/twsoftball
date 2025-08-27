@@ -1,6 +1,9 @@
 # TW Softball
 
-A slow-pitch softball game recording Progressive Web App (PWA) built with Hexagonal Architecture and Event Sourcing.
+[![codecov](https://codecov.io/gh/xeonchen/twsoftball/graph/badge.svg?token=CODECOV_TOKEN)](https://codecov.io/gh/xeonchen/twsoftball)
+
+A slow-pitch softball game recording Progressive Web App (PWA) built with
+Hexagonal Architecture and Event Sourcing.
 
 ## 🚀 Features
 
@@ -13,7 +16,8 @@ A slow-pitch softball game recording Progressive Web App (PWA) built with Hexago
 
 ## 🏗️ Architecture
 
-Built using **Hexagonal Architecture (Clean Architecture)** with strict SOLID principles:
+Built using **Hexagonal Architecture (Clean Architecture)** with strict SOLID
+principles:
 
 ```
 Domain Layer (Core Business Logic)
@@ -140,7 +144,8 @@ twsoftball/
 
 ## 📄 License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the
+[LICENSE](LICENSE) file for details.
 
 ## 🚧 Roadmap
 
