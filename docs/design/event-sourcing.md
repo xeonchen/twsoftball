@@ -934,6 +934,48 @@ class EventUpcasterService {
 }
 ```
 
+### Handling Business Rule Changes
+
+A key advantage of event sourcing is the separation of immutable facts (events)
+from their interpretation (projections). Business rules, especially for derived
+data like statistics, may change over time or contain bugs that need fixing.
+
+Our strategy for handling these changes is as follows:
+
+1.  **Events are Immutable**: The historical log of events will never be
+    altered. An `AtBatRecorded` event from last season will always contain the
+    exact data that was captured at that time.
+
+2.  **Projections are Re-creatable**: All derived data, such as player
+    statistics, team leaderboards, or other analytics, are stored in separate
+    read models (projections). These projections are considered disposable and
+    can be rebuilt at any time.
+
+**Scenario: A Bug in RBI Calculation**
+
+Imagine we discover a bug in our `RBICalculator` that incorrectly awarded RBIs
+in certain situations.
+
+**Incorrect Approach:** Go back and modify all historical `AtBatRecorded` events
+to fix the RBI value. This violates the immutability of events and corrupts the
+audit trail.
+
+**Correct Approach:**
+
+1.  **Fix the Code**: Correct the bug in the `RBICalculator` domain service or
+    in the projection logic that generates the statistics.
+2.  **Drop the Projection**: Delete the existing, incorrect statistics
+    projection (e.g., clear the `player_stats` table).
+3.  **Replay the Events**: Process the entire event stream from the beginning.
+    The corrected logic will be applied to the historical events, generating a
+    new, accurate projection.
+
+This approach ensures that our source of truth remains pure while giving us the
+flexibility to evolve and correct our interpretation of that truth over time. It
+allows us to answer the question "What does our data look like with the new
+rules?" without losing the answer to "What did the data look like with the old
+rules?".
+
 ## Error Handling and Recovery
 
 ### Concurrency Control

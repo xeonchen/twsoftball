@@ -183,6 +183,39 @@ class IndexedDBGameRepository implements GameRepository {
 └─────────────────┘                              └─────────────────┘
 ```
 
+### Read Models and CQRS Strategy
+
+While [ADR-002](../adr/ADR-002-event-sourcing-pattern.md) notes that we have
+deferred implementing a full CQRS (Command Query Responsibility Segregation)
+pattern to avoid initial complexity, our architecture fully embraces its core
+principle: separating the model used for writing data (commands) from the models
+used for reading data (queries).
+
+**The Write Model:**
+
+- This is our event-sourced `Game` aggregate.
+- It is optimized for consistency and enforcing business rules. It contains all
+  the complex logic required to handle commands like `recordAtBat`.
+- Querying aggregates directly for complex reads (e.g., "get all-time stats for
+  a player") is inefficient, as it would require loading and replaying hundreds
+  or thousands of events.
+
+**The Read Model(s):**
+
+- These are simple, denormalized data structures optimized for specific queries
+  required by the UI. They are also known as **projections**.
+- For example, we will create a `PlayerStats` read model that stores the
+  aggregated statistics for each player.
+- This read model is updated by an event handler that listens for relevant
+  events (like `AtBatRecorded`). When an event occurs, the handler updates the
+  `PlayerStats` table.
+- When the UI needs to display player statistics, it makes a simple, fast query
+  against this read model, providing excellent performance.
+
+This approach gives us the transactional integrity of aggregates on the write
+side and the high performance of dedicated read models on the read side, without
+the need for a complex CQRS framework at this stage.
+
 ### Undo/Redo Implementation
 
 ```typescript
