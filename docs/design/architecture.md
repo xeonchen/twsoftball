@@ -355,4 +355,5 @@ Together, these patterns create a codebase that is:
 - **[Event Sourcing Guide](event-sourcing.md)** - Event sourcing implementation
 - **[API Contracts](api-contracts.md)** - Interface definitions for all layers
 - **[Use Cases](use-cases.md)** - User stories and requirements
-- **[Development Guide](../DEVELOPMENT.md)** - Setup and workflow instructions
+- **[Development Guide](../guides/development.md)** - Setup and workflow
+  instructions

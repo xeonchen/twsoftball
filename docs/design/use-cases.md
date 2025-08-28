@@ -457,5 +457,5 @@ met while maintaining technical excellence.
   application layer
 - **[ADR-003: PWA First](../adr/ADR-003-pwa-first-approach.md)** - Technology
   choices supporting user experience
-- **[Development Guide](../DEVELOPMENT.md)** - TDD approach for implementing use
-  cases
+- **[Development Guide](../guides/development.md)** - TDD approach for
+  implementing use cases

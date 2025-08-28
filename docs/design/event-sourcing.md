@@ -1299,4 +1299,5 @@ guidance for development teams implementing the event-sourced domain model.
 - **[Domain Model](domain-model.md)** - Domain entities and events specification
 - **[Architecture Guide](architecture.md)** - Overall system architecture
 - **[API Contracts](api-contracts.md)** - Event contracts and interfaces
-- **[Development Guide](../DEVELOPMENT.md)** - TDD workflow and testing strategy
+- **[Development Guide](../guides/development.md)** - TDD workflow and testing
+  strategy
