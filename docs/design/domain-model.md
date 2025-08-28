@@ -1,8 +1,8 @@
 # Domain Model - Softball Game Recording
 
-> **Note**: This document describes the planned domain implementation. The
-> actual domain layer is not yet implemented (Phase 2). This serves as the
-> specification for TDD development.
+> **Note**: This document describes the domain implementation currently in
+> development (Phase 2). It reflects architectural decisions made after careful
+> analysis of softball domain requirements and DDD best practices.
 
 ## Bounded Context: Game Recording
 
@@ -30,26 +30,47 @@
 
 ## Domain Architecture
 
-### Aggregate Root: Game
+### Multiple Aggregate Design
+
+After careful analysis, we've split the domain into three aggregates for better
+performance, clearer boundaries, and reduced contention:
 
 ```
-Game (Aggregate Root)
-├── GameState (Entity)
-│   ├── TeamInGame (Entity) - Home Team
-│   │   └── PlayerInGame[] (Entity)
-│   ├── TeamInGame (Entity) - Away Team
-│   │   └── PlayerInGame[] (Entity)
-│   └── BasesState (Entity)
-├── DomainEvent[] (Value Objects)
-└── GameRules (Value Object)
+Game (Aggregate Root) - Coordination & Scoring
+├── GameId (Value Object)
+├── GameStatus (Value Object)
+├── GameScore (Value Object)
+├── CurrentInning (Value Object)
+└── Events[] (Domain Events)
+
+TeamLineup (Aggregate Root) - Player Management
+├── TeamLineupId (Value Object)
+├── GameId (Reference)
+├── TeamSide (HOME | AWAY)
+├── TeamStrategy (DetailedTeam | SimpleTeam)
+├── BattingSlots (Map<number, BattingSlot>)
+├── FieldPositions (Map<FieldPosition, PlayerId>)
+├── BenchPlayers (Set<PlayerId>)
+├── SubstitutionHistory[]
+└── ReentryTracking (Set<PlayerId>)
+
+InningState (Aggregate Root) - Current Play State
+├── InningStateId (Value Object)
+├── GameId (Reference)
+├── Inning (number)
+├── Half (TOP | BOTTOM)
+├── Outs (number)
+├── BasesState (Value Object - Immutable)
+└── CurrentBatterSlot (number)
 ```
 
 **Aggregate Boundary Rules:**
 
-- Only `Game` can be directly accessed from outside
-- All entities within aggregate are accessed through `Game`
-- All changes go through `Game.recordAtBat()` or similar methods
-- Events are emitted only by `Game`
+- Each aggregate has its own repository and can be loaded independently
+- Aggregates communicate through domain events
+- Eventual consistency between aggregates is acceptable
+- Each aggregate enforces its own invariants
+- Cross-aggregate references use IDs only
 
 ## Value Objects
 
@@ -122,11 +143,31 @@ class RunnerAdvance {
     readonly reason: AdvanceReason
   )
 }
+
+// New: Batting slot concept
+class BattingSlot {
+  constructor(
+    readonly position: number,  // 1-based (1, 2, 3...)
+    readonly currentPlayer: PlayerId,
+    readonly history: SlotHistory[]
+  )
+}
+
+class SlotHistory {
+  constructor(
+    readonly playerId: PlayerId,
+    readonly enteredInning: number,
+    readonly exitedInning?: number,
+    readonly wasStarter: boolean,
+    readonly isReentry: boolean
+  )
+}
 ```
 
 ## Domain Events (Event Sourcing)
 
-All events follow past-tense naming convention:
+Using fine-grained events for better flexibility and audit trail. All events
+follow past-tense naming convention:
 
 ```typescript
 abstract class DomainEvent {
@@ -145,21 +186,57 @@ class GameStarted extends DomainEvent {
   )
 }
 
-class AtBatRecorded extends DomainEvent {
+// Fine-grained events for better audit trail
+class AtBatCompleted extends DomainEvent {
   constructor(
     gameId: GameId,
     readonly batterId: PlayerId,
+    readonly battingSlot: number,
     readonly result: AtBatResultType,
-    readonly runnerAdvances: RunnerAdvance[],
-    readonly rbi: number,
+    readonly inning: number,
+    readonly outs: number
+  )
+}
+
+class RunnerAdvanced extends DomainEvent {
+  constructor(
+    gameId: GameId,
+    readonly runnerId: PlayerId,
+    readonly from: Base | null,
+    readonly to: Base | 'HOME' | 'OUT',
+    readonly reason: AdvanceReason
+  )
+}
+
+class RunScored extends DomainEvent {
+  constructor(
+    gameId: GameId,
+    readonly scorerId: PlayerId,
+    readonly battingTeam: 'HOME' | 'AWAY',
+    readonly rbiCreditedTo: PlayerId | null,
     readonly newScore: { home: number; away: number }
   )
 }
 
-class PlayerSubstituted extends DomainEvent {
+class PlayerSubstitutedIntoGame extends DomainEvent {
   constructor(
     gameId: GameId,
-    readonly substitutions: SubstitutionAction[]
+    readonly incomingPlayerId: PlayerId,
+    readonly outgoingPlayerId: PlayerId,
+    readonly battingSlot: number,
+    readonly fieldPosition: FieldPosition,
+    readonly inning: number,
+    readonly isReentry: boolean  // Starter returning to game
+  )
+}
+
+class FieldPositionChanged extends DomainEvent {
+  constructor(
+    gameId: GameId,
+    readonly playerId: PlayerId,
+    readonly fromPosition: FieldPosition,
+    readonly toPosition: FieldPosition,
+    readonly inning: number
   )
 }
 
@@ -185,30 +262,32 @@ class GameCompleted extends DomainEvent {
 
 ## Entities
 
-### Game (Aggregate Root)
+### Game (Aggregate Root - Coordination)
 
 ```typescript
 class Game {
   private constructor(
     private readonly id: GameId,
-    private state: GameState,
+    private score: GameScore,
+    private status: GameStatus,
+    private currentInning: number,
     private uncommittedEvents: DomainEvent[]
   )
 
-  // Factory Methods (DDD)
-  static create(homeTeam: string, awayTeam: string): Game
+  // Factory Methods
+  static create(id: GameId, homeTeam: string, awayTeam: string): Game
   static reconstitute(id: GameId, events: DomainEvent[]): Game
 
-  // Commands (change state)
-  recordAtBat(command: RecordAtBatCommand): void
-  substitutePlayer(command: SubstitutePlayerCommand): void
-  endInning(): void
+  // Commands - Coordinating aggregate
+  startGame(): void
+  updateScore(team: 'HOME' | 'AWAY', runs: number): void
+  completeGame(reason: 'COMPLETE' | 'MERCY' | 'TIME_LIMIT'): void
 
-  // Queries (read state)
-  getScore(): { home: number; away: number }
-  getCurrentBatter(): PlayerId
-  canUndo(): boolean
+  // Queries
+  getScore(): GameScore
+  getStatus(): GameStatus
   isGameOver(): boolean
+  shouldApplyMercyRule(): boolean
 
   // Event Sourcing
   getUncommittedEvents(): DomainEvent[]
@@ -236,27 +315,95 @@ class GameState {
 }
 ```
 
-### TeamInGame (Internal Entity)
+### TeamLineup (Aggregate Root - Player Management)
 
 ```typescript
-class TeamInGame {
-  constructor(
-    readonly teamId: TeamId | 'OPPONENT',
-    readonly name: string,
-    readonly players: PlayerInGame[],
-    readonly battingOrder: PlayerId[],
-    readonly fieldPositions: Map<FieldPosition, PlayerId>,
-    readonly runsPerInning: number[]
+class TeamLineup {
+  private constructor(
+    private readonly id: TeamLineupId,
+    private readonly gameId: GameId,
+    private readonly teamSide: 'HOME' | 'AWAY',
+    private readonly strategy: TeamStrategy,
+    private battingSlots: Map<number, BattingSlot>,
+    private fieldPositions: Map<FieldPosition, PlayerId>,
+    private benchPlayers: Set<PlayerId>,
+    private starterPositions: Map<PlayerId, number>,
+    private reentryUsed: Set<PlayerId>,
+    private substitutionHistory: SubstitutionRecord[]
   )
 
-  // Team operations
-  getTotalRuns(): number
-  getCurrentBatter(): PlayerId
-  getFielder(position: FieldPosition): PlayerId
+  // Factory Methods
+  static create(
+    id: TeamLineupId,
+    gameId: GameId,
+    teamSide: 'HOME' | 'AWAY',
+    strategy: TeamStrategy
+  ): TeamLineup
 
-  // Only for our team
-  isOurTeam(): boolean
+  // Commands
+  submitInitialLineup(players: PlayerInGame[], battingOrder: number[]): void
+  substitutePlayer(incoming: PlayerId, outgoing: PlayerId, inning: number): void
+  changeFieldPosition(playerId: PlayerId, newPosition: FieldPosition): void
+
+  // Queries
+  getCurrentBatterSlot(): number
+  getPlayerAtSlot(slot: number): PlayerId
+  getFielder(position: FieldPosition): PlayerId | undefined
+  canPlayerReenter(playerId: PlayerId): boolean
   validateLineup(): ValidationResult
+
+  // Event handling
+  apply(event: DomainEvent): void
+}
+```
+
+### Team Strategy Pattern
+
+```typescript
+interface TeamStrategy {
+  requiresFullRoster(): boolean;
+  requiresPlayerNames(): boolean;
+  validateLineup(players: PlayerInGame[]): ValidationResult;
+  getMinimumPlayers(): number;
+  getMaximumPlayers(): number;
+}
+
+class DetailedTeamStrategy implements TeamStrategy {
+  requiresFullRoster(): boolean {
+    return true;
+  }
+  requiresPlayerNames(): boolean {
+    return true;
+  }
+  getMinimumPlayers(): number {
+    return 9;
+  }
+  getMaximumPlayers(): number {
+    return 20;
+  }
+
+  validateLineup(players: PlayerInGame[]): ValidationResult {
+    // Full validation: names, jerseys, positions, etc.
+  }
+}
+
+class SimpleTeamStrategy implements TeamStrategy {
+  requiresFullRoster(): boolean {
+    return false;
+  }
+  requiresPlayerNames(): boolean {
+    return false;
+  }
+  getMinimumPlayers(): number {
+    return 0;
+  }
+  getMaximumPlayers(): number {
+    return 0;
+  }
+
+  validateLineup(players: PlayerInGame[]): ValidationResult {
+    // Minimal validation for opponent team
+  }
 }
 ```
 
@@ -282,22 +429,60 @@ class PlayerInGame {
 }
 ```
 
-### BasesState (Internal Entity)
+### InningState (Aggregate Root - Play State)
+
+```typescript
+class InningState {
+  private constructor(
+    private readonly id: InningStateId,
+    private readonly gameId: GameId,
+    private inning: number,
+    private half: 'TOP' | 'BOTTOM',
+    private outs: number,
+    private bases: BasesState,  // Value Object
+    private currentBatterSlot: number
+  )
+
+  // Factory Methods
+  static createFirst(id: InningStateId, gameId: GameId): InningState
+  static reconstitute(id: InningStateId, events: DomainEvent[]): InningState
+
+  // Commands
+  recordOut(): void
+  advanceRunners(advances: RunnerAdvance[]): void
+  endInning(): void
+  startNewInning(): void
+
+  // Queries
+  getCurrentInning(): { number: number; half: 'TOP' | 'BOTTOM' }
+  getOuts(): number
+  getBasesState(): BasesState
+  isInningOver(): boolean
+}
+```
+
+### BasesState (Value Object - Immutable)
 
 ```typescript
 class BasesState {
-  private runners: Map<Base, PlayerId>;
+  private constructor(
+    private readonly runners: ReadonlyMap<Base, PlayerId>
+  )
 
-  // Runner management
-  putRunnerOn(base: Base, playerId: PlayerId): void;
-  getRunner(base: Base): PlayerId | undefined;
-  advanceRunners(result: AtBatResultType): RunnerAdvance[];
-  clearBases(): void;
+  // Factory methods returning new instances
+  static empty(): BasesState
+  withRunnerOn(base: Base, playerId: PlayerId): BasesState
+  withRunnerAdvanced(from: Base, to: Base | 'HOME'): BasesState
+  withBasesCleared(): BasesState
 
-  // Queries
-  getOccupiedBases(): Base[];
-  getRunnersInScoringPosition(): PlayerId[];
-  isForceAt(base: Base): boolean;
+  // Queries (no mutations)
+  getRunner(base: Base): PlayerId | undefined
+  getOccupiedBases(): Base[]
+  getRunnersInScoringPosition(): PlayerId[]
+  isForceAt(base: Base): boolean
+
+  // Value object equality
+  equals(other: BasesState): boolean
 }
 ```
 
@@ -353,7 +538,7 @@ interface EventStore {
 
 1. **At-Bat**: Counts unless it's a walk or sacrifice fly
 2. **RBI**: All runs scored except on double plays, triple plays, or errors with
-   < 2 outs
+   < 2 outs (handled by RBICalculator domain service)
 3. **Hit**: Single, double, triple, home run only
 4. **On-Base**: Hit, walk, error, or fielder's choice
 
@@ -361,16 +546,27 @@ interface EventStore {
 
 1. **Mercy Rule**: 10 runs after 4th inning, 7 runs after 5th inning
 2. **Time Limit**: 60 minutes default
-3. **Lineup**: 9-20 players, no duplicates, all positions filled
-4. **Substitution**: Can affect multiple positions simultaneously
+3. **Lineup**: 9-20 players (can be less with agreement), no duplicates
+4. **Field Positions**: 9-10 fielders + extra players (EP) who bat but don't
+   field
+5. **Substitution**: Players can change field positions anytime
+6. **Re-entry**: Starters can re-enter once to their original batting slot
+7. **Batting Order**: Fixed slots at game start, players flow through slots via
+   substitution
+8. **Bench Players**: Have no batting slot until substituted in
 
 ### Invariants
 
 - Score can only increase, never decrease
 - Game state can only move forward (NOT_STARTED → IN_PROGRESS → COMPLETED)
-- Batting order must be maintained
+- Batting order SLOTS are immutable once game starts
+- Players can only re-enter to their original batting slot
+- Starters can re-enter only once
 - 3 outs end an inning
-- Only our team has detailed player tracking
+- Every active player must have exactly one field position (including
+  EXTRA_PLAYER)
+- A batting slot can only have one active player at a time
+- BasesState is immutable (replaced, not mutated)
 
 This domain model provides the foundation for implementing our softball game
 recording system using DDD principles within a Hexagonal Architecture.
