@@ -127,7 +127,7 @@ twsoftball/
 
 ## 📖 Documentation
 
-- [Architecture Guide](docs/ARCHITECTURE.md)
+- [Architecture Guide](docs/design/architecture.md)
 - [Development Guide](docs/DEVELOPMENT.md)
 - [API Documentation](docs/design/api-contracts.md)
 - [Domain Model](docs/design/domain-model.md)
