@@ -47,8 +47,8 @@ export * from './events/HalfInningEnded';
 export * from './events/CurrentBatterChanged';
 
 // Business Rules
-// export * from './rules/SoftballRules';
-// export * from './rules/RuleVariants';
+export * from './rules/SoftballRules';
+export * from './rules/RuleVariants';
 
 // Strategies
 export * from './strategies/TeamStrategy';
