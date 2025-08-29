@@ -11,14 +11,25 @@
 // export * from './entities/AtBat';
 
 // Value Objects
-// export * from './value-objects/Score';
+export * from './value-objects/GameId';
+export * from './value-objects/PlayerId';
+export * from './value-objects/GameScore';
+export * from './value-objects/JerseyNumber';
+export * from './value-objects/Score';
+export * from './value-objects/TeamLineupId';
+export * from './value-objects/InningStateId';
+export * from './value-objects/BattingSlot';
+export * from './value-objects/BasesState';
 // export * from './value-objects/Position';
 // export * from './value-objects/AtBatResult';
 // export * from './value-objects/Inning';
 
 // Domain Events
+export * from './events/DomainEvent';
+export * from './events/AtBatCompleted';
+export * from './events/RunnerAdvanced';
+export * from './events/RunScored';
 // export * from './events/GameEvent';
-// export * from './events/AtBatCompletedEvent';
 // export * from './events/SubstitutionEvent';
 // export * from './events/InningEndedEvent';
 
@@ -27,4 +38,4 @@
 // export * from './rules/RuleVariants';
 
 // Domain Errors
-// export * from './errors/DomainError';
+export * from './errors/DomainError';
