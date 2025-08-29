@@ -4,11 +4,8 @@
 // NOTE: Exports below are commented out for Phase 0 scaffolding
 // These will be uncommented as modules are implemented in Phase 2
 
-// Entities
-// export * from './entities/Game';
-// export * from './entities/Player';
-// export * from './entities/Team';
-// export * from './entities/AtBat';
+// Aggregates
+export * from './aggregates/Game';
 
 // Value Objects
 export * from './value-objects/GameId';
@@ -36,9 +33,11 @@ export * from './events/RunnerAdvanced';
 export * from './events/RunScored';
 export * from './events/FieldPositionChanged';
 export * from './events/PlayerSubstitutedIntoGame';
-// export * from './events/GameEvent';
-// export * from './events/SubstitutionEvent';
-// export * from './events/InningEndedEvent';
+export * from './events/GameCreated';
+export * from './events/GameStarted';
+export * from './events/GameCompleted';
+export * from './events/ScoreUpdated';
+export * from './events/InningAdvanced';
 
 // Business Rules
 // export * from './rules/SoftballRules';
