@@ -24,11 +24,18 @@ export * from './value-objects/BasesState';
 // export * from './value-objects/AtBatResult';
 // export * from './value-objects/Inning';
 
+// Constants
+export * from './constants/AtBatResultType';
+export * from './constants/FieldPosition';
+export * from './constants/GameStatus';
+
 // Domain Events
 export * from './events/DomainEvent';
 export * from './events/AtBatCompleted';
 export * from './events/RunnerAdvanced';
 export * from './events/RunScored';
+export * from './events/FieldPositionChanged';
+export * from './events/PlayerSubstitutedIntoGame';
 // export * from './events/GameEvent';
 // export * from './events/SubstitutionEvent';
 // export * from './events/InningEndedEvent';
