@@ -7,6 +7,7 @@
 // Aggregates
 export * from './aggregates/Game';
 export * from './aggregates/TeamLineup';
+export * from './aggregates/InningState';
 
 // Value Objects
 export * from './value-objects/GameId';
@@ -41,6 +42,9 @@ export * from './events/ScoreUpdated';
 export * from './events/InningAdvanced';
 export * from './events/TeamLineupCreated';
 export * from './events/PlayerAddedToLineup';
+export * from './events/InningStateCreated';
+export * from './events/HalfInningEnded';
+export * from './events/CurrentBatterChanged';
 
 // Business Rules
 // export * from './rules/SoftballRules';
