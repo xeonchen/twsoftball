@@ -1,6 +1,23 @@
 {
-  "name": "web",
+  "name": "@twsoftball/web",
+  "version": "0.1.0",
+  "description": "TW Softball PWA",
+  "type": "module",
   "scripts": {
-    "build": "mkdir -p dist && cp index.html dist/"
+    "build": "mkdir -p dist && cp index.html dist/",
+    "clean": "rm -rf dist",
+    "lint": "echo 'No source files to lint yet'",
+    "lint:fix": "echo 'No source files to lint yet'",
+    "format": "echo 'No source files to format yet'",
+    "format:check": "echo 'No source files to format yet'",
+    "test": "echo 'No tests to run yet'",
+    "test:watch": "echo 'No tests to run yet'",
+    "test:coverage": "echo 'No tests to run yet'",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.0.5",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
   }
 }
