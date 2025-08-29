@@ -44,5 +44,10 @@ export * from './events/PlayerSubstitutedIntoGame';
 // export * from './rules/SoftballRules';
 // export * from './rules/RuleVariants';
 
+// Strategies
+export * from './strategies/TeamStrategy';
+export * from './strategies/DetailedTeamStrategy';
+export * from './strategies/SimpleTeamStrategy';
+
 // Domain Errors
 export * from './errors/DomainError';
