@@ -38,7 +38,7 @@ export interface SoftballRulesConfig {
   /** Maximum players allowed per team roster (9-50) */
   maxPlayersPerTeam?: number;
 
-  /** Time limit in minutes, or null for no time limit (1-720 minutes) */
+  /** Time limit in minutes, or null for unlimited time (1-720 minutes, defaults to 60) */
   timeLimitMinutes?: number | null;
 
   /** Whether players can re-enter the game after being substituted */
@@ -59,7 +59,7 @@ export interface SoftballRulesConfig {
    */
   mercyRuleTiers?: MercyRuleTier[];
 
-  /** Maximum extra innings allowed, or null for unlimited (1-20) */
+  /** Maximum extra innings allowed, or null for unlimited (0-20, defaults to 0) */
   maxExtraInnings?: number | null;
 
   /** Whether tie games are allowed after regulation and max extra innings */
@@ -236,9 +236,9 @@ export class SoftballRules {
    * **Validation Rules**:
    * - totalInnings: 1-50 (reasonable range for any softball variant)
    * - maxPlayersPerTeam: 9-50 (minimum starting lineup to reasonable maximum)
-   * - timeLimitMinutes: 1-720 minutes or null (1 minute to 12 hours max)
+   * - timeLimitMinutes: 1-720 minutes or null (1 minute to 12 hours max, defaults to 60)
    * - mercyRuleTiers: Valid tiers with increasing inning thresholds
-   * - maxExtraInnings: 1-20 innings or null (reasonable extra innings limit)
+   * - maxExtraInnings: 0-20 innings or null (0 = no extra innings, defaults to 0)
    * - allowTieGames: Controls whether games can end in ties
    *
    * All numeric values must be integers to represent discrete game concepts.
@@ -247,10 +247,10 @@ export class SoftballRules {
     // Set defaults
     this.totalInnings = config.totalInnings ?? 7;
     this.maxPlayersPerTeam = config.maxPlayersPerTeam ?? 25;
-    this.timeLimitMinutes = config.timeLimitMinutes ?? null;
+    this.timeLimitMinutes = 'timeLimitMinutes' in config ? config.timeLimitMinutes : 60;
     this.allowReEntry = config.allowReEntry ?? true;
     this.mercyRuleEnabled = config.mercyRuleEnabled ?? true;
-    this.maxExtraInnings = config.maxExtraInnings ?? null;
+    this.maxExtraInnings = 'maxExtraInnings' in config ? config.maxExtraInnings : 0;
     this.allowTieGames = config.allowTieGames ?? false;
 
     // Set mercy rule tiers or use default two-tier system
@@ -524,9 +524,9 @@ export class SoftballRules {
   private static validateMaxExtraInnings(maxExtraInnings: number | null): void {
     if (
       maxExtraInnings !== null &&
-      (!Number.isInteger(maxExtraInnings) || maxExtraInnings < 1 || maxExtraInnings > 20)
+      (!Number.isInteger(maxExtraInnings) || maxExtraInnings < 0 || maxExtraInnings > 20)
     ) {
-      throw new DomainError('Max extra innings must be null or an integer between 1 and 20');
+      throw new DomainError('Max extra innings must be null or an integer between 0 and 20');
     }
   }
 

@@ -9,14 +9,14 @@ describe('SoftballRules', () => {
 
       expect(rules.totalInnings).toBe(7);
       expect(rules.maxPlayersPerTeam).toBe(25);
-      expect(rules.timeLimitMinutes).toBe(null);
+      expect(rules.timeLimitMinutes).toBe(60);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
       expect(rules.mercyRuleTiers).toEqual([
         { differential: 10, afterInning: 4 },
         { differential: 7, afterInning: 5 },
       ]);
-      expect(rules.maxExtraInnings).toBe(null);
+      expect(rules.maxExtraInnings).toBe(0);
       expect(rules.allowTieGames).toBe(false);
     });
 
@@ -188,7 +188,6 @@ describe('SoftballRules', () => {
     });
 
     it('should reject invalid maxExtraInnings', () => {
-      expect(() => new SoftballRules({ maxExtraInnings: 0 })).toThrow(DomainError);
       expect(() => new SoftballRules({ maxExtraInnings: -1 })).toThrow(DomainError);
       expect(() => new SoftballRules({ maxExtraInnings: 3.5 })).toThrow(DomainError);
       expect(() => new SoftballRules({ maxExtraInnings: 21 })).toThrow(DomainError);
@@ -198,11 +197,14 @@ describe('SoftballRules', () => {
       const rules1 = new SoftballRules({ maxExtraInnings: null });
       expect(rules1.maxExtraInnings).toBe(null);
 
-      const rules2 = new SoftballRules({ maxExtraInnings: 1 });
-      expect(rules2.maxExtraInnings).toBe(1);
+      const rules2 = new SoftballRules({ maxExtraInnings: 0 });
+      expect(rules2.maxExtraInnings).toBe(0);
 
-      const rules3 = new SoftballRules({ maxExtraInnings: 20 });
-      expect(rules3.maxExtraInnings).toBe(20);
+      const rules3 = new SoftballRules({ maxExtraInnings: 1 });
+      expect(rules3.maxExtraInnings).toBe(1);
+
+      const rules4 = new SoftballRules({ maxExtraInnings: 20 });
+      expect(rules4.maxExtraInnings).toBe(20);
     });
 
     it('should reject tie games when maxExtraInnings is null', () => {
@@ -557,14 +559,14 @@ describe('SoftballRules', () => {
       const rules2 = new SoftballRules({
         totalInnings: 7,
         maxPlayersPerTeam: 25,
-        timeLimitMinutes: null,
+        timeLimitMinutes: 60,
         allowReEntry: true,
         mercyRuleEnabled: true,
         mercyRuleTiers: [
           { differential: 10, afterInning: 4 },
           { differential: 7, afterInning: 5 },
         ],
-        maxExtraInnings: null,
+        maxExtraInnings: 0,
         allowTieGames: false,
       }); // explicit defaults
 
