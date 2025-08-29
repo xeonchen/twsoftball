@@ -61,11 +61,11 @@ module.exports = {
         },
         {
           from: 'infrastructure',
-          allow: ['domain', 'application', 'infrastructure', 'shared'],
+          allow: ['domain', 'application', 'infrastructure'],
         },
         {
           from: 'web',
-          allow: ['domain', 'application', 'infrastructure', 'shared'],
+          allow: ['domain', 'application', 'shared'],
         },
         {
           from: 'shared',
