@@ -6,6 +6,7 @@
 
 // Aggregates
 export * from './aggregates/Game';
+export * from './aggregates/TeamLineup';
 
 // Value Objects
 export * from './value-objects/GameId';
@@ -38,6 +39,8 @@ export * from './events/GameStarted';
 export * from './events/GameCompleted';
 export * from './events/ScoreUpdated';
 export * from './events/InningAdvanced';
+export * from './events/TeamLineupCreated';
+export * from './events/PlayerAddedToLineup';
 
 // Business Rules
 // export * from './rules/SoftballRules';
