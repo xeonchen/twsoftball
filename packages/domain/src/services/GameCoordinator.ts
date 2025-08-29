@@ -5,6 +5,7 @@ import { PlayerId } from '../value-objects/PlayerId';
 import { BasesState, Base } from '../value-objects/BasesState';
 import { AtBatResultType } from '../constants/AtBatResultType';
 import { RBICalculator } from './RBICalculator';
+import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
 
 /**
@@ -95,7 +96,7 @@ export interface AtBatRecordingResult {
  * - Automatic runner advancement based on hit types
  * - Walk-off victory detection for home team wins
  * - Regulation game completion (7+ innings)
- * - Mercy rule application
+ * - Two-tier mercy rule application (10 runs after 4th inning, 7 runs after 5th inning)
  * - Force play and RBI calculation
  * - Inning transition logic
  *
@@ -173,21 +174,27 @@ export class GameCoordinator {
    * @param batterId - The player recording the at-bat
    * @param result - The type of at-bat result (hit, walk, out, etc.)
    * @param runnerAdvancementOverrides - Optional custom runner movements (empty for auto-calculation)
+   * @param rules - Optional softball rules configuration (uses defaults if not provided)
    * @returns Complete result including updated aggregates and statistical information
    *
    * @example
    * ```typescript
-   * // Automatic runner advancement
+   * // Automatic runner advancement with default rules
    * const result = GameCoordinator.recordAtBat(
    *   game, homeLineup, awayLineup, inningState,
    *   batterId, AtBatResultType.DOUBLE, []
    * );
    *
-   * // Custom runner advancement
+   * // Custom runner advancement with specific rules
+   * const customRules = SoftballRules.create({
+   *   mercyRuleEnabled: true,
+   *   mercyRuleTiers: [{ differential: 10, afterInning: 5 }]
+   * });
    * const customResult = GameCoordinator.recordAtBat(
    *   game, homeLineup, awayLineup, inningState,
    *   batterId, AtBatResultType.SINGLE,
-   *   [{ runnerId: runnerId, fromBase: 'SECOND', toBase: 'HOME' }]
+   *   [{ runnerId: runnerId, fromBase: 'SECOND', toBase: 'HOME' }],
+   *   customRules
    * );
    *
    * // Handle results
@@ -210,7 +217,8 @@ export class GameCoordinator {
     inningState: InningState,
     batterId: PlayerId,
     result: AtBatResultType,
-    runnerAdvancementOverrides: RunnerAdvancement[]
+    runnerAdvancementOverrides: RunnerAdvancement[],
+    rules: SoftballRules
   ): AtBatRecordingResult {
     try {
       // 1. Validate preconditions
@@ -292,7 +300,13 @@ export class GameCoordinator {
       }
 
       // 8. Check for game completion
-      const gameCompletion = this.checkGameCompletion(updatedGame, updatedInningState, runsScored);
+      const gameCompletion = this.checkGameCompletion(
+        updatedGame,
+        updatedInningState,
+        runsScored,
+        rules,
+        inningComplete
+      );
 
       if (gameCompletion.isComplete) {
         updatedGame.completeGame(gameCompletion.gameEndingType);
@@ -588,37 +602,76 @@ export class GameCoordinator {
   /**
    * Checks if the game should be completed based on current state and recent scoring.
    *
-   * @param game - Current game state
-   * @param inningState - Current inning state
-   * @param runsScored - Runs scored in this at-bat
-   * @returns Object indicating if game is complete and the reason
+   * @remarks
+   * **Game Completion Detection Logic**:
+   *
+   * **Walk-Off Victory**: Home team scores in bottom half of regulation inning or later to take the lead.
+   * Game ends immediately as home team cannot lose after taking lead in final at-bat.
+   *
+   * **Regulation Completion**: After completing regulation innings, if home team leads
+   * after their at-bat opportunity (bottom half), game ends as regulation complete.
+   *
+   * **Configurable Mercy Rule**: Uses SoftballRules configuration for mercy rule logic:
+   * - Supports both single-threshold and multi-tier mercy rule systems
+   * - Multi-tier example: 10+ runs after 4th inning, 7+ runs after 5th inning
+   * - Single-tier example: Traditional mercy rule with one threshold
+   * - Completely configurable based on SoftballRules instance
+   *
+   * The mercy rule only applies after the leading team has completed their half of the inning
+   * to ensure both teams have equal opportunities to bat.
+   *
+   * @param game - Current game state with score information
+   * @param inningState - Current inning state (inning number, half, outs)
+   * @param runsScored - Runs scored in this at-bat (for walk-off detection)
+   * @param rules - Softball rules configuration (controls all mercy rule behavior)
+   * @returns Object indicating if game is complete, completion reason, and ending type
    */
   private static checkGameCompletion(
     game: Game,
     inningState: InningState,
-    runsScored: number
+    runsScored: number,
+    rules: SoftballRules,
+    inningComplete: boolean = false
   ): {
     isComplete: boolean;
     reason: 'REGULATION' | 'WALKOFF' | 'MERCY_RULE';
     gameEndingType: 'REGULATION' | 'MERCY_RULE' | 'FORFEIT' | 'TIME_LIMIT';
   } {
-    const currentInning = inningState.inning;
+    const { inning: currentInning } = inningState;
     const homeScore = game.score.getHomeRuns();
     const awayScore = game.score.getAwayRuns();
+    const { totalInnings } = rules;
 
     // Walk-off win (home team takes lead in final inning or later)
-    if (!inningState.isTopHalf && currentInning >= 7 && runsScored > 0 && homeScore > awayScore) {
+    if (
+      !inningState.isTopHalf &&
+      currentInning >= totalInnings &&
+      runsScored > 0 &&
+      homeScore > awayScore
+    ) {
       return { isComplete: true, reason: 'WALKOFF', gameEndingType: 'REGULATION' };
     }
 
-    // Regulation completion (7+ innings, home team leading or tied after bottom)
-    if (currentInning >= 7 && !inningState.isTopHalf && inningState.outs === 0) {
-      if (homeScore >= awayScore) {
+    // Regulation completion (regulation innings completed, home team leading after bottom)
+    if (currentInning >= totalInnings && !inningState.isTopHalf && inningComplete) {
+      if (homeScore > awayScore) {
         return { isComplete: true, reason: 'REGULATION', gameEndingType: 'REGULATION' };
       }
     }
 
-    // TODO: Add mercy rule logic based on score differential
+    // Mercy rule logic - Fully configurable through SoftballRules
+    if (rules.isMercyRule(homeScore, awayScore, currentInning)) {
+      const leadingTeamIsHome = homeScore > awayScore;
+      const isAfterLeadingTeamBat = leadingTeamIsHome
+        ? !inningState.isTopHalf
+        : inningState.isTopHalf;
+
+      // Check if leading team has completed their at-bat opportunity
+      // This ensures both teams have had equal opportunities to bat
+      if (isAfterLeadingTeamBat || inningState.outs === 0) {
+        return { isComplete: true, reason: 'MERCY_RULE', gameEndingType: 'MERCY_RULE' };
+      }
+    }
 
     return { isComplete: false, reason: 'REGULATION', gameEndingType: 'REGULATION' };
   }

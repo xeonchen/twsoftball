@@ -1,9 +1,6 @@
 // Domain Layer - Core Business Logic
 // This layer contains no dependencies on other layers
 
-// NOTE: Exports below are commented out for Phase 0 scaffolding
-// These will be uncommented as modules are implemented in Phase 2
-
 // Aggregates
 export * from './aggregates/Game';
 export * from './aggregates/TeamLineup';
@@ -19,9 +16,6 @@ export * from './value-objects/TeamLineupId';
 export * from './value-objects/InningStateId';
 export * from './value-objects/BattingSlot';
 export * from './value-objects/BasesState';
-// export * from './value-objects/Position';
-// export * from './value-objects/AtBatResult';
-// export * from './value-objects/Inning';
 
 // Constants
 export * from './constants/AtBatResultType';
@@ -49,6 +43,13 @@ export * from './events/CurrentBatterChanged';
 // Business Rules
 export * from './rules/SoftballRules';
 export * from './rules/RuleVariants';
+
+// Domain Services
+export * from './services/GameCoordinator';
+export * from './services/LineupValidator';
+export * from './services/RBICalculator';
+export * from './services/StatisticsCalculator';
+export * from './services/SubstitutionValidator';
 
 // Strategies
 export * from './strategies/TeamStrategy';

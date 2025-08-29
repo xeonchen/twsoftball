@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SoftballRules } from './SoftballRules';
+import { SoftballRules, MercyRuleTier } from './SoftballRules';
 import { DomainError } from '../errors/DomainError';
 
 describe('SoftballRules', () => {
@@ -12,8 +12,12 @@ describe('SoftballRules', () => {
       expect(rules.timeLimitMinutes).toBe(null);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(15);
-      expect(rules.mercyRuleAfterInning).toBe(3);
+      expect(rules.mercyRuleTiers).toEqual([
+        { differential: 10, afterInning: 4 },
+        { differential: 7, afterInning: 5 },
+      ]);
+      expect(rules.maxExtraInnings).toBe(null);
+      expect(rules.allowTieGames).toBe(false);
     });
 
     it('should create rules with custom values', () => {
@@ -23,8 +27,9 @@ describe('SoftballRules', () => {
         timeLimitMinutes: 90,
         allowReEntry: false,
         mercyRuleEnabled: false,
-        mercyRuleDifferential: 20,
-        mercyRuleAfterInning: 5,
+        mercyRuleTiers: [],
+        maxExtraInnings: 3,
+        allowTieGames: true,
       });
 
       expect(customRules.totalInnings).toBe(9);
@@ -32,8 +37,9 @@ describe('SoftballRules', () => {
       expect(customRules.timeLimitMinutes).toBe(90);
       expect(customRules.allowReEntry).toBe(false);
       expect(customRules.mercyRuleEnabled).toBe(false);
-      expect(customRules.mercyRuleDifferential).toBe(20);
-      expect(customRules.mercyRuleAfterInning).toBe(5);
+      expect(customRules.mercyRuleTiers).toEqual([]);
+      expect(customRules.maxExtraInnings).toBe(3);
+      expect(customRules.allowTieGames).toBe(true);
     });
 
     it('should accept partial configuration', () => {
@@ -70,20 +76,6 @@ describe('SoftballRules', () => {
       expect(() => new SoftballRules({ timeLimitMinutes: 721 })).toThrow(DomainError);
     });
 
-    it('should reject invalid mercyRuleDifferential', () => {
-      expect(() => new SoftballRules({ mercyRuleDifferential: 0 })).toThrow(DomainError);
-      expect(() => new SoftballRules({ mercyRuleDifferential: -1 })).toThrow(DomainError);
-      expect(() => new SoftballRules({ mercyRuleDifferential: 3.5 })).toThrow(DomainError);
-      expect(() => new SoftballRules({ mercyRuleDifferential: 101 })).toThrow(DomainError);
-    });
-
-    it('should reject invalid mercyRuleAfterInning', () => {
-      expect(() => new SoftballRules({ mercyRuleAfterInning: 0 })).toThrow(DomainError);
-      expect(() => new SoftballRules({ mercyRuleAfterInning: -1 })).toThrow(DomainError);
-      expect(() => new SoftballRules({ mercyRuleAfterInning: 3.5 })).toThrow(DomainError);
-      expect(() => new SoftballRules({ mercyRuleAfterInning: 51 })).toThrow(DomainError);
-    });
-
     it('should accept null timeLimitMinutes', () => {
       const rules = new SoftballRules({ timeLimitMinutes: null });
 
@@ -95,15 +87,13 @@ describe('SoftballRules', () => {
         totalInnings: 1, // minimum valid
         maxPlayersPerTeam: 9, // minimum valid
         timeLimitMinutes: 1, // minimum valid
-        mercyRuleDifferential: 1, // minimum valid
-        mercyRuleAfterInning: 1, // minimum valid
+        mercyRuleTiers: [{ differential: 1, afterInning: 1 }], // minimum valid
       });
 
       expect(edgeCaseRules.totalInnings).toBe(1);
       expect(edgeCaseRules.maxPlayersPerTeam).toBe(9);
       expect(edgeCaseRules.timeLimitMinutes).toBe(1);
-      expect(edgeCaseRules.mercyRuleDifferential).toBe(1);
-      expect(edgeCaseRules.mercyRuleAfterInning).toBe(1);
+      expect(edgeCaseRules.mercyRuleTiers).toEqual([{ differential: 1, afterInning: 1 }]);
     });
 
     it('should handle maximum valid values', () => {
@@ -111,57 +101,171 @@ describe('SoftballRules', () => {
         totalInnings: 50, // maximum valid
         maxPlayersPerTeam: 50, // maximum valid
         timeLimitMinutes: 720, // maximum valid (12 hours)
-        mercyRuleDifferential: 100, // maximum valid
-        mercyRuleAfterInning: 50, // maximum valid
+        mercyRuleTiers: [{ differential: 100, afterInning: 50 }], // maximum valid
       });
 
       expect(maxRules.totalInnings).toBe(50);
       expect(maxRules.maxPlayersPerTeam).toBe(50);
       expect(maxRules.timeLimitMinutes).toBe(720);
-      expect(maxRules.mercyRuleDifferential).toBe(100);
-      expect(maxRules.mercyRuleAfterInning).toBe(50);
+      expect(maxRules.mercyRuleTiers).toEqual([{ differential: 100, afterInning: 50 }]);
+    });
+
+    it('should create rules with mercy rule tiers', () => {
+      const tiers: MercyRuleTier[] = [
+        { differential: 10, afterInning: 4 },
+        { differential: 7, afterInning: 5 },
+      ];
+
+      const tieredRules = new SoftballRules({
+        mercyRuleEnabled: true,
+        mercyRuleTiers: tiers,
+      });
+
+      expect(tieredRules.mercyRuleEnabled).toBe(true);
+      expect(tieredRules.mercyRuleTiers).toEqual(tiers);
+    });
+
+    it('should reject invalid mercy rule tiers', () => {
+      expect(
+        () =>
+          new SoftballRules({
+            mercyRuleTiers: [
+              { differential: 0, afterInning: 3 }, // Invalid differential
+            ],
+          })
+      ).toThrow(DomainError);
+
+      expect(
+        () =>
+          new SoftballRules({
+            mercyRuleTiers: [
+              { differential: 10, afterInning: 0 }, // Invalid inning
+            ],
+          })
+      ).toThrow(DomainError);
+    });
+
+    it('should reject mercy rule tiers with duplicate innings', () => {
+      expect(
+        () =>
+          new SoftballRules({
+            mercyRuleTiers: [
+              { differential: 10, afterInning: 4 },
+              { differential: 7, afterInning: 4 }, // Duplicate inning
+            ],
+          })
+      ).toThrow(DomainError);
+    });
+
+    it('should reject mercy rule tiers with non-increasing innings', () => {
+      expect(
+        () =>
+          new SoftballRules({
+            mercyRuleTiers: [
+              { differential: 7, afterInning: 5 },
+              { differential: 10, afterInning: 4 }, // Decreasing inning order
+            ],
+          })
+      ).toThrow(DomainError);
+
+      expect(
+        () =>
+          new SoftballRules({
+            mercyRuleTiers: [
+              { differential: 10, afterInning: 4 },
+              { differential: 7, afterInning: 4 }, // Equal inning values
+            ],
+          })
+      ).toThrow(DomainError);
+    });
+
+    it('should accept empty mercy rule tiers array', () => {
+      const rules = new SoftballRules({
+        mercyRuleTiers: [],
+      });
+
+      expect(rules.mercyRuleTiers).toEqual([]);
+    });
+
+    it('should reject invalid maxExtraInnings', () => {
+      expect(() => new SoftballRules({ maxExtraInnings: 0 })).toThrow(DomainError);
+      expect(() => new SoftballRules({ maxExtraInnings: -1 })).toThrow(DomainError);
+      expect(() => new SoftballRules({ maxExtraInnings: 3.5 })).toThrow(DomainError);
+      expect(() => new SoftballRules({ maxExtraInnings: 21 })).toThrow(DomainError);
+    });
+
+    it('should accept valid maxExtraInnings', () => {
+      const rules1 = new SoftballRules({ maxExtraInnings: null });
+      expect(rules1.maxExtraInnings).toBe(null);
+
+      const rules2 = new SoftballRules({ maxExtraInnings: 1 });
+      expect(rules2.maxExtraInnings).toBe(1);
+
+      const rules3 = new SoftballRules({ maxExtraInnings: 20 });
+      expect(rules3.maxExtraInnings).toBe(20);
+    });
+
+    it('should reject tie games when maxExtraInnings is null', () => {
+      expect(
+        () =>
+          new SoftballRules({
+            maxExtraInnings: null,
+            allowTieGames: true,
+          })
+      ).toThrow(DomainError);
+    });
+
+    it('should accept tie games when maxExtraInnings is set', () => {
+      const rules = new SoftballRules({
+        maxExtraInnings: 5,
+        allowTieGames: true,
+      });
+
+      expect(rules.maxExtraInnings).toBe(5);
+      expect(rules.allowTieGames).toBe(true);
     });
   });
 
   describe('Mercy rule evaluation', () => {
-    it('should identify mercy rule game with enabled rules', () => {
-      const rules = new SoftballRules({
-        mercyRuleEnabled: true,
-        mercyRuleDifferential: 15,
-        mercyRuleAfterInning: 3,
-      });
+    it('should identify mercy rule game with default two-tier system', () => {
+      const rules = new SoftballRules({ mercyRuleEnabled: true });
 
-      expect(rules.isMercyRule(20, 5, 4)).toBe(true); // 15+ run diff after inning 3
-      expect(rules.isMercyRule(18, 3, 5)).toBe(true); // exactly 15 run diff after inning 3
+      expect(rules.isMercyRule(15, 4, 5)).toBe(true); // 11-run diff at 5th inning (first tier)
+      expect(rules.isMercyRule(12, 5, 6)).toBe(true); // 7-run diff at 6th inning (second tier)
     });
 
     it('should not identify mercy rule when differential is insufficient', () => {
-      const rules = new SoftballRules({
-        mercyRuleEnabled: true,
-        mercyRuleDifferential: 15,
-        mercyRuleAfterInning: 3,
-      });
+      const rules = new SoftballRules({ mercyRuleEnabled: true });
 
-      expect(rules.isMercyRule(19, 5, 4)).toBe(false); // only 14 run diff
-      expect(rules.isMercyRule(10, 0, 4)).toBe(false); // only 10 run diff
+      expect(rules.isMercyRule(13, 4, 4)).toBe(false); // only 9 run diff at 4th inning
+      expect(rules.isMercyRule(11, 5, 5)).toBe(false); // only 6 run diff at 5th inning
     });
 
-    it('should not identify mercy rule when inning is too early', () => {
+    it('should apply mercy rule AT the specified inning (>= logic)', () => {
       const rules = new SoftballRules({
         mercyRuleEnabled: true,
-        mercyRuleDifferential: 15,
-        mercyRuleAfterInning: 3,
+        mercyRuleTiers: [{ differential: 10, afterInning: 4 }],
       });
 
-      expect(rules.isMercyRule(20, 5, 3)).toBe(false); // inning 3, need after inning 3
-      expect(rules.isMercyRule(20, 5, 2)).toBe(false); // inning 2
+      expect(rules.isMercyRule(15, 5, 4)).toBe(true); // AT 4th inning with 10+ runs
+      expect(rules.isMercyRule(15, 5, 3)).toBe(false); // Before 4th inning
+      expect(rules.isMercyRule(15, 5, 5)).toBe(true); // After 4th inning
+    });
+
+    it('should handle the specific 4th inning bottom scenario', () => {
+      const rules = new SoftballRules({ mercyRuleEnabled: true });
+
+      // 4th inning bottom, 1 out: Away: 0 runs, Home: 9 runs
+      // Batter hits home run → Home: 10 runs
+      // Should end immediately (10-run differential AT 4th inning)
+      expect(rules.isMercyRule(10, 0, 4)).toBe(true); // 10-run differential AT 4th inning
+      expect(rules.isMercyRule(9, 0, 4)).toBe(false); // Only 9-run differential
     });
 
     it('should not identify mercy rule when rule is disabled', () => {
       const rules = new SoftballRules({
         mercyRuleEnabled: false,
-        mercyRuleDifferential: 15,
-        mercyRuleAfterInning: 3,
+        mercyRuleTiers: [{ differential: 1, afterInning: 1 }],
       });
 
       expect(rules.isMercyRule(20, 5, 4)).toBe(false);
@@ -171,8 +275,7 @@ describe('SoftballRules', () => {
     it('should handle edge cases for mercy rule evaluation', () => {
       const rules = new SoftballRules({
         mercyRuleEnabled: true,
-        mercyRuleDifferential: 1,
-        mercyRuleAfterInning: 1,
+        mercyRuleTiers: [{ differential: 1, afterInning: 1 }],
       });
 
       expect(rules.isMercyRule(1, 0, 2)).toBe(true); // minimum case
@@ -192,6 +295,117 @@ describe('SoftballRules', () => {
     });
   });
 
+  describe('Multi-tier mercy rule evaluation', () => {
+    it('should evaluate two-tier mercy rule system correctly', () => {
+      const rules = new SoftballRules({
+        mercyRuleEnabled: true,
+        mercyRuleTiers: [
+          { differential: 10, afterInning: 4 }, // 10 runs after 4th inning
+          { differential: 7, afterInning: 5 }, // 7 runs after 5th inning
+        ],
+      });
+
+      // Before any threshold inning
+      expect(rules.isMercyRule(15, 2, 3)).toBe(false); // In 3rd inning
+      expect(rules.isMercyRule(13, 4, 3)).toBe(false); // Before 4th inning
+
+      // First tier: 10 runs AT 4th inning (>= logic)
+      expect(rules.isMercyRule(15, 4, 4)).toBe(true); // 11-run differential AT 4th inning
+      expect(rules.isMercyRule(14, 4, 4)).toBe(true); // Exactly 10-run differential AT 4th inning
+      expect(rules.isMercyRule(13, 4, 4)).toBe(false); // Only 9-run differential
+      expect(rules.isMercyRule(15, 4, 5)).toBe(true); // 11-run differential after 4th inning
+
+      // Second tier: 7 runs AT 5th inning (>= logic)
+      expect(rules.isMercyRule(12, 5, 5)).toBe(true); // 7-run differential AT 5th inning
+      expect(rules.isMercyRule(11, 5, 5)).toBe(false); // Only 6-run differential
+      expect(rules.isMercyRule(12, 5, 6)).toBe(true); // 7-run differential after 5th inning
+
+      // First tier should still work in later innings
+      expect(rules.isMercyRule(17, 6, 7)).toBe(true); // 11-run differential triggers first tier
+    });
+
+    it('should evaluate single-tier mercy rule system correctly', () => {
+      const rules = new SoftballRules({
+        mercyRuleEnabled: true,
+        mercyRuleTiers: [{ differential: 12, afterInning: 3 }],
+      });
+
+      expect(rules.isMercyRule(15, 2, 3)).toBe(true); // 13-run differential AT 3rd inning
+      expect(rules.isMercyRule(14, 2, 3)).toBe(true); // Exactly 12-run differential AT 3rd inning
+      expect(rules.isMercyRule(13, 2, 3)).toBe(false); // Only 11-run differential
+      expect(rules.isMercyRule(15, 2, 4)).toBe(true); // 13-run differential after 3rd inning
+    });
+
+    it('should evaluate three-tier mercy rule system correctly', () => {
+      const rules = new SoftballRules({
+        mercyRuleEnabled: true,
+        mercyRuleTiers: [
+          { differential: 15, afterInning: 3 }, // Very lenient early
+          { differential: 10, afterInning: 4 }, // Moderate mid-game
+          { differential: 5, afterInning: 6 }, // Tight late game
+        ],
+      });
+
+      // First tier: 15 runs after 3rd inning
+      expect(rules.isMercyRule(20, 4, 4)).toBe(true); // 16-run differential
+      expect(rules.isMercyRule(19, 4, 4)).toBe(true); // 15-run differential meets first tier
+      expect(rules.isMercyRule(18, 4, 4)).toBe(true); // 14-run differential meets second tier (10 runs at 4th inning)
+
+      // Second tier: 10 runs after 4th inning
+      expect(rules.isMercyRule(15, 4, 5)).toBe(true); // 11-run differential
+      expect(rules.isMercyRule(13, 4, 5)).toBe(false); // Only 9-run differential
+
+      // Third tier: 5 runs after 6th inning
+      expect(rules.isMercyRule(10, 4, 7)).toBe(true); // 6-run differential
+      expect(rules.isMercyRule(8, 4, 7)).toBe(false); // Only 4-run differential
+
+      // Earlier tiers should still work in later innings
+      expect(rules.isMercyRule(25, 4, 7)).toBe(true); // First tier still applies
+      expect(rules.isMercyRule(15, 4, 7)).toBe(true); // Second tier still applies
+    });
+
+    it('should use default two-tier system when no tiers configured', () => {
+      const rules = new SoftballRules({
+        mercyRuleEnabled: true,
+        // No mercyRuleTiers specified - should use defaults
+      });
+
+      expect(rules.isMercyRule(15, 4, 4)).toBe(true); // 11-run differential AT 4th inning (first tier: 10 runs at 4th)
+      expect(rules.isMercyRule(12, 5, 5)).toBe(true); // 7-run differential AT 5th inning (second tier: 7 runs at 5th)
+      expect(rules.isMercyRule(13, 4, 4)).toBe(false); // Only 9-run differential, doesn't meet 10-run threshold
+    });
+
+    it('should respect mercy rule enabled flag with tiers', () => {
+      const rules = new SoftballRules({
+        mercyRuleEnabled: false, // Disabled
+        mercyRuleTiers: [
+          { differential: 5, afterInning: 1 }, // Very lenient tier
+        ],
+      });
+
+      expect(rules.isMercyRule(50, 0, 7)).toBe(false); // Should not trigger when disabled
+    });
+
+    it('should handle edge cases with multi-tier evaluation', () => {
+      const rules = new SoftballRules({
+        mercyRuleEnabled: true,
+        mercyRuleTiers: [
+          { differential: 10, afterInning: 4 },
+          { differential: 7, afterInning: 5 },
+        ],
+      });
+
+      // Test with away team leading
+      expect(rules.isMercyRule(5, 15, 5)).toBe(true); // 10-run away team lead
+      expect(rules.isMercyRule(5, 11, 6)).toBe(false); // Only 6-run away team lead
+
+      // Test boundary conditions
+      expect(rules.isMercyRule(10, 0, 5)).toBe(true); // Exactly 10 runs
+      expect(rules.isMercyRule(7, 0, 6)).toBe(true); // Exactly 7 runs
+      expect(rules.isMercyRule(1, 0, 5)).toBe(false); // Only 1 run
+    });
+  });
+
   describe('Game completion evaluation', () => {
     it('should identify game complete at regulation innings', () => {
       const rules = new SoftballRules({ totalInnings: 7 });
@@ -204,8 +418,7 @@ describe('SoftballRules', () => {
       const rules = new SoftballRules({
         totalInnings: 7,
         mercyRuleEnabled: true,
-        mercyRuleDifferential: 15,
-        mercyRuleAfterInning: 3,
+        mercyRuleTiers: [{ differential: 15, afterInning: 3 }],
       });
 
       expect(rules.isGameComplete(20, 5, 4)).toBe(true); // mercy rule applies
@@ -231,6 +444,49 @@ describe('SoftballRules', () => {
       expect(rules.isGameComplete(5, 5, 12)).toBe(false); // still tied in extras
     });
 
+    it('should end tie games when maxExtraInnings reached and allowTieGames is true', () => {
+      const rules = new SoftballRules({
+        totalInnings: 7,
+        maxExtraInnings: 3,
+        allowTieGames: true,
+      });
+
+      // Game tied 5-5, in the 10th inning (3 extra innings played)
+      expect(rules.isGameComplete(5, 5, 10)).toBe(true); // Tie game ends
+
+      // Game tied 5-5, in the 9th inning (2 extra innings played)
+      expect(rules.isGameComplete(5, 5, 9)).toBe(false); // Continue playing
+
+      // Game with winner should still end normally
+      expect(rules.isGameComplete(6, 5, 9)).toBe(true); // Winner in extra innings
+    });
+
+    it('should continue tie games when maxExtraInnings reached but allowTieGames is false', () => {
+      const rules = new SoftballRules({
+        totalInnings: 7,
+        maxExtraInnings: 3,
+        allowTieGames: false,
+      });
+
+      // Game tied 5-5, in the 10th inning (3 extra innings played)
+      // But tie games not allowed, so continue playing
+      expect(rules.isGameComplete(5, 5, 10)).toBe(false);
+    });
+
+    it('should handle unlimited extra innings (null maxExtraInnings)', () => {
+      const rules = new SoftballRules({
+        totalInnings: 7,
+        maxExtraInnings: null,
+        allowTieGames: false,
+      });
+
+      // Game tied in 15th inning should continue (no limit)
+      expect(rules.isGameComplete(5, 5, 15)).toBe(false);
+
+      // Game with winner should end
+      expect(rules.isGameComplete(6, 5, 15)).toBe(true);
+    });
+
     it('should validate game completion parameters', () => {
       const rules = new SoftballRules();
 
@@ -252,8 +508,9 @@ describe('SoftballRules', () => {
         timeLimitMinutes: 120,
         allowReEntry: false,
         mercyRuleEnabled: true,
-        mercyRuleDifferential: 10,
-        mercyRuleAfterInning: 5,
+        mercyRuleTiers: [{ differential: 10, afterInning: 5 }],
+        maxExtraInnings: 5,
+        allowTieGames: true,
       });
 
       const rules2 = new SoftballRules({
@@ -262,8 +519,9 @@ describe('SoftballRules', () => {
         timeLimitMinutes: 120,
         allowReEntry: false,
         mercyRuleEnabled: true,
-        mercyRuleDifferential: 10,
-        mercyRuleAfterInning: 5,
+        mercyRuleTiers: [{ differential: 10, afterInning: 5 }],
+        maxExtraInnings: 5,
+        allowTieGames: true,
       });
 
       expect(rules1.equals(rules2)).toBe(true);
@@ -302,11 +560,101 @@ describe('SoftballRules', () => {
         timeLimitMinutes: null,
         allowReEntry: true,
         mercyRuleEnabled: true,
-        mercyRuleDifferential: 15,
-        mercyRuleAfterInning: 3,
+        mercyRuleTiers: [
+          { differential: 10, afterInning: 4 },
+          { differential: 7, afterInning: 5 },
+        ],
+        maxExtraInnings: null,
+        allowTieGames: false,
       }); // explicit defaults
 
       expect(rules1.equals(rules2)).toBe(true);
+    });
+
+    it('should not be equal when tie game rules differ', () => {
+      const rules1 = new SoftballRules({
+        maxExtraInnings: 5,
+        allowTieGames: true,
+      });
+
+      const rules2 = new SoftballRules({
+        maxExtraInnings: 5,
+        allowTieGames: false,
+      });
+
+      expect(rules1.equals(rules2)).toBe(false);
+    });
+
+    it('should not be equal when maxExtraInnings differs', () => {
+      const rules1 = new SoftballRules({
+        maxExtraInnings: 3,
+        allowTieGames: true,
+      });
+
+      const rules2 = new SoftballRules({
+        maxExtraInnings: 5,
+        allowTieGames: true,
+      });
+
+      expect(rules1.equals(rules2)).toBe(false);
+    });
+
+    it('should be equal when mercy rule tiers match', () => {
+      const tiers: MercyRuleTier[] = [
+        { differential: 10, afterInning: 4 },
+        { differential: 7, afterInning: 5 },
+      ];
+
+      const rules1 = new SoftballRules({
+        mercyRuleEnabled: true,
+        mercyRuleTiers: tiers,
+      });
+
+      const rules2 = new SoftballRules({
+        mercyRuleEnabled: true,
+        mercyRuleTiers: tiers,
+      });
+
+      expect(rules1.equals(rules2)).toBe(true);
+    });
+
+    it('should not be equal when mercy rule tiers differ', () => {
+      const rules1 = new SoftballRules({
+        mercyRuleTiers: [{ differential: 10, afterInning: 4 }],
+      });
+
+      const rules2 = new SoftballRules({
+        mercyRuleTiers: [{ differential: 7, afterInning: 5 }],
+      });
+
+      expect(rules1.equals(rules2)).toBe(false);
+    });
+
+    it('should not be equal when tier arrays have different lengths', () => {
+      const rules1 = new SoftballRules({
+        mercyRuleTiers: [
+          { differential: 10, afterInning: 4 },
+          { differential: 7, afterInning: 5 },
+        ],
+      });
+
+      const rules2 = new SoftballRules({
+        mercyRuleTiers: [{ differential: 10, afterInning: 4 }],
+      });
+
+      expect(rules1.equals(rules2)).toBe(false);
+    });
+
+    it('should not be equal when one has tiers and other has empty array', () => {
+      const rules1 = new SoftballRules({
+        mercyRuleTiers: [{ differential: 10, afterInning: 4 }],
+      });
+
+      const rules2 = new SoftballRules({
+        mercyRuleTiers: [],
+      });
+
+      expect(rules1.equals(rules2)).toBe(false);
     });
   });
 
@@ -330,8 +678,9 @@ describe('SoftballRules', () => {
         timeLimitMinutes: 90,
         allowReEntry: false,
         mercyRuleEnabled: true,
-        mercyRuleDifferential: 12,
-        mercyRuleAfterInning: 4,
+        mercyRuleTiers: [{ differential: 12, afterInning: 4 }],
+        maxExtraInnings: 3,
+        allowTieGames: true,
       });
 
       const serialized = JSON.stringify(rules);
@@ -342,8 +691,9 @@ describe('SoftballRules', () => {
       expect(parsed.timeLimitMinutes).toBe(90);
       expect(parsed.allowReEntry).toBe(false);
       expect(parsed.mercyRuleEnabled).toBe(true);
-      expect(parsed.mercyRuleDifferential).toBe(12);
-      expect(parsed.mercyRuleAfterInning).toBe(4);
+      expect(parsed.mercyRuleTiers).toEqual([{ differential: 12, afterInning: 4 }]);
+      expect(parsed.maxExtraInnings).toBe(3);
+      expect(parsed.allowTieGames).toBe(true);
     });
 
     it('should have meaningful string representation', () => {
@@ -353,7 +703,29 @@ describe('SoftballRules', () => {
       expect(str).toContain('SoftballRules');
       expect(str).toContain('totalInnings=7');
       expect(str).toContain('allowReEntry=true');
-      expect(str).toContain('mercyRule=15 runs after inning 3');
+      expect(str).toContain('mercyRule=tiers: [10 runs at inning 4, 7 runs at inning 5]');
+      expect(str).toContain('maxExtraInnings=unlimited');
+      expect(str).toContain('allowTieGames=not allowed');
+    });
+
+    it('should show mercy rule tiers in string representation', () => {
+      const rules = new SoftballRules({
+        mercyRuleTiers: [
+          { differential: 10, afterInning: 4 },
+          { differential: 7, afterInning: 5 },
+        ],
+      });
+      const str = rules.toString();
+
+      expect(str).toContain('SoftballRules');
+      expect(str).toContain('mercyRule=tiers: [10 runs at inning 4, 7 runs at inning 5]');
+    });
+
+    it('should show disabled mercy rule in string representation', () => {
+      const rules = new SoftballRules({ mercyRuleEnabled: false });
+      const str = rules.toString();
+
+      expect(str).toContain('mercyRule=disabled');
     });
   });
 
@@ -366,8 +738,7 @@ describe('SoftballRules', () => {
       expect(rules.timeLimitMinutes).toBe(null);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(15);
-      expect(rules.mercyRuleAfterInning).toBe(3);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 15, afterInning: 3 }]);
     });
 
     it('should create tournament rules', () => {
@@ -378,8 +749,7 @@ describe('SoftballRules', () => {
       expect(rules.timeLimitMinutes).toBe(90);
       expect(rules.allowReEntry).toBe(false);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(10);
-      expect(rules.mercyRuleAfterInning).toBe(4);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 10, afterInning: 4 }]);
     });
 
     it('should create youth league rules', () => {
@@ -390,8 +760,7 @@ describe('SoftballRules', () => {
       expect(rules.timeLimitMinutes).toBe(75);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(12);
-      expect(rules.mercyRuleAfterInning).toBe(2);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 12, afterInning: 2 }]);
     });
   });
 });

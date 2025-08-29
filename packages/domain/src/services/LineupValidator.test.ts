@@ -5,6 +5,7 @@ import { BattingSlot } from '../value-objects/BattingSlot';
 import { PlayerId } from '../value-objects/PlayerId';
 import { JerseyNumber } from '../value-objects/JerseyNumber';
 import { FieldPosition } from '../constants/FieldPosition';
+import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
 
 describe('LineupValidator', () => {
@@ -84,13 +85,24 @@ describe('LineupValidator', () => {
           ]);
         }).not.toThrow(); // This should pass since we have exactly 20
 
-        // Test the size validation directly
-        const oversizedArray = new Array(21).fill(null);
+        // Test the size validation with custom rules that limit to 20 players
+        const rules = new SoftballRules({ maxPlayersPerTeam: 20 });
+        // Remove the duplicate slot and create a proper oversized array for testing
+        const validLineup = createLineupData(
+          Array.from({ length: 20 }, (_, i) => i + 1),
+          Array.from({ length: 20 }, (_, i) => `p${i + 1}`),
+          Array.from({ length: 20 }, (_, i) => i + 1)
+        );
+        // Add one more entry to make it oversized (but manually since BattingSlot won't allow invalid slots)
+        const oversizedManual = [
+          ...validLineup,
+          validLineup[0]!, // Duplicate first entry to make array longer
+        ];
         expect(() => {
-          LineupValidator.validateLineupConfiguration(oversizedArray as LineupEntry[]);
+          LineupValidator.validateLineupConfiguration(oversizedManual, rules);
         }).toThrow(DomainError);
         expect(() => {
-          LineupValidator.validateLineupConfiguration(oversizedArray as LineupEntry[]);
+          LineupValidator.validateLineupConfiguration(oversizedManual, rules);
         }).toThrow('maximum 20 batting slots');
       });
 
@@ -120,7 +132,7 @@ describe('LineupValidator', () => {
         }).toThrow(DomainError);
         expect(() => {
           LineupValidator.validateLineupConfiguration(lineupData);
-        }).toThrow('Batting slots 1-9 must be filled before using slots 10-20');
+        }).toThrow('Batting slots 1-9 must be filled before using slots 10+');
       });
 
       it('should accept lineup with slots 1-9 filled and additional EP/DH slots', () => {
@@ -431,17 +443,24 @@ describe('LineupValidator', () => {
   });
 
   describe('isValidLineupSize', () => {
-    it('should return true for valid lineup sizes (9-20)', () => {
-      for (let size = 9; size <= 20; size += 1) {
+    it('should return true for valid lineup sizes with default rules (9-25)', () => {
+      for (let size = 9; size <= 25; size += 1) {
         expect(LineupValidator.isValidLineupSize(size)).toBe(true);
       }
     });
 
-    it('should return false for invalid lineup sizes', () => {
+    it('should return false for invalid lineup sizes with default rules', () => {
       expect(LineupValidator.isValidLineupSize(8)).toBe(false); // Too small
-      expect(LineupValidator.isValidLineupSize(21)).toBe(false); // Too large
+      expect(LineupValidator.isValidLineupSize(26)).toBe(false); // Too large
       expect(LineupValidator.isValidLineupSize(0)).toBe(false); // Zero
       expect(LineupValidator.isValidLineupSize(-1)).toBe(false); // Negative
+    });
+
+    it('should respect custom rules configuration', () => {
+      const rules = new SoftballRules({ maxPlayersPerTeam: 20 });
+      expect(LineupValidator.isValidLineupSize(9, rules)).toBe(true);
+      expect(LineupValidator.isValidLineupSize(20, rules)).toBe(true);
+      expect(LineupValidator.isValidLineupSize(21, rules)).toBe(false);
     });
   });
 

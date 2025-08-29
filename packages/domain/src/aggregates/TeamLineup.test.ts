@@ -7,6 +7,7 @@ import { DomainError } from '../errors/DomainError';
 import { GameId } from '../value-objects/GameId';
 import { PlayerSubstitutedIntoGame } from '../events/PlayerSubstitutedIntoGame';
 import { FieldPositionChanged } from '../events/FieldPositionChanged';
+import { SoftballRules } from '../rules/SoftballRules';
 
 describe('TeamLineup', () => {
   let lineupId: TeamLineupId;
@@ -17,6 +18,7 @@ describe('TeamLineup', () => {
   let jersey1: JerseyNumber;
   let jersey2: JerseyNumber;
   let jersey3: JerseyNumber;
+  let rules: SoftballRules;
 
   beforeEach(() => {
     lineupId = TeamLineupId.generate();
@@ -27,6 +29,7 @@ describe('TeamLineup', () => {
     jersey1 = new JerseyNumber('1');
     jersey2 = new JerseyNumber('2');
     jersey3 = new JerseyNumber('3');
+    rules = new SoftballRules();
   });
 
   describe('createNew', () => {
@@ -81,7 +84,8 @@ describe('TeamLineup', () => {
         jersey1,
         'John Doe',
         1,
-        FieldPosition.PITCHER
+        FieldPosition.PITCHER,
+        rules
       );
 
       const activeLineup = updatedLineup.getActiveLineup();
@@ -98,13 +102,21 @@ describe('TeamLineup', () => {
     });
 
     it('adds multiple players to different batting slots', () => {
-      let updatedLineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER);
+      let updatedLineup = lineup.addPlayer(
+        player1,
+        jersey1,
+        'John Doe',
+        1,
+        FieldPosition.PITCHER,
+        rules
+      );
       updatedLineup = updatedLineup.addPlayer(
         player2,
         jersey2,
         'Jane Smith',
         2,
-        FieldPosition.CATCHER
+        FieldPosition.CATCHER,
+        rules
       );
 
       const activeLineup = updatedLineup.getActiveLineup();
@@ -115,13 +127,13 @@ describe('TeamLineup', () => {
 
     it('throws error when batting slot is invalid (< 1)', () => {
       expect(() =>
-        lineup.addPlayer(player1, jersey1, 'John Doe', 0, FieldPosition.PITCHER)
+        lineup.addPlayer(player1, jersey1, 'John Doe', 0, FieldPosition.PITCHER, rules)
       ).toThrow(DomainError);
     });
 
     it('throws error when batting slot is invalid (> 20)', () => {
       expect(() =>
-        lineup.addPlayer(player1, jersey1, 'John Doe', 21, FieldPosition.PITCHER)
+        lineup.addPlayer(player1, jersey1, 'John Doe', 21, FieldPosition.PITCHER, rules)
       ).toThrow(DomainError);
     });
 
@@ -131,11 +143,12 @@ describe('TeamLineup', () => {
         jersey1,
         'John Doe',
         1,
-        FieldPosition.PITCHER
+        FieldPosition.PITCHER,
+        rules
       );
 
       expect(() =>
-        updatedLineup.addPlayer(player2, jersey2, 'Jane Smith', 1, FieldPosition.CATCHER)
+        updatedLineup.addPlayer(player2, jersey2, 'Jane Smith', 1, FieldPosition.CATCHER, rules)
       ).toThrow(DomainError);
     });
 
@@ -145,11 +158,12 @@ describe('TeamLineup', () => {
         jersey1,
         'John Doe',
         1,
-        FieldPosition.PITCHER
+        FieldPosition.PITCHER,
+        rules
       );
 
       expect(() =>
-        updatedLineup.addPlayer(player2, jersey1, 'Jane Smith', 2, FieldPosition.CATCHER)
+        updatedLineup.addPlayer(player2, jersey1, 'Jane Smith', 2, FieldPosition.CATCHER, rules)
       ).toThrow(DomainError);
     });
 
@@ -159,11 +173,12 @@ describe('TeamLineup', () => {
         jersey1,
         'John Doe',
         1,
-        FieldPosition.PITCHER
+        FieldPosition.PITCHER,
+        rules
       );
 
       expect(() =>
-        updatedLineup.addPlayer(player1, jersey2, 'John Doe', 2, FieldPosition.CATCHER)
+        updatedLineup.addPlayer(player1, jersey2, 'John Doe', 2, FieldPosition.CATCHER, rules)
       ).toThrow(DomainError);
     });
 
@@ -173,11 +188,12 @@ describe('TeamLineup', () => {
         jersey1,
         'John Doe',
         1,
-        FieldPosition.PITCHER
+        FieldPosition.PITCHER,
+        rules
       );
 
       expect(() =>
-        updatedLineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.PITCHER)
+        updatedLineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.PITCHER, rules)
       ).toThrow(DomainError);
     });
 
@@ -187,14 +203,16 @@ describe('TeamLineup', () => {
         jersey1,
         'John Doe',
         10,
-        FieldPosition.EXTRA_PLAYER
+        FieldPosition.EXTRA_PLAYER,
+        rules
       );
       updatedLineup = updatedLineup.addPlayer(
         player2,
         jersey2,
         'Jane Smith',
         11,
-        FieldPosition.EXTRA_PLAYER
+        FieldPosition.EXTRA_PLAYER,
+        rules
       );
 
       const fieldingPositions = updatedLineup.getFieldingPositions();
@@ -205,16 +223,16 @@ describe('TeamLineup', () => {
     });
 
     it('throws error when player name is empty', () => {
-      expect(() => lineup.addPlayer(player1, jersey1, '', 1, FieldPosition.PITCHER)).toThrow(
+      expect(() => lineup.addPlayer(player1, jersey1, '', 1, FieldPosition.PITCHER, rules)).toThrow(
         DomainError
       );
     });
 
     it('throws error when player name exceeds 100 characters', () => {
       const longName = 'A'.repeat(101);
-      expect(() => lineup.addPlayer(player1, jersey1, longName, 1, FieldPosition.PITCHER)).toThrow(
-        DomainError
-      );
+      expect(() =>
+        lineup.addPlayer(player1, jersey1, longName, 1, FieldPosition.PITCHER, rules)
+      ).toThrow(DomainError);
     });
   });
 
@@ -223,8 +241,8 @@ describe('TeamLineup', () => {
 
     beforeEach(() => {
       lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER);
-      lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER);
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
+      lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER, rules);
     });
 
     it('substitutes a player in batting slot successfully', () => {
@@ -235,7 +253,8 @@ describe('TeamLineup', () => {
         jersey3,
         'Bob Johnson',
         FieldPosition.FIRST_BASE,
-        3
+        3,
+        rules
       );
 
       const activeLineup = updatedLineup.getActiveLineup();
@@ -265,7 +284,8 @@ describe('TeamLineup', () => {
         jersey3,
         'Bob Johnson',
         FieldPosition.FIRST_BASE,
-        3
+        3,
+        rules
       );
 
       expect(updatedLineup.isPlayerEligibleForReentry(player1)).toBe(true);
@@ -281,7 +301,8 @@ describe('TeamLineup', () => {
         jersey3,
         'Bob Johnson',
         FieldPosition.FIRST_BASE,
-        3
+        3,
+        rules
       );
 
       // Starter re-enters
@@ -293,6 +314,7 @@ describe('TeamLineup', () => {
         'John Doe',
         FieldPosition.PITCHER,
         5,
+        rules,
         true
       );
 
@@ -309,7 +331,8 @@ describe('TeamLineup', () => {
         jersey3,
         'Bob Johnson',
         FieldPosition.FIRST_BASE,
-        3
+        3,
+        rules
       );
       updatedLineup = updatedLineup.substitutePlayer(
         1,
@@ -319,6 +342,7 @@ describe('TeamLineup', () => {
         'John Doe',
         FieldPosition.PITCHER,
         5,
+        rules,
         true
       );
 
@@ -332,7 +356,8 @@ describe('TeamLineup', () => {
         newSubstituteJersey,
         'New Substitute',
         FieldPosition.FIRST_BASE,
-        7
+        7,
+        rules
       );
 
       expect(() =>
@@ -344,6 +369,7 @@ describe('TeamLineup', () => {
           'John Doe',
           FieldPosition.PITCHER,
           9,
+          rules,
           true
         )
       ).toThrow(DomainError);
@@ -358,7 +384,8 @@ describe('TeamLineup', () => {
           jersey3,
           'Bob Johnson',
           FieldPosition.FIRST_BASE,
-          3
+          3,
+          rules
         )
       ).toThrow(DomainError);
     });
@@ -372,7 +399,8 @@ describe('TeamLineup', () => {
           jersey2,
           'Bob Johnson',
           FieldPosition.FIRST_BASE,
-          3
+          3,
+          rules
         )
       ).toThrow(DomainError);
     });
@@ -386,7 +414,8 @@ describe('TeamLineup', () => {
           jersey3,
           'Jane Smith',
           FieldPosition.FIRST_BASE,
-          3
+          3,
+          rules
         )
       ).toThrow(DomainError);
     });
@@ -400,7 +429,8 @@ describe('TeamLineup', () => {
           jersey3,
           'Bob Johnson',
           FieldPosition.CATCHER,
-          3
+          3,
+          rules
         )
       ).toThrow(DomainError);
     });
@@ -414,7 +444,8 @@ describe('TeamLineup', () => {
           jersey3,
           'Bob Johnson',
           FieldPosition.FIRST_BASE,
-          0
+          0,
+          rules
         )
       ).toThrow(DomainError);
     });
@@ -431,7 +462,8 @@ describe('TeamLineup', () => {
         nonStarterJersey,
         'Non Starter',
         FieldPosition.FIRST_BASE,
-        3
+        3,
+        rules
       );
 
       // Remove non-starter
@@ -442,7 +474,8 @@ describe('TeamLineup', () => {
         jersey3,
         'Bob Johnson',
         FieldPosition.SECOND_BASE,
-        5
+        5,
+        rules
       );
 
       // Try to bring back non-starter as re-entry (should fail)
@@ -455,6 +488,7 @@ describe('TeamLineup', () => {
           'Non Starter',
           FieldPosition.FIRST_BASE,
           7,
+          rules,
           true
         )
       ).toThrow(DomainError);
@@ -466,9 +500,16 @@ describe('TeamLineup', () => {
 
     beforeEach(() => {
       lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER);
-      lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER);
-      lineup = lineup.addPlayer(player3, jersey3, 'Bob Johnson', 3, FieldPosition.FIRST_BASE);
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
+      lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER, rules);
+      lineup = lineup.addPlayer(
+        player3,
+        jersey3,
+        'Bob Johnson',
+        3,
+        FieldPosition.FIRST_BASE,
+        rules
+      );
     });
 
     it('changes player position successfully', () => {
@@ -527,9 +568,16 @@ describe('TeamLineup', () => {
 
     it('returns lineup sorted by batting position', () => {
       let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 5, FieldPosition.CATCHER);
-      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER);
-      lineup = lineup.addPlayer(player3, jersey3, 'Bob Johnson', 3, FieldPosition.FIRST_BASE);
+      lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 5, FieldPosition.CATCHER, rules);
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
+      lineup = lineup.addPlayer(
+        player3,
+        jersey3,
+        'Bob Johnson',
+        3,
+        FieldPosition.FIRST_BASE,
+        rules
+      );
 
       const activeLineup = lineup.getActiveLineup();
       expect(activeLineup).toHaveLength(3);
@@ -547,8 +595,8 @@ describe('TeamLineup', () => {
 
     it('returns current fielding assignments', () => {
       let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER);
-      lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER);
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
+      lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER, rules);
 
       const positions = lineup.getFieldingPositions();
       expect(positions.get(FieldPosition.PITCHER)).toEqual(player1);
@@ -558,7 +606,14 @@ describe('TeamLineup', () => {
 
     it('excludes EXTRA_PLAYER positions from fielding map', () => {
       let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 10, FieldPosition.EXTRA_PLAYER);
+      lineup = lineup.addPlayer(
+        player1,
+        jersey1,
+        'John Doe',
+        10,
+        FieldPosition.EXTRA_PLAYER,
+        rules
+      );
 
       const positions = lineup.getFieldingPositions();
       expect(positions.size).toBe(0);
@@ -571,7 +626,7 @@ describe('TeamLineup', () => {
 
     beforeEach(() => {
       lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER);
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
     });
 
     it('returns false for starter who has not been substituted', () => {
@@ -586,7 +641,8 @@ describe('TeamLineup', () => {
         jersey2,
         'Jane Smith',
         FieldPosition.CATCHER,
-        3
+        3,
+        rules
       );
       expect(updatedLineup.isPlayerEligibleForReentry(player1)).toBe(true);
     });
@@ -599,7 +655,8 @@ describe('TeamLineup', () => {
         jersey2,
         'Jane Smith',
         FieldPosition.CATCHER,
-        3
+        3,
+        rules
       );
       updatedLineup = updatedLineup.substitutePlayer(
         1,
@@ -609,6 +666,7 @@ describe('TeamLineup', () => {
         'John Doe',
         FieldPosition.PITCHER,
         5,
+        rules,
         true
       );
 
@@ -628,7 +686,8 @@ describe('TeamLineup', () => {
         jersey2,
         'Jane Smith',
         FieldPosition.CATCHER,
-        3
+        3,
+        rules
       );
       expect(updatedLineup.isPlayerEligibleForReentry(player2)).toBe(false);
     });
@@ -642,8 +701,8 @@ describe('TeamLineup', () => {
 
     it('returns false when missing required positions', () => {
       let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER);
-      lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER);
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
+      lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER, rules);
       // Missing other required positions
 
       expect(lineup.isLineupValid()).toBe(false);
@@ -658,63 +717,72 @@ describe('TeamLineup', () => {
         new JerseyNumber('1'),
         'Pitcher',
         1,
-        FieldPosition.PITCHER
+        FieldPosition.PITCHER,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('2'),
         'Catcher',
         2,
-        FieldPosition.CATCHER
+        FieldPosition.CATCHER,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('3'),
         'First Base',
         3,
-        FieldPosition.FIRST_BASE
+        FieldPosition.FIRST_BASE,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('4'),
         'Second Base',
         4,
-        FieldPosition.SECOND_BASE
+        FieldPosition.SECOND_BASE,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('5'),
         'Third Base',
         5,
-        FieldPosition.THIRD_BASE
+        FieldPosition.THIRD_BASE,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('6'),
         'Shortstop',
         6,
-        FieldPosition.SHORTSTOP
+        FieldPosition.SHORTSTOP,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('7'),
         'Left Field',
         7,
-        FieldPosition.LEFT_FIELD
+        FieldPosition.LEFT_FIELD,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('8'),
         'Center Field',
         8,
-        FieldPosition.CENTER_FIELD
+        FieldPosition.CENTER_FIELD,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('9'),
         'Right Field',
         9,
-        FieldPosition.RIGHT_FIELD
+        FieldPosition.RIGHT_FIELD,
+        rules
       );
 
       expect(lineup.isLineupValid()).toBe(true);
@@ -729,77 +797,88 @@ describe('TeamLineup', () => {
         new JerseyNumber('1'),
         'Pitcher',
         1,
-        FieldPosition.PITCHER
+        FieldPosition.PITCHER,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('2'),
         'Catcher',
         2,
-        FieldPosition.CATCHER
+        FieldPosition.CATCHER,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('3'),
         'First Base',
         3,
-        FieldPosition.FIRST_BASE
+        FieldPosition.FIRST_BASE,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('4'),
         'Second Base',
         4,
-        FieldPosition.SECOND_BASE
+        FieldPosition.SECOND_BASE,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('5'),
         'Third Base',
         5,
-        FieldPosition.THIRD_BASE
+        FieldPosition.THIRD_BASE,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('6'),
         'Shortstop',
         6,
-        FieldPosition.SHORTSTOP
+        FieldPosition.SHORTSTOP,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('7'),
         'Left Field',
         7,
-        FieldPosition.LEFT_FIELD
+        FieldPosition.LEFT_FIELD,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('8'),
         'Center Field',
         8,
-        FieldPosition.CENTER_FIELD
+        FieldPosition.CENTER_FIELD,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('9'),
         'Right Field',
         9,
-        FieldPosition.RIGHT_FIELD
+        FieldPosition.RIGHT_FIELD,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('10'),
         'Short Fielder',
         10,
-        FieldPosition.SHORT_FIELDER
+        FieldPosition.SHORT_FIELDER,
+        rules
       );
       lineup = lineup.addPlayer(
         PlayerId.generate(),
         new JerseyNumber('11'),
         'Extra Player',
         11,
-        FieldPosition.EXTRA_PLAYER
+        FieldPosition.EXTRA_PLAYER,
+        rules
       );
 
       expect(lineup.isLineupValid()).toBe(true);
@@ -811,7 +890,7 @@ describe('TeamLineup', () => {
 
     beforeEach(() => {
       lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER);
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
     });
 
     it('returns player info for existing player', () => {
@@ -839,7 +918,8 @@ describe('TeamLineup', () => {
         jersey2,
         'Jane Smith',
         FieldPosition.CATCHER,
-        3
+        3,
+        rules
       );
       let info = updatedLineup.getPlayerInfo(player1);
       expect(info?.hasUsedReentry).toBe(false);
@@ -854,6 +934,7 @@ describe('TeamLineup', () => {
         'John Doe',
         FieldPosition.PITCHER,
         5,
+        rules,
         true
       );
       info = updatedLineup.getPlayerInfo(player1);
@@ -873,8 +954,8 @@ describe('TeamLineup', () => {
 
     it('accumulates multiple events', () => {
       let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER);
-      lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER);
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
+      lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER, rules);
 
       const events = lineup.getUncommittedEvents();
       expect(events).toHaveLength(3); // Created + 2 Players Added
@@ -885,7 +966,7 @@ describe('TeamLineup', () => {
 
     it('includes game and team context in events', () => {
       let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER);
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
       lineup = lineup.substitutePlayer(
         1,
         player1,
@@ -893,7 +974,8 @@ describe('TeamLineup', () => {
         jersey2,
         'Jane Smith',
         FieldPosition.CATCHER,
-        3
+        3,
+        rules
       );
 
       const substitutionEvent = lineup
@@ -913,7 +995,8 @@ describe('TeamLineup', () => {
         jersey1,
         'John Doe',
         1,
-        FieldPosition.PITCHER
+        FieldPosition.PITCHER,
+        rules
       );
 
       expect(updatedLineup).not.toBe(lineup);
@@ -923,7 +1006,7 @@ describe('TeamLineup', () => {
 
     it('returns new instance on substitution', () => {
       let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER);
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
 
       const updatedLineup = lineup.substitutePlayer(
         1,
@@ -932,7 +1015,8 @@ describe('TeamLineup', () => {
         jersey2,
         'Jane Smith',
         FieldPosition.CATCHER,
-        3
+        3,
+        rules
       );
 
       expect(updatedLineup).not.toBe(lineup);
@@ -942,7 +1026,7 @@ describe('TeamLineup', () => {
 
     it('returns new instance on position change', () => {
       let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER);
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
 
       const updatedLineup = lineup.changePosition(player1, FieldPosition.FIRST_BASE, 4);
 
@@ -979,7 +1063,7 @@ describe('TeamLineup', () => {
           position = FieldPosition.EXTRA_PLAYER;
         }
 
-        lineup = lineup.addPlayer(pid, jersey, `Player ${i}`, i, position);
+        lineup = lineup.addPlayer(pid, jersey, `Player ${i}`, i, position, rules);
       }
 
       expect(lineup.getActiveLineup()).toHaveLength(20);
@@ -988,7 +1072,7 @@ describe('TeamLineup', () => {
 
     it('prevents double re-entry for starters', () => {
       let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER);
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
 
       // First substitution
       lineup = lineup.substitutePlayer(
@@ -998,7 +1082,8 @@ describe('TeamLineup', () => {
         jersey2,
         'Jane Smith',
         FieldPosition.CATCHER,
-        3
+        3,
+        rules
       );
 
       // Re-entry
@@ -1010,6 +1095,7 @@ describe('TeamLineup', () => {
         'John Doe',
         FieldPosition.PITCHER,
         5,
+        rules,
         true
       );
 
@@ -1021,7 +1107,8 @@ describe('TeamLineup', () => {
         jersey3,
         'Bob Johnson',
         FieldPosition.FIRST_BASE,
-        7
+        7,
+        rules
       );
 
       // Attempt second re-entry (should fail)
@@ -1034,6 +1121,7 @@ describe('TeamLineup', () => {
           'John Doe',
           FieldPosition.PITCHER,
           9,
+          rules,
           true
         )
       ).toThrow(DomainError);
@@ -1041,8 +1129,8 @@ describe('TeamLineup', () => {
 
     it('maintains jersey number uniqueness across substitutions', () => {
       let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER);
-      lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER);
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
+      lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER, rules);
 
       // Substitute using jersey3
       lineup = lineup.substitutePlayer(
@@ -1052,20 +1140,21 @@ describe('TeamLineup', () => {
         jersey3,
         'Bob Johnson',
         FieldPosition.FIRST_BASE,
-        3
+        3,
+        rules
       );
 
       // Try to add another player with jersey3 (should fail)
       const newPlayer = PlayerId.generate();
       expect(() =>
-        lineup.addPlayer(newPlayer, jersey3, 'New Player', 4, FieldPosition.SECOND_BASE)
+        lineup.addPlayer(newPlayer, jersey3, 'New Player', 4, FieldPosition.SECOND_BASE, rules)
       ).toThrow(DomainError);
     });
 
     it('handles complex position swaps during substitutions', () => {
       let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
-      lineup = lineup.addPlayer(player1, jersey1, 'Pitcher', 1, FieldPosition.PITCHER);
-      lineup = lineup.addPlayer(player2, jersey2, 'Catcher', 2, FieldPosition.CATCHER);
+      lineup = lineup.addPlayer(player1, jersey1, 'Pitcher', 1, FieldPosition.PITCHER, rules);
+      lineup = lineup.addPlayer(player2, jersey2, 'Catcher', 2, FieldPosition.CATCHER, rules);
 
       // Change positions before substitution
       lineup = lineup.changePosition(player1, FieldPosition.FIRST_BASE, 3);
@@ -1079,7 +1168,8 @@ describe('TeamLineup', () => {
         jersey3,
         'New Player',
         FieldPosition.PITCHER,
-        4
+        4,
+        rules
       );
 
       const positions = lineup.getFieldingPositions();

@@ -3,6 +3,7 @@ import { DetailedTeamStrategy } from './DetailedTeamStrategy';
 import { PlayerId } from '../value-objects/PlayerId';
 import { JerseyNumber } from '../value-objects/JerseyNumber';
 import { FieldPosition } from '../constants/FieldPosition';
+import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
 import type { TeamPlayer } from './TeamStrategy';
 
@@ -75,14 +76,31 @@ describe('DetailedTeamStrategy', () => {
       expect(strategy.getActivePlayerCount()).toBe(3);
     });
 
-    it('should reject invalid batting slot numbers', () => {
+    it('should reject invalid batting slot numbers with default rules', () => {
       expect(() => strategy.addPlayer(player1, 0, FieldPosition.PITCHER)).toThrow(DomainError);
       expect(() => strategy.addPlayer(player1, 0, FieldPosition.PITCHER)).toThrow(
+        'Batting slot must be between 1 and 25'
+      );
+
+      expect(() => strategy.addPlayer(player1, 26, FieldPosition.PITCHER)).toThrow(DomainError);
+      expect(() => strategy.addPlayer(player1, 26, FieldPosition.PITCHER)).toThrow(
+        'Batting slot must be between 1 and 25'
+      );
+    });
+
+    it('should reject invalid batting slot numbers with custom rules', () => {
+      const rules = new SoftballRules({ maxPlayersPerTeam: 20 });
+      expect(() => strategy.addPlayer(player1, 0, FieldPosition.PITCHER, rules)).toThrow(
+        DomainError
+      );
+      expect(() => strategy.addPlayer(player1, 0, FieldPosition.PITCHER, rules)).toThrow(
         'Batting slot must be between 1 and 20'
       );
 
-      expect(() => strategy.addPlayer(player1, 21, FieldPosition.PITCHER)).toThrow(DomainError);
-      expect(() => strategy.addPlayer(player1, 21, FieldPosition.PITCHER)).toThrow(
+      expect(() => strategy.addPlayer(player1, 21, FieldPosition.PITCHER, rules)).toThrow(
+        DomainError
+      );
+      expect(() => strategy.addPlayer(player1, 21, FieldPosition.PITCHER, rules)).toThrow(
         'Batting slot must be between 1 and 20'
       );
     });
@@ -244,12 +262,22 @@ describe('DetailedTeamStrategy', () => {
       expect(strategy.isPlayerInLineup(player3.playerId)).toBe(true);
     });
 
-    it('should reject invalid batting slot', () => {
+    it('should reject invalid batting slot with default rules', () => {
       expect(() =>
         strategy.substitutePlayer(0, player1.playerId, player3, FieldPosition.PITCHER)
       ).toThrow(DomainError);
       expect(() =>
         strategy.substitutePlayer(0, player1.playerId, player3, FieldPosition.PITCHER)
+      ).toThrow('Batting slot must be between 1 and 25');
+    });
+
+    it('should reject invalid batting slot with custom rules', () => {
+      const rules = new SoftballRules({ maxPlayersPerTeam: 20 });
+      expect(() =>
+        strategy.substitutePlayer(0, player1.playerId, player3, FieldPosition.PITCHER, rules)
+      ).toThrow(DomainError);
+      expect(() =>
+        strategy.substitutePlayer(0, player1.playerId, player3, FieldPosition.PITCHER, rules)
       ).toThrow('Batting slot must be between 1 and 20');
     });
 
@@ -695,8 +723,35 @@ describe('DetailedTeamStrategy', () => {
   });
 
   describe('Edge cases and error conditions', () => {
-    it('should handle maximum batting slots correctly', () => {
+    it('should handle maximum batting slots correctly with custom rules', () => {
+      const rules = new SoftballRules({ maxPlayersPerTeam: 20 });
+
       for (let i = 1; i <= 20; i += 1) {
+        const player = {
+          playerId: new PlayerId(`player-${i}`),
+          jerseyNumber: new JerseyNumber(i.toString()),
+          name: `Player ${i}`,
+        };
+        strategy.addPlayer(player, i, FieldPosition.EXTRA_PLAYER, rules);
+      }
+
+      expect(strategy.getActivePlayerCount()).toBe(20);
+
+      // Should reject adding to slot 21 with rules limiting to 20
+      const extraPlayer = {
+        playerId: new PlayerId('extra'),
+        jerseyNumber: new JerseyNumber('99'),
+        name: 'Extra Player',
+      };
+
+      expect(() => strategy.addPlayer(extraPlayer, 21, FieldPosition.EXTRA_PLAYER, rules)).toThrow(
+        DomainError
+      );
+    });
+
+    it('should handle maximum batting slots correctly with default rules', () => {
+      // Default rules allow up to 25 players
+      for (let i = 1; i <= 25; i += 1) {
         const player = {
           playerId: new PlayerId(`player-${i}`),
           jerseyNumber: new JerseyNumber(i.toString()),
@@ -705,16 +760,16 @@ describe('DetailedTeamStrategy', () => {
         strategy.addPlayer(player, i, FieldPosition.EXTRA_PLAYER);
       }
 
-      expect(strategy.getActivePlayerCount()).toBe(20);
+      expect(strategy.getActivePlayerCount()).toBe(25);
 
-      // Should reject adding to slot 21
+      // Should reject adding to slot 26
       const extraPlayer = {
         playerId: new PlayerId('extra'),
         jerseyNumber: new JerseyNumber('99'),
         name: 'Extra Player',
       };
 
-      expect(() => strategy.addPlayer(extraPlayer, 21, FieldPosition.EXTRA_PLAYER)).toThrow(
+      expect(() => strategy.addPlayer(extraPlayer, 26, FieldPosition.EXTRA_PLAYER)).toThrow(
         DomainError
       );
     });

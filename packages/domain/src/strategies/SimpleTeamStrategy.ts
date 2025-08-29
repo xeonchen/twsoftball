@@ -1,5 +1,6 @@
 import { PlayerId } from '../value-objects/PlayerId';
 import { FieldPosition } from '../constants/FieldPosition';
+import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
 import type { TeamStrategy, TeamPlayer, BattingSlotState } from './TeamStrategy';
 
@@ -11,7 +12,7 @@ import type { TeamStrategy, TeamPlayer, BattingSlotState } from './TeamStrategy'
  * complexity and no historical tracking. This implementation is ideal for:
  *
  * **Core Features**:
- * - Current batting lineup management (1-20 slots)
+ * - Current batting lineup management (configurable slot limit per SoftballRules)
  * - Basic player substitution without re-entry restrictions
  * - Simple position changes without history tracking
  * - Essential lineup validation for game readiness
@@ -96,7 +97,7 @@ export class SimpleTeamStrategy implements TeamStrategy {
    * which is common in casual games or when initializing from saved game state.
    *
    * **Validation Rules Applied**:
-   * - All batting slot numbers must be between 1 and 20 (inclusive)
+   * - All batting slot numbers must be between 1 and maxPlayersPerTeam (inclusive)
    * - No duplicate batting slot numbers allowed
    * - No duplicate players across different slots
    * - All required data fields must be present and valid
@@ -120,7 +121,10 @@ export class SimpleTeamStrategy implements TeamStrategy {
    * strategy.setCurrentLineup(lineup);
    * ```
    */
-  setCurrentLineup(lineupData: BattingSlotState[]): void {
+  setCurrentLineup(
+    lineupData: BattingSlotState[],
+    rules: SoftballRules = new SoftballRules()
+  ): void {
     // Clear existing lineup
     this.lineupSlots.clear();
 
@@ -130,7 +134,7 @@ export class SimpleTeamStrategy implements TeamStrategy {
 
     lineupData.forEach(slot => {
       // Validate batting slot number
-      SimpleTeamStrategy.validateBattingSlot(slot.slotNumber);
+      SimpleTeamStrategy.validateBattingSlot(slot.slotNumber, rules);
 
       // Check for duplicate slots
       if (usedSlots.has(slot.slotNumber)) {
@@ -200,7 +204,7 @@ export class SimpleTeamStrategy implements TeamStrategy {
    * Gets the current batting slot number for a specific player.
    *
    * @param playerId - The unique identifier of the player
-   * @returns The batting slot number (1-20) or undefined if not in lineup
+   * @returns The batting slot number (1 to maxPlayersPerTeam) or undefined if not in lineup
    *
    * @remarks
    * This method provides the batting position of an active player. Returns
@@ -239,10 +243,11 @@ export class SimpleTeamStrategy implements TeamStrategy {
   /**
    * Processes a player substitution in the lineup with simplified rules.
    *
-   * @param battingSlot - The batting slot number (1-20) where substitution occurs
+   * @param battingSlot - The batting slot number (1 to maxPlayersPerTeam per rules) where substitution occurs
    * @param outgoingPlayerId - The player being substituted out
    * @param incomingPlayer - The new player entering the game
    * @param fieldPosition - The field position for the incoming player
+   * @param rules - Optional softball rules configuration (uses defaults if not provided)
    *
    * @throws {DomainError} When batting slot is invalid, players are not eligible, or basic validation fails
    *
@@ -274,9 +279,10 @@ export class SimpleTeamStrategy implements TeamStrategy {
     battingSlot: number,
     outgoingPlayerId: PlayerId,
     incomingPlayer: TeamPlayer,
-    fieldPosition: FieldPosition
+    fieldPosition: FieldPosition,
+    rules: SoftballRules = new SoftballRules()
   ): void {
-    SimpleTeamStrategy.validateBattingSlot(battingSlot);
+    SimpleTeamStrategy.validateBattingSlot(battingSlot, rules);
 
     const currentSlot = this.lineupSlots.get(battingSlot);
     if (!currentSlot) {
@@ -357,7 +363,7 @@ export class SimpleTeamStrategy implements TeamStrategy {
    *
    * **Minimum Player Requirements**:
    * - At least 9 players in the lineup (standard softball minimum)
-   * - No maximum enforced (up to 20 batting slots allowed)
+   * - Maximum per SoftballRules.maxPlayersPerTeam configuration
    *
    * **Essential Position Coverage**:
    * - All required defensive positions must be filled
@@ -374,11 +380,11 @@ export class SimpleTeamStrategy implements TeamStrategy {
    * - Real-time compliance checking during lineup changes
    * - Quick readiness verification for casual games
    */
-  isLineupValid(): boolean {
+  isLineupValid(rules: SoftballRules = new SoftballRules()): boolean {
     const lineup = this.getCurrentLineup();
 
-    // Must have at least 9 players
-    if (lineup.length < 9) {
+    // Must have at least 9 players but not exceed maximum
+    if (lineup.length < 9 || lineup.length > rules.maxPlayersPerTeam) {
       return false;
     }
 
@@ -419,22 +425,23 @@ export class SimpleTeamStrategy implements TeamStrategy {
    * Validates that a batting slot number is within the valid range.
    *
    * @param battingSlot - The batting slot number to validate
-   * @throws {DomainError} When batting slot is not between 1 and 20
+   * @param rules - Softball rules configuration defining maximum players per team
+   * @throws {DomainError} When batting slot is not within valid range
    *
    * @remarks
    * **Softball Batting Order Rules**:
    * - Minimum 1 player (though 9+ required for valid game)
-   * - Maximum 20 players in batting order (standard league limit)
+   * - Maximum per SoftballRules.maxPlayersPerTeam configuration
    * - Slots can be filled non-sequentially for flexibility
-   * - Extra Player (EP) rules support larger lineups
+   * - Extra Player (EP) rules support larger lineups based on league configuration
    *
    * **Validation Scope**: This is the only complex validation maintained
    * in SimpleTeamStrategy to ensure basic game rule compliance while
    * keeping complexity minimal.
    */
-  private static validateBattingSlot(battingSlot: number): void {
-    if (battingSlot < 1 || battingSlot > 20) {
-      throw new DomainError('Batting slot must be between 1 and 20');
+  private static validateBattingSlot(battingSlot: number, rules: SoftballRules): void {
+    if (battingSlot < 1 || battingSlot > rules.maxPlayersPerTeam) {
+      throw new DomainError(`Batting slot must be between 1 and ${rules.maxPlayersPerTeam}`);
     }
   }
 }

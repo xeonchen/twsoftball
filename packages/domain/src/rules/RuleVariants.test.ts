@@ -13,8 +13,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(null);
       expect(rules.allowReEntry).toBe(false);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(10);
-      expect(rules.mercyRuleAfterInning).toBe(5);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 10, afterInning: 5 }]);
     });
 
     it('should create USSSA rules', () => {
@@ -25,8 +24,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(null);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(15);
-      expect(rules.mercyRuleAfterInning).toBe(3);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 15, afterInning: 3 }]);
     });
 
     it('should create NSA rules', () => {
@@ -37,8 +35,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(null);
       expect(rules.allowReEntry).toBe(false);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(12);
-      expect(rules.mercyRuleAfterInning).toBe(4);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 12, afterInning: 4 }]);
     });
 
     it('should create ISA rules', () => {
@@ -49,8 +46,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(null);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(20);
-      expect(rules.mercyRuleAfterInning).toBe(4);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 20, afterInning: 4 }]);
     });
   });
 
@@ -63,8 +59,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(75);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(15);
-      expect(rules.mercyRuleAfterInning).toBe(3);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 15, afterInning: 3 }]);
     });
 
     it('should create corporate league rules', () => {
@@ -75,8 +70,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(90);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(12);
-      expect(rules.mercyRuleAfterInning).toBe(4);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 12, afterInning: 4 }]);
     });
 
     it('should create beer league rules', () => {
@@ -87,8 +81,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(null);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(20);
-      expect(rules.mercyRuleAfterInning).toBe(4);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 20, afterInning: 4 }]);
     });
 
     it('should create competitive league rules', () => {
@@ -99,8 +92,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(120);
       expect(rules.allowReEntry).toBe(false);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(8);
-      expect(rules.mercyRuleAfterInning).toBe(5);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 8, afterInning: 5 }]);
     });
   });
 
@@ -113,8 +105,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(90);
       expect(rules.allowReEntry).toBe(false);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(10);
-      expect(rules.mercyRuleAfterInning).toBe(4);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 10, afterInning: 4 }]);
     });
 
     it('should create double elimination tournament rules', () => {
@@ -125,8 +116,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(105);
       expect(rules.allowReEntry).toBe(false);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(12);
-      expect(rules.mercyRuleAfterInning).toBe(4);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 12, afterInning: 4 }]);
     });
 
     it('should create round robin tournament rules', () => {
@@ -137,8 +127,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(75);
       expect(rules.allowReEntry).toBe(false);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(8);
-      expect(rules.mercyRuleAfterInning).toBe(3);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 8, afterInning: 3 }]);
     });
 
     it('should create weekend tournament rules', () => {
@@ -149,8 +138,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(90);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(15);
-      expect(rules.mercyRuleAfterInning).toBe(3);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 15, afterInning: 3 }]);
     });
   });
 
@@ -163,8 +151,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(75);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(10);
-      expect(rules.mercyRuleAfterInning).toBe(2);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 10, afterInning: 2 }]);
     });
 
     it('should create 14U (14 and under) rules', () => {
@@ -175,8 +162,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(90);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(12);
-      expect(rules.mercyRuleAfterInning).toBe(3);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 12, afterInning: 3 }]);
     });
 
     it('should create 16U (16 and under) rules', () => {
@@ -187,8 +173,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(105);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(12);
-      expect(rules.mercyRuleAfterInning).toBe(3);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 12, afterInning: 3 }]);
     });
 
     it('should create 18U (18 and under) rules', () => {
@@ -199,8 +184,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(120);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(10);
-      expect(rules.mercyRuleAfterInning).toBe(4);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 10, afterInning: 4 }]);
     });
 
     it('should create senior (50+) rules', () => {
@@ -211,8 +195,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(null);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(15);
-      expect(rules.mercyRuleAfterInning).toBe(4);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 15, afterInning: 4 }]);
     });
 
     it('should create masters (60+) rules', () => {
@@ -223,8 +206,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(null);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(20);
-      expect(rules.mercyRuleAfterInning).toBe(3);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 20, afterInning: 3 }]);
     });
   });
 
@@ -237,8 +219,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(90);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(12);
-      expect(rules.mercyRuleAfterInning).toBe(4);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 12, afterInning: 4 }]);
     });
 
     it('should create slow pitch rules', () => {
@@ -249,8 +230,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(null);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(15);
-      expect(rules.mercyRuleAfterInning).toBe(3);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 15, afterInning: 3 }]);
     });
 
     it('should create fast pitch rules', () => {
@@ -261,8 +241,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(null);
       expect(rules.allowReEntry).toBe(false);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(8);
-      expect(rules.mercyRuleAfterInning).toBe(5);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 8, afterInning: 5 }]);
     });
 
     it('should create modified pitch rules', () => {
@@ -273,8 +252,7 @@ describe('RuleVariants', () => {
       expect(rules.timeLimitMinutes).toBe(105);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleDifferential).toBe(12);
-      expect(rules.mercyRuleAfterInning).toBe(4);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 12, afterInning: 4 }]);
     });
   });
 
@@ -292,8 +270,7 @@ describe('RuleVariants', () => {
       expect(customRules.maxPlayersPerTeam).toBe(20);
       expect(customRules.allowReEntry).toBe(false);
       expect(customRules.mercyRuleEnabled).toBe(true);
-      expect(customRules.mercyRuleDifferential).toBe(10);
-      expect(customRules.mercyRuleAfterInning).toBe(5);
+      expect(customRules.mercyRuleTiers).toEqual([{ differential: 10, afterInning: 5 }]);
     });
 
     it('should create custom rules from scratch', () => {
@@ -303,8 +280,7 @@ describe('RuleVariants', () => {
         timeLimitMinutes: 60,
         allowReEntry: false,
         mercyRuleEnabled: false,
-        mercyRuleDifferential: 25,
-        mercyRuleAfterInning: 1,
+        mercyRuleTiers: [{ differential: 25, afterInning: 1 }],
       });
 
       expect(customRules.totalInnings).toBe(5);
@@ -312,8 +288,7 @@ describe('RuleVariants', () => {
       expect(customRules.timeLimitMinutes).toBe(60);
       expect(customRules.allowReEntry).toBe(false);
       expect(customRules.mercyRuleEnabled).toBe(false);
-      expect(customRules.mercyRuleDifferential).toBe(25);
-      expect(customRules.mercyRuleAfterInning).toBe(1);
+      expect(customRules.mercyRuleTiers).toEqual([{ differential: 25, afterInning: 1 }]);
     });
 
     it('should handle null base rules in withCustomizations', () => {
@@ -339,11 +314,11 @@ describe('RuleVariants', () => {
       const baseRules = RuleVariants.tournament();
       const customRules = RuleVariants.withCustomizations(baseRules, {
         allowReEntry: true,
-        mercyRuleDifferential: 15,
+        mercyRuleTiers: [{ differential: 15, afterInning: 3 }],
       });
 
       expect(customRules.allowReEntry).toBe(true);
-      expect(customRules.mercyRuleDifferential).toBe(15);
+      expect(customRules.mercyRuleTiers).toEqual([{ differential: 15, afterInning: 3 }]);
       // Other properties should remain unchanged
       expect(customRules.totalInnings).toBe(baseRules.totalInnings);
       expect(customRules.maxPlayersPerTeam).toBe(baseRules.maxPlayersPerTeam);
@@ -395,9 +370,8 @@ describe('RuleVariants', () => {
 
       variants.forEach(rules => {
         if (rules.mercyRuleEnabled) {
-          expect(rules.mercyRuleDifferential).toBeGreaterThan(0);
-          expect(rules.mercyRuleAfterInning).toBeGreaterThan(0);
-          expect(rules.mercyRuleAfterInning).toBeLessThan(rules.totalInnings);
+          expect(rules.mercyRuleTiers.length).toBeGreaterThan(0);
+          expect(rules.mercyRuleTiers[0]!.differential).toBeGreaterThan(0);
         }
       });
     });
@@ -448,8 +422,7 @@ describe('RuleVariants', () => {
         totalInnings: 1, // minimum
         maxPlayersPerTeam: 9, // minimum
         timeLimitMinutes: 1, // minimum
-        mercyRuleDifferential: 1, // minimum
-        mercyRuleAfterInning: 1, // minimum
+        mercyRuleTiers: [{ differential: 1, afterInning: 1 }], // minimum
       });
 
       expect(extremeRules.totalInnings).toBe(1);

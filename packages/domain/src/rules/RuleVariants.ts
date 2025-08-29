@@ -41,10 +41,26 @@ import { DomainError } from '../errors/DomainError';
  * const singleElim = RuleVariants.singleEliminationTournament();
  * const doubleElim = RuleVariants.doubleEliminationTournament();
  *
+ * // Advanced mercy rule systems
+ * const twoTier = RuleVariants.twoTierMercyRule();
+ * const threeTier = RuleVariants.threeTierMercyRule();
+ * const lenient = RuleVariants.lenientMercyRule();
+ * const tight = RuleVariants.tightMercyRule();
+ *
  * // Custom modifications
  * const customRules = RuleVariants.withCustomizations(asaRules, {
  *   timeLimitMinutes: 120,
- *   maxPlayersPerTeam: 25
+ *   maxPlayersPerTeam: 25,
+ *   maxExtraInnings: 5,
+ *   allowTieGames: true
+ * });
+ *
+ * // Custom mercy rule tiers
+ * const customMercy = RuleVariants.withCustomizations(churchRules, {
+ *   mercyRuleTiers: [
+ *     { differential: 15, afterInning: 3 },
+ *     { differential: 10, afterInning: 5 }
+ *   ]
  * });
  * ```
  */
@@ -72,8 +88,7 @@ export class RuleVariants {
       timeLimitMinutes: null,
       allowReEntry: false,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 10,
-      mercyRuleAfterInning: 5,
+      mercyRuleTiers: [{ differential: 10, afterInning: 5 }],
     });
   }
 
@@ -97,8 +112,7 @@ export class RuleVariants {
       timeLimitMinutes: null,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 15,
-      mercyRuleAfterInning: 3,
+      mercyRuleTiers: [{ differential: 15, afterInning: 3 }],
     });
   }
 
@@ -122,8 +136,7 @@ export class RuleVariants {
       timeLimitMinutes: null,
       allowReEntry: false,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 12,
-      mercyRuleAfterInning: 4,
+      mercyRuleTiers: [{ differential: 12, afterInning: 4 }],
     });
   }
 
@@ -147,8 +160,7 @@ export class RuleVariants {
       timeLimitMinutes: null,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 20,
-      mercyRuleAfterInning: 4,
+      mercyRuleTiers: [{ differential: 20, afterInning: 4 }],
     });
   }
 
@@ -175,8 +187,7 @@ export class RuleVariants {
       timeLimitMinutes: 75,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 15,
-      mercyRuleAfterInning: 3,
+      mercyRuleTiers: [{ differential: 15, afterInning: 3 }],
     });
   }
 
@@ -201,8 +212,7 @@ export class RuleVariants {
       timeLimitMinutes: 90,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 12,
-      mercyRuleAfterInning: 4,
+      mercyRuleTiers: [{ differential: 12, afterInning: 4 }],
     });
   }
 
@@ -227,8 +237,7 @@ export class RuleVariants {
       timeLimitMinutes: null,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 20,
-      mercyRuleAfterInning: 4,
+      mercyRuleTiers: [{ differential: 20, afterInning: 4 }],
     });
   }
 
@@ -253,8 +262,7 @@ export class RuleVariants {
       timeLimitMinutes: 120,
       allowReEntry: false,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 8,
-      mercyRuleAfterInning: 5,
+      mercyRuleTiers: [{ differential: 8, afterInning: 5 }],
     });
   }
 
@@ -281,8 +289,7 @@ export class RuleVariants {
       timeLimitMinutes: 90,
       allowReEntry: false,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 10,
-      mercyRuleAfterInning: 4,
+      mercyRuleTiers: [{ differential: 10, afterInning: 4 }],
     });
   }
 
@@ -306,8 +313,7 @@ export class RuleVariants {
       timeLimitMinutes: 105,
       allowReEntry: false,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 12,
-      mercyRuleAfterInning: 4,
+      mercyRuleTiers: [{ differential: 12, afterInning: 4 }],
     });
   }
 
@@ -332,8 +338,7 @@ export class RuleVariants {
       timeLimitMinutes: 75,
       allowReEntry: false,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 8,
-      mercyRuleAfterInning: 3,
+      mercyRuleTiers: [{ differential: 8, afterInning: 3 }],
     });
   }
 
@@ -358,8 +363,7 @@ export class RuleVariants {
       timeLimitMinutes: 90,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 15,
-      mercyRuleAfterInning: 3,
+      mercyRuleTiers: [{ differential: 15, afterInning: 3 }],
     });
   }
 
@@ -386,8 +390,7 @@ export class RuleVariants {
       timeLimitMinutes: 75,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 10,
-      mercyRuleAfterInning: 2,
+      mercyRuleTiers: [{ differential: 10, afterInning: 2 }],
     });
   }
 
@@ -411,8 +414,7 @@ export class RuleVariants {
       timeLimitMinutes: 90,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 12,
-      mercyRuleAfterInning: 3,
+      mercyRuleTiers: [{ differential: 12, afterInning: 3 }],
     });
   }
 
@@ -436,8 +438,7 @@ export class RuleVariants {
       timeLimitMinutes: 105,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 12,
-      mercyRuleAfterInning: 3,
+      mercyRuleTiers: [{ differential: 12, afterInning: 3 }],
     });
   }
 
@@ -462,8 +463,7 @@ export class RuleVariants {
       timeLimitMinutes: 120,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 10,
-      mercyRuleAfterInning: 4,
+      mercyRuleTiers: [{ differential: 10, afterInning: 4 }],
     });
   }
 
@@ -488,8 +488,7 @@ export class RuleVariants {
       timeLimitMinutes: null,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 15,
-      mercyRuleAfterInning: 4,
+      mercyRuleTiers: [{ differential: 15, afterInning: 4 }],
     });
   }
 
@@ -514,8 +513,7 @@ export class RuleVariants {
       timeLimitMinutes: null,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 20,
-      mercyRuleAfterInning: 3,
+      mercyRuleTiers: [{ differential: 20, afterInning: 3 }],
     });
   }
 
@@ -542,8 +540,7 @@ export class RuleVariants {
       timeLimitMinutes: 90,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 12,
-      mercyRuleAfterInning: 4,
+      mercyRuleTiers: [{ differential: 12, afterInning: 4 }],
     });
   }
 
@@ -568,8 +565,7 @@ export class RuleVariants {
       timeLimitMinutes: null,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 15,
-      mercyRuleAfterInning: 3,
+      mercyRuleTiers: [{ differential: 15, afterInning: 3 }],
     });
   }
 
@@ -594,8 +590,7 @@ export class RuleVariants {
       timeLimitMinutes: null,
       allowReEntry: false,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 8,
-      mercyRuleAfterInning: 5,
+      mercyRuleTiers: [{ differential: 8, afterInning: 5 }],
     });
   }
 
@@ -620,50 +615,186 @@ export class RuleVariants {
       timeLimitMinutes: 105,
       allowReEntry: true,
       mercyRuleEnabled: true,
-      mercyRuleDifferential: 12,
-      mercyRuleAfterInning: 4,
+      mercyRuleTiers: [{ differential: 12, afterInning: 4 }],
+    });
+  }
+
+  // Advanced Mercy Rule Variants
+
+  /**
+   * Creates rules with progressive two-tier mercy rule system.
+   *
+   * @returns SoftballRules configured with two-tier mercy rule system
+   *
+   * @remarks
+   * Implements a modern two-tier mercy rule system that tightens as the game progresses:
+   * - Early game (after 4th inning): 10-run differential (more lenient)
+   * - Late game (after 5th inning): 7-run differential (tighter control)
+   *
+   * This system prevents early blowouts while still allowing competitive games
+   * to develop. Popular in competitive recreation leagues and tournaments
+   * where game flow management is important.
+   */
+  static twoTierMercyRule(): SoftballRules {
+    return new SoftballRules({
+      totalInnings: 7,
+      maxPlayersPerTeam: 25,
+      timeLimitMinutes: 90,
+      allowReEntry: true,
+      mercyRuleEnabled: true,
+      mercyRuleTiers: [
+        { differential: 10, afterInning: 4 }, // 10 runs after 4th inning
+        { differential: 7, afterInning: 5 }, // 7 runs after 5th inning
+      ],
+    });
+  }
+
+  /**
+   * Creates rules with aggressive three-tier mercy rule system.
+   *
+   * @returns SoftballRules configured with three-tier mercy rule system
+   *
+   * @remarks
+   * Implements an aggressive three-tier mercy rule system for rapid game resolution:
+   * - Very early (after 2nd inning): 20-run differential (prevents complete blowouts)
+   * - Mid-game (after 4th inning): 12-run differential (moderate control)
+   * - Late game (after 6th inning): 8-run differential (tight endgame)
+   *
+   * Designed for tournament formats where schedule management is critical
+   * and games need to move quickly while maintaining competitive balance.
+   */
+  static threeTierMercyRule(): SoftballRules {
+    return new SoftballRules({
+      totalInnings: 7,
+      maxPlayersPerTeam: 20,
+      timeLimitMinutes: 75,
+      allowReEntry: false,
+      mercyRuleEnabled: true,
+      mercyRuleTiers: [
+        { differential: 20, afterInning: 2 }, // Very lenient early
+        { differential: 12, afterInning: 4 }, // Moderate mid-game
+        { differential: 8, afterInning: 6 }, // Tight late game
+      ],
+    });
+  }
+
+  /**
+   * Creates rules with lenient single-tier mercy rule system.
+   *
+   * @returns SoftballRules configured with lenient mercy rule
+   *
+   * @remarks
+   * Uses a very lenient single mercy rule threshold designed for social leagues
+   * where the emphasis is on fun rather than competitive balance:
+   * - 25 runs after 3rd inning (allows for big offensive displays)
+   * - Only prevents completely lopsided games
+   * - Maximizes playing time and participation
+   */
+  static lenientMercyRule(): SoftballRules {
+    return new SoftballRules({
+      totalInnings: 7,
+      maxPlayersPerTeam: 30,
+      timeLimitMinutes: null,
+      allowReEntry: true,
+      mercyRuleEnabled: true,
+      mercyRuleTiers: [{ differential: 25, afterInning: 3 }],
+    });
+  }
+
+  /**
+   * Creates rules with tight single-tier mercy rule system.
+   *
+   * @returns SoftballRules configured with tight mercy rule
+   *
+   * @remarks
+   * Uses a tight single mercy rule threshold for highly competitive leagues:
+   * - 6 runs after 5th inning (prevents moderate blowouts)
+   * - Ensures games remain competitive throughout
+   * - Suitable for skilled player leagues where games are typically close
+   */
+  static tightMercyRule(): SoftballRules {
+    return new SoftballRules({
+      totalInnings: 7,
+      maxPlayersPerTeam: 18,
+      timeLimitMinutes: 120,
+      allowReEntry: false,
+      mercyRuleEnabled: true,
+      mercyRuleTiers: [{ differential: 6, afterInning: 5 }],
     });
   }
 
   // Convenience Aliases for Standard Rules
 
   /**
-   * Creates standard recreation league rules (alias for SoftballRules.recreationLeague()).
+   * Creates standard recreation league rules optimized for casual play.
    *
-   * @returns SoftballRules configured for recreation league play
+   * @returns SoftballRules configured for recreation leagues
    *
    * @remarks
-   * Provides consistent access to standard recreation rules through RuleVariants.
-   * Equivalent to SoftballRules.recreationLeague() for API consistency.
+   * Recreation league settings prioritize fun and participation:
+   * - 7 innings (standard softball length)
+   * - 25 player roster (accommodates varying attendance)
+   * - No time limit (games play to completion)
+   * - Re-entry allowed (maximizes participation)
+   * - Lenient mercy rule (15 runs after inning 3)
    */
   static recreationLeague(): SoftballRules {
-    return SoftballRules.recreationLeague();
+    return new SoftballRules({
+      totalInnings: 7,
+      maxPlayersPerTeam: 25,
+      timeLimitMinutes: null,
+      allowReEntry: true,
+      mercyRuleEnabled: true,
+      mercyRuleTiers: [{ differential: 15, afterInning: 3 }],
+    });
   }
 
   /**
-   * Creates standard tournament rules (alias for SoftballRules.tournament()).
+   * Creates tournament rules optimized for competitive play and scheduling.
    *
    * @returns SoftballRules configured for tournament play
    *
    * @remarks
-   * Provides consistent access to standard tournament rules through RuleVariants.
-   * Equivalent to SoftballRules.tournament() for API consistency.
+   * Tournament settings balance competition with time management:
+   * - 7 innings (standard competitive length)
+   * - 20 player roster (manageable competitive roster)
+   * - 90 minute time limit (tournament scheduling)
+   * - No re-entry (competitive integrity)
+   * - Tighter mercy rule (10 runs after inning 4)
    */
   static tournament(): SoftballRules {
-    return SoftballRules.tournament();
+    return new SoftballRules({
+      totalInnings: 7,
+      maxPlayersPerTeam: 20,
+      timeLimitMinutes: 90,
+      allowReEntry: false,
+      mercyRuleEnabled: true,
+      mercyRuleTiers: [{ differential: 10, afterInning: 4 }],
+    });
   }
 
   /**
-   * Creates standard youth league rules (alias for SoftballRules.youthLeague()).
+   * Creates youth league rules adapted for younger players.
    *
-   * @returns SoftballRules configured for youth league play
+   * @returns SoftballRules configured for youth leagues
    *
    * @remarks
-   * Provides consistent access to standard youth rules through RuleVariants.
-   * Equivalent to SoftballRules.youthLeague() for API consistency.
+   * Youth league settings account for shorter attention spans and skill development:
+   * - 5 innings (appropriate for younger players)
+   * - 15 player roster (smaller team management)
+   * - 75 minute time limit (holds attention, allows completion)
+   * - Re-entry allowed (development and participation focus)
+   * - Early mercy rule (12 runs after inning 2)
    */
   static youthLeague(): SoftballRules {
-    return SoftballRules.youthLeague();
+    return new SoftballRules({
+      totalInnings: 5,
+      maxPlayersPerTeam: 15,
+      timeLimitMinutes: 75,
+      allowReEntry: true,
+      mercyRuleEnabled: true,
+      mercyRuleTiers: [{ differential: 12, afterInning: 2 }],
+    });
   }
 
   // Custom Rule Creation Methods
@@ -703,7 +834,7 @@ export class RuleVariants {
    *   {
    *     totalInnings: 5,
    *     allowReEntry: true,
-   *     mercyRuleDifferential: 12
+   *     mercyRuleTiers: [{ differential: 12, afterInning: 4 }]
    *   }
    * );
    * ```
@@ -723,8 +854,7 @@ export class RuleVariants {
       timeLimitMinutes: baseRules.timeLimitMinutes,
       allowReEntry: baseRules.allowReEntry,
       mercyRuleEnabled: baseRules.mercyRuleEnabled,
-      mercyRuleDifferential: baseRules.mercyRuleDifferential,
-      mercyRuleAfterInning: baseRules.mercyRuleAfterInning,
+      mercyRuleTiers: [...baseRules.mercyRuleTiers],
     };
 
     // Merge customizations with current configuration
@@ -771,8 +901,7 @@ export class RuleVariants {
    *   timeLimitMinutes: 60,
    *   allowReEntry: true,
    *   mercyRuleEnabled: true,
-   *   mercyRuleDifferential: 8,
-   *   mercyRuleAfterInning: 2
+   *   mercyRuleTiers: [{ differential: 8, afterInning: 2 }]
    * });
    * ```
    */

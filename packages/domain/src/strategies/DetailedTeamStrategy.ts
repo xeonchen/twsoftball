@@ -1,5 +1,6 @@
 import { PlayerId } from '../value-objects/PlayerId';
 import { FieldPosition } from '../constants/FieldPosition';
+import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
 import type { TeamStrategy, TeamPlayer, BattingSlotState } from './TeamStrategy';
 
@@ -156,8 +157,13 @@ export class DetailedTeamStrategy implements TeamStrategy {
    * - Original batting slot is preserved for re-entry
    * - Position changes are tracked but don't affect re-entry eligibility
    */
-  addPlayer(player: TeamPlayer, battingSlot: number, fieldPosition: FieldPosition): void {
-    DetailedTeamStrategy.validateBattingSlot(battingSlot);
+  addPlayer(
+    player: TeamPlayer,
+    battingSlot: number,
+    fieldPosition: FieldPosition,
+    rules: SoftballRules = new SoftballRules()
+  ): void {
+    DetailedTeamStrategy.validateBattingSlot(battingSlot, rules);
 
     if (this.lineupSlots.has(battingSlot)) {
       throw new DomainError(`Batting slot ${battingSlot} is already occupied`);
@@ -298,9 +304,10 @@ export class DetailedTeamStrategy implements TeamStrategy {
     battingSlot: number,
     outgoingPlayerId: PlayerId,
     incomingPlayer: TeamPlayer,
-    fieldPosition: FieldPosition
+    fieldPosition: FieldPosition,
+    rules: SoftballRules = new SoftballRules()
   ): void {
-    DetailedTeamStrategy.validateBattingSlot(battingSlot);
+    DetailedTeamStrategy.validateBattingSlot(battingSlot, rules);
 
     const currentSlot = this.lineupSlots.get(battingSlot);
     if (!currentSlot) {
@@ -447,11 +454,11 @@ export class DetailedTeamStrategy implements TeamStrategy {
    * - Real-time lineup compliance checking
    * - Tournament rule enforcement
    */
-  isLineupValid(): boolean {
+  isLineupValid(rules: SoftballRules = new SoftballRules()): boolean {
     const lineup = this.getCurrentLineup();
 
-    // Must have at least 9 players
-    if (lineup.length < 9) {
+    // Must have at least 9 players but not exceed maximum
+    if (lineup.length < 9 || lineup.length > rules.maxPlayersPerTeam) {
       return false;
     }
 
@@ -549,9 +556,9 @@ export class DetailedTeamStrategy implements TeamStrategy {
    * - Slots can be filled non-sequentially (e.g., 1, 3, 7, 12)
    * - Extra Player (EP) rules allow more than 9 batters
    */
-  private static validateBattingSlot(battingSlot: number): void {
-    if (battingSlot < 1 || battingSlot > 20) {
-      throw new DomainError('Batting slot must be between 1 and 20');
+  private static validateBattingSlot(battingSlot: number, rules: SoftballRules): void {
+    if (battingSlot < 1 || battingSlot > rules.maxPlayersPerTeam) {
+      throw new DomainError(`Batting slot must be between 1 and ${rules.maxPlayersPerTeam}`);
     }
   }
 }

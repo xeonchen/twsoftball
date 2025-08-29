@@ -9,6 +9,7 @@ import { TeamLineupCreated } from '../events/TeamLineupCreated';
 import { PlayerAddedToLineup } from '../events/PlayerAddedToLineup';
 import { PlayerSubstitutedIntoGame } from '../events/PlayerSubstitutedIntoGame';
 import { FieldPositionChanged } from '../events/FieldPositionChanged';
+import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
 
 /**
@@ -71,14 +72,14 @@ interface PlayerParticipationHistory {
  *
  * **Core Responsibilities:**
  * - **Player Management**: Add players with unique jersey numbers and positions
- * - **Batting Order**: Maintain 1-20 batting slot assignments with proper sequencing
+ * - **Batting Order**: Maintain batting slot assignments with configurable limits (per SoftballRules)
  * - **Defensive Alignment**: Track field position assignments and changes
  * - **Substitution Rules**: Enforce starter re-entry rules and substitution constraints
  * - **Event Sourcing**: Emit domain events for all state changes
  * - **Rule Validation**: Prevent invalid lineup configurations and rule violations
  *
  * **Softball-Specific Business Rules:**
- * - **Batting Slots**: Support 1-20 slots (standard 9 + up to 11 Extra Players/DH)
+ * - **Batting Slots**: Support configurable player limits (standard 9 + Extra Players/DH per SoftballRules.maxPlayersPerTeam)
  * - **Jersey Numbers**: Must be unique within team, typically 1-99 range
  * - **Re-entry Rule**: Original starters can re-enter the game once after substitution
  * - **Position Coverage**: Track defensive positions, multiple players can be EXTRA_PLAYER
@@ -251,14 +252,15 @@ export class TeamLineup {
    * @param playerId - Unique identifier of the player to add
    * @param jerseyNumber - Jersey number to assign (must be unique within team)
    * @param playerName - Display name of the player (1-100 characters)
-   * @param battingSlot - Batting order position (1-20)
+   * @param battingSlot - Batting order position (1 to maxPlayersPerTeam per rules)
    * @param fieldPosition - Initial defensive position
+   * @param rules - Optional softball rules configuration (uses defaults if not provided)
    * @returns New TeamLineup instance with the player added
    * @throws {DomainError} When constraints are violated
    *
    * @remarks
    * **Business Rules Enforced:**
-   * - Batting slot must be between 1-20 and unoccupied
+   * - Batting slot must be between 1 and rules.maxPlayersPerTeam and unoccupied
    * - Jersey numbers must be unique within the team
    * - Player cannot already be in the lineup
    * - Field positions must be unique (except EXTRA_PLAYER)
@@ -281,9 +283,10 @@ export class TeamLineup {
     jerseyNumber: JerseyNumber,
     playerName: string,
     battingSlot: number,
-    fieldPosition: FieldPosition
+    fieldPosition: FieldPosition,
+    rules: SoftballRules
   ): TeamLineup {
-    TeamLineup.validateBattingSlot(battingSlot);
+    TeamLineup.validateBattingSlot(battingSlot, rules);
     TeamLineup.validatePlayerName(playerName);
 
     if (this.battingSlots.has(battingSlot)) {
@@ -363,7 +366,7 @@ export class TeamLineup {
   /**
    * Substitutes one player for another in the specified batting slot.
    *
-   * @param battingSlot - The batting slot where substitution occurs (1-20)
+   * @param battingSlot - The batting slot where substitution occurs (1 to maxPlayersPerTeam per rules)
    * @param outgoingPlayerId - Player being substituted out
    * @param incomingPlayerId - Player being substituted in
    * @param incomingJerseyNumber - Jersey number for incoming player
@@ -371,6 +374,7 @@ export class TeamLineup {
    * @param fieldPosition - Field position for incoming player
    * @param inning - Inning when substitution occurs (1 or greater)
    * @param isReentry - Whether this is a starter re-entering (default: false)
+   * @param rules - Optional softball rules configuration (uses defaults if not provided)
    * @returns New TeamLineup instance with substitution applied
    * @throws {DomainError} When substitution violates rules
    *
@@ -416,9 +420,10 @@ export class TeamLineup {
     incomingPlayerName: string,
     fieldPosition: FieldPosition,
     inning: number,
+    rules: SoftballRules,
     isReentry: boolean = false
   ): TeamLineup {
-    TeamLineup.validateBattingSlot(battingSlot);
+    TeamLineup.validateBattingSlot(battingSlot, rules);
     TeamLineup.validatePlayerName(incomingPlayerName);
     TeamLineup.validateInning(inning);
 
@@ -800,14 +805,19 @@ export class TeamLineup {
   }
 
   /**
-   * Validates that the batting slot is within the allowed range.
+   * Validates that the batting slot is within the allowed range based on softball rules.
    *
-   * @param battingSlot - The batting slot to validate (1-20)
+   * @param battingSlot - The batting slot to validate
+   * @param rules - Softball rules configuration defining maximum players per team
    * @throws {DomainError} When batting slot is invalid
+   *
+   * @remarks
+   * Uses SoftballRules.maxPlayersPerTeam to determine the valid range of batting slots.
+   * This allows for configurable roster sizes based on league requirements.
    */
-  private static validateBattingSlot(battingSlot: number): void {
-    if (battingSlot < 1 || battingSlot > 20) {
-      throw new DomainError('Batting slot must be between 1 and 20');
+  private static validateBattingSlot(battingSlot: number, rules: SoftballRules): void {
+    if (battingSlot < 1 || battingSlot > rules.maxPlayersPerTeam) {
+      throw new DomainError(`Batting slot must be between 1 and ${rules.maxPlayersPerTeam}`);
     }
   }
 

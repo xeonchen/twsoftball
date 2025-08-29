@@ -1,6 +1,7 @@
 import { BattingSlot } from '../value-objects/BattingSlot';
 import { JerseyNumber } from '../value-objects/JerseyNumber';
 import { FieldPosition } from '../constants/FieldPosition';
+import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
 
 /**
@@ -34,15 +35,15 @@ export interface LineupEntry {
  * result in game delays, forfeits, or rule violations during play.
  *
  * **Core Validation Rules**:
- * 1. **Player Count**: Minimum 9 players (traditional positions), maximum 20 (9 + 11 EP/DH)
- * 2. **Sequential Slots**: Batting slots 1-9 must be filled before using slots 10-20
+ * 1. **Player Count**: Minimum 9 players (traditional positions), maximum per SoftballRules.maxPlayersPerTeam
+ * 2. **Sequential Slots**: Batting slots 1-9 must be filled before using slots 10+ (Extra Players)
  * 3. **Jersey Uniqueness**: Each jersey number must be unique within the team
  * 4. **Player Uniqueness**: Each player can only occupy one batting slot at a time
  * 5. **Position Assignments**: Valid field positions for defensive players
  * 6. **Batting Order**: Slots must be in sequential order for gameplay
  *
  * **Softball-Specific Context**:
- * - **Extra Players (EP)**: Positions 10-20 allow batting-only players (no defense)
+ * - **Extra Players (EP)**: Positions 10+ allow batting-only players (no defense, up to maxPlayersPerTeam)
  * - **Short Fielder**: 10th defensive position unique to slow-pitch softball
  * - **Designated Hitter**: Can bat but doesn't play defense
  * - **Re-entry Rules**: Validated in conjunction with substitution patterns
@@ -75,7 +76,7 @@ export interface LineupEntry {
  *
  * // Validate extended lineup with EP/DH players
  * const extendedLineup = [...minimalLineup, {
- *   battingSlot: BattingSlot.createWithStarter(10, extraPlayerId),
+ *   battingSlot: BattingSlot.createWithStarter(10, extraPlayerId), // Position 10+ for EP
  *   jerseyNumber: new JerseyNumber('99'),
  *   fieldPosition: FieldPosition.EXTRA_PLAYER
  * }];
@@ -93,10 +94,10 @@ export class LineupValidator {
    *
    * **Player Count Requirements**:
    * - Minimum 9 players (enough to fill all defensive positions)
-   * - Maximum 20 players (9 starters + 11 EP/DH slots)
+   * - Maximum per SoftballRules.maxPlayersPerTeam configuration
    *
    * **Sequential Batting Slot Rules**:
-   * - Slots 1-9 must be completely filled before using slots 10-20
+   * - Slots 1-9 must be completely filled before using slots 10+
    * - No gaps allowed in EP/DH slots (must use 10, then 11, then 12, etc.)
    *
    * **Uniqueness Constraints**:
@@ -112,6 +113,7 @@ export class LineupValidator {
    * encountering the first rule violation with a descriptive error message.
    *
    * @param lineup - Array of LineupEntry objects representing the complete team lineup
+   * @param rules - Optional softball rules configuration (uses defaults if not provided)
    * @throws {DomainError} When any validation rule is violated
    *
    * @example
@@ -133,11 +135,14 @@ export class LineupValidator {
    * LineupValidator.validateLineupConfiguration(duplicateJerseys); // Throws DomainError
    * ```
    */
-  static validateLineupConfiguration(lineup: LineupEntry[]): void {
-    // 1. Validate player count (9-20 players)
-    if (!this.isValidLineupSize(lineup.length)) {
+  static validateLineupConfiguration(
+    lineup: LineupEntry[],
+    rules: SoftballRules = new SoftballRules()
+  ): void {
+    // 1. Validate player count (9 to maxPlayersPerTeam players)
+    if (!this.isValidLineupSize(lineup.length, rules)) {
       throw new DomainError(
-        `Lineup must have minimum 9 players and maximum 20 batting slots, got ${lineup.length}`
+        `Lineup must have minimum 9 players and maximum ${rules.maxPlayersPerTeam} batting slots, got ${lineup.length}`
       );
     }
 
@@ -146,8 +151,8 @@ export class LineupValidator {
       .map(entry => entry.battingSlot.position)
       .sort((a, b) => a - b);
 
-    // 3. Validate that slots 1-9 are filled before using 10-20
-    this.validateSequentialBattingSlots(battingSlotPositions);
+    // 3. Validate that slots 1-9 are filled before using 10+
+    this.validateSequentialBattingSlots(battingSlotPositions, rules);
 
     // 4. Validate jersey number uniqueness
     const jerseyNumbers = lineup.map(entry => entry.jerseyNumber);
@@ -171,7 +176,7 @@ export class LineupValidator {
    * @remarks
    * **Softball Sequential Slot Rules**:
    * - Positions 1-9: Must be completely filled before using any EP/DH slots
-   * - Positions 10-20: Must be used sequentially (10, then 11, then 12, etc.)
+   * - Positions 10+: Must be used sequentially (10, then 11, then 12, etc.) up to maxPlayersPerTeam
    * - No gaps allowed in either range
    *
    * **Business Rationale**: Sequential slot usage ensures:
@@ -181,28 +186,32 @@ export class LineupValidator {
    * - Clear understanding of batting sequence for all participants
    *
    * @param positions - Array of batting slot positions (should be pre-sorted)
+   * @param rules - Optional softball rules configuration (uses defaults if not provided)
    * @throws {DomainError} When sequential slot rules are violated
    *
    * @example
    * ```typescript
    * // Valid sequences
-   * LineupValidator.validateSequentialBattingSlots([1,2,3,4,5,6,7,8,9]); // ✓
-   * LineupValidator.validateSequentialBattingSlots([1,2,3,4,5,6,7,8,9,10,11]); // ✓
+   * LineupValidator.validateSequentialBattingSlots([1,2,3,4,5,6,7,8,9], rules); // ✓
+   * LineupValidator.validateSequentialBattingSlots([1,2,3,4,5,6,7,8,9,10,11], rules); // ✓
    *
    * // Invalid sequences
-   * LineupValidator.validateSequentialBattingSlots([1,2,3,4,5,6,7,8,10]); // ✗ Missing 9
-   * LineupValidator.validateSequentialBattingSlots([1,2,3,4,5,6,7,8,9,11]); // ✗ Missing 10
+   * LineupValidator.validateSequentialBattingSlots([1,2,3,4,5,6,7,8,10], rules); // ✗ Missing 9
+   * LineupValidator.validateSequentialBattingSlots([1,2,3,4,5,6,7,8,9,11], rules); // ✗ Missing 10
    * ```
    */
-  private static validateSequentialBattingSlots(positions: number[]): void {
+  private static validateSequentialBattingSlots(
+    positions: number[],
+    rules: SoftballRules = new SoftballRules()
+  ): void {
     // Check if positions 1-9 are complete
     const corePositions = positions.filter(pos => pos >= 1 && pos <= 9);
-    const epPositions = positions.filter(pos => pos >= 10 && pos <= 20);
+    const epPositions = positions.filter(pos => pos >= 10 && pos <= rules.maxPlayersPerTeam);
 
     // If using EP positions, core positions 1-9 must be complete
     if (epPositions.length > 0) {
       if (corePositions.length !== 9) {
-        throw new DomainError('Batting slots 1-9 must be filled before using slots 10-20');
+        throw new DomainError('Batting slots 1-9 must be filled before using slots 10+');
       }
 
       // Verify core positions are exactly 1-9
@@ -329,28 +338,29 @@ export class LineupValidator {
    * **Softball Lineup Size Rules**:
    * - **Minimum 9**: Required to fill all traditional defensive positions
    *   (P, C, 1B, 2B, 3B, SS, LF, CF, RF)
-   * - **Maximum 20**: Allows for 9 starters plus 11 Extra Players/Designated Hitters
+   * - **Maximum per SoftballRules**: Configurable based on league requirements
    * - **Strategic Flexibility**: Larger lineups provide more substitution options
    *   and enable specialized players for different game situations
    *
-   * **Regulatory Compliance**: Different leagues may have variations, but 9-20
-   * represents the standard range accepted by most recreational and competitive
-   * softball organizations.
+   * **Regulatory Compliance**: Different leagues have varying limits, configurable
+   * through SoftballRules.maxPlayersPerTeam to accommodate different organizational needs.
    *
    * @param size - The number of players in the proposed lineup
-   * @returns True if size is within valid range (9-20), false otherwise
+   * @param rules - Optional softball rules configuration (uses defaults if not provided)
+   * @returns True if size is within valid range (9 to maxPlayersPerTeam), false otherwise
    *
    * @example
    * ```typescript
-   * console.log(LineupValidator.isValidLineupSize(9));  // true - minimal
-   * console.log(LineupValidator.isValidLineupSize(15)); // true - mid-range
-   * console.log(LineupValidator.isValidLineupSize(20)); // true - maximum
-   * console.log(LineupValidator.isValidLineupSize(8));  // false - too few
-   * console.log(LineupValidator.isValidLineupSize(21)); // false - too many
+   * const rules = new SoftballRules({ maxPlayersPerTeam: 20 });
+   * console.log(LineupValidator.isValidLineupSize(9, rules));  // true - minimal
+   * console.log(LineupValidator.isValidLineupSize(15, rules)); // true - mid-range
+   * console.log(LineupValidator.isValidLineupSize(20, rules)); // true - maximum for these rules
+   * console.log(LineupValidator.isValidLineupSize(8, rules));  // false - too few
+   * console.log(LineupValidator.isValidLineupSize(21, rules)); // false - too many for these rules
    * ```
    */
-  static isValidLineupSize(size: number): boolean {
-    return size >= 9 && size <= 20;
+  static isValidLineupSize(size: number, rules: SoftballRules = new SoftballRules()): boolean {
+    return size >= 9 && size <= rules.maxPlayersPerTeam;
   }
 
   /**
