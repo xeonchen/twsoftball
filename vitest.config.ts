@@ -6,16 +6,8 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
-    include: [
-      'packages/**/*.{test,spec}.ts',
-      'apps/**/*.{test,spec}.ts',
-    ],
-    exclude: [
-      'node_modules/**',
-      'dist/**',
-      'build/**',
-      'coverage/**',
-    ],
+    include: ['packages/**/*.{test,spec}.ts', 'apps/**/*.{test,spec}.ts'],
+    exclude: ['node_modules/**', 'dist/**', 'build/**', 'coverage/**'],
     coverage: {
       reporter: ['text', 'json', 'html', 'lcov'],
       exclude: [

@@ -1,16 +1,26 @@
 #!/usr/bin/env node
 
 /**
- * Coverage Report Merger
+ * Coverage Report Detector & Future Merger
  *
- * This script merges coverage reports from all packages in the monorepo.
- * Currently serves as a placeholder since packages are mostly empty.
+ * This script detects and logs coverage reports from all packages in the monorepo.
+ * Will be enhanced to merge reports when multiple packages have substantial code.
  *
- * TODO: Implement actual coverage merging when multiple packages have substantial code:
- * - Read coverage/coverage-final.json from each package
- * - Merge file coverage data avoiding duplicates
- * - Generate combined coverage report
- * - Write to root coverage/ directory
+ * Phase 2 Status (Domain Layer): Currently serves as coverage detector and logger.
+ * The domain package has 99%+ coverage while other packages are mostly empty.
+ *
+ * TODO (Phase 3+): Implement actual coverage merging when application/infrastructure
+ * layers have substantial code (estimated 10+ source files each):
+ * 1. Read coverage/coverage-final.json from each package with substantial code
+ * 2. Merge file coverage data using Istanbul/NYC merge utilities
+ * 3. Generate combined HTML reports and summary statistics
+ * 4. Write merged reports to root coverage/ directory
+ * 5. Update CI/CD to use merged coverage for quality gates
+ *
+ * Implementation approach:
+ * - Use 'nyc merge' or similar tooling for proper coverage merging
+ * - Maintain per-package reports alongside merged reports
+ * - Handle path resolution for monorepo file references
  */
 
 import { existsSync } from 'fs';
@@ -35,10 +45,11 @@ packages.forEach(pkg => {
 });
 
 if (hasReports) {
-  console.log('📊 Coverage reports processed successfully');
+  console.log('📊 Coverage reports detected and logged successfully');
+  console.log('💡 Phase 2: Domain layer has substantial coverage, other layers pending');
 } else {
-  console.log('📋 No coverage reports to merge (packages are mostly empty)');
+  console.log('📋 No coverage reports found (packages are empty)');
 }
 
-console.log('✨ Coverage merge completed');
+console.log('✨ Coverage detection completed');
 process.exit(0);

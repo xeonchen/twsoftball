@@ -4,7 +4,10 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 'latest',
     sourceType: 'module',
-    project: './tsconfig.json',
+    project: [
+      './tsconfig.lint.json',
+      './packages/*/tsconfig.lint.json'
+    ],
   },
   plugins: ['@typescript-eslint', 'boundaries'],
   extends: [
@@ -58,11 +61,11 @@ module.exports = {
         },
         {
           from: 'infrastructure',
-          allow: ['domain', 'application', 'infrastructure', 'shared'],
+          allow: ['domain', 'application', 'infrastructure'],
         },
         {
           from: 'web',
-          allow: ['domain', 'application', 'infrastructure', 'shared'],
+          allow: ['domain', 'application', 'shared'],
         },
         {
           from: 'shared',

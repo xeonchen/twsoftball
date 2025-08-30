@@ -316,6 +316,188 @@ Infrastructure Layer (Adapters)
 3. Domain has NO external dependencies
 4. All dependencies are on interfaces, not implementations
 
+## Architecture Enforcement Rules
+
+Our architecture is enforced automatically through both **dependency-cruiser**
+and **ESLint boundaries plugin**. These tools prevent violations at development
+time and in CI/CD.
+
+### Dependency-Cruiser Rules
+
+Located in `.dependency-cruiser.cjs`, these rules enforce the strict Hexagonal
+Architecture boundaries:
+
+#### 1. Domain Layer Isolation (`domain-layer-isolation`)
+
+- **Rule**: Domain layer must not depend on any other layer
+- **Severity**: ERROR
+- **Rationale**: Domain must remain pure business logic with zero external
+  dependencies
+
+```javascript
+// ✅ ALLOWED: Internal domain imports
+import { PlayerId } from '../value-objects/PlayerId';
+import { DomainError } from '../errors/DomainError';
+
+// ❌ FORBIDDEN: Any external layer dependencies
+import { GameRepository } from '../../application/ports/GameRepository'; // ERROR
+import { Logger } from '../../infrastructure/logging/Logger'; // ERROR
+```
+
+#### 2. Application Layer Restrictions (`application-layer-restrictions`)
+
+- **Rule**: Application layer can only depend on domain layer
+- **Severity**: ERROR
+- **Rationale**: Application orchestrates domain logic but shouldn't know about
+  infrastructure
+
+```javascript
+// ✅ ALLOWED: Domain dependencies
+import { Game } from '@twsoftball/domain';
+import { GameId } from '@twsoftball/domain';
+
+// ❌ FORBIDDEN: Infrastructure or web dependencies
+import { IndexedDBRepository } from '../../infrastructure/persistence'; // ERROR
+import { ApiResponse } from '../../web/types'; // ERROR
+```
+
+#### 3. Infrastructure Layer Restrictions (`infrastructure-layer-restrictions`)
+
+- **Rule**: Infrastructure can only depend on domain and application layers
+- **Severity**: ERROR
+- **Rationale**: Infrastructure implements application ports and uses domain
+  objects
+
+```javascript
+// ✅ ALLOWED: Domain and application dependencies
+import { Game } from '@twsoftball/domain';
+import { GameRepository } from '@twsoftball/application';
+
+// ❌ FORBIDDEN: Web or shared dependencies
+import { HttpClient } from '@twsoftball/shared'; // ERROR
+import { WebConfig } from '../../web/config'; // ERROR
+```
+
+#### 4. Web Layer Restrictions (`web-layer-restrictions`)
+
+- **Rule**: Web layer can only depend on application layer via ports
+- **Severity**: ERROR
+- **Rationale**: Web should only call use cases, not directly access
+  infrastructure
+
+```javascript
+// ✅ ALLOWED: Application ports and shared utilities
+import { RecordAtBatUseCase } from '@twsoftball/application';
+import { ValidationUtils } from '@twsoftball/shared';
+
+// ❌ FORBIDDEN: Direct infrastructure access
+import { IndexedDBRepository } from '../../infrastructure/persistence'; // ERROR
+```
+
+#### 5. Shared Layer Isolation (`shared-layer-isolation`)
+
+- **Rule**: Shared utilities must not depend on any business layer
+- **Severity**: ERROR
+- **Rationale**: Shared code should be generic utilities with no domain
+  knowledge
+
+```javascript
+// ✅ ALLOWED: Standard libraries and utilities
+import { v4 as uuidv4 } from 'uuid';
+
+// ❌ FORBIDDEN: Any business layer dependencies
+import { PlayerId } from '@twsoftball/domain'; // ERROR
+import { GameRepository } from '@twsoftball/application'; // ERROR
+```
+
+#### 6. Framework Import Restrictions (`no-direct-framework-imports-in-domain`)
+
+- **Rule**: Domain layer cannot import framework-specific libraries
+- **Severity**: ERROR
+- **Rationale**: Domain must remain technology-agnostic
+
+```javascript
+// ❌ FORBIDDEN: Framework dependencies in domain
+import React from 'react'; // ERROR
+import axios from 'axios'; // ERROR
+import express from 'express'; // ERROR
+```
+
+#### 7. Ports and Adapters Pattern (`ports-and-adapters-pattern`)
+
+- **Rule**: Infrastructure should implement application ports, not create direct
+  dependencies
+- **Severity**: WARNING
+- **Rationale**: Encourages proper port/adapter pattern usage
+
+#### 8. Circular Dependencies (`no-circular-dependencies`)
+
+- **Rule**: Circular dependencies are not allowed anywhere
+- **Severity**: ERROR
+- **Rationale**: Prevents architectural degradation and dependency loops
+
+#### 9. Configuration File Exclusions (`no-orphans`)
+
+- **Rule**: Exclude config and build artifacts from orphan detection
+- **Excludes**: `vitest.config.ts`, `vite.config.ts`, coverage files, dist files
+- **Rationale**: These files are intentionally standalone
+
+### ESLint Boundaries Plugin
+
+Located in `.eslintrc.cjs`, these rules complement dependency-cruiser with
+import-level enforcement:
+
+```javascript
+'boundaries/element-types': ['error', {
+  default: 'disallow',
+  rules: [
+    { from: 'domain', allow: ['domain'] },                    // Domain isolation
+    { from: 'application', allow: ['domain', 'application'] }, // App + Domain only
+    { from: 'infrastructure', allow: ['domain', 'application', 'infrastructure'] },
+    { from: 'web', allow: ['domain', 'application', 'shared'] }, // No infrastructure
+    { from: 'shared', allow: ['shared'] },                   // Shared isolation
+  ],
+}]
+```
+
+### Verification Commands
+
+Run these commands to validate architecture compliance:
+
+```bash
+# Check dependency rules
+pnpm deps:check
+
+# Check ESLint boundaries
+pnpm lint
+
+# Full validation
+pnpm typecheck && pnpm deps:check && pnpm lint
+```
+
+### Architecture Violations Response
+
+When violations are detected:
+
+1. **Immediate Feedback**: Pre-commit hooks prevent commits with violations
+2. **CI/CD Blocking**: GitHub Actions fail on any architecture rule violation
+3. **Clear Error Messages**: Each rule explains WHY the dependency is forbidden
+4. **Fix Guidance**: Error messages suggest proper architectural solutions
+
+Example violation message:
+
+```
+error infrastructure-layer-restrictions:
+  packages/infrastructure/persistence/GameRepository.ts → packages/shared/utils/HttpClient.ts
+
+Infrastructure layer can only depend on domain and application layers.
+Move HTTP client to application ports or use dependency injection.
+```
+
+This comprehensive rule set ensures our Hexagonal Architecture remains intact as
+the codebase evolves, preventing the common problem of architectural erosion
+over time.
+
 ## Benefits of This Architecture
 
 ### DDD Benefits

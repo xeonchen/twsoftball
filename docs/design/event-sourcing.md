@@ -1,8 +1,9 @@
 # Event Sourcing Implementation Guide
 
-> **Note**: This document describes the planned Event Sourcing implementation.
-> The domain layer using these patterns is not yet implemented (Phase 2). This
-> serves as the technical specification for development.
+> **Note**: This document describes the Event Sourcing implementation. Phase 2
+> (Domain Layer) is now COMPLETED with full event sourcing implementation
+> including 15 domain events, 3 aggregate roots, and comprehensive event
+> handling.
 
 ## Overview
 
@@ -1210,6 +1211,19 @@ describe('Event Store Integration', () => {
 
 ## Performance Considerations
 
+### Fine-Grained Event Volume Impact
+
+With our fine-grained event approach, expect higher event volume:
+
+```
+Typical 7-inning game:
+- ~140 at-bats (20 per inning average)
+- ~3-5 events per at-bat = ~420-700 play events
+- ~40 substitution/position change events
+- ~14 inning transition events
+- Total: ~474-754 events per game (vs ~154 with coarse events)
+```
+
 ### Event Stream Optimization
 
 ```typescript
@@ -1296,7 +1310,8 @@ guidance for development teams implementing the event-sourced domain model.
 
 - **[ADR-002: Event Sourcing Pattern](../adr/ADR-002-event-sourcing-pattern.md)** -
   Decision rationale and benefits
-- **[Domain Model](domain-model.md)** - Domain entities and events specification
+- **[Domain Model](domain-model.md)** - Updated with multi-aggregate design and
+  fine-grained events
 - **[Architecture Guide](architecture.md)** - Overall system architecture
 - **[API Contracts](api-contracts.md)** - Event contracts and interfaces
 - **[Development Guide](../guides/development.md)** - TDD workflow and testing
