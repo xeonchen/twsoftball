@@ -7,6 +7,7 @@ export * from './aggregates/TeamLineup';
 export * from './aggregates/InningState';
 
 // Value Objects
+export * from './value-objects/DomainId';
 export * from './value-objects/GameId';
 export * from './value-objects/PlayerId';
 export * from './value-objects/GameScore';
@@ -55,6 +56,12 @@ export * from './services/SubstitutionValidator';
 export * from './strategies/TeamStrategy';
 export * from './strategies/DetailedTeamStrategy';
 export * from './strategies/SimpleTeamStrategy';
+
+// Validation Utilities
+export * from './utils/NumericValidation';
+export * from './utils/StringValidation';
+export * from './utils/BattingSlotValidation';
+export * from './utils/TeamValidation';
 
 // Domain Errors
 export * from './errors/DomainError';

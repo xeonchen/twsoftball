@@ -1,87 +1,126 @@
 import { describe, it, expect } from 'vitest';
 import { JerseyNumber } from './JerseyNumber';
+import { ValueObjectTestHelper } from '../test-utils';
 import { DomainError } from '../errors/DomainError';
 
 describe('JerseyNumber', () => {
   describe('Construction', () => {
     it('should create JerseyNumber with valid string value', () => {
-      const jerseyNumber = new JerseyNumber('15');
-
-      expect(jerseyNumber.value).toBe('15');
+      const jersey = ValueObjectTestHelper.assertValidConstructor(JerseyNumber, '15');
+      expect(jersey.value).toBe('15');
     });
 
     it('should accept single digit numbers', () => {
-      const jerseyNumber = new JerseyNumber('5');
-
-      expect(jerseyNumber.value).toBe('5');
+      const jersey = ValueObjectTestHelper.assertValidConstructor(JerseyNumber, '5');
+      expect(jersey.value).toBe('5');
     });
 
     it('should accept two digit numbers', () => {
-      const jerseyNumber = new JerseyNumber('99');
-
-      expect(jerseyNumber.value).toBe('99');
+      const jersey = ValueObjectTestHelper.assertValidConstructor(JerseyNumber, '99');
+      expect(jersey.value).toBe('99');
     });
 
     it('should accept leading zeros', () => {
-      const jerseyNumber = new JerseyNumber('05');
-
-      expect(jerseyNumber.value).toBe('05');
+      const jersey = ValueObjectTestHelper.assertValidConstructor(JerseyNumber, '05');
+      expect(jersey.value).toBe('05');
     });
 
     it('should reject empty string', () => {
-      expect(() => new JerseyNumber('')).toThrow(DomainError);
-      expect(() => new JerseyNumber('')).toThrow('Jersey number cannot be empty or whitespace');
+      ValueObjectTestHelper.assertInvalidConstructor(
+        JerseyNumber,
+        '',
+        'Jersey number cannot be empty or whitespace'
+      );
     });
 
     it('should reject whitespace-only string', () => {
-      expect(() => new JerseyNumber('   ')).toThrow(DomainError);
-      expect(() => new JerseyNumber('   ')).toThrow('Jersey number cannot be empty or whitespace');
+      ValueObjectTestHelper.assertInvalidConstructor(
+        JerseyNumber,
+        '   ',
+        'Jersey number cannot be empty or whitespace'
+      );
     });
 
     it('should reject numbers greater than 99', () => {
-      expect(() => new JerseyNumber('100')).toThrow(DomainError);
-      expect(() => new JerseyNumber('100')).toThrow('Jersey number must be between 1 and 99');
+      ValueObjectTestHelper.assertInvalidConstructor(
+        JerseyNumber,
+        '100',
+        'Jersey number must be between 1 and 99'
+      );
     });
 
     it('should reject zero', () => {
-      expect(() => new JerseyNumber('0')).toThrow(DomainError);
-      expect(() => new JerseyNumber('0')).toThrow('Jersey number must be between 1 and 99');
+      ValueObjectTestHelper.assertInvalidConstructor(
+        JerseyNumber,
+        '0',
+        'Jersey number must be between 1 and 99'
+      );
     });
 
     it('should reject non-numeric strings', () => {
-      expect(() => new JerseyNumber('AB')).toThrow(DomainError);
-      expect(() => new JerseyNumber('AB')).toThrow('Jersey number must be numeric');
+      ValueObjectTestHelper.assertInvalidConstructor(
+        JerseyNumber,
+        'AB',
+        'Jersey number must be numeric'
+      );
     });
 
     it('should reject mixed alphanumeric strings', () => {
-      expect(() => new JerseyNumber('1A')).toThrow(DomainError);
-      expect(() => new JerseyNumber('1A')).toThrow('Jersey number must be numeric');
+      ValueObjectTestHelper.assertInvalidConstructor(
+        JerseyNumber,
+        '1A',
+        'Jersey number must be numeric'
+      );
     });
 
     it('should reject decimal numbers', () => {
-      expect(() => new JerseyNumber('12.5')).toThrow(DomainError);
-      expect(() => new JerseyNumber('12.5')).toThrow('Jersey number must be numeric');
+      ValueObjectTestHelper.assertInvalidConstructor(
+        JerseyNumber,
+        '12.5',
+        'Jersey number must be numeric'
+      );
     });
 
     it('should reject negative numbers', () => {
-      expect(() => new JerseyNumber('-5')).toThrow(DomainError);
-      expect(() => new JerseyNumber('-5')).toThrow('Jersey number must be numeric');
+      ValueObjectTestHelper.assertInvalidConstructor(
+        JerseyNumber,
+        '-5',
+        'Jersey number must be numeric'
+      );
     });
 
     it('should handle string numbers with leading/trailing whitespace', () => {
-      expect(() => new JerseyNumber(' 15 ')).toThrow(DomainError);
-      expect(() => new JerseyNumber(' 15 ')).toThrow('Jersey number must be numeric');
+      ValueObjectTestHelper.assertInvalidConstructor(
+        JerseyNumber,
+        ' 15 ',
+        'Jersey number must be numeric'
+      );
     });
   });
 
   describe('Validation', () => {
     it('should accept all valid jersey numbers from 1 to 99', () => {
-      // Test boundary values and some middle values
+      // Use helper to create validation scenarios
       const validNumbers = ['1', '2', '9', '10', '50', '98', '99'];
+      const invalidScenarios = [
+        { value: '', error: 'Jersey number cannot be empty or whitespace' },
+        { value: '   ', error: 'Jersey number cannot be empty or whitespace' },
+        { value: '100', error: 'Jersey number must be between 1 and 99' },
+        { value: '0', error: 'Jersey number must be between 1 and 99' },
+        { value: 'AB', error: 'Jersey number must be numeric' },
+        { value: '1A', error: 'Jersey number must be numeric' },
+        { value: '12.5', error: 'Jersey number must be numeric' },
+        { value: '-5', error: 'Jersey number must be numeric' },
+        { value: ' 15 ', error: 'Jersey number must be numeric' },
+      ];
 
-      validNumbers.forEach(number => {
-        expect(() => new JerseyNumber(number)).not.toThrow();
-        const jersey = new JerseyNumber(number);
+      const scenarios = ValueObjectTestHelper.createValidationScenarios(
+        validNumbers,
+        invalidScenarios
+      );
+
+      scenarios.valid.forEach(number => {
+        const jersey = ValueObjectTestHelper.assertValidConstructor(JerseyNumber, number);
         expect(jersey.value).toBe(number);
       });
     });

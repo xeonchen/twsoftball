@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SimpleTeamStrategy } from './SimpleTeamStrategy';
-import { PlayerId } from '../value-objects/PlayerId';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
 import { FieldPosition } from '../constants/FieldPosition';
 import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
 import type { TeamPlayer, BattingSlotState } from './TeamStrategy';
+import { TestPlayerFactory, TeamStrategyTestHelper } from '../test-utils';
 
 describe('SimpleTeamStrategy', () => {
   let strategy: SimpleTeamStrategy;
+  let players: TeamPlayer[];
   let player1: TeamPlayer;
   let player2: TeamPlayer;
   let player3: TeamPlayer;
@@ -18,70 +18,23 @@ describe('SimpleTeamStrategy', () => {
   let player7: TeamPlayer;
   let player8: TeamPlayer;
   let player9: TeamPlayer;
-  let player10: TeamPlayer;
 
   beforeEach(() => {
     strategy = new SimpleTeamStrategy();
 
-    player1 = {
-      playerId: new PlayerId('player-1'),
-      jerseyNumber: new JerseyNumber('10'),
-      name: 'John Smith',
-    };
-
-    player2 = {
-      playerId: new PlayerId('player-2'),
-      jerseyNumber: new JerseyNumber('15'),
-      name: 'Jane Doe',
-    };
-
-    player3 = {
-      playerId: new PlayerId('player-3'),
-      jerseyNumber: new JerseyNumber('22'),
-      name: 'Mike Johnson',
-    };
-
-    player4 = {
-      playerId: new PlayerId('player-4'),
-      jerseyNumber: new JerseyNumber('7'),
-      name: 'Sarah Wilson',
-    };
-
-    player5 = {
-      playerId: new PlayerId('player-5'),
-      jerseyNumber: new JerseyNumber('5'),
-      name: 'Bob Davis',
-    };
-
-    player6 = {
-      playerId: new PlayerId('player-6'),
-      jerseyNumber: new JerseyNumber('12'),
-      name: 'Lisa Brown',
-    };
-
-    player7 = {
-      playerId: new PlayerId('player-7'),
-      jerseyNumber: new JerseyNumber('18'),
-      name: 'Tom Miller',
-    };
-
-    player8 = {
-      playerId: new PlayerId('player-8'),
-      jerseyNumber: new JerseyNumber('3'),
-      name: 'Amy Garcia',
-    };
-
-    player9 = {
-      playerId: new PlayerId('player-9'),
-      jerseyNumber: new JerseyNumber('25'),
-      name: 'Chris Lee',
-    };
-
-    player10 = {
-      playerId: new PlayerId('player-10'),
-      jerseyNumber: new JerseyNumber('8'),
-      name: 'Rachel Adams',
-    };
+    // Create 10 players using test utilities - eliminates duplication
+    players = TestPlayerFactory.createPlayers(10);
+    [player1, player2, player3, player4, player5, player6, player7, player8, player9] = [
+      players[0]!,
+      players[1]!,
+      players[2]!,
+      players[3]!,
+      players[4]!,
+      players[5]!,
+      players[6]!,
+      players[7]!,
+      players[8]!,
+    ];
   });
 
   describe('Construction', () => {
@@ -296,38 +249,10 @@ describe('SimpleTeamStrategy', () => {
     });
 
     it('should handle maximum lineup size (20 players)', () => {
-      const lineupData: BattingSlotState[] = [];
-      const players: TeamPlayer[] = [];
+      // Use helper to set up full 20-player lineup
+      const lineupPlayers = TeamStrategyTestHelper.setupFullLineup(strategy);
 
-      // Create 20 unique players
-      for (let i = 1; i <= 20; i += 1) {
-        const player: TeamPlayer = {
-          playerId: new PlayerId(`player-${i}`),
-          jerseyNumber: new JerseyNumber(i.toString()),
-          name: `Player ${i}`,
-        };
-        players.push(player);
-        lineupData.push({
-          slotNumber: i,
-          currentPlayer: player,
-          currentPosition:
-            i <= 9
-              ? ([
-                  FieldPosition.PITCHER,
-                  FieldPosition.CATCHER,
-                  FieldPosition.FIRST_BASE,
-                  FieldPosition.SECOND_BASE,
-                  FieldPosition.THIRD_BASE,
-                  FieldPosition.SHORTSTOP,
-                  FieldPosition.LEFT_FIELD,
-                  FieldPosition.CENTER_FIELD,
-                  FieldPosition.RIGHT_FIELD,
-                ][i - 1] ?? FieldPosition.EXTRA_PLAYER)
-              : FieldPosition.EXTRA_PLAYER,
-        });
-      }
-
-      expect(() => strategy.setCurrentLineup(lineupData)).not.toThrow();
+      expect(lineupPlayers).toHaveLength(20);
       expect(strategy.getActivePlayerCount()).toBe(20);
     });
   });
@@ -717,56 +642,9 @@ describe('SimpleTeamStrategy', () => {
     });
 
     it('should return true for valid 9-player lineup with required positions', () => {
-      const lineupData: BattingSlotState[] = [
-        {
-          slotNumber: 1,
-          currentPlayer: player1,
-          currentPosition: FieldPosition.PITCHER,
-        },
-        {
-          slotNumber: 2,
-          currentPlayer: player2,
-          currentPosition: FieldPosition.CATCHER,
-        },
-        {
-          slotNumber: 3,
-          currentPlayer: player3,
-          currentPosition: FieldPosition.FIRST_BASE,
-        },
-        {
-          slotNumber: 4,
-          currentPlayer: player4,
-          currentPosition: FieldPosition.SECOND_BASE,
-        },
-        {
-          slotNumber: 5,
-          currentPlayer: player5,
-          currentPosition: FieldPosition.THIRD_BASE,
-        },
-        {
-          slotNumber: 6,
-          currentPlayer: player6,
-          currentPosition: FieldPosition.SHORTSTOP,
-        },
-        {
-          slotNumber: 7,
-          currentPlayer: player7,
-          currentPosition: FieldPosition.LEFT_FIELD,
-        },
-        {
-          slotNumber: 8,
-          currentPlayer: player8,
-          currentPosition: FieldPosition.CENTER_FIELD,
-        },
-        {
-          slotNumber: 9,
-          currentPlayer: player9,
-          currentPosition: FieldPosition.RIGHT_FIELD,
-        },
-      ];
-
-      strategy.setCurrentLineup(lineupData);
-      expect(strategy.isLineupValid()).toBe(true);
+      // Use helper to set up valid 9-player lineup
+      TeamStrategyTestHelper.setupBasicLineup(strategy, 9);
+      TeamStrategyTestHelper.assertLineupValid(strategy);
     });
 
     it('should return false for lineup missing required positions', () => {
@@ -823,61 +701,9 @@ describe('SimpleTeamStrategy', () => {
     });
 
     it('should return true for lineup with more than 9 players including extra positions', () => {
-      const lineupData: BattingSlotState[] = [
-        {
-          slotNumber: 1,
-          currentPlayer: player1,
-          currentPosition: FieldPosition.PITCHER,
-        },
-        {
-          slotNumber: 2,
-          currentPlayer: player2,
-          currentPosition: FieldPosition.CATCHER,
-        },
-        {
-          slotNumber: 3,
-          currentPlayer: player3,
-          currentPosition: FieldPosition.FIRST_BASE,
-        },
-        {
-          slotNumber: 4,
-          currentPlayer: player4,
-          currentPosition: FieldPosition.SECOND_BASE,
-        },
-        {
-          slotNumber: 5,
-          currentPlayer: player5,
-          currentPosition: FieldPosition.THIRD_BASE,
-        },
-        {
-          slotNumber: 6,
-          currentPlayer: player6,
-          currentPosition: FieldPosition.SHORTSTOP,
-        },
-        {
-          slotNumber: 7,
-          currentPlayer: player7,
-          currentPosition: FieldPosition.LEFT_FIELD,
-        },
-        {
-          slotNumber: 8,
-          currentPlayer: player8,
-          currentPosition: FieldPosition.CENTER_FIELD,
-        },
-        {
-          slotNumber: 9,
-          currentPlayer: player9,
-          currentPosition: FieldPosition.RIGHT_FIELD,
-        },
-        {
-          slotNumber: 10,
-          currentPlayer: player10,
-          currentPosition: FieldPosition.EXTRA_PLAYER,
-        },
-      ];
-
-      strategy.setCurrentLineup(lineupData);
-      expect(strategy.isLineupValid()).toBe(true);
+      // Use helper to set up 10-player lineup
+      TeamStrategyTestHelper.setupBasicLineup(strategy, 10);
+      TeamStrategyTestHelper.assertLineupValid(strategy);
     });
   });
 

@@ -1,4 +1,4 @@
-import { DomainError } from '../errors/DomainError';
+import { DomainId } from './DomainId';
 
 /**
  * Unique identifier for a player entity in the softball domain.
@@ -24,20 +24,15 @@ import { DomainError } from '../errors/DomainError';
  * const existingPlayer = new PlayerId('550e8400-e29b-41d4-a716-446655440000');
  * ```
  */
-export class PlayerId {
+export class PlayerId extends DomainId<PlayerId> {
   /**
    * Creates a new PlayerId from a string value.
    *
    * @param value - The unique identifier string (typically UUID format)
    * @throws {DomainError} When value is empty, whitespace-only, or exceeds 50 characters
    */
-  constructor(readonly value: string) {
-    if (!value?.trim()) {
-      throw new DomainError('PlayerId cannot be empty or whitespace');
-    }
-    if (value.length > 50) {
-      throw new DomainError('PlayerId cannot exceed 50 characters');
-    }
+  constructor(value: string) {
+    super(value, 'PlayerId', 50);
   }
 
   /**
@@ -47,19 +42,7 @@ export class PlayerId {
    * @returns True if both IDs have the same string value, false otherwise
    */
   equals(other: PlayerId): boolean {
-    if (!other || !(other instanceof PlayerId)) {
-      return false;
-    }
-    return this.value === other.value;
-  }
-
-  /**
-   * Returns the string representation of this PlayerId.
-   *
-   * @returns The underlying UUID string value
-   */
-  toString(): string {
-    return this.value;
+    return this.equalsImpl(other, PlayerId);
   }
 
   /**

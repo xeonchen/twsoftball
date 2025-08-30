@@ -7,35 +7,35 @@ import { JerseyNumber } from '../value-objects/JerseyNumber';
 import { FieldPosition } from '../constants/FieldPosition';
 import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
+import { TestPlayerFactory } from '../test-utils';
 
 describe('LineupValidator', () => {
-  // Test data helpers
+  // Test data helpers using test utilities
   const createPlayer = (id: string): PlayerId => new PlayerId(id);
   const createJersey = (num: number): JerseyNumber => new JerseyNumber(num.toString());
 
   const createLineupData = (
     positions: number[],
-    playerIds: string[],
-    jerseyNums: number[]
-  ): LineupEntry[] =>
-    positions.map((pos, i) => {
-      // Ensure array bounds are valid before accessing
-      const playerId = playerIds[i];
-      const jerseyNum = jerseyNums[i];
+    playerIds?: string[],
+    jerseyNums?: number[]
+  ): LineupEntry[] => {
+    // Use test utilities when possible
+    const players = TestPlayerFactory.createPlayers(positions.length);
 
-      if (playerId === undefined) {
-        throw new Error(`Player ID not found at index ${i}`);
-      }
-      if (jerseyNum === undefined) {
-        throw new Error(`Jersey number not found at index ${i}`);
-      }
+    return positions.map((pos, i) => {
+      // Use provided IDs/jerseys or fall back to test utility data
+      const playerId = playerIds?.[i] ? new PlayerId(playerIds[i]) : players[i]!.playerId;
+      const jerseyNum = jerseyNums?.[i]
+        ? new JerseyNumber(jerseyNums[i].toString())
+        : players[i]!.jerseyNumber;
 
       return {
-        battingSlot: BattingSlot.createWithStarter(pos, createPlayer(playerId)),
-        jerseyNumber: createJersey(jerseyNum),
+        battingSlot: BattingSlot.createWithStarter(pos, playerId),
+        jerseyNumber: jerseyNum,
         fieldPosition: FieldPosition.PITCHER, // Default position for tests
       };
     });
+  };
 
   describe('validateLineupConfiguration', () => {
     describe('Minimum Players Requirement', () => {
@@ -335,34 +335,29 @@ describe('LineupValidator', () => {
 
     describe('Complex Valid Lineups', () => {
       it('should accept a full 20-player lineup with mix of positions', () => {
-        const positions = Array.from({ length: 20 }, (_, i) => i + 1);
-        const playerIds = Array.from({ length: 20 }, (_, i) => `player-${i + 1}`);
-        const jerseyNums = Array.from({ length: 20 }, (_, i) => i + 1);
+        // Use TestPlayerFactory for cleaner player creation
+        const fullPlayers = TestPlayerFactory.createPlayers(20);
 
-        const lineupData = positions.map((pos, i) => {
-          // Ensure array bounds are valid before accessing
-          const playerId = playerIds[i];
-          const jerseyNum = jerseyNums[i];
+        const lineupData = fullPlayers.map((player, i) => {
+          const slotNumber = i + 1;
 
-          if (playerId === undefined) {
-            throw new Error(`Player ID not found at index ${i}`);
-          }
-          if (jerseyNum === undefined) {
-            throw new Error(`Jersey number not found at index ${i}`);
-          }
-
-          // Get field position with bounds checking
-          const fieldPositions = Object.values(FieldPosition);
-          const fieldPosition =
-            i < 9 && i < fieldPositions.length ? fieldPositions[i] : FieldPosition.EXTRA_PLAYER; // EP for slots 10-20
-
-          if (fieldPosition === undefined) {
-            throw new Error(`Field position not found at index ${i}`);
-          }
+          // Get field position - use standard positions for first 9, then extras
+          const standardPositions = [
+            FieldPosition.PITCHER,
+            FieldPosition.CATCHER,
+            FieldPosition.FIRST_BASE,
+            FieldPosition.SECOND_BASE,
+            FieldPosition.THIRD_BASE,
+            FieldPosition.SHORTSTOP,
+            FieldPosition.LEFT_FIELD,
+            FieldPosition.CENTER_FIELD,
+            FieldPosition.RIGHT_FIELD,
+          ];
+          const fieldPosition = i < 9 ? standardPositions[i]! : FieldPosition.EXTRA_PLAYER;
 
           return {
-            battingSlot: BattingSlot.createWithStarter(pos, createPlayer(playerId)),
-            jerseyNumber: createJersey(jerseyNum),
+            battingSlot: BattingSlot.createWithStarter(slotNumber, player.playerId),
+            jerseyNumber: player.jerseyNumber,
             fieldPosition,
           };
         });

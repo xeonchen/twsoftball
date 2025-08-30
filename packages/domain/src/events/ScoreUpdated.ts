@@ -1,6 +1,8 @@
 import { DomainEvent } from './DomainEvent';
 import { GameId } from '../value-objects/GameId';
-import { DomainError } from '../errors/DomainError';
+import { TeamValidation } from '../utils/TeamValidation';
+import { ScoreValidator } from '../validators/ScoreValidator';
+import { EventDataValidator } from '../validators/EventDataValidator';
 
 /**
  * Domain event representing an update to the game score.
@@ -64,76 +66,11 @@ export class ScoreUpdated extends DomainEvent {
     readonly newScore: { home: number; away: number }
   ) {
     super();
-    ScoreUpdated.validateScoringTeam(scoringTeam);
-    ScoreUpdated.validateRunsAdded(runsAdded);
-    ScoreUpdated.validateNewScore(newScore);
-    // Freeze the score object to prevent mutations
-    Object.freeze(this.newScore);
-  }
-
-  /**
-   * Validates the scoring team designation.
-   *
-   * @param scoringTeam - Team designation to validate
-   * @throws {DomainError} When team is not 'HOME' or 'AWAY'
-   */
-  private static validateScoringTeam(scoringTeam: string): void {
-    if (scoringTeam !== 'HOME' && scoringTeam !== 'AWAY') {
-      throw new DomainError('Scoring team must be either HOME or AWAY');
-    }
-  }
-
-  /**
-   * Validates the number of runs added in this update.
-   *
-   * @param runsAdded - Number of runs to validate
-   * @throws {DomainError} When runs added is invalid
-   */
-  private static validateRunsAdded(runsAdded: number): void {
-    if (typeof runsAdded !== 'number' || Number.isNaN(runsAdded)) {
-      throw new DomainError('Runs added must be a valid number');
-    }
-    if (!Number.isFinite(runsAdded)) {
-      throw new DomainError('Runs added must be a finite number');
-    }
-    if (runsAdded <= 0) {
-      throw new DomainError('Runs added must be greater than zero');
-    }
-    if (!Number.isInteger(runsAdded)) {
-      throw new DomainError('Runs added must be an integer');
-    }
-  }
-
-  /**
-   * Validates the complete score object after the update.
-   *
-   * @param newScore - Score object to validate
-   * @throws {DomainError} When scores are invalid
-   */
-  private static validateNewScore(newScore: { home: number; away: number }): void {
-    ScoreUpdated.validateScoreValue(newScore.home, 'Home');
-    ScoreUpdated.validateScoreValue(newScore.away, 'Away');
-  }
-
-  /**
-   * Validates an individual score value.
-   *
-   * @param score - Score value to validate
-   * @param teamName - Team name for error messages
-   * @throws {DomainError} When score is invalid
-   */
-  private static validateScoreValue(score: number, teamName: string): void {
-    if (typeof score !== 'number' || Number.isNaN(score)) {
-      throw new DomainError(`${teamName} score must be a valid number`);
-    }
-    if (!Number.isFinite(score)) {
-      throw new DomainError(`${teamName} score must be a finite number`);
-    }
-    if (score < 0) {
-      throw new DomainError(`${teamName} score cannot be negative`);
-    }
-    if (!Number.isInteger(score)) {
-      throw new DomainError(`${teamName} score must be an integer`);
-    }
+    EventDataValidator.validateEventMetadata(gameId);
+    TeamValidation.validateTeamDesignation(scoringTeam, 'Scoring team');
+    ScoreValidator.validateRunsAdded(runsAdded);
+    ScoreValidator.validateScore(newScore);
+    // Freeze the score object to prevent mutations using centralized utility
+    this.newScore = EventDataValidator.freezeData(newScore);
   }
 }

@@ -4,10 +4,22 @@ import { GameId } from '../value-objects/GameId';
 import { PlayerId } from '../value-objects/PlayerId';
 import { Base } from '../value-objects/BasesState';
 import { DomainError } from '../errors/DomainError';
+import { TestPlayerFactory, EventTestHelper } from '../test-utils';
 
 describe('RunnerAdvanced', () => {
-  const gameId = new GameId('test-game-123');
-  const runnerId = new PlayerId('player-456');
+  // Use EventTestHelper for consistent test data
+  const gameId = EventTestHelper.createGameId('runner-advanced');
+  const runnerId = TestPlayerFactory.createPlayers(1)[0]!.playerId;
+
+  // Helper function to reduce RunnerAdvanced instantiation duplication
+  const createAdvanceEvent = (
+    from: Base | null,
+    to: Base | 'HOME' | 'OUT',
+    reason: AdvanceReason = AdvanceReason.HIT,
+    customGameId?: GameId,
+    customRunnerId?: PlayerId
+  ): RunnerAdvanced =>
+    new RunnerAdvanced(customGameId ?? gameId, customRunnerId ?? runnerId, from, to, reason);
 
   describe('AdvanceReason enum', () => {
     it('should have all valid advance reasons', () => {
@@ -30,7 +42,7 @@ describe('RunnerAdvanced', () => {
 
   describe('Construction', () => {
     it('should create RunnerAdvanced event with valid parameters', () => {
-      const event = new RunnerAdvanced(gameId, runnerId, 'FIRST', 'SECOND', AdvanceReason.HIT);
+      const event = createAdvanceEvent('FIRST', 'SECOND');
 
       expect(event.gameId).toBe(gameId);
       expect(event.runnerId).toBe(runnerId);
@@ -41,31 +53,26 @@ describe('RunnerAdvanced', () => {
     });
 
     it('should inherit DomainEvent properties', () => {
-      const event = new RunnerAdvanced(
-        gameId,
-        runnerId,
-        'SECOND',
-        'THIRD',
-        AdvanceReason.STOLEN_BASE
-      );
+      const event = createAdvanceEvent('SECOND', 'THIRD', AdvanceReason.STOLEN_BASE);
 
+      // Use EventTestHelper to validate basic event properties
+      EventTestHelper.assertEventValid(event);
       expect(event.eventId).toBeDefined();
       expect(typeof event.eventId).toBe('string');
       expect(event.eventId.length).toBeGreaterThan(0);
-      expect(event.timestamp).toBeInstanceOf(Date);
       expect(event.version).toBe(1);
     });
 
     it('should create events with unique event IDs', () => {
-      const event1 = new RunnerAdvanced(gameId, runnerId, 'FIRST', 'SECOND', AdvanceReason.HIT);
-      const event2 = new RunnerAdvanced(gameId, runnerId, 'SECOND', 'THIRD', AdvanceReason.WALK);
+      const event1 = createAdvanceEvent('FIRST', 'SECOND');
+      const event2 = createAdvanceEvent('SECOND', 'THIRD', AdvanceReason.WALK);
 
       expect(event1.eventId).not.toBe(event2.eventId);
     });
 
     it('should set timestamp to current time', () => {
       const beforeTime = new Date();
-      const event = new RunnerAdvanced(gameId, runnerId, 'FIRST', 'SECOND', AdvanceReason.HIT);
+      const event = createAdvanceEvent('FIRST', 'SECOND');
       const afterTime = new Date();
 
       expect(event.timestamp.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
@@ -95,28 +102,28 @@ describe('RunnerAdvanced', () => {
     });
 
     it('should allow advancement from THIRD to HOME', () => {
-      const event = new RunnerAdvanced(gameId, runnerId, 'THIRD', 'HOME', AdvanceReason.HIT);
+      const event = createAdvanceEvent('THIRD', 'HOME');
 
       expect(event.from).toBe('THIRD');
       expect(event.to).toBe('HOME');
     });
 
     it('should allow multiple base advancement (FIRST to THIRD)', () => {
-      const event = new RunnerAdvanced(gameId, runnerId, 'FIRST', 'THIRD', AdvanceReason.HIT);
+      const event = createAdvanceEvent('FIRST', 'THIRD');
 
       expect(event.from).toBe('FIRST');
       expect(event.to).toBe('THIRD');
     });
 
     it('should allow advancement from FIRST to HOME', () => {
-      const event = new RunnerAdvanced(gameId, runnerId, 'FIRST', 'HOME', AdvanceReason.HIT);
+      const event = createAdvanceEvent('FIRST', 'HOME');
 
       expect(event.from).toBe('FIRST');
       expect(event.to).toBe('HOME');
     });
 
     it('should allow advancement from SECOND to HOME', () => {
-      const event = new RunnerAdvanced(gameId, runnerId, 'SECOND', 'HOME', AdvanceReason.HIT);
+      const event = createAdvanceEvent('SECOND', 'HOME');
 
       expect(event.from).toBe('SECOND');
       expect(event.to).toBe('HOME');
@@ -431,8 +438,8 @@ describe('RunnerAdvanced', () => {
     });
 
     it('should work with different GameId instances', () => {
-      const game1 = GameId.generate();
-      const game2 = GameId.generate();
+      const game1 = EventTestHelper.createGameId('game-1');
+      const game2 = EventTestHelper.createGameId('game-2');
 
       const event1 = new RunnerAdvanced(game1, runnerId, 'FIRST', 'SECOND', AdvanceReason.HIT);
       const event2 = new RunnerAdvanced(game2, runnerId, 'SECOND', 'THIRD', AdvanceReason.WALK);
