@@ -89,6 +89,7 @@ module.exports = {
           '\\.d\\.ts$',
           'src/index\\.[jt]s$',
           'vitest\\.config\\.[jt]s$',
+          'vitest\\.setup\\.[jt]s$',
           'vite\\.config\\.[jt]s$', 
           'coverage/.*',
           'dist/.*'

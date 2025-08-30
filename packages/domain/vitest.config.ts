@@ -9,5 +9,6 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       exclude: ['**/*.d.ts', 'src/index.ts', 'dist/**/*', '**/node_modules/**'],
     },
+    setupFiles: ['./vitest.setup.ts'],
   },
 });
