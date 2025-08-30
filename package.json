@@ -16,8 +16,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",
     "format:check": "pnpm --recursive run format:check",
     "deps:check": "dependency-cruiser --config .dependency-cruiser.cjs packages",
-    "clean": "pnpm --recursive run clean && rm -rf node_modules/.cache",
-    "prepare": "husky install"
+    "clean": "pnpm --recursive run clean && rm -rf node_modules/.cache"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
