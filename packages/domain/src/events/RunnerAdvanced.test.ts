@@ -243,31 +243,8 @@ describe('RunnerAdvanced', () => {
       ).toThrow(new DomainError('Runner cannot advance backward from THIRD to SECOND'));
     });
 
-    it('should reject invalid advancement from HOME', () => {
-      expect(
-        () =>
-          new RunnerAdvanced(
-            gameId,
-            runnerId,
-            'HOME' as Base, // This should not be allowed as 'from'
-            'FIRST',
-            AdvanceReason.HIT
-          )
-      ).toThrow(new DomainError('Runner cannot advance from HOME'));
-    });
-
-    it('should reject invalid advancement from OUT', () => {
-      expect(
-        () =>
-          new RunnerAdvanced(
-            gameId,
-            runnerId,
-            'OUT' as Base, // This should not be allowed as 'from'
-            'FIRST',
-            AdvanceReason.HIT
-          )
-      ).toThrow(new DomainError('Runner cannot advance from OUT'));
-    });
+    // Note: Tests for 'HOME' and 'OUT' as 'from' values removed since
+    // TypeScript's type system (Base | null) prevents these invalid states
   });
 
   describe('Advance Reasons Validation', () => {

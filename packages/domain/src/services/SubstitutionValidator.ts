@@ -351,22 +351,17 @@ export class SubstitutionValidator {
    * const slot = BattingSlot.createWithStarter(1, playerId);
    *
    * // Valid position change - active player
-   * SubstitutionValidator.validatePositionChange(slot, playerId, 3);
+   * SubstitutionValidator.validatePositionChange(slot, playerId);
    *
    * // Invalid - player not in slot
-   * SubstitutionValidator.validatePositionChange(slot, otherId, 3); // Throws
+   * SubstitutionValidator.validatePositionChange(slot, otherId); // Throws
    *
    * // Invalid - substituted player
    * const withSub = slot.substitutePlayer(subId, 2, false);
-   * SubstitutionValidator.validatePositionChange(withSub, playerId, 3); // Throws
+   * SubstitutionValidator.validatePositionChange(withSub, playerId); // Throws
    * ```
    */
-  static validatePositionChange(
-    battingSlot: BattingSlot,
-    playerId: PlayerId,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _inInning: number
-  ): void {
+  static validatePositionChange(battingSlot: BattingSlot, playerId: PlayerId): void {
     const currentPlayer = battingSlot.getCurrentPlayer();
 
     // Player must be currently active in this slot

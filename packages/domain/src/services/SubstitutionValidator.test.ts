@@ -314,7 +314,7 @@ describe('SubstitutionValidator', () => {
       const slot = BattingSlot.createWithStarter(5, starterId);
 
       expect(() => {
-        SubstitutionValidator.validatePositionChange(slot, starterId, 3);
+        SubstitutionValidator.validatePositionChange(slot, starterId);
       }).not.toThrow();
     });
 
@@ -322,10 +322,10 @@ describe('SubstitutionValidator', () => {
       const slot = BattingSlot.createWithStarter(5, starterId);
 
       expect(() => {
-        SubstitutionValidator.validatePositionChange(slot, sub1Id, 3);
+        SubstitutionValidator.validatePositionChange(slot, sub1Id);
       }).toThrow(DomainError);
       expect(() => {
-        SubstitutionValidator.validatePositionChange(slot, sub1Id, 3);
+        SubstitutionValidator.validatePositionChange(slot, sub1Id);
       }).toThrow('Player is not currently active in this batting slot');
     });
 
@@ -337,10 +337,10 @@ describe('SubstitutionValidator', () => {
       );
 
       expect(() => {
-        SubstitutionValidator.validatePositionChange(slotWithSub, starterId, 5);
+        SubstitutionValidator.validatePositionChange(slotWithSub, starterId);
       }).toThrow(DomainError);
       expect(() => {
-        SubstitutionValidator.validatePositionChange(slotWithSub, starterId, 5);
+        SubstitutionValidator.validatePositionChange(slotWithSub, starterId);
       }).toThrow('Player is not currently active in this batting slot');
     });
   });

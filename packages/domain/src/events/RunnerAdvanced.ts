@@ -335,19 +335,12 @@ export class RunnerAdvanced extends DomainEvent {
    * // Invalid movements (throws DomainError)
    * // validateAdvancement(Base.SECOND, Base.FIRST);  // ✗ Backward movement
    * // validateAdvancement(Base.FIRST, Base.FIRST);   // ✗ No movement
-   * // validateAdvancement('HOME' as any, Base.FIRST); // ✗ From terminal position
+   * // validateAdvancement(Base.THIRD, Base.SECOND); // ✗ Backward movement
    * ```
    */
   private validateAdvancement(from: Base | null, to: Base | 'HOME' | 'OUT'): void {
-    // Cannot advance from HOME or OUT - these are terminal positions
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ((from as any) === 'HOME') {
-      throw new DomainError('Runner cannot advance from HOME');
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ((from as any) === 'OUT') {
-      throw new DomainError('Runner cannot advance from OUT');
-    }
+    // Note: 'from' parameter is typed as Base | null, so it cannot be 'HOME' or 'OUT'
+    // These values are only valid for the 'to' parameter
 
     // Cannot advance to same base - no actual movement occurred
     if (from === to) {

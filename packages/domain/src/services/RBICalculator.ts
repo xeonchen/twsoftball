@@ -1,6 +1,5 @@
 import { AtBatResultType } from '../constants/AtBatResultType';
 import { BasesState } from '../value-objects/BasesState';
-import { PlayerId } from '../value-objects/PlayerId';
 import { DomainError } from '../errors/DomainError';
 
 /**
@@ -40,8 +39,7 @@ import { DomainError } from '../errors/DomainError';
  * const rbis = RBICalculator.calculateRBIs(
  *   AtBatResultType.HOME_RUN,
  *   basesLoaded,
- *   0, // outs before at-bat
- *   batterId
+ *   0 // outs before at-bat
  * );
  * console.log(rbis); // 4 (batter + 3 runners)
  *
@@ -50,8 +48,7 @@ import { DomainError } from '../errors/DomainError';
  * const sacFlyRBIs = RBICalculator.calculateRBIs(
  *   AtBatResultType.SACRIFICE_FLY,
  *   runnerOnThird,
- *   1, // 1 out before at-bat
- *   batterId
+ *   1 // 1 out before at-bat
  * );
  * console.log(sacFlyRBIs); // 1
  * ```
@@ -82,7 +79,6 @@ export class RBICalculator {
    * @param result - The at-bat result type that determines scoring potential
    * @param basesBeforeAtBat - The base state before the at-bat occurred
    * @param outsBeforeAtBat - Number of outs before the at-bat (0-2)
-   * @param batterId - The ID of the batter (for potential home run RBI)
    * @returns The number of RBIs earned by the batter
    *
    * @throws {DomainError} When outsBeforeAtBat is not between 0 and 2
@@ -96,8 +92,7 @@ export class RBICalculator {
    * const rbis = RBICalculator.calculateRBIs(
    *   AtBatResultType.SINGLE,
    *   bases,
-   *   0,
-   *   batterId
+   *   0
    * );
    * console.log(rbis); // 1 - runner scores from second on single
    *
@@ -105,8 +100,7 @@ export class RBICalculator {
    * const rbisWithTwoOuts = RBICalculator.calculateRBIs(
    *   AtBatResultType.FIELDERS_CHOICE,
    *   BasesState.empty().withRunnerOn('THIRD', runnerId),
-   *   2, // Third out ends inning
-   *   batterId
+   *   2 // Third out ends inning
    * );
    * console.log(rbisWithTwoOuts); // 0 - third out prevents run from scoring
    * ```
@@ -114,9 +108,7 @@ export class RBICalculator {
   static calculateRBIs(
     result: AtBatResultType,
     basesBeforeAtBat: BasesState,
-    outsBeforeAtBat: number,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _batterId: PlayerId
+    outsBeforeAtBat: number
   ): number {
     // Input validation
     if (outsBeforeAtBat < 0 || outsBeforeAtBat > 2) {

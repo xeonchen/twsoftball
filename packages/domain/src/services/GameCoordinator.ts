@@ -234,12 +234,7 @@ export class GameCoordinator {
 
       // 3. Calculate statistical outcomes
       const runsScored = this.calculateRunsScored(runnerAdvancement);
-      const rbis = RBICalculator.calculateRBIs(
-        result,
-        inningState.basesState,
-        inningState.outs,
-        batterId
-      );
+      const rbis = RBICalculator.calculateRBIs(result, inningState.basesState, inningState.outs);
 
       // 4. Record at-bat with InningState (determine batting slot from lineup)
       const currentLineup = inningState.isTopHalf ? awayLineup : homeLineup;
