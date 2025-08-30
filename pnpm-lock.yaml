@@ -61,6 +61,18 @@ importers:
         specifier: ^2.0.5
         version: 2.1.9(@types/node@24.3.0)(jsdom@26.1.0)
 
+  apps/web:
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.0.5
+        version: 2.1.9(vitest@2.1.9)
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.2
+      vitest:
+        specifier: ^2.0.5
+        version: 2.1.9(@types/node@24.3.0)(jsdom@26.1.0)
+
   packages/application:
     dependencies:
       '@twsoftball/domain':
