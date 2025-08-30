@@ -422,6 +422,29 @@ describe('InningState', () => {
       expect(updated.basesState.getRunner('FIRST')).toBeUndefined();
       expect(updated.outs).toBe(1);
     });
+
+    it('should handle runner advancement with default advance reason on strikeout', () => {
+      const runner1 = new PlayerId('runner-1');
+      const inningState = InningState.createNew(inningStateId, gameId).withRunnerOnBase(
+        'THIRD',
+        runner1
+      );
+
+      const updated = inningState.advanceRunners(AtBatResultType.STRIKEOUT, [
+        { runnerId: runner1, from: 'THIRD', to: 'HOME' },
+      ]);
+
+      const events = updated.getUncommittedEvents();
+      const runnerAdvancedEvents = events.filter(e => e.type === 'RunnerAdvanced');
+
+      expect(runnerAdvancedEvents).toHaveLength(1);
+      expect(runnerAdvancedEvents[0]).toMatchObject({
+        runnerId: runner1,
+        from: 'THIRD',
+        to: 'HOME',
+        reason: 'HIT', // Default fallback from determineAdvanceReason
+      });
+    });
   });
 
   describe('endHalfInning', () => {

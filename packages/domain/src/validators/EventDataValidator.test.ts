@@ -156,6 +156,13 @@ describe('EventDataValidator', () => {
         'Event timestamp must be a valid Date object'
       );
     });
+
+    it('should reject null gameId', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+      expect(() => EventDataValidator.validateEventMetadata(null as any)).toThrow(
+        'Event gameId is required'
+      );
+    });
   });
 
   describe('copyAndFreeze', () => {
