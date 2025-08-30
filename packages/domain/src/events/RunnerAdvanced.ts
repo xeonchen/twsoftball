@@ -338,7 +338,6 @@ export class RunnerAdvanced extends DomainEvent {
    * // validateAdvancement('HOME' as any, Base.FIRST); // ✗ From terminal position
    * ```
    */
-  // eslint-disable-next-line class-methods-use-this
   private validateAdvancement(from: Base | null, to: Base | 'HOME' | 'OUT'): void {
     // Cannot advance from HOME or OUT - these are terminal positions
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

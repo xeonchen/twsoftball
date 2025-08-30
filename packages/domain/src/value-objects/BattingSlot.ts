@@ -1,4 +1,3 @@
-/* eslint-disable max-classes-per-file */
 import { DomainError } from '../errors/DomainError';
 import { PlayerId } from './PlayerId';
 

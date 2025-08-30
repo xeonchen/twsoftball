@@ -188,7 +188,7 @@ export class NumericValidation {
   public static validateScore(score: number, teamName: string): void {
     try {
       this.validatePositiveInteger(score, 'score');
-    } catch (error) {
+    } catch {
       // Transform generic error message to team-specific format for backward compatibility
       throw new DomainError(`${teamName} score must be a valid number`);
     }

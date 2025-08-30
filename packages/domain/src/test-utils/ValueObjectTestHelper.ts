@@ -187,7 +187,6 @@ export class ValueObjectTestHelper {
     let thrownError: Error | null = null;
 
     try {
-      // eslint-disable-next-line no-new
       new constructor(value);
     } catch (error) {
       thrownError = error as Error;

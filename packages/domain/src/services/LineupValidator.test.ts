@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { describe, it, expect } from 'vitest';
 import { LineupValidator, LineupEntry } from './LineupValidator';
 import { BattingSlot } from '../value-objects/BattingSlot';
