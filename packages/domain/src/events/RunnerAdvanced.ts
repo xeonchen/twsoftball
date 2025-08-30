@@ -364,7 +364,7 @@ export class RunnerAdvanced extends DomainEvent {
         THIRD: 3,
       };
 
-      if (baseOrder[from] > baseOrder[to as Base]) {
+      if (baseOrder[from] > baseOrder[to]) {
         throw new DomainError(`Runner cannot advance backward from ${from} to ${to}`);
       }
     }

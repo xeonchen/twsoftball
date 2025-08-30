@@ -1329,11 +1329,11 @@ export class InningState {
       if (movement.from) {
         newBasesStateForAdvance = newBasesStateForAdvance.withRunnerAdvanced(
           movement.from,
-          movement.to as Base
+          movement.to
         );
       } else {
         newBasesStateForAdvance = newBasesStateForAdvance.withRunnerOn(
-          movement.to as Base,
+          movement.to,
           movement.runnerId
         );
       }
