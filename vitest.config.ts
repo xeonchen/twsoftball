@@ -10,14 +10,19 @@ export default defineConfig({
     exclude: ['node_modules/**', 'dist/**', 'build/**', 'coverage/**'],
     coverage: {
       reporter: ['text', 'json', 'html', 'lcov'],
+      include: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'],
       exclude: [
         'coverage/**',
         'dist/**',
         'build/**',
         'node_modules/**',
         '**/*.d.ts',
+        '**/*.test.ts',
+        '**/*.spec.ts',
+        '**/test-utils/**',
+        '**/tests/**',
+        '**/src/index.ts',
         '**/*.config.*',
-        'tests/**',
         'tools/**',
       ],
       thresholds: {

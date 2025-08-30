@@ -1,87 +1,87 @@
 import { describe, it, expect } from 'vitest';
 import { JerseyNumber } from './JerseyNumber';
+import { ValueObjectTestHelper } from '../test-utils';
 import { DomainError } from '../errors/DomainError';
 
 describe('JerseyNumber', () => {
   describe('Construction', () => {
-    it('should create JerseyNumber with valid string value', () => {
-      const jerseyNumber = new JerseyNumber('15');
+    // Test data for valid and invalid values
+    const validValues = [
+      { input: '15', description: 'two-digit number' },
+      { input: '5', description: 'single digit number' },
+      { input: '99', description: 'maximum valid number' },
+      { input: '1', description: 'minimum valid number' },
+      { input: '05', description: 'number with leading zero' },
+    ];
 
-      expect(jerseyNumber.value).toBe('15');
+    const invalidValues = [
+      {
+        input: '',
+        error: 'Jersey number cannot be empty or whitespace',
+        description: 'empty string',
+      },
+      {
+        input: '   ',
+        error: 'Jersey number cannot be empty or whitespace',
+        description: 'whitespace-only string',
+      },
+      {
+        input: '100',
+        error: 'Jersey number must be between 1 and 99',
+        description: 'number greater than 99',
+      },
+      { input: '0', error: 'Jersey number must be between 1 and 99', description: 'zero' },
+      { input: 'AB', error: 'Jersey number must be numeric', description: 'non-numeric string' },
+      {
+        input: '1A',
+        error: 'Jersey number must be numeric',
+        description: 'mixed alphanumeric string',
+      },
+      { input: '12.5', error: 'Jersey number must be numeric', description: 'decimal number' },
+      { input: '-5', error: 'Jersey number must be numeric', description: 'negative number' },
+      {
+        input: ' 15 ',
+        error: 'Jersey number must be numeric',
+        description: 'number with whitespace',
+      },
+    ];
+
+    it('should create JerseyNumber with valid values', () => {
+      validValues.forEach(({ input }) => {
+        const jersey = ValueObjectTestHelper.assertValidConstructor(JerseyNumber, input);
+        expect(jersey.value).toBe(input);
+      });
     });
 
-    it('should accept single digit numbers', () => {
-      const jerseyNumber = new JerseyNumber('5');
-
-      expect(jerseyNumber.value).toBe('5');
-    });
-
-    it('should accept two digit numbers', () => {
-      const jerseyNumber = new JerseyNumber('99');
-
-      expect(jerseyNumber.value).toBe('99');
-    });
-
-    it('should accept leading zeros', () => {
-      const jerseyNumber = new JerseyNumber('05');
-
-      expect(jerseyNumber.value).toBe('05');
-    });
-
-    it('should reject empty string', () => {
-      expect(() => new JerseyNumber('')).toThrow(DomainError);
-      expect(() => new JerseyNumber('')).toThrow('Jersey number cannot be empty or whitespace');
-    });
-
-    it('should reject whitespace-only string', () => {
-      expect(() => new JerseyNumber('   ')).toThrow(DomainError);
-      expect(() => new JerseyNumber('   ')).toThrow('Jersey number cannot be empty or whitespace');
-    });
-
-    it('should reject numbers greater than 99', () => {
-      expect(() => new JerseyNumber('100')).toThrow(DomainError);
-      expect(() => new JerseyNumber('100')).toThrow('Jersey number must be between 1 and 99');
-    });
-
-    it('should reject zero', () => {
-      expect(() => new JerseyNumber('0')).toThrow(DomainError);
-      expect(() => new JerseyNumber('0')).toThrow('Jersey number must be between 1 and 99');
-    });
-
-    it('should reject non-numeric strings', () => {
-      expect(() => new JerseyNumber('AB')).toThrow(DomainError);
-      expect(() => new JerseyNumber('AB')).toThrow('Jersey number must be numeric');
-    });
-
-    it('should reject mixed alphanumeric strings', () => {
-      expect(() => new JerseyNumber('1A')).toThrow(DomainError);
-      expect(() => new JerseyNumber('1A')).toThrow('Jersey number must be numeric');
-    });
-
-    it('should reject decimal numbers', () => {
-      expect(() => new JerseyNumber('12.5')).toThrow(DomainError);
-      expect(() => new JerseyNumber('12.5')).toThrow('Jersey number must be numeric');
-    });
-
-    it('should reject negative numbers', () => {
-      expect(() => new JerseyNumber('-5')).toThrow(DomainError);
-      expect(() => new JerseyNumber('-5')).toThrow('Jersey number must be numeric');
-    });
-
-    it('should handle string numbers with leading/trailing whitespace', () => {
-      expect(() => new JerseyNumber(' 15 ')).toThrow(DomainError);
-      expect(() => new JerseyNumber(' 15 ')).toThrow('Jersey number must be numeric');
+    it('should reject invalid values with appropriate error messages', () => {
+      invalidValues.forEach(({ input, error }) => {
+        ValueObjectTestHelper.assertInvalidConstructor(JerseyNumber, input, error);
+      });
     });
   });
 
   describe('Validation', () => {
     it('should accept all valid jersey numbers from 1 to 99', () => {
-      // Test boundary values and some middle values
       const validNumbers = ['1', '2', '9', '10', '50', '98', '99'];
+      const invalidScenarios = [
+        { value: '', error: 'Jersey number cannot be empty or whitespace' },
+        { value: '   ', error: 'Jersey number cannot be empty or whitespace' },
+        { value: '100', error: 'Jersey number must be between 1 and 99' },
+        { value: '0', error: 'Jersey number must be between 1 and 99' },
+        { value: 'AB', error: 'Jersey number must be numeric' },
+        { value: '1A', error: 'Jersey number must be numeric' },
+        { value: '12.5', error: 'Jersey number must be numeric' },
+        { value: '-5', error: 'Jersey number must be numeric' },
+        { value: ' 15 ', error: 'Jersey number must be numeric' },
+      ];
 
-      validNumbers.forEach(number => {
-        expect(() => new JerseyNumber(number)).not.toThrow();
-        const jersey = new JerseyNumber(number);
+      const scenarios = ValueObjectTestHelper.createValidationScenarios(
+        validNumbers,
+        invalidScenarios
+      );
+
+      scenarios.valid.forEach(number => {
+        const jersey = ValueObjectTestHelper.assertValidConstructor(JerseyNumber, number);
         expect(jersey.value).toBe(number);
       });
     });
@@ -97,27 +97,40 @@ describe('JerseyNumber', () => {
   });
 
   describe('Equality', () => {
-    it('should be equal when values are the same', () => {
-      const jersey1 = new JerseyNumber('42');
-      const jersey2 = new JerseyNumber('42');
+    const equalityTestData = [
+      {
+        description: 'should be equal when values are the same',
+        jersey1: '42',
+        jersey2: '42',
+        expected: true,
+        bidirectional: true,
+      },
+      {
+        description: 'should not be equal when values are different',
+        jersey1: '12',
+        jersey2: '21',
+        expected: false,
+        bidirectional: true,
+      },
+      {
+        description: 'should not be equal for different string formats of same number',
+        jersey1: '01',
+        jersey2: '1',
+        expected: false,
+        bidirectional: false,
+      },
+    ];
 
-      expect(jersey1.equals(jersey2)).toBe(true);
-      expect(jersey2.equals(jersey1)).toBe(true);
-    });
+    equalityTestData.forEach(({ description, jersey1, jersey2, expected, bidirectional }) => {
+      it(description, () => {
+        const j1 = new JerseyNumber(jersey1);
+        const j2 = new JerseyNumber(jersey2);
 
-    it('should not be equal when values are different', () => {
-      const jersey1 = new JerseyNumber('12');
-      const jersey2 = new JerseyNumber('21');
-
-      expect(jersey1.equals(jersey2)).toBe(false);
-      expect(jersey2.equals(jersey1)).toBe(false);
-    });
-
-    it('should not be equal for different string formats of same number', () => {
-      const jersey1 = new JerseyNumber('01');
-      const jersey2 = new JerseyNumber('1');
-
-      expect(jersey1.equals(jersey2)).toBe(false);
+        expect(j1.equals(j2)).toBe(expected);
+        if (bidirectional) {
+          expect(j2.equals(j1)).toBe(expected);
+        }
+      });
     });
 
     it('should not be equal when compared to different type', () => {
@@ -129,12 +142,18 @@ describe('JerseyNumber', () => {
   });
 
   describe('Numeric operations', () => {
-    it('should return numeric value', () => {
-      const jersey1 = new JerseyNumber('15');
-      const jersey2 = new JerseyNumber('05');
+    const numericTestData = [
+      { input: '15', expected: 15, description: 'regular two-digit number' },
+      { input: '05', expected: 5, description: 'number with leading zero' },
+      { input: '1', expected: 1, description: 'single digit number' },
+      { input: '99', expected: 99, description: 'maximum valid number' },
+    ];
 
-      expect(jersey1.toNumber()).toBe(15);
-      expect(jersey2.toNumber()).toBe(5);
+    it('should return correct numeric values', () => {
+      numericTestData.forEach(({ input, expected }) => {
+        const jersey = new JerseyNumber(input);
+        expect(jersey.toNumber()).toBe(expected);
+      });
     });
 
     it('should support numeric comparison while preserving string format', () => {
@@ -179,25 +198,32 @@ describe('JerseyNumber', () => {
   });
 
   describe('Static factory methods', () => {
-    it('should create from number', () => {
-      const jersey = JerseyNumber.fromNumber(42);
+    const validFactoryInputs = [
+      { input: 42, expectedString: '42', description: 'two-digit number' },
+      { input: 7, expectedString: '7', description: 'single digit number' },
+      { input: 1, expectedString: '1', description: 'minimum valid number' },
+      { input: 99, expectedString: '99', description: 'maximum valid number' },
+    ];
 
-      expect(jersey.value).toBe('42');
-      expect(jersey.toNumber()).toBe(42);
+    const invalidFactoryInputs = [
+      { input: 0, description: 'zero' },
+      { input: 100, description: 'number greater than 99' },
+      { input: -5, description: 'negative number' },
+      { input: 3.14, description: 'decimal number' },
+    ];
+
+    it('should create from valid numbers', () => {
+      validFactoryInputs.forEach(({ input, expectedString }) => {
+        const jersey = JerseyNumber.fromNumber(input);
+        expect(jersey.value).toBe(expectedString);
+        expect(jersey.toNumber()).toBe(input);
+      });
     });
 
-    it('should validate number in factory method', () => {
-      expect(() => JerseyNumber.fromNumber(0)).toThrow(DomainError);
-      expect(() => JerseyNumber.fromNumber(100)).toThrow(DomainError);
-      expect(() => JerseyNumber.fromNumber(-5)).toThrow(DomainError);
-      expect(() => JerseyNumber.fromNumber(3.14)).toThrow(DomainError);
-    });
-
-    it('should handle single digit numbers in factory', () => {
-      const jersey = JerseyNumber.fromNumber(7);
-
-      expect(jersey.value).toBe('7');
-      expect(jersey.toNumber()).toBe(7);
+    it('should reject invalid numbers in factory method', () => {
+      invalidFactoryInputs.forEach(({ input }) => {
+        expect(() => JerseyNumber.fromNumber(input)).toThrow(DomainError);
+      });
     });
   });
 });

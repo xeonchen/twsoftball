@@ -201,7 +201,6 @@ export class BasesState {
    * console.log(cleared.getOccupiedBases().length); // 0
    * ```
    */
-  // eslint-disable-next-line class-methods-use-this
   withBasesCleared(): BasesState {
     return BasesState.empty();
   }

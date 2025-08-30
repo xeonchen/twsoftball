@@ -7,7 +7,6 @@ import { DomainError } from '../errors/DomainError';
 
 describe('RBICalculator', () => {
   // Test data
-  const batterId = new PlayerId('batter-1');
   const runner1 = new PlayerId('runner-1');
   const runner2 = new PlayerId('runner-2');
   const runner3 = new PlayerId('runner-3');
@@ -24,8 +23,7 @@ describe('RBICalculator', () => {
         const rbis = RBICalculator.calculateRBIs(
           AtBatResultType.HOME_RUN,
           basesLoaded,
-          0, // outs before at-bat
-          batterId
+          0 // outs before at-bat
         );
 
         expect(rbis).toBe(4); // Batter + 3 runners
@@ -34,7 +32,7 @@ describe('RBICalculator', () => {
       it('should award 1 RBI for solo home run with empty bases', () => {
         const emptyBases = BasesState.empty();
 
-        const rbis = RBICalculator.calculateRBIs(AtBatResultType.HOME_RUN, emptyBases, 0, batterId);
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.HOME_RUN, emptyBases, 0);
 
         expect(rbis).toBe(1); // Just the batter
       });
@@ -44,7 +42,7 @@ describe('RBICalculator', () => {
           .withRunnerOn('FIRST', runner1)
           .withRunnerOn('THIRD', runner3);
 
-        const rbis = RBICalculator.calculateRBIs(AtBatResultType.HOME_RUN, bases, 0, batterId);
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.HOME_RUN, bases, 0);
 
         expect(rbis).toBe(3); // Batter + 2 runners
       });
@@ -54,12 +52,7 @@ describe('RBICalculator', () => {
       it('should award 1 RBI for sacrifice fly that scores runner from third', () => {
         const runnerOnThird = BasesState.empty().withRunnerOn('THIRD', runner3);
 
-        const rbis = RBICalculator.calculateRBIs(
-          AtBatResultType.SACRIFICE_FLY,
-          runnerOnThird,
-          0,
-          batterId
-        );
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.SACRIFICE_FLY, runnerOnThird, 0);
 
         expect(rbis).toBe(1);
       });
@@ -67,12 +60,7 @@ describe('RBICalculator', () => {
       it('should award 0 RBIs for sacrifice fly with no runner on third', () => {
         const runnerOnSecond = BasesState.empty().withRunnerOn('SECOND', runner2);
 
-        const rbis = RBICalculator.calculateRBIs(
-          AtBatResultType.SACRIFICE_FLY,
-          runnerOnSecond,
-          0,
-          batterId
-        );
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.SACRIFICE_FLY, runnerOnSecond, 0);
 
         expect(rbis).toBe(0);
       });
@@ -83,12 +71,7 @@ describe('RBICalculator', () => {
           .withRunnerOn('SECOND', runner2)
           .withRunnerOn('THIRD', runner3);
 
-        const rbis = RBICalculator.calculateRBIs(
-          AtBatResultType.SACRIFICE_FLY,
-          basesLoaded,
-          0,
-          batterId
-        );
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.SACRIFICE_FLY, basesLoaded, 0);
 
         expect(rbis).toBe(1); // Only runner on third scores on sac fly
       });
@@ -100,7 +83,7 @@ describe('RBICalculator', () => {
           .withRunnerOn('SECOND', runner2)
           .withRunnerOn('THIRD', runner3);
 
-        const rbis = RBICalculator.calculateRBIs(AtBatResultType.SINGLE, bases, 0, batterId);
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.SINGLE, bases, 0);
 
         expect(rbis).toBe(2); // Both runners in scoring position score
       });
@@ -108,12 +91,7 @@ describe('RBICalculator', () => {
       it('should award 0 RBIs for single with only runner on first', () => {
         const runnerOnFirst = BasesState.empty().withRunnerOn('FIRST', runner1);
 
-        const rbis = RBICalculator.calculateRBIs(
-          AtBatResultType.SINGLE,
-          runnerOnFirst,
-          0,
-          batterId
-        );
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.SINGLE, runnerOnFirst, 0);
 
         expect(rbis).toBe(0); // Runner on first typically doesn't score on single
       });
@@ -124,7 +102,7 @@ describe('RBICalculator', () => {
           .withRunnerOn('SECOND', runner2)
           .withRunnerOn('THIRD', runner3);
 
-        const rbis = RBICalculator.calculateRBIs(AtBatResultType.DOUBLE, basesLoaded, 0, batterId);
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.DOUBLE, basesLoaded, 0);
 
         expect(rbis).toBe(3); // All runners score on double
       });
@@ -134,7 +112,7 @@ describe('RBICalculator', () => {
           .withRunnerOn('FIRST', runner1)
           .withRunnerOn('SECOND', runner2);
 
-        const rbis = RBICalculator.calculateRBIs(AtBatResultType.TRIPLE, bases, 0, batterId);
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.TRIPLE, bases, 0);
 
         expect(rbis).toBe(2); // All runners score on triple
       });
@@ -148,8 +126,7 @@ describe('RBICalculator', () => {
         const rbis = RBICalculator.calculateRBIs(
           AtBatResultType.FIELDERS_CHOICE,
           runnerOnThird,
-          0, // 0 outs
-          batterId
+          0 // 0 outs
         );
 
         expect(rbis).toBe(1); // Runner scores from third on contact
@@ -161,8 +138,7 @@ describe('RBICalculator', () => {
         const rbis = RBICalculator.calculateRBIs(
           AtBatResultType.FIELDERS_CHOICE,
           runnerOnThird,
-          2, // 2 outs - third out ends inning
-          batterId
+          2 // 2 outs - third out ends inning
         );
 
         expect(rbis).toBe(0); // Third out prevents run from scoring
@@ -176,8 +152,7 @@ describe('RBICalculator', () => {
         const rbis = RBICalculator.calculateRBIs(
           AtBatResultType.GROUND_OUT,
           runnerOnThird,
-          1, // 1 out
-          batterId
+          1 // 1 out
         );
 
         expect(rbis).toBe(1);
@@ -186,12 +161,7 @@ describe('RBICalculator', () => {
       it('should award 0 RBIs for ground out with 2 outs (inning ending)', () => {
         const runnerOnThird = BasesState.empty().withRunnerOn('THIRD', runner3);
 
-        const rbis = RBICalculator.calculateRBIs(
-          AtBatResultType.GROUND_OUT,
-          runnerOnThird,
-          2,
-          batterId
-        );
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.GROUND_OUT, runnerOnThird, 2);
 
         expect(rbis).toBe(0);
       });
@@ -199,12 +169,7 @@ describe('RBICalculator', () => {
       it('should award RBI for fly out that scores runner from third with less than 2 outs', () => {
         const runnerOnThird = BasesState.empty().withRunnerOn('THIRD', runner3);
 
-        const rbis = RBICalculator.calculateRBIs(
-          AtBatResultType.FLY_OUT,
-          runnerOnThird,
-          0,
-          batterId
-        );
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.FLY_OUT, runnerOnThird, 0);
 
         expect(rbis).toBe(1);
       });
@@ -217,7 +182,7 @@ describe('RBICalculator', () => {
           .withRunnerOn('SECOND', runner2)
           .withRunnerOn('THIRD', runner3);
 
-        const rbis = RBICalculator.calculateRBIs(AtBatResultType.WALK, basesLoaded, 0, batterId);
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.WALK, basesLoaded, 0);
 
         expect(rbis).toBe(1); // Forces runner from third home
       });
@@ -227,7 +192,7 @@ describe('RBICalculator', () => {
           .withRunnerOn('FIRST', runner1)
           .withRunnerOn('SECOND', runner2);
 
-        const rbis = RBICalculator.calculateRBIs(AtBatResultType.WALK, bases, 0, batterId);
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.WALK, bases, 0);
 
         expect(rbis).toBe(0);
       });
@@ -235,7 +200,7 @@ describe('RBICalculator', () => {
       it('should award 0 RBIs for error - defensive mistake, not batting achievement', () => {
         const runnerOnThird = BasesState.empty().withRunnerOn('THIRD', runner3);
 
-        const rbis = RBICalculator.calculateRBIs(AtBatResultType.ERROR, runnerOnThird, 0, batterId);
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.ERROR, runnerOnThird, 0);
 
         expect(rbis).toBe(0); // No RBI credit for defensive errors
       });
@@ -248,12 +213,7 @@ describe('RBICalculator', () => {
           .withRunnerOn('SECOND', runner2)
           .withRunnerOn('THIRD', runner3);
 
-        const rbis = RBICalculator.calculateRBIs(
-          AtBatResultType.STRIKEOUT,
-          basesLoaded,
-          0,
-          batterId
-        );
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.STRIKEOUT, basesLoaded, 0);
 
         expect(rbis).toBe(0);
       });
@@ -261,12 +221,7 @@ describe('RBICalculator', () => {
       it('should award 0 RBIs for double play with 2 outs (inning ending)', () => {
         const runnerOnThird = BasesState.empty().withRunnerOn('THIRD', runner3);
 
-        const rbis = RBICalculator.calculateRBIs(
-          AtBatResultType.DOUBLE_PLAY,
-          runnerOnThird,
-          2,
-          batterId
-        );
+        const rbis = RBICalculator.calculateRBIs(AtBatResultType.DOUBLE_PLAY, runnerOnThird, 2);
 
         expect(rbis).toBe(0);
       });
@@ -277,8 +232,7 @@ describe('RBICalculator', () => {
         const rbis = RBICalculator.calculateRBIs(
           AtBatResultType.DOUBLE_PLAY,
           runnerOnThird,
-          0, // 0 outs, double play makes it 2 outs but doesn't end inning
-          batterId
+          0 // 0 outs, double play makes it 2 outs but doesn't end inning
         );
 
         expect(rbis).toBe(1);
@@ -290,7 +244,7 @@ describe('RBICalculator', () => {
         const bases = BasesState.empty();
 
         expect(() => {
-          RBICalculator.calculateRBIs(AtBatResultType.SINGLE, bases, -1, batterId);
+          RBICalculator.calculateRBIs(AtBatResultType.SINGLE, bases, -1);
         }).toThrow(DomainError);
       });
 
@@ -298,7 +252,7 @@ describe('RBICalculator', () => {
         const bases = BasesState.empty();
 
         expect(() => {
-          RBICalculator.calculateRBIs(AtBatResultType.SINGLE, bases, 3, batterId);
+          RBICalculator.calculateRBIs(AtBatResultType.SINGLE, bases, 3);
         }).toThrow(DomainError);
       });
 
@@ -320,7 +274,7 @@ describe('RBICalculator', () => {
         ];
 
         nonScoringResults.forEach(result => {
-          const rbis = RBICalculator.calculateRBIs(result, emptyBases, 0, batterId);
+          const rbis = RBICalculator.calculateRBIs(result, emptyBases, 0);
           if (result === AtBatResultType.HOME_RUN) {
             expect(rbis).toBe(1); // Solo home run
           } else {
@@ -340,8 +294,7 @@ describe('RBICalculator', () => {
         RBICalculator.calculateRBIs(
           AtBatResultType.HOME_RUN,
           BasesState.empty().withRunnerOn('FIRST', runner1),
-          0,
-          batterId
+          0
         )
       ).toBe(2);
 
@@ -350,8 +303,7 @@ describe('RBICalculator', () => {
         RBICalculator.calculateRBIs(
           AtBatResultType.SACRIFICE_FLY,
           BasesState.empty().withRunnerOn('THIRD', runner3),
-          0,
-          batterId
+          0
         )
       ).toBe(1);
 
@@ -363,8 +315,7 @@ describe('RBICalculator', () => {
             .withRunnerOn('FIRST', runner1)
             .withRunnerOn('SECOND', runner2)
             .withRunnerOn('THIRD', runner3),
-          0,
-          batterId
+          0
         )
       ).toBe(1);
 
@@ -373,8 +324,7 @@ describe('RBICalculator', () => {
         RBICalculator.calculateRBIs(
           AtBatResultType.GROUND_OUT,
           BasesState.empty().withRunnerOn('THIRD', runner3),
-          2, // Third out
-          batterId
+          2 // Third out
         )
       ).toBe(0);
 
@@ -383,8 +333,7 @@ describe('RBICalculator', () => {
         RBICalculator.calculateRBIs(
           AtBatResultType.ERROR,
           BasesState.empty().withRunnerOn('THIRD', runner3),
-          0,
-          batterId
+          0
         )
       ).toBe(0);
     });

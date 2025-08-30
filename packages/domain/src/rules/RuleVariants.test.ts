@@ -256,6 +256,59 @@ describe('RuleVariants', () => {
     });
   });
 
+  describe('Advanced Mercy Rule Variants', () => {
+    it('should create two-tier mercy rule system', () => {
+      const rules = RuleVariants.twoTierMercyRule();
+
+      expect(rules.totalInnings).toBe(7);
+      expect(rules.maxPlayersPerTeam).toBe(25);
+      expect(rules.timeLimitMinutes).toBe(90);
+      expect(rules.allowReEntry).toBe(true);
+      expect(rules.mercyRuleEnabled).toBe(true);
+      expect(rules.mercyRuleTiers).toEqual([
+        { differential: 10, afterInning: 4 }, // 10 runs after 4th inning
+        { differential: 7, afterInning: 5 }, // 7 runs after 5th inning
+      ]);
+    });
+
+    it('should create three-tier mercy rule system', () => {
+      const rules = RuleVariants.threeTierMercyRule();
+
+      expect(rules.totalInnings).toBe(7);
+      expect(rules.maxPlayersPerTeam).toBe(20);
+      expect(rules.timeLimitMinutes).toBe(75);
+      expect(rules.allowReEntry).toBe(false);
+      expect(rules.mercyRuleEnabled).toBe(true);
+      expect(rules.mercyRuleTiers).toEqual([
+        { differential: 20, afterInning: 2 }, // Very lenient early
+        { differential: 12, afterInning: 4 }, // Moderate mid-game
+        { differential: 8, afterInning: 6 }, // Tight late game
+      ]);
+    });
+
+    it('should create lenient mercy rule system', () => {
+      const rules = RuleVariants.lenientMercyRule();
+
+      expect(rules.totalInnings).toBe(7);
+      expect(rules.maxPlayersPerTeam).toBe(30);
+      expect(rules.timeLimitMinutes).toBe(null);
+      expect(rules.allowReEntry).toBe(true);
+      expect(rules.mercyRuleEnabled).toBe(true);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 25, afterInning: 3 }]);
+    });
+
+    it('should create tight mercy rule system', () => {
+      const rules = RuleVariants.tightMercyRule();
+
+      expect(rules.totalInnings).toBe(7);
+      expect(rules.maxPlayersPerTeam).toBe(18);
+      expect(rules.timeLimitMinutes).toBe(120);
+      expect(rules.allowReEntry).toBe(false);
+      expect(rules.mercyRuleEnabled).toBe(true);
+      expect(rules.mercyRuleTiers).toEqual([{ differential: 6, afterInning: 5 }]);
+    });
+  });
+
   describe('Custom rule creation', () => {
     it('should create custom rules with modifications', () => {
       const baseRules = RuleVariants.asaUsaSoftball();
@@ -351,6 +404,10 @@ describe('RuleVariants', () => {
         RuleVariants.slowPitch(),
         RuleVariants.fastPitch(),
         RuleVariants.modifiedPitch(),
+        RuleVariants.twoTierMercyRule(),
+        RuleVariants.threeTierMercyRule(),
+        RuleVariants.lenientMercyRule(),
+        RuleVariants.tightMercyRule(),
       ];
 
       variants.forEach(rules => {
@@ -438,6 +495,64 @@ describe('RuleVariants', () => {
       expect(() => {
         RuleVariants.custom({ maxPlayersPerTeam: 8 });
       }).toThrow(DomainError);
+    });
+
+    it('should validate multi-tier mercy rule ordering', () => {
+      const twoTier = RuleVariants.twoTierMercyRule();
+      const threeTier = RuleVariants.threeTierMercyRule();
+
+      // Two-tier should have differentials in descending order and innings in ascending order
+      expect(twoTier.mercyRuleTiers[0]!.differential).toBeGreaterThan(
+        twoTier.mercyRuleTiers[1]!.differential
+      );
+      expect(twoTier.mercyRuleTiers[0]!.afterInning).toBeLessThan(
+        twoTier.mercyRuleTiers[1]!.afterInning
+      );
+
+      // Three-tier should follow the same pattern
+      expect(threeTier.mercyRuleTiers[0]!.differential).toBeGreaterThan(
+        threeTier.mercyRuleTiers[1]!.differential
+      );
+      expect(threeTier.mercyRuleTiers[1]!.differential).toBeGreaterThan(
+        threeTier.mercyRuleTiers[2]!.differential
+      );
+      expect(threeTier.mercyRuleTiers[0]!.afterInning).toBeLessThan(
+        threeTier.mercyRuleTiers[1]!.afterInning
+      );
+      expect(threeTier.mercyRuleTiers[1]!.afterInning).toBeLessThan(
+        threeTier.mercyRuleTiers[2]!.afterInning
+      );
+    });
+
+    it('should handle extreme mercy rule variations', () => {
+      const lenient = RuleVariants.lenientMercyRule();
+      const tight = RuleVariants.tightMercyRule();
+
+      // Lenient should have very high differential
+      expect(lenient.mercyRuleTiers[0]!.differential).toBe(25);
+      expect(lenient.mercyRuleTiers[0]!.afterInning).toBe(3);
+
+      // Tight should have low differential
+      expect(tight.mercyRuleTiers[0]!.differential).toBe(6);
+      expect(tight.mercyRuleTiers[0]!.afterInning).toBe(5);
+    });
+
+    it('should support advanced mercy rule customizations', () => {
+      const baseRules = RuleVariants.twoTierMercyRule();
+      const customRules = RuleVariants.withCustomizations(baseRules, {
+        mercyRuleTiers: [
+          { differential: 15, afterInning: 3 },
+          { differential: 10, afterInning: 5 },
+          { differential: 5, afterInning: 6 },
+        ],
+      });
+
+      expect(customRules.mercyRuleTiers).toHaveLength(3);
+      expect(customRules.mercyRuleTiers).toEqual([
+        { differential: 15, afterInning: 3 },
+        { differential: 10, afterInning: 5 },
+        { differential: 5, afterInning: 6 },
+      ]);
     });
   });
 });

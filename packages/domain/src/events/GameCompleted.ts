@@ -1,6 +1,8 @@
 import { DomainEvent } from './DomainEvent';
 import { GameId } from '../value-objects/GameId';
 import { DomainError } from '../errors/DomainError';
+import { ScoreValidator } from '../validators/ScoreValidator';
+import { EventDataValidator } from '../validators/EventDataValidator';
 
 /**
  * Domain event representing the completion of a softball game.
@@ -66,11 +68,12 @@ export class GameCompleted extends DomainEvent {
     readonly completedInning: number
   ) {
     super();
+    EventDataValidator.validateEventMetadata(gameId);
     GameCompleted.validateEndingType(endingType);
-    GameCompleted.validateFinalScore(finalScore);
+    ScoreValidator.validateScore(finalScore);
     GameCompleted.validateCompletedInning(completedInning);
-    // Freeze the score object to prevent mutations
-    Object.freeze(this.finalScore);
+    // Freeze the score object to prevent mutations using centralized utility
+    this.finalScore = EventDataValidator.freezeData(finalScore);
   }
 
   /**
@@ -85,39 +88,6 @@ export class GameCompleted extends DomainEvent {
       throw new DomainError(
         `Invalid ending type: ${endingType}. Must be one of: ${validTypes.join(', ')}`
       );
-    }
-  }
-
-  /**
-   * Validates the final score object contains valid scores.
-   *
-   * @param finalScore - Score object to validate
-   * @throws {DomainError} When scores are invalid
-   */
-  private static validateFinalScore(finalScore: { home: number; away: number }): void {
-    GameCompleted.validateScoreValue(finalScore.home, 'Home');
-    GameCompleted.validateScoreValue(finalScore.away, 'Away');
-  }
-
-  /**
-   * Validates an individual score value.
-   *
-   * @param score - Score value to validate
-   * @param teamName - Team name for error messages
-   * @throws {DomainError} When score is invalid
-   */
-  private static validateScoreValue(score: number, teamName: string): void {
-    if (typeof score !== 'number' || Number.isNaN(score)) {
-      throw new DomainError(`${teamName} score must be a valid number`);
-    }
-    if (!Number.isFinite(score)) {
-      throw new DomainError(`${teamName} score must be a finite number`);
-    }
-    if (score < 0) {
-      throw new DomainError(`${teamName} score cannot be negative`);
-    }
-    if (!Number.isInteger(score)) {
-      throw new DomainError(`${teamName} score must be an integer`);
     }
   }
 

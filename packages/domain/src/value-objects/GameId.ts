@@ -1,4 +1,4 @@
-import { DomainError } from '../errors/DomainError';
+import { DomainId } from './DomainId';
 
 /**
  * Unique identifier for a softball game aggregate root.
@@ -24,20 +24,15 @@ import { DomainError } from '../errors/DomainError';
  * const existingGame = new GameId('550e8400-e29b-41d4-a716-446655440000');
  * ```
  */
-export class GameId {
+export class GameId extends DomainId<GameId> {
   /**
    * Creates a new GameId from a string value.
    *
    * @param value - The unique identifier string (typically UUID format)
    * @throws {DomainError} When value is empty, whitespace-only, or exceeds 50 characters
    */
-  constructor(readonly value: string) {
-    if (!value?.trim()) {
-      throw new DomainError('GameId cannot be empty or whitespace');
-    }
-    if (value.length > 50) {
-      throw new DomainError('GameId cannot exceed 50 characters');
-    }
+  constructor(value: string) {
+    super(value, 'GameId', 50);
   }
 
   /**
@@ -47,19 +42,7 @@ export class GameId {
    * @returns True if both IDs have the same string value, false otherwise
    */
   equals(other: GameId): boolean {
-    if (!other || !(other instanceof GameId)) {
-      return false;
-    }
-    return this.value === other.value;
-  }
-
-  /**
-   * Returns the string representation of this GameId.
-   *
-   * @returns The underlying UUID string value
-   */
-  toString(): string {
-    return this.value;
+    return this.equalsImpl(other, GameId);
   }
 
   /**

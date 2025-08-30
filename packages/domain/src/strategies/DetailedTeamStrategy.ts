@@ -2,7 +2,8 @@ import { PlayerId } from '../value-objects/PlayerId';
 import { FieldPosition } from '../constants/FieldPosition';
 import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
-import type { TeamStrategy, TeamPlayer, BattingSlotState } from './TeamStrategy';
+import { BaseTeamStrategy } from './BaseTeamStrategy';
+import type { TeamPlayer, BattingSlotState } from './TeamStrategy';
 
 /**
  * Represents a change in a player's field position during the game.
@@ -109,28 +110,12 @@ export interface PlayerSubstitutionHistory {
  * }
  * ```
  */
-export class DetailedTeamStrategy implements TeamStrategy {
-  /** Current batting lineup indexed by slot number */
-  private readonly lineupSlots = new Map<number, BattingSlotState>();
-
+export class DetailedTeamStrategy extends BaseTeamStrategy {
   /** All players that have been part of this team, indexed by player ID */
   private readonly allPlayers = new Map<string, TeamPlayer>();
 
   /** Substitution and participation history for each player */
   private readonly playerHistories = new Map<string, PlayerSubstitutionHistory>();
-
-  /** Required defensive positions for a valid lineup */
-  private static readonly REQUIRED_POSITIONS = [
-    FieldPosition.PITCHER,
-    FieldPosition.CATCHER,
-    FieldPosition.FIRST_BASE,
-    FieldPosition.SECOND_BASE,
-    FieldPosition.THIRD_BASE,
-    FieldPosition.SHORTSTOP,
-    FieldPosition.LEFT_FIELD,
-    FieldPosition.CENTER_FIELD,
-    FieldPosition.RIGHT_FIELD,
-  ];
 
   /**
    * Adds a new player to the batting lineup at the specified slot.
@@ -190,85 +175,6 @@ export class DetailedTeamStrategy implements TeamStrategy {
       canReenter: true,
       positionChanges: [],
     });
-  }
-
-  /**
-   * Retrieves the current batting order and field positions.
-   *
-   * @returns Array of batting slots with current player assignments, sorted by slot number
-   *
-   * @remarks
-   * Returns the current state of the batting lineup, showing which player
-   * is in each slot and their current field position. The returned array
-   * is sorted by slot number for consistent ordering.
-   *
-   * **Immutability**: Returns a new array on each call to prevent external
-   * mutation of internal lineup state. This follows domain modeling best
-   * practices for maintaining data integrity.
-   */
-  getCurrentLineup(): BattingSlotState[] {
-    return Array.from(this.lineupSlots.values()).sort((a, b) => a.slotNumber - b.slotNumber);
-  }
-
-  /**
-   * Checks if a player is currently in the active lineup.
-   *
-   * @param playerId - The unique identifier of the player to check
-   * @returns True if the player is currently in any batting slot
-   *
-   * @remarks
-   * This method determines if a player is currently participating in the game
-   * (i.e., assigned to a batting slot). Players on the bench or who have been
-   * substituted out return false.
-   *
-   * **Performance**: Uses efficient Map lookup for O(1) performance even
-   * with large lineups (up to 20 players).
-   */
-  isPlayerInLineup(playerId: PlayerId): boolean {
-    return Array.from(this.lineupSlots.values()).some(slot =>
-      slot.currentPlayer.playerId.equals(playerId)
-    );
-  }
-
-  /**
-   * Gets the current batting slot number for a specific player.
-   *
-   * @param playerId - The unique identifier of the player
-   * @returns The batting slot number (1-20) or undefined if not in lineup
-   *
-   * @remarks
-   * This method provides the batting position of an active player. Returns
-   * undefined if the player is not currently in the batting lineup (on bench
-   * or substituted out).
-   *
-   * **Batting Order Integrity**: The batting slot number represents the
-   * player's position in the batting order, which remains constant even
-   * through substitutions (the new player takes the same slot).
-   */
-  getPlayerBattingSlot(playerId: PlayerId): number | undefined {
-    const slots = Array.from(this.lineupSlots.values());
-    const foundSlot = slots.find(slot => slot.currentPlayer.playerId.equals(playerId));
-    return foundSlot?.slotNumber;
-  }
-
-  /**
-   * Gets the current field position for a specific player.
-   *
-   * @param playerId - The unique identifier of the player
-   * @returns The field position or undefined if not in lineup
-   *
-   * @remarks
-   * This method provides the defensive position of an active player. Returns
-   * undefined if the player is not currently in the lineup.
-   *
-   * **Position Tracking**: Reflects the most current position, including any
-   * position changes made during the game. Position history is maintained
-   * separately for comprehensive tracking.
-   */
-  getPlayerFieldPosition(playerId: PlayerId): FieldPosition | undefined {
-    const slots = Array.from(this.lineupSlots.values());
-    const foundSlot = slots.find(slot => slot.currentPlayer.playerId.equals(playerId));
-    return foundSlot?.currentPosition;
   }
 
   /**
@@ -427,74 +333,6 @@ export class DetailedTeamStrategy implements TeamStrategy {
   }
 
   /**
-   * Validates that the current lineup meets game requirements.
-   *
-   * @returns True if lineup is valid for game play
-   *
-   * @remarks
-   * This method checks that the current lineup configuration meets the basic
-   * requirements for softball gameplay:
-   *
-   * **Minimum Player Requirements**:
-   * - At least 9 players in the lineup
-   * - No more than 20 players (batting order limit)
-   *
-   * **Position Coverage Validation**:
-   * - All required defensive positions must be filled
-   * - Required positions: P, C, 1B, 2B, 3B, SS, LF, CF, RF
-   * - Optional positions: SF (Short Fielder), EP (Extra Player)
-   *
-   * **Data Integrity Checks**:
-   * - No duplicate players in multiple slots
-   * - All players have valid field position assignments
-   * - Batting slots are within valid range (1-20)
-   *
-   * **Use Cases**:
-   * - Pre-game lineup validation
-   * - Real-time lineup compliance checking
-   * - Tournament rule enforcement
-   */
-  isLineupValid(rules: SoftballRules = new SoftballRules()): boolean {
-    const lineup = this.getCurrentLineup();
-
-    // Must have at least 9 players but not exceed maximum
-    if (lineup.length < 9 || lineup.length > rules.maxPlayersPerTeam) {
-      return false;
-    }
-
-    // Check for required positions
-    const currentPositions = new Set(lineup.map(slot => slot.currentPosition));
-
-    // All required defensive positions must be covered
-    const hasAllRequiredPositions = DetailedTeamStrategy.REQUIRED_POSITIONS.every(
-      requiredPosition => currentPositions.has(requiredPosition)
-    );
-
-    if (!hasAllRequiredPositions) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Gets the total number of players currently in the batting lineup.
-   *
-   * @returns The count of active batting slots
-   *
-   * @remarks
-   * This method returns the number of players currently in batting positions.
-   * This may be different from the total team roster size, as some players
-   * may be on the bench or have been substituted out.
-   *
-   * **Performance**: Uses Map size for O(1) performance regardless of
-   * lineup size or complexity.
-   */
-  getActivePlayerCount(): number {
-    return this.lineupSlots.size;
-  }
-
-  /**
    * Gets the substitution and participation history for a specific player.
    *
    * @param playerId - The unique identifier of the player
@@ -541,24 +379,5 @@ export class DetailedTeamStrategy implements TeamStrategy {
    */
   getAllPlayers(): TeamPlayer[] {
     return Array.from(this.allPlayers.values());
-  }
-
-  /**
-   * Validates that a batting slot number is within the valid range.
-   *
-   * @param battingSlot - The batting slot number to validate
-   * @throws {DomainError} When batting slot is not between 1 and 20
-   *
-   * @remarks
-   * **Softball Batting Order Rules**:
-   * - Minimum 1 player (though 9+ required for valid game)
-   * - Maximum 20 players in batting order
-   * - Slots can be filled non-sequentially (e.g., 1, 3, 7, 12)
-   * - Extra Player (EP) rules allow more than 9 batters
-   */
-  private static validateBattingSlot(battingSlot: number, rules: SoftballRules): void {
-    if (battingSlot < 1 || battingSlot > rules.maxPlayersPerTeam) {
-      throw new DomainError(`Batting slot must be between 1 and ${rules.maxPlayersPerTeam}`);
-    }
   }
 }

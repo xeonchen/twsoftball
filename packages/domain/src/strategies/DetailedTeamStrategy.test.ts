@@ -6,9 +6,11 @@ import { FieldPosition } from '../constants/FieldPosition';
 import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
 import type { TeamPlayer } from './TeamStrategy';
+import { TestPlayerFactory, TeamStrategyTestHelper } from '../test-utils';
 
 describe('DetailedTeamStrategy', () => {
   let strategy: DetailedTeamStrategy;
+  let players: TeamPlayer[];
   let player1: TeamPlayer;
   let player2: TeamPlayer;
   let player3: TeamPlayer;
@@ -17,29 +19,9 @@ describe('DetailedTeamStrategy', () => {
   beforeEach(() => {
     strategy = new DetailedTeamStrategy();
 
-    player1 = {
-      playerId: new PlayerId('player-1'),
-      jerseyNumber: new JerseyNumber('10'),
-      name: 'John Smith',
-    };
-
-    player2 = {
-      playerId: new PlayerId('player-2'),
-      jerseyNumber: new JerseyNumber('15'),
-      name: 'Jane Doe',
-    };
-
-    player3 = {
-      playerId: new PlayerId('player-3'),
-      jerseyNumber: new JerseyNumber('22'),
-      name: 'Mike Johnson',
-    };
-
-    player4 = {
-      playerId: new PlayerId('player-4'),
-      jerseyNumber: new JerseyNumber('7'),
-      name: 'Sarah Wilson',
-    };
+    // Create 10 players using test utilities - eliminates duplication
+    players = TestPlayerFactory.createPlayers(10);
+    [player1, player2, player3, player4] = [players[0]!, players[1]!, players[2]!, players[3]!];
   });
 
   describe('Construction', () => {
@@ -418,94 +400,46 @@ describe('DetailedTeamStrategy', () => {
     });
 
     it('should return true for lineup with exactly 9 players', () => {
-      // Add 9 players with all required positions
-      strategy.addPlayer(player1, 1, FieldPosition.PITCHER);
-      strategy.addPlayer(player2, 2, FieldPosition.CATCHER);
-      strategy.addPlayer(
-        { playerId: new PlayerId('p3'), jerseyNumber: new JerseyNumber('3'), name: 'Player 3' },
-        3,
-        FieldPosition.FIRST_BASE
-      );
-      strategy.addPlayer(
-        { playerId: new PlayerId('p4'), jerseyNumber: new JerseyNumber('4'), name: 'Player 4' },
-        4,
-        FieldPosition.SECOND_BASE
-      );
-      strategy.addPlayer(
-        { playerId: new PlayerId('p5'), jerseyNumber: new JerseyNumber('5'), name: 'Player 5' },
-        5,
-        FieldPosition.THIRD_BASE
-      );
-      strategy.addPlayer(
-        { playerId: new PlayerId('p6'), jerseyNumber: new JerseyNumber('6'), name: 'Player 6' },
-        6,
-        FieldPosition.SHORTSTOP
-      );
-      strategy.addPlayer(
-        { playerId: new PlayerId('p7'), jerseyNumber: new JerseyNumber('7'), name: 'Player 7' },
-        7,
-        FieldPosition.LEFT_FIELD
-      );
-      strategy.addPlayer(
-        { playerId: new PlayerId('p8'), jerseyNumber: new JerseyNumber('8'), name: 'Player 8' },
-        8,
-        FieldPosition.CENTER_FIELD
-      );
-      strategy.addPlayer(
-        { playerId: new PlayerId('p9'), jerseyNumber: new JerseyNumber('9'), name: 'Player 9' },
-        9,
-        FieldPosition.RIGHT_FIELD
-      );
+      // Add 9 players with all required positions using test utilities
+      const positions = [
+        FieldPosition.PITCHER,
+        FieldPosition.CATCHER,
+        FieldPosition.FIRST_BASE,
+        FieldPosition.SECOND_BASE,
+        FieldPosition.THIRD_BASE,
+        FieldPosition.SHORTSTOP,
+        FieldPosition.LEFT_FIELD,
+        FieldPosition.CENTER_FIELD,
+        FieldPosition.RIGHT_FIELD,
+      ];
 
-      expect(strategy.isLineupValid()).toBe(true);
+      for (let i = 0; i < 9; i += 1) {
+        strategy.addPlayer(players[i]!, i + 1, positions[i]!);
+      }
+
+      TeamStrategyTestHelper.assertLineupValid(strategy);
     });
 
     it('should return true for lineup with 10 players (including short fielder)', () => {
-      // Add 10 players including short fielder
-      strategy.addPlayer(player1, 1, FieldPosition.PITCHER);
-      strategy.addPlayer(player2, 2, FieldPosition.CATCHER);
-      strategy.addPlayer(
-        { playerId: new PlayerId('p3'), jerseyNumber: new JerseyNumber('3'), name: 'Player 3' },
-        3,
-        FieldPosition.FIRST_BASE
-      );
-      strategy.addPlayer(
-        { playerId: new PlayerId('p4'), jerseyNumber: new JerseyNumber('4'), name: 'Player 4' },
-        4,
-        FieldPosition.SECOND_BASE
-      );
-      strategy.addPlayer(
-        { playerId: new PlayerId('p5'), jerseyNumber: new JerseyNumber('5'), name: 'Player 5' },
-        5,
-        FieldPosition.THIRD_BASE
-      );
-      strategy.addPlayer(
-        { playerId: new PlayerId('p6'), jerseyNumber: new JerseyNumber('6'), name: 'Player 6' },
-        6,
-        FieldPosition.SHORTSTOP
-      );
-      strategy.addPlayer(
-        { playerId: new PlayerId('p7'), jerseyNumber: new JerseyNumber('7'), name: 'Player 7' },
-        7,
-        FieldPosition.LEFT_FIELD
-      );
-      strategy.addPlayer(
-        { playerId: new PlayerId('p8'), jerseyNumber: new JerseyNumber('8'), name: 'Player 8' },
-        8,
-        FieldPosition.CENTER_FIELD
-      );
-      strategy.addPlayer(
-        { playerId: new PlayerId('p9'), jerseyNumber: new JerseyNumber('9'), name: 'Player 9' },
-        9,
-        FieldPosition.RIGHT_FIELD
-      );
-      strategy.addPlayer(
-        { playerId: new PlayerId('p10'), jerseyNumber: new JerseyNumber('10'), name: 'Player 10' },
-        10,
-        FieldPosition.SHORT_FIELDER
-      );
+      // Add 10 players including short fielder using test utilities
+      const positions = [
+        FieldPosition.PITCHER,
+        FieldPosition.CATCHER,
+        FieldPosition.FIRST_BASE,
+        FieldPosition.SECOND_BASE,
+        FieldPosition.THIRD_BASE,
+        FieldPosition.SHORTSTOP,
+        FieldPosition.LEFT_FIELD,
+        FieldPosition.CENTER_FIELD,
+        FieldPosition.RIGHT_FIELD,
+        FieldPosition.SHORT_FIELDER,
+      ];
 
-      expect(strategy.isLineupValid()).toBe(true);
+      for (let i = 0; i < 10; i += 1) {
+        strategy.addPlayer(players[i]!, i + 1, positions[i]!);
+      }
+
+      TeamStrategyTestHelper.assertLineupValid(strategy);
     });
 
     it('should return false when required defensive positions are missing', () => {
@@ -641,79 +575,79 @@ describe('DetailedTeamStrategy', () => {
 
   describe('Complex scenarios', () => {
     it('should handle multiple substitutions and position changes correctly', () => {
+      // Use helper to create substitution scenario
+      const scenario = TeamStrategyTestHelper.createSubstitutionScenario();
+
       // Set up initial lineup
-      strategy.addPlayer(player1, 1, FieldPosition.PITCHER);
+      strategy.addPlayer(scenario.originalPlayer, 1, FieldPosition.PITCHER);
       strategy.addPlayer(player2, 2, FieldPosition.CATCHER);
 
       // Change position
-      strategy.changePlayerPosition(player1.playerId, FieldPosition.FIRST_BASE);
+      strategy.changePlayerPosition(scenario.originalPlayer.playerId, FieldPosition.FIRST_BASE);
 
       // Substitute
-      strategy.substitutePlayer(1, player1.playerId, player3, FieldPosition.SHORTSTOP);
+      strategy.substitutePlayer(
+        1,
+        scenario.originalPlayer.playerId,
+        scenario.substitutePlayer,
+        FieldPosition.SHORTSTOP
+      );
 
       // Verify final state
-      expect(strategy.isPlayerInLineup(player1.playerId)).toBe(false);
-      expect(strategy.isPlayerInLineup(player3.playerId)).toBe(true);
-      expect(strategy.getPlayerFieldPosition(player3.playerId)).toBe(FieldPosition.SHORTSTOP);
+      expect(strategy.isPlayerInLineup(scenario.originalPlayer.playerId)).toBe(false);
+      expect(strategy.isPlayerInLineup(scenario.substitutePlayer.playerId)).toBe(true);
+      expect(strategy.getPlayerFieldPosition(scenario.substitutePlayer.playerId)).toBe(
+        FieldPosition.SHORTSTOP
+      );
 
       // Verify histories
-      const player1History = strategy.getPlayerSubstitutionHistory(player1.playerId);
+      const player1History = strategy.getPlayerSubstitutionHistory(
+        scenario.originalPlayer.playerId
+      );
       expect(player1History).toBeDefined();
       expect(player1History?.positionChanges).toHaveLength(1);
       expect(player1History?.timesSubstituted).toBe(1);
 
-      const player3History = strategy.getPlayerSubstitutionHistory(player3.playerId);
+      const player3History = strategy.getPlayerSubstitutionHistory(
+        scenario.substitutePlayer.playerId
+      );
       expect(player3History).toBeDefined();
       expect(player3History?.isStarter).toBe(false);
     });
 
     it('should maintain data integrity across complex operations', () => {
-      // Add full roster
-      const players = [];
-      for (let i = 1; i <= 12; i += 1) {
-        const player = {
-          playerId: new PlayerId(`player-${i}`),
-          jerseyNumber: new JerseyNumber(i.toString()),
-          name: `Player ${i}`,
-        };
-        players.push(player);
+      // Add full roster using TestPlayerFactory
+      const rosterPlayers = TestPlayerFactory.createPlayers(12);
 
-        if (i <= 9) {
-          const position = [
-            FieldPosition.PITCHER,
-            FieldPosition.CATCHER,
-            FieldPosition.FIRST_BASE,
-            FieldPosition.SECOND_BASE,
-            FieldPosition.THIRD_BASE,
-            FieldPosition.SHORTSTOP,
-            FieldPosition.LEFT_FIELD,
-            FieldPosition.CENTER_FIELD,
-            FieldPosition.RIGHT_FIELD,
-          ][i - 1];
-          if (position) {
-            strategy.addPlayer(player, i, position);
-          }
-        }
+      // Add first 9 players with standard positions
+      const positions = [
+        FieldPosition.PITCHER,
+        FieldPosition.CATCHER,
+        FieldPosition.FIRST_BASE,
+        FieldPosition.SECOND_BASE,
+        FieldPosition.THIRD_BASE,
+        FieldPosition.SHORTSTOP,
+        FieldPosition.LEFT_FIELD,
+        FieldPosition.CENTER_FIELD,
+        FieldPosition.RIGHT_FIELD,
+      ];
+
+      for (let i = 0; i < 9; i += 1) {
+        strategy.addPlayer(rosterPlayers[i]!, i + 1, positions[i]!);
       }
 
-      expect(strategy.isLineupValid()).toBe(true);
+      TeamStrategyTestHelper.assertLineupValid(strategy);
       expect(strategy.getActivePlayerCount()).toBe(9);
 
-      // Perform multiple operations
-      const player0 = players[0];
-      const player9 = players[9];
-      const playerAtIndex2 = players[2];
-      const player10 = players[10];
-      expect(player0).toBeDefined();
-      expect(player9).toBeDefined();
-      expect(playerAtIndex2).toBeDefined();
-      expect(player10).toBeDefined();
+      // Perform multiple operations with helper data
+      const player0 = rosterPlayers[0]!;
+      const player9 = rosterPlayers[9]!;
+      const playerAtIndex2 = rosterPlayers[2]!;
+      const player10 = rosterPlayers[10]!;
 
-      if (player0 && player9 && playerAtIndex2 && player10) {
-        strategy.substitutePlayer(1, player0.playerId, player9, FieldPosition.PITCHER);
-        strategy.changePlayerPosition(player9.playerId, FieldPosition.FIRST_BASE);
-        strategy.substitutePlayer(3, playerAtIndex2.playerId, player10, FieldPosition.THIRD_BASE);
-      }
+      strategy.substitutePlayer(1, player0.playerId, player9, FieldPosition.PITCHER);
+      strategy.changePlayerPosition(player9.playerId, FieldPosition.FIRST_BASE);
+      strategy.substitutePlayer(3, playerAtIndex2.playerId, player10, FieldPosition.THIRD_BASE);
 
       // Verify integrity
       expect(strategy.getActivePlayerCount()).toBe(9);
