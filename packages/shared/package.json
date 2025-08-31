@@ -24,7 +24,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint 'src/**/*.{ts,tsx}' --max-warnings 0",
+    "lint": "tsc --project ../../tsconfig.lint.json --noEmit && eslint 'src/**/*.{ts,tsx}' --max-warnings 0",
     "lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix --max-warnings 0",
     "format": "prettier --write 'src/**/*.{ts,tsx,json}'",
     "format:check": "prettier --check 'src/**/*.{ts,tsx,json}'"
