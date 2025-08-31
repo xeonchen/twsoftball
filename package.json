@@ -6,11 +6,11 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --filter @twsoftball/web dev",
-    "build": "pnpm --recursive run build",
+    "build": "tsc -b tsconfig.build.json",
     "test": "pnpm --recursive run test",
     "test:watch": "pnpm --recursive run test:watch",
     "test:coverage": "pnpm --recursive run test:coverage && node tools/scripts/merge-coverage.js",
-    "typecheck": "pnpm --recursive run typecheck",
+    "typecheck": "tsc -b tsconfig.build.json --noEmit",
     "lint": "pnpm --recursive run lint",
     "lint:fix": "pnpm --recursive run lint:fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",

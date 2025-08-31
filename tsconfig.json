@@ -20,15 +20,6 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
 
-    /* Path mapping */
-    "baseUrl": ".",
-    "paths": {
-      "@twsoftball/domain/*": ["./packages/domain/src/*"],
-      "@twsoftball/application/*": ["./packages/application/src/*"],
-      "@twsoftball/infrastructure/*": ["./packages/infrastructure/src/*"],
-      "@twsoftball/shared/*": ["./packages/shared/src/*"]
-    },
-
     /* Additional strict checks */
     "noImplicitReturns": true,
     "noImplicitOverride": true,

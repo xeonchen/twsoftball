@@ -94,6 +94,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
+      - name: Build types for typecheck
+        run: pnpm build
+
       - name: Type check
         run: pnpm typecheck
 
