@@ -142,6 +142,25 @@ export default [
     },
   },
 
+  // Node.js scripts (tools directory)
+  {
+    files: ['tools/**/*.js'],
+    languageOptions: {
+      globals: {
+        // Node.js globals
+        console: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        global: 'readonly',
+        module: 'readonly',
+        require: 'readonly',
+        exports: 'readonly',
+      },
+    },
+  },
+
   // Prettier config (should be last)
   prettier,
 
