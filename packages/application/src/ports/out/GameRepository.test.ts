@@ -30,6 +30,10 @@ class MockGameRepository implements GameRepository {
     return Promise.resolve(Array.from(this.games.values()));
   }
 
+  exists(id: GameId): Promise<boolean> {
+    return Promise.resolve(this.games.has(id.value));
+  }
+
   delete(id: GameId): Promise<void> {
     this.games.delete(id.value);
     return Promise.resolve();
@@ -66,6 +70,7 @@ describe('GameRepository Interface', () => {
       expect(typeof repository.save).toBe('function');
       expect(typeof repository.findByStatus).toBe('function');
       expect(typeof repository.findByDateRange).toBe('function');
+      expect(typeof repository.exists).toBe('function');
       expect(typeof repository.delete).toBe('function');
     });
 
@@ -74,6 +79,7 @@ describe('GameRepository Interface', () => {
       expect(repository.save(testGame)).toBeInstanceOf(Promise);
       expect(repository.findByStatus(GameStatus.IN_PROGRESS)).toBeInstanceOf(Promise);
       expect(repository.findByDateRange(new Date(), new Date())).toBeInstanceOf(Promise);
+      expect(repository.exists(gameId)).toBeInstanceOf(Promise);
       expect(repository.delete(gameId)).toBeInstanceOf(Promise);
     });
   });
@@ -325,6 +331,10 @@ describe('GameRepository Interface', () => {
 
         findByDateRange(_startDate: Date, _endDate: Date): Promise<Game[]> {
           return Promise.reject(new Error('Invalid date range'));
+        }
+
+        exists(_id: GameId): Promise<boolean> {
+          return Promise.reject(new Error('Database connection failed'));
         }
 
         delete(_id: GameId): Promise<void> {

@@ -1,9 +1,10 @@
 // Application Layer - Use Cases and Ports
 // This layer depends only on the Domain layer
 
-// Use Cases (TODO: Implement in next phase)
-// export * from './use-cases/RecordAtBat';
-// export * from './use-cases/StartNewGame';
+// Use Cases
+export * from './use-cases/RecordAtBat';
+export * from './use-cases/StartNewGame';
+// TODO: Implement remaining use cases in future phases
 // export * from './use-cases/SubstitutePlayer';
 // export * from './use-cases/EndInning';
 // export * from './use-cases/UndoLastAction';

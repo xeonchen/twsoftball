@@ -160,6 +160,24 @@ export interface GameRepository {
   findByDateRange(startDate: Date, endDate: Date): Promise<Game[]>;
 
   /**
+   * Checks if a game with the specified ID exists in storage.
+   *
+   * @remarks
+   * Used for game ID uniqueness validation during game creation.
+   * This method provides an efficient way to check for game existence
+   * without loading the complete Game aggregate.
+   *
+   * Implementations should handle this query efficiently, potentially
+   * using indexes or lightweight queries that don't require full
+   * aggregate reconstruction.
+   *
+   * @param id - Unique identifier for the game to check
+   * @returns Promise resolving to true if game exists, false otherwise
+   * @throws Error for infrastructure issues
+   */
+  exists(id: GameId): Promise<boolean>;
+
+  /**
    * Removes a game from storage.
    *
    * @remarks
