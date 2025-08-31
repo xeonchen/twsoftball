@@ -16,6 +16,7 @@ export * from './ports/in/GameQueryService';
 // Ports - Output (Driven) Interfaces
 export * from './ports/out/GameRepository';
 export * from './ports/out/EventStore';
+export * from './ports/out/Logger';
 
 // Application Services (TODO: Implement in next phase)
 // export * from './services/GameApplicationService';
