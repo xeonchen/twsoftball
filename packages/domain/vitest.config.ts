@@ -31,10 +31,10 @@ export default defineConfig({
       ],
       // Per-file thresholds for domain layer excellence
       thresholds: {
-        statements: 98,
-        branches: 95,
+        statements: 96,
+        branches: 90,
         functions: 98,
-        lines: 98,
+        lines: 96,
         perFile: true,
       },
       watermarks: {

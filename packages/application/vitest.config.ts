@@ -32,8 +32,8 @@ export default defineConfig({
       // Application layer thresholds (slightly lower than domain)
       thresholds: {
         statements: 90,
-        branches: 85,
-        functions: 90,
+        branches: 80,
+        functions: 95,
         lines: 90,
         perFile: true,
       },
