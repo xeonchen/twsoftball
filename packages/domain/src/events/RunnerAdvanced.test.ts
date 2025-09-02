@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { RunnerAdvanced, AdvanceReason } from './RunnerAdvanced';
-import { GameId } from '../value-objects/GameId';
-import { PlayerId } from '../value-objects/PlayerId';
-import { Base } from '../value-objects/BasesState';
+
 import { DomainError } from '../errors/DomainError';
 import { TestPlayerFactory, EventTestHelper } from '../test-utils';
+import { Base } from '../value-objects/BasesState';
+import { GameId } from '../value-objects/GameId';
+import { PlayerId } from '../value-objects/PlayerId';
+
+import { RunnerAdvanced, AdvanceReason } from './RunnerAdvanced';
 
 describe('RunnerAdvanced', () => {
   // Use EventTestHelper for consistent test data

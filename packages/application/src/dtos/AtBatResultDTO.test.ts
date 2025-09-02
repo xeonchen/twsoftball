@@ -3,9 +3,10 @@
  * Tests for DTO representing an individual at-bat result with context.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { AtBatResultDTO } from './AtBatResultDTO';
 import { PlayerId, AtBatResultType } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach } from 'vitest';
+
+import { AtBatResultDTO } from './AtBatResultDTO';
 
 describe('AtBatResultDTO', () => {
   let validAtBatResult: AtBatResultDTO;

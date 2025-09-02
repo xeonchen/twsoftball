@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+
 import { Logger, LogLevel, LogContext, LogEntry } from './Logger';
 
 // Mock implementation for testing the interface contract
@@ -669,8 +670,8 @@ describe('Logger Interface', () => {
 
       const logs = mockLogger.getLogs();
       expect(logs).toHaveLength(2);
-      expect(logs[0]?.context.event).toBe('entry');
-      expect(logs[1]?.context.event).toBe('exit');
+      expect(logs[0]?.context['event']).toBe('entry');
+      expect(logs[1]?.context['event']).toBe('exit');
     });
 
     it('should support correlation ID tracking', () => {
@@ -684,7 +685,7 @@ describe('Logger Interface', () => {
       const logs = mockLogger.getLogs();
       expect(logs).toHaveLength(3);
       logs.forEach(log => {
-        expect(log.context.correlationId).toBe(correlationId);
+        expect(log.context['correlationId']).toBe(correlationId);
       });
     });
 

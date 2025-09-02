@@ -35,10 +35,11 @@
  */
 
 import { GameId, GameStatus } from '@twsoftball/domain';
-import { TeamLineupDTO } from './TeamLineupDTO';
+
 import { BasesStateDTO } from './BasesStateDTO';
 import { GameScoreDTO } from './GameScoreDTO';
 import { PlayerInGameDTO } from './PlayerInGameDTO';
+import { TeamLineupDTO } from './TeamLineupDTO';
 
 /**
  * Composite DTO representing complete game state across all aggregates.

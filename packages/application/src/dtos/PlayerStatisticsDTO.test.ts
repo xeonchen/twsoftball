@@ -3,9 +3,10 @@
  * Tests for DTOs representing player batting and fielding statistics.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { PlayerStatisticsDTO, FieldingStatisticsDTO } from './PlayerStatisticsDTO';
 import { PlayerId, JerseyNumber, FieldPosition } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach } from 'vitest';
+
+import { PlayerStatisticsDTO, FieldingStatisticsDTO } from './PlayerStatisticsDTO';
 
 describe('PlayerStatisticsDTO', () => {
   let validPlayerStats: PlayerStatisticsDTO;

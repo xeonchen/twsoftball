@@ -3,9 +3,10 @@
  * Tests for DTO representing current state of all bases and runners.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { BasesStateDTO } from './BasesStateDTO';
 import { PlayerId } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach } from 'vitest';
+
+import { BasesStateDTO } from './BasesStateDTO';
 
 describe('BasesStateDTO', () => {
   let runner1: PlayerId;

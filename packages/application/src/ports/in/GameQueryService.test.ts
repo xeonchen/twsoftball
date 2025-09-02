@@ -3,11 +3,13 @@
  * Tests for the primary inbound port interface for game state queries.
  */
 
+import { GameId, PlayerId, GameStatus, TeamLineupId, FieldPosition } from '@twsoftball/domain';
 import { describe, it, expect } from 'vitest';
-import { GameQueryService } from './GameQueryService';
+
 import { GameStateDTO } from '../../dtos/GameStateDTO';
 import { TeamLineupDTO } from '../../dtos/TeamLineupDTO';
-import { GameId, PlayerId, GameStatus, TeamLineupId, FieldPosition } from '@twsoftball/domain';
+
+import { GameQueryService } from './GameQueryService';
 
 // Helper function to create mock lineup DTOs for query service
 function createMockLineupDTOForQuery(
@@ -121,7 +123,7 @@ describe('GameQueryService Interface', () => {
       const result = await service.getCurrentGameState(gameId);
 
       expect(result).toBeDefined();
-      expect(result.gameId).toEqual(gameId);
+      expect(result['gameId']).toEqual(gameId);
       expect(typeof result.status).toBe('string');
       expect(typeof result.score).toBe('object');
       expect(result.gameStartTime).toBeInstanceOf(Date);
@@ -167,10 +169,10 @@ describe('GameQueryService Interface', () => {
       const result = await service.getGameStatistics(gameId);
 
       expect(result).toBeDefined();
-      expect(result.gameId).toBeDefined();
-      expect(result.teamStatistics).toBeDefined();
-      expect(Array.isArray(result.playerStatistics)).toBe(true);
-      expect(Array.isArray(result.gameEvents)).toBe(true);
+      expect(result['gameId']).toBeDefined();
+      expect(result['teamStatistics']).toBeDefined();
+      expect(Array.isArray(result['playerStatistics'])).toBe(true);
+      expect(Array.isArray(result['gameEvents'])).toBe(true);
     });
   });
 
@@ -182,9 +184,9 @@ describe('GameQueryService Interface', () => {
       const result = await service.getPlayerStatistics(playerId, gameId);
 
       expect(result).toBeDefined();
-      expect(result.playerId).toBeDefined();
-      expect(result.name).toBeDefined();
-      expect(result.statistics).toBeDefined();
+      expect(result['playerId']).toBeDefined();
+      expect(result['name']).toBeDefined();
+      expect(result['statistics']).toBeDefined();
     });
 
     it('should handle optional gameId parameter', async () => {
@@ -204,9 +206,9 @@ describe('GameQueryService Interface', () => {
       const result = await service.getGameHistory(gameId);
 
       expect(result).toBeDefined();
-      expect(result.gameId).toBeDefined();
-      expect(Array.isArray(result.events)).toBe(true);
-      expect(Array.isArray(result.timeline)).toBe(true);
+      expect(result['gameId']).toBeDefined();
+      expect(Array.isArray(result['events'])).toBe(true);
+      expect(Array.isArray(result['timeline'])).toBe(true);
     });
   });
 
@@ -268,7 +270,7 @@ describe('GameQueryService Interface', () => {
       // Should not throw and should resolve to proper result
       const result = await service.getCurrentGameState(gameId);
       expect(result).toBeDefined();
-      expect(result.gameId).toEqual(gameId);
+      expect(result['gameId']).toEqual(gameId);
     });
 
     it('should support promise chaining', () => {
@@ -276,7 +278,7 @@ describe('GameQueryService Interface', () => {
 
       return service.getCurrentGameState(gameId).then(result => {
         expect(result).toBeDefined();
-        expect(result.gameId).toEqual(gameId);
+        expect(result['gameId']).toEqual(gameId);
       });
     });
   });
@@ -364,8 +366,8 @@ describe('GameQueryService Interface', () => {
 
       // Empty arrays should be handled
       const history = await emptyService.getGameHistory(gameId);
-      expect(history.events).toHaveLength(0);
-      expect(history.timeline).toHaveLength(0);
+      expect(history['events']).toHaveLength(0);
+      expect(history['timeline']).toHaveLength(0);
     });
   });
 });

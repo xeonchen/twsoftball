@@ -4,6 +4,7 @@
  */
 
 import { PlayerId } from '@twsoftball/domain';
+
 import { RunnerAdvanceDTO } from './RunnerAdvanceDTO';
 
 describe('RunnerAdvanceDTO', () => {

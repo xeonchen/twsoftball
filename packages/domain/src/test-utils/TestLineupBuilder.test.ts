@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
+
+import { FieldPosition } from '../constants/FieldPosition';
+
 import { TestLineupBuilder } from './TestLineupBuilder';
 import { TestPlayerFactory } from './TestPlayerFactory';
-import { FieldPosition } from '../constants/FieldPosition';
 
 describe('TestLineupBuilder', () => {
   describe('STANDARD_POSITIONS constant', () => {

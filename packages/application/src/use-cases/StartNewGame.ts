@@ -76,14 +76,6 @@
  * ```
  */
 
-import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from '../dtos/StartNewGameCommand';
-import { GameStartResult } from '../dtos/GameStartResult';
-import { GameStateDTO } from '../dtos/GameStateDTO';
-import { TeamLineupDTO, BattingSlotDTO } from '../dtos/TeamLineupDTO';
-import { PlayerStatisticsDTO, FieldingStatisticsDTO } from '../dtos/PlayerStatisticsDTO';
-import { GameRepository } from '../ports/out/GameRepository';
-import { EventStore } from '../ports/out/EventStore';
-import { Logger } from '../ports/out/Logger';
 import {
   Game,
   TeamLineup,
@@ -98,6 +90,15 @@ import {
   DomainError,
   SoftballRules,
 } from '@twsoftball/domain';
+
+import { GameStartResult } from '../dtos/GameStartResult';
+import { GameStateDTO } from '../dtos/GameStateDTO';
+import { PlayerStatisticsDTO, FieldingStatisticsDTO } from '../dtos/PlayerStatisticsDTO';
+import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from '../dtos/StartNewGameCommand';
+import { TeamLineupDTO, BattingSlotDTO } from '../dtos/TeamLineupDTO';
+import { EventStore } from '../ports/out/EventStore';
+import { GameRepository } from '../ports/out/GameRepository';
+import { Logger } from '../ports/out/Logger';
 
 /**
  * Use case for creating and initializing new softball games with complete setup.

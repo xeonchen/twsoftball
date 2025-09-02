@@ -3,13 +3,6 @@
  * Tests for the primary inbound port interface for game recording commands.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { GameCommandService } from './GameCommandService';
-import { StartNewGameCommand } from '../../dtos/StartNewGameCommand';
-import { RecordAtBatCommand } from '../../dtos/RecordAtBatCommand';
-import { GameStartResult } from '../../dtos/GameStartResult';
-import { AtBatResult } from '../../dtos/AtBatResult';
-import { TeamLineupDTO } from '../../dtos/TeamLineupDTO';
 import {
   GameId,
   PlayerId,
@@ -19,6 +12,15 @@ import {
   GameStatus,
   TeamLineupId,
 } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach } from 'vitest';
+
+import { AtBatResult } from '../../dtos/AtBatResult';
+import { GameStartResult } from '../../dtos/GameStartResult';
+import { RecordAtBatCommand } from '../../dtos/RecordAtBatCommand';
+import { StartNewGameCommand } from '../../dtos/StartNewGameCommand';
+import { TeamLineupDTO } from '../../dtos/TeamLineupDTO';
+
+import { GameCommandService } from './GameCommandService';
 
 // Helper function to create mock lineup DTOs
 function createMockLineupDTO(

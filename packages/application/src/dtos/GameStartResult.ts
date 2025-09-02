@@ -39,6 +39,7 @@
  */
 
 import { GameId } from '@twsoftball/domain';
+
 import { GameStateDTO } from './GameStateDTO';
 
 /**

@@ -51,10 +51,10 @@
  * ```
  */
 
-import { StartNewGameCommand } from '../../dtos/StartNewGameCommand';
-import { RecordAtBatCommand } from '../../dtos/RecordAtBatCommand';
-import { GameStartResult } from '../../dtos/GameStartResult';
 import { AtBatResult } from '../../dtos/AtBatResult';
+import { GameStartResult } from '../../dtos/GameStartResult';
+import { RecordAtBatCommand } from '../../dtos/RecordAtBatCommand';
+import { StartNewGameCommand } from '../../dtos/StartNewGameCommand';
 
 /**
  * Primary inbound port for all game command operations.

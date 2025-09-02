@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { CurrentBatterChanged } from './CurrentBatterChanged';
-import { GameId } from '../value-objects/GameId';
+
 import { DomainError } from '../errors/DomainError';
+import { GameId } from '../value-objects/GameId';
+
+import { CurrentBatterChanged } from './CurrentBatterChanged';
 
 describe('CurrentBatterChanged', () => {
   const gameId = new GameId('test-game-123');

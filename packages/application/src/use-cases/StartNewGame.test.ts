@@ -47,13 +47,15 @@
  * ```
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { StartNewGame } from './StartNewGame';
-import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from '../dtos/StartNewGameCommand';
-import { GameRepository } from '../ports/out/GameRepository';
-import { EventStore } from '../ports/out/EventStore';
-import { Logger } from '../ports/out/Logger';
 import { GameId, PlayerId, JerseyNumber, FieldPosition, GameStatus } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from '../dtos/StartNewGameCommand';
+import { EventStore } from '../ports/out/EventStore';
+import { GameRepository } from '../ports/out/GameRepository';
+import { Logger } from '../ports/out/Logger';
+
+import { StartNewGame } from './StartNewGame';
 
 describe('StartNewGame', () => {
   let startNewGame: StartNewGame;

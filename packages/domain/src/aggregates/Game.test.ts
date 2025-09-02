@@ -1,9 +1,10 @@
-import { Game } from './Game';
-import { GameId } from '../value-objects/GameId';
 import { GameStatus } from '../constants/GameStatus';
-import { GameScore } from '../value-objects/GameScore';
-import { GameCompleted } from '../events/GameCompleted';
 import { DomainError } from '../errors/DomainError';
+import { GameCompleted } from '../events/GameCompleted';
+import { GameId } from '../value-objects/GameId';
+import { GameScore } from '../value-objects/GameScore';
+
+import { Game } from './Game';
 
 describe('Game Aggregate Root', () => {
   let gameId: GameId;

@@ -3,12 +3,6 @@
  * Tests for result DTO returned after recording an at-bat.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { AtBatResult } from './AtBatResult';
-import { GameStateDTO } from './GameStateDTO';
-import { TeamLineupDTO } from './TeamLineupDTO';
-import { BasesStateDTO } from './BasesStateDTO';
-import { GameScoreDTO } from './GameScoreDTO';
 import {
   GameId,
   GameStatus,
@@ -17,6 +11,13 @@ import {
   JerseyNumber,
   FieldPosition,
 } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach } from 'vitest';
+
+import { AtBatResult } from './AtBatResult';
+import { BasesStateDTO } from './BasesStateDTO';
+import { GameScoreDTO } from './GameScoreDTO';
+import { GameStateDTO } from './GameStateDTO';
+import { TeamLineupDTO } from './TeamLineupDTO';
 
 describe('AtBatResult', () => {
   let validResult: AtBatResult;

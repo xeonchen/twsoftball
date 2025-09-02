@@ -3,11 +3,12 @@
  * Tests for DTO representing a player's complete in-game information and statistics.
  */
 
+import { PlayerId, JerseyNumber, FieldPosition, AtBatResultType } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
+
+import { AtBatResultDTO } from './AtBatResultDTO';
 import { PlayerInGameDTO } from './PlayerInGameDTO';
 import { PlayerStatisticsDTO, FieldingStatisticsDTO } from './PlayerStatisticsDTO';
-import { AtBatResultDTO } from './AtBatResultDTO';
-import { PlayerId, JerseyNumber, FieldPosition, AtBatResultType } from '@twsoftball/domain';
 
 describe('PlayerInGameDTO', () => {
   let validPlayerData: PlayerInGameDTO;

@@ -3,10 +3,11 @@
  * Tests for command DTO to record an at-bat result during a game.
  */
 
+import { GameId, PlayerId, AtBatResultType } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
+
 import { RecordAtBatCommand } from './RecordAtBatCommand';
 import { RunnerAdvanceDTO } from './RunnerAdvanceDTO';
-import { GameId, PlayerId, AtBatResultType } from '@twsoftball/domain';
 
 describe('RecordAtBatCommand', () => {
   let validCommand: RecordAtBatCommand;

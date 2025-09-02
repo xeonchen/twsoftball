@@ -3,10 +3,11 @@
  * Tests for DTO representing a team's lineup state including batting order and field positions.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { TeamLineupDTO, BattingSlotDTO, SubstitutionRecordDTO } from './TeamLineupDTO';
-import { PlayerInGameDTO } from './PlayerInGameDTO';
 import { GameId, PlayerId, TeamLineupId, JerseyNumber, FieldPosition } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach } from 'vitest';
+
+import { PlayerInGameDTO } from './PlayerInGameDTO';
+import { TeamLineupDTO, BattingSlotDTO, SubstitutionRecordDTO } from './TeamLineupDTO';
 
 describe('TeamLineupDTO', () => {
   let validTeamLineupData: TeamLineupDTO;

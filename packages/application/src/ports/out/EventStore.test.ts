@@ -3,8 +3,6 @@
  * Tests for the outbound port interface for multi-aggregate event persistence.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { EventStore, StoredEvent } from './EventStore';
 import {
   GameId,
   TeamLineupId,
@@ -15,6 +13,9 @@ import {
   PlayerId,
   AtBatResultType,
 } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach } from 'vitest';
+
+import { EventStore, StoredEvent } from './EventStore';
 
 // Mock domain events for testing
 const createMockGameCreatedEvent = (gameId: GameId): GameCreated => {

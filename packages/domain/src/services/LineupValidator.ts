@@ -1,8 +1,8 @@
+import { FieldPosition } from '../constants/FieldPosition';
+import { DomainError } from '../errors/DomainError';
+import { SoftballRules } from '../rules/SoftballRules';
 import { BattingSlot } from '../value-objects/BattingSlot';
 import { JerseyNumber } from '../value-objects/JerseyNumber';
-import { FieldPosition } from '../constants/FieldPosition';
-import { SoftballRules } from '../rules/SoftballRules';
-import { DomainError } from '../errors/DomainError';
 
 /**
  * Represents a complete lineup entry with batting, jersey, and defensive information.

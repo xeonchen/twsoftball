@@ -4,11 +4,6 @@
  * This DTO combines data from Game, TeamLineup, and InningState aggregates.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { GameStateDTO } from './GameStateDTO';
-import { TeamLineupDTO } from './TeamLineupDTO';
-import { BasesStateDTO } from './BasesStateDTO';
-import { GameScoreDTO } from './GameScoreDTO';
 import {
   GameId,
   PlayerId,
@@ -17,6 +12,12 @@ import {
   JerseyNumber,
   FieldPosition,
 } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach } from 'vitest';
+
+import { BasesStateDTO } from './BasesStateDTO';
+import { GameScoreDTO } from './GameScoreDTO';
+import { GameStateDTO } from './GameStateDTO';
+import { TeamLineupDTO } from './TeamLineupDTO';
 
 describe('GameStateDTO', () => {
   let validGameStateData: GameStateDTO;

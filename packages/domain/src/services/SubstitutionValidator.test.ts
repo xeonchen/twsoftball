@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { SubstitutionValidator } from './SubstitutionValidator';
+
+import { DomainError } from '../errors/DomainError';
 import { BattingSlot } from '../value-objects/BattingSlot';
 import { PlayerId } from '../value-objects/PlayerId';
-import { DomainError } from '../errors/DomainError';
+
+import { SubstitutionValidator } from './SubstitutionValidator';
 
 describe('SubstitutionValidator', () => {
   // Test data helpers

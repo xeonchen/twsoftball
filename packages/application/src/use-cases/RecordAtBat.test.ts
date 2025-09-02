@@ -21,12 +21,6 @@
  * - Comprehensive logging verification
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { RecordAtBat } from './RecordAtBat';
-import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand';
-import { GameRepository } from '../ports/out/GameRepository';
-import { EventStore } from '../ports/out/EventStore';
-import { Logger } from '../ports/out/Logger';
 import {
   GameId,
   PlayerId,
@@ -35,6 +29,14 @@ import {
   GameStatus,
   DomainError,
 } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand';
+import { EventStore } from '../ports/out/EventStore';
+import { GameRepository } from '../ports/out/GameRepository';
+import { Logger } from '../ports/out/Logger';
+
+import { RecordAtBat } from './RecordAtBat';
 
 describe('RecordAtBat Use Case', () => {
   // Test dependencies (mocks)

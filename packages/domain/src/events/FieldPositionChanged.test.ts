@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { FieldPositionChanged } from './FieldPositionChanged';
-import { GameId } from '../value-objects/GameId';
-import { TeamLineupId } from '../value-objects/TeamLineupId';
-import { PlayerId } from '../value-objects/PlayerId';
+
 import { FieldPosition } from '../constants/FieldPosition';
 import { DomainError } from '../errors/DomainError';
+import { GameId } from '../value-objects/GameId';
+import { PlayerId } from '../value-objects/PlayerId';
+import { TeamLineupId } from '../value-objects/TeamLineupId';
+
+import { FieldPositionChanged } from './FieldPositionChanged';
 
 describe('FieldPositionChanged', () => {
   const gameId = new GameId('test-game-123');

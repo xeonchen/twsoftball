@@ -6,8 +6,19 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.{test,spec}.ts'],
     exclude: ['node_modules/**', 'dist/**', 'coverage/**'],
+
+    // Test isolation for application layer reliability
+    isolate: true,
+
+    // Enhanced reporting for CI integration
+    reporters: ['default', 'junit'],
+    outputFile: {
+      junit: './coverage/junit.xml',
+    },
+
     coverage: {
-      reporter: ['text', 'json', 'html'],
+      provider: 'v8',
+      reporter: ['text', 'json', 'html', 'lcov'],
       include: ['src/**/*.ts'],
       exclude: [
         'node_modules/**',
@@ -18,6 +29,24 @@ export default defineConfig({
         '**/*.spec.ts',
         'src/index.ts',
       ],
+      // Application layer thresholds (slightly lower than domain)
+      thresholds: {
+        statements: 90,
+        branches: 85,
+        functions: 90,
+        lines: 90,
+        perFile: true,
+      },
+      watermarks: {
+        statements: [80, 90],
+        branches: [75, 85],
+        functions: [80, 90],
+        lines: [80, 90],
+      },
+      all: true,
+      skipFull: false,
+      clean: true,
+      cleanOnRerun: true,
     },
   },
 });

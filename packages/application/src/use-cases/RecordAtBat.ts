@@ -76,13 +76,6 @@
  * ```
  */
 
-import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand';
-import { AtBatResult } from '../dtos/AtBatResult';
-import { RunnerAdvanceDTO } from '../dtos/RunnerAdvanceDTO';
-import { GameStateDTO } from '../dtos/GameStateDTO';
-import { GameRepository } from '../ports/out/GameRepository';
-import { EventStore } from '../ports/out/EventStore';
-import { Logger } from '../ports/out/Logger';
 import {
   Game,
   GameId,
@@ -98,6 +91,14 @@ import {
   AdvanceReason,
   DomainError,
 } from '@twsoftball/domain';
+
+import { AtBatResult } from '../dtos/AtBatResult';
+import { GameStateDTO } from '../dtos/GameStateDTO';
+import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand';
+import { RunnerAdvanceDTO } from '../dtos/RunnerAdvanceDTO';
+import { EventStore } from '../ports/out/EventStore';
+import { GameRepository } from '../ports/out/GameRepository';
+import { Logger } from '../ports/out/Logger';
 
 /**
  * Use case for recording at-bat results and coordinating game state updates.

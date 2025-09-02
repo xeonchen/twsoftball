@@ -3,9 +3,10 @@
  * Tests for the outbound port interface for Game aggregate persistence.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { GameRepository } from './GameRepository';
 import { GameId, GameStatus, Game } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach } from 'vitest';
+
+import { GameRepository } from './GameRepository';
 
 // Mock implementation for testing the interface contract
 class MockGameRepository implements GameRepository {

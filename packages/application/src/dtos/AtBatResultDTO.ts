@@ -46,6 +46,7 @@
  */
 
 import { PlayerId, AtBatResultType } from '@twsoftball/domain';
+
 import { RunnerAdvanceDTO } from './RunnerAdvanceDTO';
 
 /**

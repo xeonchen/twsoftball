@@ -3,9 +3,10 @@
  * Tests for command DTO to initiate a new softball game.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from './StartNewGameCommand';
 import { GameId, PlayerId, JerseyNumber, FieldPosition } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach } from 'vitest';
+
+import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from './StartNewGameCommand';
 
 describe('StartNewGameCommand', () => {
   let validCommand: StartNewGameCommand;
@@ -278,7 +279,7 @@ describe('StartNewGameCommand', () => {
         ...gameRules,
         // timeLimitMinutes is omitted to represent undefined
       };
-      delete (noTimeLimitRules as unknown as Record<string, unknown>).timeLimitMinutes;
+      delete (noTimeLimitRules as unknown as Record<string, unknown>)['timeLimitMinutes'];
 
       const command = {
         ...validCommand,

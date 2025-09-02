@@ -33,6 +33,7 @@
  */
 
 import { PlayerId, JerseyNumber, FieldPosition } from '@twsoftball/domain';
+
 import { AtBatResultDTO } from './AtBatResultDTO';
 import { PlayerStatisticsDTO } from './PlayerStatisticsDTO';
 

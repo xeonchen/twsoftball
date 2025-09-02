@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { NumericValidation } from './NumericValidation';
+
 import { DomainError } from '../errors/DomainError';
+
+import { NumericValidation } from './NumericValidation';
 
 describe('NumericValidation', () => {
   describe('validateNumber', () => {

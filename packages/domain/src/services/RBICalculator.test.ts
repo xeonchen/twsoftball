@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { RBICalculator } from './RBICalculator';
+
 import { AtBatResultType } from '../constants/AtBatResultType';
+import { DomainError } from '../errors/DomainError';
 import { BasesState } from '../value-objects/BasesState';
 import { PlayerId } from '../value-objects/PlayerId';
-import { DomainError } from '../errors/DomainError';
+
+import { RBICalculator } from './RBICalculator';
 
 describe('RBICalculator', () => {
   // Test data

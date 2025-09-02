@@ -50,8 +50,9 @@
  * ```
  */
 
-import { GameStateDTO } from '../../dtos/GameStateDTO';
 import { GameId, PlayerId } from '@twsoftball/domain';
+
+import { GameStateDTO } from '../../dtos/GameStateDTO';
 
 /**
  * Primary inbound port for all game query operations.

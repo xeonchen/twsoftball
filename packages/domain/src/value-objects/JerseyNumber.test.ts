@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { JerseyNumber } from './JerseyNumber';
-import { ValueObjectTestHelper } from '../test-utils';
+
 import { DomainError } from '../errors/DomainError';
+import { ValueObjectTestHelper } from '../test-utils';
+
+import { JerseyNumber } from './JerseyNumber';
 
 describe('JerseyNumber', () => {
   describe('Construction', () => {

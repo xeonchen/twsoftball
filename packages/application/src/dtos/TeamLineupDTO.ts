@@ -36,6 +36,7 @@
  */
 
 import { GameId, PlayerId, TeamLineupId, FieldPosition } from '@twsoftball/domain';
+
 import { PlayerInGameDTO } from './PlayerInGameDTO';
 
 /**

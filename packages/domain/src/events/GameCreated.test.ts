@@ -1,6 +1,7 @@
-import { GameCreated } from './GameCreated';
-import { GameId } from '../value-objects/GameId';
 import { DomainError } from '../errors/DomainError';
+import { GameId } from '../value-objects/GameId';
+
+import { GameCreated } from './GameCreated';
 
 describe('GameCreated Domain Event', () => {
   let gameId: GameId;

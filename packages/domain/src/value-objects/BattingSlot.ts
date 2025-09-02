@@ -1,4 +1,5 @@
 import { DomainError } from '../errors/DomainError';
+
 import { PlayerId } from './PlayerId';
 
 /**

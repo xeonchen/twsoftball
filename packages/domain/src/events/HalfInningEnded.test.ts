@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { HalfInningEnded } from './HalfInningEnded';
-import { GameId } from '../value-objects/GameId';
+
 import { DomainError } from '../errors/DomainError';
+import { GameId } from '../value-objects/GameId';
+
+import { HalfInningEnded } from './HalfInningEnded';
 
 describe('HalfInningEnded', () => {
   const gameId = new GameId('test-game-123');

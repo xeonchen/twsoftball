@@ -1,16 +1,16 @@
-import { TeamLineupId } from '../value-objects/TeamLineupId';
-import { GameId } from '../value-objects/GameId';
-import { PlayerId } from '../value-objects/PlayerId';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
-import { BattingSlot } from '../value-objects/BattingSlot';
 import { FieldPosition } from '../constants/FieldPosition';
+import { DomainError } from '../errors/DomainError';
 import { DomainEvent } from '../events/DomainEvent';
-import { TeamLineupCreated } from '../events/TeamLineupCreated';
+import { FieldPositionChanged } from '../events/FieldPositionChanged';
 import { PlayerAddedToLineup } from '../events/PlayerAddedToLineup';
 import { PlayerSubstitutedIntoGame } from '../events/PlayerSubstitutedIntoGame';
-import { FieldPositionChanged } from '../events/FieldPositionChanged';
+import { TeamLineupCreated } from '../events/TeamLineupCreated';
 import { SoftballRules } from '../rules/SoftballRules';
-import { DomainError } from '../errors/DomainError';
+import { BattingSlot } from '../value-objects/BattingSlot';
+import { GameId } from '../value-objects/GameId';
+import { JerseyNumber } from '../value-objects/JerseyNumber';
+import { PlayerId } from '../value-objects/PlayerId';
+import { TeamLineupId } from '../value-objects/TeamLineupId';
 
 /**
  * Information about a player in the team roster.

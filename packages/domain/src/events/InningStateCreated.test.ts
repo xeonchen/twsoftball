@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { InningStateCreated } from './InningStateCreated';
-import { InningStateId } from '../value-objects/InningStateId';
-import { GameId } from '../value-objects/GameId';
+
 import { DomainError } from '../errors/DomainError';
+import { GameId } from '../value-objects/GameId';
+import { InningStateId } from '../value-objects/InningStateId';
+
+import { InningStateCreated } from './InningStateCreated';
 
 describe('InningStateCreated', () => {
   const inningStateId = new InningStateId('inning-state-123');

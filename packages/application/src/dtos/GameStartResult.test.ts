@@ -3,12 +3,6 @@
  * Tests for result DTO returned when starting a new game.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { GameStartResult } from './GameStartResult';
-import { GameStateDTO } from './GameStateDTO';
-import { TeamLineupDTO } from './TeamLineupDTO';
-import { BasesStateDTO } from './BasesStateDTO';
-import { GameScoreDTO } from './GameScoreDTO';
 import {
   GameId,
   GameStatus,
@@ -17,6 +11,13 @@ import {
   JerseyNumber,
   FieldPosition,
 } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach } from 'vitest';
+
+import { BasesStateDTO } from './BasesStateDTO';
+import { GameScoreDTO } from './GameScoreDTO';
+import { GameStartResult } from './GameStartResult';
+import { GameStateDTO } from './GameStateDTO';
+import { TeamLineupDTO } from './TeamLineupDTO';
 
 describe('GameStartResult', () => {
   let validResult: GameStartResult;

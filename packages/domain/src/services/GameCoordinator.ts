@@ -1,12 +1,13 @@
 import { Game } from '../aggregates/Game';
-import { TeamLineup } from '../aggregates/TeamLineup';
 import { InningState, RunnerMovement } from '../aggregates/InningState';
-import { PlayerId } from '../value-objects/PlayerId';
-import { BasesState, Base } from '../value-objects/BasesState';
+import { TeamLineup } from '../aggregates/TeamLineup';
 import { AtBatResultType } from '../constants/AtBatResultType';
-import { RBICalculator } from './RBICalculator';
-import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
+import { SoftballRules } from '../rules/SoftballRules';
+import { BasesState, Base } from '../value-objects/BasesState';
+import { PlayerId } from '../value-objects/PlayerId';
+
+import { RBICalculator } from './RBICalculator';
 
 /**
  * Represents the movement of a runner from one position to another.

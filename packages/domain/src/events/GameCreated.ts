@@ -1,6 +1,7 @@
-import { DomainEvent } from './DomainEvent';
-import { GameId } from '../value-objects/GameId';
 import { DomainError } from '../errors/DomainError';
+import { GameId } from '../value-objects/GameId';
+
+import { DomainEvent } from './DomainEvent';
 
 /**
  * Domain event representing the creation of a new softball game.

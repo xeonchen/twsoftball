@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { BattingSlotValidation } from './BattingSlotValidation';
-import { SoftballRules } from '../rules/SoftballRules';
+
 import { DomainError } from '../errors/DomainError';
+import { SoftballRules } from '../rules/SoftballRules';
+
+import { BattingSlotValidation } from './BattingSlotValidation';
 
 describe('BattingSlotValidation', () => {
   describe('validateBattingSlot', () => {

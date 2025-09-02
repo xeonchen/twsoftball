@@ -1,8 +1,9 @@
-import { DomainEvent } from './DomainEvent';
-import { GameId } from '../value-objects/GameId';
 import { TeamValidation } from '../utils/TeamValidation';
-import { ScoreValidator } from '../validators/ScoreValidator';
 import { EventDataValidator } from '../validators/EventDataValidator';
+import { ScoreValidator } from '../validators/ScoreValidator';
+import { GameId } from '../value-objects/GameId';
+
+import { DomainEvent } from './DomainEvent';
 
 /**
  * Domain event representing an update to the game score.

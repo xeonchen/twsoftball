@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { TeamLineupId } from './TeamLineupId';
+
 import { DomainError } from '../errors/DomainError';
+
+import { TeamLineupId } from './TeamLineupId';
 
 describe('TeamLineupId', () => {
   describe('Construction', () => {
