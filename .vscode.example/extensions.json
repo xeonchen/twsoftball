@@ -1,0 +1,48 @@
+{
+  "recommendations": [
+    // Essential TypeScript and JavaScript
+    "ms-vscode.vscode-typescript-next",
+
+    // Code formatting and linting
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+
+    // Testing
+    "vitest.explorer",
+
+    // Git and version control
+    "eamodio.gitlens",
+    "github.vscode-pull-request-github",
+
+    // Monorepo and workspace tools
+    "ms-vscode.vscode-json",
+    "redhat.vscode-yaml",
+
+    // Code intelligence and navigation
+    "ms-vscode.vscode-typescript-next",
+    "christian-kohler.path-intellisense",
+    "bradlc.vscode-tailwindcss",
+
+    // Documentation and markdown
+    "yzhang.markdown-all-in-one",
+    "davidanson.vscode-markdownlint",
+
+    // Development productivity
+    "ms-vscode.vscode-npm-scripts",
+    "christian-kohler.npm-intellisense",
+    "formulahendry.auto-rename-tag",
+    "ms-vscode.vscode-emmet",
+
+    // Code quality and analysis
+    "ms-vscode.vscode-json",
+    "redhat.vscode-xml",
+
+    // Editor configuration
+    "editorconfig.editorconfig"
+  ],
+  "unwantedRecommendations": [
+    // Avoid conflicting formatters
+    "hookyqr.beautify",
+    "vscode.typescript-language-features"
+  ]
+}
