@@ -490,7 +490,6 @@ describe('EventStore Interface', () => {
 
   describe('Error Handling Contract', () => {
     it('should handle infrastructure errors appropriately', async () => {
-      /* eslint-disable @typescript-eslint/no-unused-vars */
       class ErrorMockEventStore implements EventStore {
         append(
           ..._args: [
@@ -527,7 +526,6 @@ describe('EventStore Interface', () => {
           return Promise.reject(new Error('Cross-aggregate query failed'));
         }
       }
-      /* eslint-enable @typescript-eslint/no-unused-vars */
 
       const errorStore = new ErrorMockEventStore();
 

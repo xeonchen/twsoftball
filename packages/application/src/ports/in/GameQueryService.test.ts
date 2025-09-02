@@ -318,7 +318,7 @@ describe('GameQueryService Interface', () => {
 
     it('should handle missing data gracefully', async () => {
       // Mock implementation that returns null/empty for missing data
-      /* eslint-disable @typescript-eslint/no-unused-vars */
+
       class EmptyMockQueryService implements GameQueryService {
         getCurrentGameState(_gameId: GameId): Promise<GameStateDTO> {
           return Promise.reject(new Error('Game not found'));
@@ -351,7 +351,6 @@ describe('GameQueryService Interface', () => {
           return Promise.resolve(false);
         }
       }
-      /* eslint-enable @typescript-eslint/no-unused-vars */
 
       const emptyService = new EmptyMockQueryService();
       const gameId = GameId.generate();

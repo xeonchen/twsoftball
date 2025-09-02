@@ -17,7 +17,8 @@ export default [
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
-        project: ['./tsconfig.lint.json', './packages/*/tsconfig.lint.json'],
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
       },
       globals: {
         // Node.js globals
@@ -46,7 +47,15 @@ export default [
       ...tseslint.configs['recommended-requiring-type-checking'].rules,
 
       // Custom TypeScript specific rules
-      '@typescript-eslint/no-unused-vars': 'error',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/explicit-function-return-type': 'warn',
       '@typescript-eslint/no-unsafe-assignment': 'error',
@@ -166,6 +175,16 @@ export default [
 
   // Global ignores
   {
-    ignores: ['node_modules/**', 'dist/**', 'build/**', 'coverage/**', '.pnpm-store/**'],
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      'build/**',
+      'coverage/**',
+      '.pnpm-store/**',
+      '**/*.tsbuildinfo',
+      '**/.tsbuildinfo',
+      '**/dist/**',
+      '.next/**',
+    ],
   },
 ];

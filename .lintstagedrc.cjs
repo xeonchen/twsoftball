@@ -1,12 +1,12 @@
 module.exports = {
   '*.{ts,tsx,js,jsx}': [
-    'eslint --fix',
-    'prettier --write'
+    'prettier --write',
+    'eslint --fix'
   ],
   '*.{json,md,yaml,yml}': [
     'prettier --write'
   ],
   '*.{ts,tsx}': [
-    () => 'tsc --project tsconfig.lint.json'
+    () => 'tsc --noEmit'
   ]
 };

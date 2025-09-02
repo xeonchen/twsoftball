@@ -315,7 +315,6 @@ describe('GameRepository Interface', () => {
 
   describe('Error Handling Contract', () => {
     it('should allow implementations to throw errors for database issues', async () => {
-      /* eslint-disable @typescript-eslint/no-unused-vars */
       class ErrorMockRepository implements GameRepository {
         findById(_id: GameId): Promise<Game | null> {
           return Promise.reject(new Error('Database connection failed'));
@@ -341,7 +340,6 @@ describe('GameRepository Interface', () => {
           return Promise.reject(new Error('Permission denied'));
         }
       }
-      /* eslint-enable @typescript-eslint/no-unused-vars */
 
       const errorRepository = new ErrorMockRepository();
 

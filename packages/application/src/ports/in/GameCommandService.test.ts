@@ -323,7 +323,7 @@ describe('GameCommandService Interface', () => {
   describe('Error Handling Contract', () => {
     it('should allow implementations to return error results', async () => {
       // Mock implementation can return errors
-      /* eslint-disable @typescript-eslint/no-unused-vars */
+
       class ErrorMockService implements GameCommandService {
         startNewGame(_command: StartNewGameCommand): Promise<GameStartResult> {
           return Promise.resolve({
@@ -384,7 +384,6 @@ describe('GameCommandService Interface', () => {
         }
       }
 
-      /* eslint-enable @typescript-eslint/no-unused-vars */
       const errorService = new ErrorMockService();
       const command: StartNewGameCommand = {
         gameId: GameId.generate(),
