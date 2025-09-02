@@ -5,6 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prepare": "husky",
     "dev": "pnpm --filter @twsoftball/web dev",
     "build": "turbo run build",
     "test": "turbo run test",
