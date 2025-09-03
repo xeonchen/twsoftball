@@ -796,7 +796,9 @@ export class StartNewGame {
     const awayLineupDTO = this.buildTeamLineupDTO(aggregates.awayLineup, 'AWAY');
 
     // Determine current batter (first in away team for top of 1st)
-    const currentBatter = null; // TODO: Implement proper current batter mapping
+    // Since away team bats first, get the first batting slot from away team
+    const firstBattingSlot = awayLineupDTO.battingSlots.find(slot => slot.slotNumber === 1);
+    const currentBatter = firstBattingSlot?.currentPlayer || null;
 
     return {
       gameId: aggregates.game.id,

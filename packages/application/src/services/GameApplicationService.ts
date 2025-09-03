@@ -61,9 +61,6 @@
 import { GameId } from '@twsoftball/domain';
 
 // Use case imports
-// TODO: Add these back when undo/redo methods are implemented
-// import { UndoLastAction } from '../use-cases/UndoLastAction';
-// import { RedoLastAction } from '../use-cases/RedoLastAction';
 
 // DTO imports
 import { AtBatResult } from '../dtos/AtBatResult';
@@ -73,16 +70,22 @@ import { CompleteGameWorkflowCommand } from '../dtos/CompleteGameWorkflowCommand
 import { CompleteGameWorkflowResult } from '../dtos/CompleteGameWorkflowResult';
 import { GameStartResult } from '../dtos/GameStartResult';
 import { InningEndResult } from '../dtos/InningEndResult';
+import { RedoCommand } from '../dtos/RedoCommand';
+import { RedoResult } from '../dtos/RedoResult';
 import { StartNewGameCommand } from '../dtos/StartNewGameCommand';
 import { SubstitutionResult } from '../dtos/SubstitutionResult';
+import { UndoCommand } from '../dtos/UndoCommand';
+import { UndoResult } from '../dtos/UndoResult';
 // Port imports
 import { AuthService } from '../ports/out/AuthService';
 import { Logger } from '../ports/out/Logger';
 import { NotificationService } from '../ports/out/NotificationService';
 import { EndInning } from '../use-cases/EndInning';
 import { RecordAtBat } from '../use-cases/RecordAtBat';
+import { RedoLastAction } from '../use-cases/RedoLastAction';
 import { StartNewGame } from '../use-cases/StartNewGame';
 import { SubstitutePlayer } from '../use-cases/SubstitutePlayer';
+import { UndoLastAction } from '../use-cases/UndoLastAction';
 
 /**
  * High-level orchestration service for complex game workflows and multi-use-case coordination.
@@ -136,9 +139,8 @@ export class GameApplicationService {
     private readonly recordAtBat: RecordAtBat,
     private readonly substitutePlayer: SubstitutePlayer,
     private readonly endInning: EndInning,
-    // TODO: Add undo/redo methods that use these services
-    // private readonly undoLastAction: UndoLastAction,
-    // private readonly redoLastAction: RedoLastAction,
+    private readonly undoLastAction: UndoLastAction,
+    private readonly redoLastAction: RedoLastAction,
     private readonly logger: Logger,
     private readonly notificationService: NotificationService,
     private readonly authService: AuthService
@@ -694,6 +696,236 @@ export class GameApplicationService {
         compensationApplied: false,
         errors: [
           `Complete workflow failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        ],
+      };
+    }
+  }
+
+  /**
+   * Undoes the last action performed in the game with comprehensive logging and error handling.
+   *
+   * @remarks
+   * This method provides a high-level interface for the undo functionality, orchestrating
+   * the undo operation with proper logging, error recovery, and audit trail management.
+   * It wraps the UndoLastAction use case with the same patterns used throughout this service.
+   *
+   * **Operation Flow**:
+   * 1. Log undo operation initiation with context
+   * 2. Execute core undo through UndoLastAction use case
+   * 3. Log comprehensive results (success/failure with details)
+   * 4. Handle errors gracefully with proper error wrapping
+   * 5. Maintain audit trail for compliance and troubleshooting
+   *
+   * **Error Handling Strategy**: Follows the service pattern of comprehensive
+   * error logging while maintaining clean error boundaries. Failed operations
+   * are logged with full context but don't throw exceptions.
+   *
+   * **Audit and Compliance**: All undo operations are thoroughly logged with
+   * user context, timestamps, and operation details for regulatory compliance
+   * and audit trail requirements.
+   *
+   * @param command - Complete undo command with game identification and options
+   * @returns Promise resolving to detailed undo operation results
+   *
+   * @example
+   * ```typescript
+   * // Undo last action with basic logging
+   * const result = await gameService.undoLastGameAction({
+   *   gameId: GameId.create('game-123')
+   * });
+   *
+   * // Undo with detailed notes and confirmation
+   * const result = await gameService.undoLastGameAction({
+   *   gameId: GameId.create('game-123'),
+   *   actionLimit: 2,
+   *   confirmDangerous: true,
+   *   notes: 'Correcting scorer error on previous plays'
+   * });
+   * ```
+   */
+  async undoLastGameAction(command: UndoCommand): Promise<UndoResult> {
+    const startTime = Date.now();
+
+    this.logger.debug('Starting undo last action operation', {
+      gameId: command.gameId.value,
+      actionLimit: command.actionLimit || 1,
+      notes: command.notes || 'No notes provided',
+      confirmDangerous: command.confirmDangerous || false,
+      operation: 'undoLastGameAction',
+    });
+
+    try {
+      // Execute core undo operation
+      const result = await this.undoLastAction.execute(command);
+
+      const duration = Date.now() - startTime;
+
+      if (result.success) {
+        this.logger.info('Undo operation completed successfully', {
+          gameId: command.gameId.value,
+          actionsUndone: result.actionsUndone,
+          undoneActionTypes: result.undoneActionTypes,
+          totalEventsGenerated: result.totalEventsGenerated,
+          canUndo: result.undoStack?.canUndo,
+          canRedo: result.undoStack?.canRedo,
+          duration,
+          operation: 'undoLastGameAction',
+        });
+
+        // Log audit trail for successful undo
+        await this.logOperationAudit(
+          'UNDO_LAST_ACTION',
+          {
+            gameId: command.gameId.value,
+            actionLimit: command.actionLimit,
+            notes: command.notes,
+            confirmDangerous: command.confirmDangerous,
+          },
+          result as unknown as Record<string, unknown>
+        );
+      } else {
+        this.logger.warn('Undo operation failed', {
+          gameId: command.gameId.value,
+          actionLimit: command.actionLimit || 1,
+          errors: result.errors,
+          duration,
+          operation: 'undoLastGameAction',
+        });
+      }
+
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+
+      this.logger.error('Undo operation failed with exception', error as Error, {
+        gameId: command.gameId.value,
+        actionLimit: command.actionLimit || 1,
+        notes: command.notes,
+        duration,
+        operation: 'undoLastGameAction',
+      });
+
+      return {
+        success: false,
+        gameId: command.gameId,
+        actionsUndone: 0,
+        errors: [
+          `Undo operation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        ],
+      };
+    }
+  }
+
+  /**
+   * Redoes the last undone action in the game with comprehensive logging and error handling.
+   *
+   * @remarks
+   * This method provides a high-level interface for the redo functionality, orchestrating
+   * the redo operation with proper logging, error recovery, and audit trail management.
+   * It wraps the RedoLastAction use case with the same patterns used throughout this service.
+   *
+   * **Operation Flow**:
+   * 1. Log redo operation initiation with context
+   * 2. Execute core redo through RedoLastAction use case
+   * 3. Log comprehensive results (success/failure with details)
+   * 4. Handle errors gracefully with proper error wrapping
+   * 5. Maintain audit trail for compliance and troubleshooting
+   *
+   * **Error Handling Strategy**: Follows the service pattern of comprehensive
+   * error logging while maintaining clean error boundaries. Failed operations
+   * are logged with full context but don't throw exceptions.
+   *
+   * **Audit and Compliance**: All redo operations are thoroughly logged with
+   * user context, timestamps, and operation details for regulatory compliance
+   * and audit trail requirements.
+   *
+   * @param command - Complete redo command with game identification and options
+   * @returns Promise resolving to detailed redo operation results
+   *
+   * @example
+   * ```typescript
+   * // Redo last undone action with basic logging
+   * const result = await gameService.redoLastGameAction({
+   *   gameId: GameId.create('game-123')
+   * });
+   *
+   * // Redo with detailed notes and confirmation
+   * const result = await gameService.redoLastGameAction({
+   *   gameId: GameId.create('game-123'),
+   *   actionLimit: 2,
+   *   confirmDangerous: true,
+   *   notes: 'Restoring correct sequence after review'
+   * });
+   * ```
+   */
+  async redoLastGameAction(command: RedoCommand): Promise<RedoResult> {
+    const startTime = Date.now();
+
+    this.logger.debug('Starting redo last action operation', {
+      gameId: command.gameId.value,
+      actionLimit: command.actionLimit || 1,
+      notes: command.notes || 'No notes provided',
+      confirmDangerous: command.confirmDangerous || false,
+      operation: 'redoLastGameAction',
+    });
+
+    try {
+      // Execute core redo operation
+      const result = await this.redoLastAction.execute(command);
+
+      const duration = Date.now() - startTime;
+
+      if (result.success) {
+        this.logger.info('Redo operation completed successfully', {
+          gameId: command.gameId.value,
+          actionsRedone: result.actionsRedone,
+          redoneActionTypes: result.redoneActionTypes,
+          totalEventsGenerated: result.totalEventsGenerated,
+          canUndo: result.undoStack?.canUndo,
+          canRedo: result.undoStack?.canRedo,
+          duration,
+          operation: 'redoLastGameAction',
+        });
+
+        // Log audit trail for successful redo
+        await this.logOperationAudit(
+          'REDO_LAST_ACTION',
+          {
+            gameId: command.gameId.value,
+            actionLimit: command.actionLimit,
+            notes: command.notes,
+            confirmDangerous: command.confirmDangerous,
+          },
+          result as unknown as Record<string, unknown>
+        );
+      } else {
+        this.logger.warn('Redo operation failed', {
+          gameId: command.gameId.value,
+          actionLimit: command.actionLimit || 1,
+          errors: result.errors,
+          duration,
+          operation: 'redoLastGameAction',
+        });
+      }
+
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+
+      this.logger.error('Redo operation failed with exception', error as Error, {
+        gameId: command.gameId.value,
+        actionLimit: command.actionLimit || 1,
+        notes: command.notes,
+        duration,
+        operation: 'redoLastGameAction',
+      });
+
+      return {
+        success: false,
+        gameId: command.gameId,
+        actionsRedone: 0,
+        errors: [
+          `Redo operation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         ],
       };
     }

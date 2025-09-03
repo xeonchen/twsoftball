@@ -52,9 +52,19 @@
  */
 
 import { AtBatResult } from '../../dtos/AtBatResult';
+import { EndGameCommand } from '../../dtos/EndGameCommand';
+import { EndGameResult } from '../../dtos/EndGameResult';
+import { EndInningCommand } from '../../dtos/EndInningCommand';
 import { GameStartResult } from '../../dtos/GameStartResult';
+import { InningEndResult } from '../../dtos/InningEndResult';
 import { RecordAtBatCommand } from '../../dtos/RecordAtBatCommand';
+import { RedoCommand } from '../../dtos/RedoCommand';
+import { RedoResult } from '../../dtos/RedoResult';
 import { StartNewGameCommand } from '../../dtos/StartNewGameCommand';
+import { SubstitutePlayerCommand } from '../../dtos/SubstitutePlayerCommand';
+import { SubstitutionResult } from '../../dtos/SubstitutionResult';
+import { UndoCommand } from '../../dtos/UndoCommand';
+import { UndoResult } from '../../dtos/UndoResult';
 
 /**
  * Primary inbound port for all game command operations.
@@ -145,7 +155,7 @@ export interface GameCommandService {
    * @param command - Substitution details including players and positions
    * @returns Promise resolving to substitution result with updated lineups
    */
-  substitutePlayer(command: Record<string, unknown>): Promise<Record<string, unknown>>; // TODO: Define proper types
+  substitutePlayer(command: SubstitutePlayerCommand): Promise<SubstitutionResult>;
 
   /**
    * Forces the current inning to end (administrative action).
@@ -158,7 +168,7 @@ export interface GameCommandService {
    * @param command - Inning end details
    * @returns Promise resolving to inning end result with updated state
    */
-  endInning(command: Record<string, unknown>): Promise<Record<string, unknown>>; // TODO: Define proper types
+  endInning(command: EndInningCommand): Promise<InningEndResult>;
 
   /**
    * Concludes the game manually or due to special conditions.
@@ -171,7 +181,7 @@ export interface GameCommandService {
    * @param command - Game end details including reason
    * @returns Promise resolving to game end result with final statistics
    */
-  endGame(command: Record<string, unknown>): Promise<Record<string, unknown>>; // TODO: Define proper types
+  endGame(command: EndGameCommand): Promise<EndGameResult>;
 
   /**
    * Reverts the last recorded action in the game.
@@ -187,7 +197,7 @@ export interface GameCommandService {
    * @param command - Undo action details
    * @returns Promise resolving to undo result with restored state
    */
-  undoLastAction(command: Record<string, unknown>): Promise<Record<string, unknown>>; // TODO: Define proper types
+  undoLastAction(command: UndoCommand): Promise<UndoResult>;
 
   /**
    * Reapplies a previously undone action.
@@ -200,5 +210,5 @@ export interface GameCommandService {
    * @param command - Redo action details
    * @returns Promise resolving to redo result with reapplied changes
    */
-  redoLastAction(command: Record<string, unknown>): Promise<Record<string, unknown>>; // TODO: Define proper types
+  redoLastAction(command: RedoCommand): Promise<RedoResult>;
 }

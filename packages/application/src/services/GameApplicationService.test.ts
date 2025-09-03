@@ -46,10 +46,10 @@ import { NotificationService } from '../ports/out/NotificationService';
 import { EndInning } from '../use-cases/EndInning';
 import { RecordAtBat } from '../use-cases/RecordAtBat';
 // Note: These imports available for potential future test expansion
-// import { RedoLastAction } from '../use-cases/RedoLastAction';
+import { RedoLastAction } from '../use-cases/RedoLastAction';
 import { StartNewGame } from '../use-cases/StartNewGame';
 import { SubstitutePlayer } from '../use-cases/SubstitutePlayer';
-// import { UndoLastAction } from '../use-cases/UndoLastAction';
+import { UndoLastAction } from '../use-cases/UndoLastAction';
 
 // DTO imports
 
@@ -67,9 +67,8 @@ describe('GameApplicationService', () => {
   let mockRecordAtBat: RecordAtBat;
   let mockSubstitutePlayer: SubstitutePlayer;
   let mockEndInning: EndInning;
-  // Note: These mocks available for potential future test expansion
-  // let mockUndoLastAction: UndoLastAction;
-  // let mockRedoLastAction: RedoLastAction;
+  let mockUndoLastAction: UndoLastAction;
+  let mockRedoLastAction: RedoLastAction;
 
   // Mock ports
   let mockLogger: Logger;
@@ -81,6 +80,8 @@ describe('GameApplicationService', () => {
   const mockExecuteRecordAtBat = vi.fn();
   const mockExecuteSubstitutePlayer = vi.fn();
   const mockExecuteEndInning = vi.fn();
+  const mockExecuteUndoLastAction = vi.fn();
+  const mockExecuteRedoLastAction = vi.fn();
   const mockLoggerInfo = vi.fn();
   const mockLoggerDebug = vi.fn();
   const mockLoggerWarn = vi.fn();
@@ -116,14 +117,13 @@ describe('GameApplicationService', () => {
       execute: mockExecuteEndInning,
     } as Partial<EndInning> as EndInning;
 
-    // Note: These mocks initialized for potential future test expansion
-    // mockUndoLastAction = {
-    //   execute: vi.fn(),
-    // } as UndoLastAction;
-    //
-    // mockRedoLastAction = {
-    //   execute: vi.fn(),
-    // } as RedoLastAction;
+    mockUndoLastAction = {
+      execute: mockExecuteUndoLastAction,
+    } as Partial<UndoLastAction> as UndoLastAction;
+
+    mockRedoLastAction = {
+      execute: mockExecuteRedoLastAction,
+    } as Partial<RedoLastAction> as RedoLastAction;
 
     // Mock ports
     mockLogger = {
@@ -153,6 +153,8 @@ describe('GameApplicationService', () => {
       mockRecordAtBat,
       mockSubstitutePlayer,
       mockEndInning,
+      mockUndoLastAction,
+      mockRedoLastAction,
       mockLogger,
       mockNotificationService,
       mockAuthService
