@@ -4,7 +4,7 @@
  */
 
 import { GameId, PlayerId, GameStatus, TeamLineupId, FieldPosition } from '@twsoftball/domain';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 import { GameStateDTO } from '../../dtos/GameStateDTO';
 import { TeamLineupDTO } from '../../dtos/TeamLineupDTO';

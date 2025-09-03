@@ -331,8 +331,7 @@ describe('RecordAtBatCommand', () => {
     });
 
     it('should handle undefined timestamp', () => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { timestamp, ...commandWithoutTimestamp } = validCommand;
+      const { timestamp: _timestamp, ...commandWithoutTimestamp } = validCommand;
       const command: RecordAtBatCommand = {
         ...commandWithoutTimestamp,
       };

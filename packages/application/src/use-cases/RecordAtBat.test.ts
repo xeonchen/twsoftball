@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 /**
  * @file RecordAtBat.test.ts
  * Comprehensive test suite for RecordAtBat use case.
@@ -62,42 +61,68 @@ describe('RecordAtBat Use Case', () => {
     return game;
   };
 
+  // Individual mock functions
+  const mockFindById = vi.fn();
+  const mockSave = vi.fn();
+  const mockFindByStatus = vi.fn();
+  const mockFindByDateRange = vi.fn();
+  const mockExists = vi.fn();
+  const mockDelete = vi.fn();
+  const mockAppend = vi.fn();
+  const mockGetEvents = vi.fn();
+  const mockGetGameEvents = vi.fn();
+  const mockGetAllEvents = vi.fn();
+  const mockGetEventsByType = vi.fn();
+  const mockGetEventsByGameId = vi.fn();
+  const mockDebug = vi.fn();
+  const mockInfo = vi.fn();
+  const mockWarn = vi.fn();
+  const mockError = vi.fn();
+  const mockLog = vi.fn();
+  const mockIsLevelEnabled = vi.fn();
+
   const createMockPorts = (): {
     gameRepository: GameRepository;
     eventStore: EventStore;
     logger: Logger;
   } => {
     const gameRepository = {
-      findById: vi.fn(),
-      save: vi.fn(),
-      findByStatus: vi.fn(),
-      findByDateRange: vi.fn(),
-      exists: vi.fn(),
-      delete: vi.fn(),
+      findById: mockFindById,
+      save: mockSave,
+      findByStatus: mockFindByStatus,
+      findByDateRange: mockFindByDateRange,
+      exists: mockExists,
+      delete: mockDelete,
     } as GameRepository;
 
     const eventStore = {
-      append: vi.fn(),
-      getEvents: vi.fn(),
-      getGameEvents: vi.fn(),
-      getAllEvents: vi.fn(),
-      getEventsByType: vi.fn(),
-      getEventsByGameId: vi.fn(),
+      append: mockAppend,
+      getEvents: mockGetEvents,
+      getGameEvents: mockGetGameEvents,
+      getAllEvents: mockGetAllEvents,
+      getEventsByType: mockGetEventsByType,
+      getEventsByGameId: mockGetEventsByGameId,
     } as EventStore;
 
     const logger = {
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      log: vi.fn(),
-      isLevelEnabled: vi.fn().mockReturnValue(true),
+      debug: mockDebug,
+      info: mockInfo,
+      warn: mockWarn,
+      error: mockError,
+      log: mockLog,
+      isLevelEnabled: mockIsLevelEnabled,
     } as Logger;
 
     return { gameRepository, eventStore, logger };
   };
 
   beforeEach(() => {
+    // Clear all mocks
+    vi.clearAllMocks();
+
+    // Reset mock behavior
+    mockIsLevelEnabled.mockReturnValue(true);
+
     const mocks = createMockPorts();
     mockGameRepository = mocks.gameRepository;
     mockEventStore = mocks.eventStore;
@@ -106,8 +131,8 @@ describe('RecordAtBat Use Case', () => {
     recordAtBat = new RecordAtBat(mockGameRepository, mockEventStore, mockLogger);
 
     // Setup default successful mock responses
-    vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
-    vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+    mockSave.mockResolvedValue(undefined);
+    mockAppend.mockResolvedValue(undefined);
   });
 
   describe('Successful At-Bat Scenarios', () => {
@@ -136,7 +161,7 @@ describe('RecordAtBat Use Case', () => {
         notes: 'Solo home run',
       };
 
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      mockFindById.mockResolvedValue(game);
 
       // Act
       const result = await recordAtBat.execute(command);
@@ -150,8 +175,8 @@ describe('RecordAtBat Use Case', () => {
       expect(result.errors).toBeUndefined();
 
       // Verify persistence
-      expect(mockGameRepository.save).toHaveBeenCalledTimes(1);
-      expect(mockEventStore.append).toHaveBeenCalledWith(
+      expect(mockSave).toHaveBeenCalledTimes(1);
+      expect(mockAppend).toHaveBeenCalledWith(
         gameId,
         'Game',
         expect.arrayContaining([
@@ -186,7 +211,7 @@ describe('RecordAtBat Use Case', () => {
         ],
       };
 
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      mockFindById.mockResolvedValue(game);
 
       // Act
       const result = await recordAtBat.execute(command);
@@ -216,7 +241,7 @@ describe('RecordAtBat Use Case', () => {
         ],
       };
 
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      mockFindById.mockResolvedValue(game);
 
       // Act
       const result = await recordAtBat.execute(command);
@@ -252,7 +277,7 @@ describe('RecordAtBat Use Case', () => {
         ],
       };
 
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      mockFindById.mockResolvedValue(game);
 
       // Act
       const result = await recordAtBat.execute(command);
@@ -282,7 +307,7 @@ describe('RecordAtBat Use Case', () => {
         ],
       };
 
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      mockFindById.mockResolvedValue(game);
 
       // Act
       const result = await recordAtBat.execute(command);
@@ -305,7 +330,7 @@ describe('RecordAtBat Use Case', () => {
         runnerAdvances: [],
       };
 
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(null);
+      mockFindById.mockResolvedValue(null);
 
       // Act
       const result = await recordAtBat.execute(command);
@@ -317,8 +342,8 @@ describe('RecordAtBat Use Case', () => {
       expect(result.rbiAwarded).toBe(0);
 
       // Verify no persistence attempted
-      expect(mockGameRepository.save).not.toHaveBeenCalled();
-      expect(mockEventStore.append).not.toHaveBeenCalled();
+      expect(mockSave).not.toHaveBeenCalled();
+      expect(mockAppend).not.toHaveBeenCalled();
     });
 
     it('should fail when game is not in progress', async () => {
@@ -332,7 +357,7 @@ describe('RecordAtBat Use Case', () => {
         runnerAdvances: [],
       };
 
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(completedGame);
+      mockFindById.mockResolvedValue(completedGame);
 
       // Act
       const result = await recordAtBat.execute(command);
@@ -363,8 +388,8 @@ describe('RecordAtBat Use Case', () => {
         ],
       };
 
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
-      vi.mocked(mockGameRepository.save).mockRejectedValue(saveError);
+      mockFindById.mockResolvedValue(game);
+      mockSave.mockRejectedValue(saveError);
 
       // Act
       const result = await recordAtBat.execute(command);
@@ -374,7 +399,7 @@ describe('RecordAtBat Use Case', () => {
       expect(result.errors).toContain('Failed to save game state: Database connection failed');
 
       // Verify error logging
-      expect(mockLogger.error).toHaveBeenCalledWith(
+      expect(mockError).toHaveBeenCalledWith(
         'Failed to record at-bat',
         saveError,
         expect.objectContaining({
@@ -404,8 +429,8 @@ describe('RecordAtBat Use Case', () => {
         ],
       };
 
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
-      vi.mocked(mockEventStore.append).mockRejectedValue(eventError);
+      mockFindById.mockResolvedValue(game);
+      mockAppend.mockRejectedValue(eventError);
 
       // Act
       const result = await recordAtBat.execute(command);
@@ -427,8 +452,8 @@ describe('RecordAtBat Use Case', () => {
         runnerAdvances: [],
       };
 
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
-      vi.mocked(mockGameRepository.save).mockRejectedValue(domainError);
+      mockFindById.mockResolvedValue(game);
+      mockSave.mockRejectedValue(domainError);
 
       // Act
       const result = await recordAtBat.execute(command);
@@ -458,13 +483,13 @@ describe('RecordAtBat Use Case', () => {
         ],
       };
 
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      mockFindById.mockResolvedValue(game);
 
       // Act
       await recordAtBat.execute(command);
 
       // Assert - Verify event generation
-      expect(mockEventStore.append).toHaveBeenCalledWith(
+      expect(mockAppend).toHaveBeenCalledWith(
         gameId,
         'Game',
         expect.arrayContaining([
@@ -493,13 +518,13 @@ describe('RecordAtBat Use Case', () => {
         ],
       };
 
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      mockFindById.mockResolvedValue(game);
 
       // Act
       await recordAtBat.execute(command);
 
       // Assert - Verify logging
-      expect(mockLogger.debug).toHaveBeenCalledWith(
+      expect(mockDebug).toHaveBeenCalledWith(
         'Starting at-bat processing',
         expect.objectContaining({
           gameId: gameId.value,
@@ -509,7 +534,7 @@ describe('RecordAtBat Use Case', () => {
         })
       );
 
-      expect(mockLogger.info).toHaveBeenCalledWith(
+      expect(mockInfo).toHaveBeenCalledWith(
         'At-bat recorded successfully',
         expect.objectContaining({
           gameId: gameId.value,
@@ -517,6 +542,60 @@ describe('RecordAtBat Use Case', () => {
           result: AtBatResultType.HOME_RUN,
           runsScored: 1,
           rbiAwarded: 1,
+        })
+      );
+    });
+
+    it('should handle unknown error types in error processing', async () => {
+      // Test coverage for lines 673-675 - unknown error handling
+      const game = createTestGame();
+      mockFindById.mockResolvedValue(game);
+
+      // Mock an error that's not a domain error or standard error
+      const unknownError: unknown = 'string error'; // Non-Error type
+      mockSave.mockRejectedValue(unknownError);
+
+      const command: RecordAtBatCommand = {
+        gameId,
+        batterId: new PlayerId('batter-123'),
+        result: AtBatResultType.SINGLE,
+      };
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('An unexpected error occurred during at-bat processing');
+    });
+
+    it('should handle game loading failure during error processing', async () => {
+      // Test coverage for lines 681-688 - game loading failure during error handling
+      const game = createTestGame();
+      mockFindById
+        .mockResolvedValueOnce(game) // First call succeeds for main execution
+        .mockRejectedValueOnce(new Error('Database connection lost')); // Second call fails during error handling
+
+      // Cause main execution to fail
+      mockSave.mockRejectedValue(new DomainError('Save failed'));
+
+      const command: RecordAtBatCommand = {
+        gameId,
+        batterId: new PlayerId('batter-123'),
+        result: AtBatResultType.SINGLE,
+      };
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(false);
+      expect(mockWarn).toHaveBeenCalledWith(
+        'Failed to load game state for error result',
+        expect.objectContaining({
+          gameId: gameId.value,
+          originalError: expect.any(DomainError),
+          loadError: expect.any(Error),
         })
       );
     });

@@ -10,11 +10,8 @@
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
   "include": ["src/**/*"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"],
+  "exclude": [],
   "references": [
-    {
-      "path": "../domain"
-    },
     {
       "path": "../application"
     },
