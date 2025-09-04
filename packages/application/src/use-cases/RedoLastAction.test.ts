@@ -1219,5 +1219,31 @@ describe('RedoLastAction', () => {
       // Should handle unknown event type by defaulting to ['Game']
       expect(result.redoneActionDetails?.[0]?.affectedAggregates).toEqual(['Game']);
     });
+
+    it('should handle specific error paths for improved coverage', async () => {
+      // Test coverage for error handling edge cases
+      const game = createMockGame('test-game-123', GameStatus.IN_PROGRESS);
+      mockGameRepository.setMockGame(game);
+
+      const undoEvent = createActionUndoneEvent('AtBatCompleted', 'test-game-123');
+      mockEventStore.setMockEvents(testGameId, [undoEvent]);
+
+      // Mock to trigger specific error handling paths
+      const repositoryWithError = {
+        findById: vi.fn().mockResolvedValue(game),
+        save: vi.fn().mockRejectedValue(new Error('Database connection failed')),
+      } as Partial<GameRepository> as GameRepository;
+
+      const redoWithError = new RedoLastAction(repositoryWithError, mockEventStore, mockLogger);
+
+      const command: RedoCommand = { gameId: testGameId };
+
+      // Act
+      const result = await redoWithError.execute(command);
+
+      // Assert - Should handle error appropriately
+      expect(result.success).toBe(false);
+      expect(result.errors).toBeDefined();
+    });
   });
 });

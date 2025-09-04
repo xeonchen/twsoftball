@@ -600,4 +600,128 @@ describe('RecordAtBat Use Case', () => {
       );
     });
   });
+
+  describe('Edge Cases for Coverage', () => {
+    it('should cover RBI calculation in processAtBat', async () => {
+      // Test coverage for line 350: calculateRBI method call
+      const game = createTestGame();
+      mockFindById.mockResolvedValue(game);
+
+      const command: RecordAtBatCommand = {
+        gameId,
+        batterId: new PlayerId('batter-123'),
+        result: AtBatResultType.HOME_RUN,
+        runnerAdvances: [
+          {
+            playerId: new PlayerId('runner-1'),
+            fromBase: 'FIRST',
+            toBase: 'HOME',
+            advanceReason: 'BATTED_BALL',
+          },
+          {
+            playerId: new PlayerId('batter-123'),
+            fromBase: null,
+            toBase: 'HOME',
+            advanceReason: 'BATTED_BALL',
+          },
+        ],
+      };
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Should successfully process RBI calculation
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.runsScored).toBeGreaterThan(0);
+        expect(result.rbiAwarded).toBeGreaterThan(0);
+        expect(result.gameState).toBeDefined();
+      }
+    });
+
+    it('should handle runs scored consistency check edge case', async () => {
+      // Test coverage for line 496: consistency check logic
+      const game = createTestGame();
+      mockFindById.mockResolvedValue(game);
+
+      const command: RecordAtBatCommand = {
+        gameId,
+        batterId: new PlayerId('batter-123'),
+        result: AtBatResultType.TRIPLE,
+        runnerAdvances: [
+          // Deliberately create scenario where runs scored calculation matters
+          {
+            playerId: new PlayerId('runner-1'),
+            fromBase: 'THIRD',
+            toBase: 'HOME',
+            advanceReason: 'BATTED_BALL',
+          },
+          {
+            playerId: new PlayerId('runner-2'),
+            fromBase: 'SECOND',
+            toBase: 'HOME',
+            advanceReason: 'BATTED_BALL',
+          },
+        ],
+      };
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Should handle consistency check internally
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.runsScored).toBeGreaterThan(0);
+        expect(result.rbiAwarded).toBeGreaterThan(0);
+        expect(result.gameState).toBeDefined();
+      }
+    });
+
+    it('should handle unknown error types in error handling', async () => {
+      // Test coverage for lines 671-672: unknown error type handling
+      const game = createTestGame();
+      mockFindById.mockResolvedValue(game);
+
+      // Create a non-standard error object
+      const unknownError = { toString: (): string => 'Unknown error type' };
+      mockSave.mockRejectedValue(unknownError);
+
+      const command: RecordAtBatCommand = {
+        gameId,
+        batterId: new PlayerId('batter-123'),
+        result: AtBatResultType.SINGLE,
+      };
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Should handle unknown error type
+      expect(result.success).toBe(false);
+      expect(result.errors?.[0]).toContain('An unexpected error occurred');
+    });
+
+    it('should handle generic unexpected errors', async (): Promise<void> => {
+      // Test coverage for generic error path
+      const game = createTestGame();
+      mockFindById.mockResolvedValue(game);
+
+      // Create an error without message property
+      const genericError = new Error();
+      delete (genericError as unknown as { message?: string }).message;
+      mockSave.mockRejectedValue(genericError);
+
+      const command: RecordAtBatCommand = {
+        gameId,
+        batterId: new PlayerId('batter-123'),
+        result: AtBatResultType.SINGLE,
+      };
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Should handle generic error
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('An unexpected error occurred: ');
+    });
+  });
 });

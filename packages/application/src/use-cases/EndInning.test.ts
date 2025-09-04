@@ -874,4 +874,19 @@ describe('EndInning Use Case', () => {
       }
     });
   });
+
+  describe('Edge Cases for Coverage', () => {
+    it('should handle specific error handling paths for coverage', async () => {
+      // Test coverage for edge cases in error handling
+      const nonStandardError = { value: 'custom error' };
+
+      mockSave.mockRejectedValue(nonStandardError);
+      mockFindById.mockResolvedValue(mockGame);
+
+      const result = await useCase.execute(validCommand);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toBeDefined();
+    });
+  });
 });

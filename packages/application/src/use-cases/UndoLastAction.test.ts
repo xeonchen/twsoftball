@@ -1052,5 +1052,130 @@ describe('UndoLastAction Use Case', () => {
       expect(result.undoStack!.historyPosition).toBe(0);
       expect(result.undoStack!.totalActions).toBe(0);
     });
+
+    it('should cover event compensation edge cases for applyAggregateUpdates', async () => {
+      // Test coverage for lines 692-702: edge case in generateEventCompensation
+      const game = createTestGame();
+      const testEvent = createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'));
+
+      mockFindById.mockResolvedValue(game);
+      mockGetGameEvents.mockResolvedValue([testEvent]);
+
+      const command: UndoCommand = { gameId, notes: 'Test edge case compensation' };
+
+      // Act
+      const result = await undoLastAction.execute(command);
+
+      // Assert - Should handle event compensation creation successfully
+      expect(result.success).toBe(true);
+      expect(result.actionsUndone).toBe(1);
+    });
+
+    it('should handle all optional properties in success result creation', async () => {
+      // Test coverage for lines 962-968: optional property assignments in createSuccessResult
+      const game = createTestGame();
+      const testEvents = [
+        createMockAtBatEvent(new Date('2024-08-31T15:25:00Z')),
+        createMockSubstitutionEvent(new Date('2024-08-31T15:26:00Z')),
+      ];
+
+      mockFindById.mockResolvedValue(game);
+      mockGetGameEvents.mockResolvedValue(testEvents);
+
+      const command: UndoCommand = {
+        gameId,
+        actionLimit: 2,
+        notes: 'Test all optional properties',
+      };
+
+      // Act
+      const result = await undoLastAction.execute(command);
+
+      // Assert - Should include all optional properties in success result
+      expect(result.success).toBe(true);
+      expect(result.restoredState).toBeDefined();
+      expect(result.compensatingEvents).toBeDefined();
+      expect(result.undoStack).toBeDefined();
+      expect(result.undoneActionDetails).toBeDefined();
+      expect(result.undoneActionDetails?.length).toBe(2);
+    });
+
+    it('should handle database connection error in error handling', async () => {
+      // Test coverage for specific database error handling paths
+      const game = createTestGame();
+      const testEvent = createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'));
+
+      mockFindById.mockResolvedValue(game);
+      mockGetGameEvents.mockResolvedValue([testEvent]);
+
+      // Mock database connection failure
+      mockSave.mockRejectedValue(new Error('Database connection failed'));
+
+      const command: UndoCommand = { gameId };
+
+      // Act
+      const result = await undoLastAction.execute(command);
+
+      // Assert
+      expect(result.success).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          'Infrastructure error: failed to save game state',
+          'Database connection failed',
+        ])
+      );
+    });
+
+    it('should handle database error in persistence layer', async () => {
+      // Test coverage for Database error handling path
+      const game = createTestGame();
+      const testEvent = createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'));
+
+      mockFindById.mockResolvedValue(game);
+      mockGetGameEvents.mockResolvedValue([testEvent]);
+
+      // Mock generic Database error
+      mockSave.mockRejectedValue(new Error('Database timeout during save operation'));
+
+      const command: UndoCommand = { gameId };
+
+      // Act
+      const result = await undoLastAction.execute(command);
+
+      // Assert
+      expect(result.success).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          'Infrastructure error: failed to save game state',
+          'Database timeout during save operation',
+        ])
+      );
+    });
+
+    it('should handle connection error in event store', async () => {
+      // Test coverage for connection error in event store
+      const game = createTestGame();
+      const testEvent = createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'));
+
+      mockFindById.mockResolvedValue(game);
+      mockGetGameEvents.mockResolvedValue([testEvent]);
+
+      // Mock connection error in append operation
+      mockAppend.mockRejectedValue(new Error('Event store connection timeout'));
+
+      const command: UndoCommand = { gameId };
+
+      // Act
+      const result = await undoLastAction.execute(command);
+
+      // Assert
+      expect(result.success).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          'Infrastructure error: failed to store compensating events',
+          'Event store connection timeout',
+        ])
+      );
+    });
   });
 });
