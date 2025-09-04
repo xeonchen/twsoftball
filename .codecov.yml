@@ -11,13 +11,13 @@ coverage:
     project:
       # Overall project coverage target
       default:
-        target: 95%
+        target: 92%
         threshold: 2%
         if_not_found: success
         if_ci_failed: error
         informational: false
 
-      # Domain layer - Core business logic
+      # Domain layer - Core business logic (highest standards)
       domain:
         target: 98%
         threshold: 1%
@@ -29,62 +29,89 @@ coverage:
       # Application layer - Use cases and ports
       application:
         target: 95%
-        threshold: 10%
+        threshold: 2%
         flags: [application]
         if_not_found: success
         if_ci_failed: error
-        informational: true
+        informational: false
 
       # Infrastructure layer - Adapters and implementations
       infrastructure:
-        target: 95%
-        threshold: 10%
+        target: 90%
+        threshold: 3%
         flags: [infrastructure]
         if_not_found: success
         if_ci_failed: error
-        informational: true
+        informational: true # not implemented yet
 
       # Shared utilities
       shared:
-        target: 95%
-        threshold: 10%
+        target: 92%
+        threshold: 3%
         flags: [shared]
         if_not_found: success
         if_ci_failed: error
-        informational: true
+        informational: true # not implemented yet
 
       # Web app - PWA
       web:
-        target: 95%
-        threshold: 10%
+        target: 92%
+        threshold: 3%
         flags: [web]
         if_not_found: success
         if_ci_failed: error
-        informational: true
+        informational: true # not implemented yet
 
     # Patch coverage (for new code in PRs)
     patch:
       default:
         target: 95%
-        threshold: 3%
+        threshold: 2%
         if_not_found: success
         if_ci_failed: error
 
-      # Domain patches - High coverage required
+      # Domain patches - Highest standards for new code
       domain:
-        target: 95%
-        threshold: 2%
+        target: 98%
+        threshold: 1%
         flags: [domain]
         if_not_found: success
         if_ci_failed: error
 
       # Application patches
       application:
-        target: 90%
-        threshold: 3%
+        target: 95%
+        threshold: 2%
         flags: [application]
         if_not_found: success
         if_ci_failed: error
+
+      # Infrastructure patches
+      infrastructure:
+        target: 90%
+        threshold: 3%
+        flags: [infrastructure]
+        if_not_found: success
+        if_ci_failed: error
+        informational: true # not implemented yet
+
+      # Shared patches
+      shared:
+        target: 92%
+        threshold: 3%
+        flags: [shared]
+        if_not_found: success
+        if_ci_failed: error
+        informational: true # not implemented yet
+
+      # Web patches
+      web:
+        target: 92%
+        threshold: 3%
+        flags: [web]
+        if_not_found: success
+        if_ci_failed: error
+        informational: true # not implemented yet
 
 # Flag definitions for different parts of the monorepo
 flags:

@@ -10,9 +10,9 @@
     "lint:fix": "echo 'No source files to lint yet'",
     "format": "echo 'No source files to format yet'",
     "format:check": "echo 'No source files to format yet'",
-    "test": "echo 'No tests to run yet'",
-    "test:watch": "echo 'No tests to run yet'",
-    "test:coverage": "echo 'No tests to run yet'",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

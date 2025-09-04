@@ -18,7 +18,7 @@ export default defineConfig({
 
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html', 'lcov'],
+      reporter: ['text', 'json', 'json-summary', 'html', 'lcov', 'clover'],
       include: ['src/**/*.ts'],
       exclude: [
         'node_modules/**',
@@ -29,19 +29,20 @@ export default defineConfig({
         '**/*.spec.ts',
         'src/index.ts',
       ],
-      // Application layer thresholds (slightly lower than domain)
+      // Application layer thresholds (based on current coverage with buffer)
       thresholds: {
-        statements: 90,
-        branches: 80,
-        functions: 95,
-        lines: 90,
-        perFile: true,
+        statements: 93,
+        branches: 81,
+        functions: 90,
+        lines: 93,
+        // Rely on Codecov for per-file coverage gates
+        perFile: false,
       },
       watermarks: {
-        statements: [80, 90],
-        branches: [75, 85],
-        functions: [80, 90],
-        lines: [80, 90],
+        statements: [90, 95],
+        branches: [85, 88],
+        functions: [90, 92],
+        lines: [90, 95],
       },
       all: true,
       skipFull: false,

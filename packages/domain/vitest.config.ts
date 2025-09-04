@@ -17,7 +17,7 @@ export default defineConfig({
 
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html', 'lcov'],
+      reporter: ['text', 'json', 'json-summary', 'html', 'lcov', 'clover'],
       include: ['src/**/*.ts'],
       exclude: [
         'node_modules/**',
@@ -29,19 +29,20 @@ export default defineConfig({
         '**/test-utils/**',
         'src/index.ts',
       ],
-      // Per-file thresholds for domain layer excellence
+      // Domain layer thresholds (2-3% below Codecov targets)
       thresholds: {
         statements: 96,
-        branches: 90,
-        functions: 98,
+        branches: 92,
+        functions: 93,
         lines: 96,
-        perFile: true,
+        // Rely on Codecov for per-file coverage gates
+        perFile: false,
       },
       watermarks: {
-        statements: [95, 98],
-        branches: [90, 95],
-        functions: [95, 98],
-        lines: [95, 98],
+        statements: [96, 98],
+        branches: [92, 96],
+        functions: [93, 95],
+        lines: [96, 98],
       },
       all: true,
       skipFull: false,

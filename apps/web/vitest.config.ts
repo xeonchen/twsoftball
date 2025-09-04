@@ -4,12 +4,22 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    include: ['src/**/*.{test,spec}.ts'],
+    include: ['src/**/*.{test,spec}.ts', 'src/**/*.{test,spec}.tsx'],
     exclude: ['node_modules/**', 'dist/**', 'coverage/**'],
+
+    // Test isolation for web app reliability
+    isolate: true,
+
+    // Enhanced reporting for CI integration
+    reporters: ['default', 'junit'],
+    outputFile: {
+      junit: './coverage/junit.xml',
+    },
+
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'json-summary', 'html', 'lcov', 'clover'],
-      include: ['src/**/*.ts'],
+      include: ['src/**/*.ts', 'src/**/*.tsx'],
       exclude: [
         'node_modules/**',
         'dist/**',
@@ -17,9 +27,15 @@ export default defineConfig({
         '**/*.d.ts',
         '**/*.test.ts',
         '**/*.spec.ts',
+        '**/*.test.tsx',
+        '**/*.spec.tsx',
         'src/index.ts',
+        'src/main.tsx',
+        'src/vite-env.d.ts',
+        '**/*.stories.ts',
+        '**/*.stories.tsx',
       ],
-      // Shared utilities layer thresholds (3% below Codecov targets)
+      // Web app layer thresholds (3% below Codecov targets)
       thresholds: {
         statements: 89,
         branches: 82,

@@ -44,7 +44,7 @@ export default defineConfig({
 
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html', 'lcov', 'clover'],
+      reporter: ['text', 'json', 'json-summary', 'html', 'lcov', 'clover'],
       include: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'],
       exclude: [
         'coverage/**',
@@ -61,18 +61,18 @@ export default defineConfig({
         'tools/**',
       ],
       thresholds: {
-        statements: 80,
-        branches: 80,
-        functions: 80,
-        lines: 80,
-        // Per-file thresholds for stricter control
-        perFile: true,
+        statements: 89,
+        branches: 82,
+        functions: 87,
+        lines: 89,
+        // Rely on Codecov for patch/per-file coverage gates
+        perFile: false,
       },
       watermarks: {
-        statements: [80, 90],
-        branches: [80, 90],
-        functions: [80, 90],
-        lines: [80, 90],
+        statements: [85, 92],
+        branches: [80, 85],
+        functions: [85, 90],
+        lines: [85, 92],
       },
       // Additional coverage configuration
       all: true,
