@@ -4,9 +4,15 @@
  */
 
 import { GameId, PlayerId, AtBatResultType } from '@twsoftball/domain';
+import type { Base, AdvanceReason } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { RecordAtBatCommand } from './RecordAtBatCommand';
+import {
+  RecordAtBatCommand,
+  RecordAtBatCommandValidator,
+  RecordAtBatCommandValidationError,
+  RecordAtBatCommandFactory,
+} from './RecordAtBatCommand';
 import { RunnerAdvanceDTO } from './RunnerAdvanceDTO';
 
 describe('RecordAtBatCommand', () => {
@@ -41,7 +47,7 @@ describe('RecordAtBatCommand', () => {
         },
       ],
       notes: 'Line drive to left-center field',
-      timestamp: new Date('2024-08-30T15:15:00Z'),
+      timestamp: new Date(), // Use current time to avoid timestamp validation issues
     };
   });
 
@@ -474,6 +480,388 @@ describe('RecordAtBatCommand', () => {
       expect(walkCommand.runnerAdvances).toHaveLength(1);
       expect(walkCommand.runnerAdvances?.[0]?.toBase).toBe('FIRST');
       expect(walkCommand.runnerAdvances?.[0]?.advanceReason).toBe('WALK');
+    });
+  });
+
+  describe('RecordAtBatCommandValidator', () => {
+    describe('Basic Field Validation', () => {
+      it('should validate a complete valid command', () => {
+        expect(() => RecordAtBatCommandValidator.validate(validCommand)).not.toThrow();
+      });
+
+      it('should throw error for missing gameId', () => {
+        const invalidCommand = { ...validCommand, gameId: null } as unknown as RecordAtBatCommand;
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError('gameId is required')
+        );
+      });
+
+      it('should throw error for missing batterId', () => {
+        const invalidCommand = { ...validCommand, batterId: null } as unknown as RecordAtBatCommand;
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError('batterId is required')
+        );
+      });
+
+      it('should throw error for missing result', () => {
+        const invalidCommand = { ...validCommand, result: null } as unknown as RecordAtBatCommand;
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError('result is required')
+        );
+      });
+
+      it('should throw error for invalid AtBatResultType', () => {
+        const invalidCommand = {
+          ...validCommand,
+          result: 'INVALID_RESULT',
+        } as unknown as RecordAtBatCommand;
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError('Invalid at-bat result: INVALID_RESULT')
+        );
+      });
+    });
+
+    describe('Runner Advances Validation', () => {
+      it('should validate empty runner advances', () => {
+        const command = { ...validCommand, runnerAdvances: [] };
+        expect(() => RecordAtBatCommandValidator.validate(command)).not.toThrow();
+      });
+
+      it('should throw error for non-array runner advances', () => {
+        const invalidCommand = {
+          ...validCommand,
+          runnerAdvances: 'not-array',
+        } as unknown as RecordAtBatCommand;
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError('runnerAdvances must be an array if provided')
+        );
+      });
+
+      it('should throw error for too many runner advances', () => {
+        const tooManyAdvances = Array.from({ length: 5 }, () => ({
+          playerId: PlayerId.generate(),
+          fromBase: 'FIRST' as const,
+          toBase: 'SECOND' as const,
+          advanceReason: 'HIT',
+        }));
+        const invalidCommand = { ...validCommand, runnerAdvances: tooManyAdvances };
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError(
+            'runnerAdvances cannot exceed 4 advances (max bases + batter)'
+          )
+        );
+      });
+
+      it('should throw error for duplicate player advances', () => {
+        const duplicatePlayerId = PlayerId.generate();
+        const duplicateAdvances: RunnerAdvanceDTO[] = [
+          {
+            playerId: duplicatePlayerId,
+            fromBase: 'FIRST',
+            toBase: 'SECOND',
+            advanceReason: 'HIT',
+          },
+          {
+            playerId: duplicatePlayerId,
+            fromBase: 'SECOND',
+            toBase: 'THIRD',
+            advanceReason: 'HIT',
+          },
+        ];
+        const invalidCommand = { ...validCommand, runnerAdvances: duplicateAdvances };
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError('Each player can only have one advance per at-bat')
+        );
+      });
+
+      it('should throw error for missing playerId in advance', () => {
+        const invalidAdvance = [
+          {
+            playerId: null as unknown as PlayerId,
+            fromBase: 'FIRST' as const,
+            toBase: 'SECOND' as const,
+            advanceReason: 'HIT',
+          },
+        ];
+        const invalidCommand = { ...validCommand, runnerAdvances: invalidAdvance };
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError('Runner advance at index 0: playerId is required')
+        );
+      });
+
+      it('should throw error for invalid advance reason', () => {
+        const invalidAdvance = [
+          {
+            playerId: PlayerId.generate(),
+            fromBase: 'FIRST' as const,
+            toBase: 'SECOND' as const,
+            advanceReason: 'INVALID_REASON' as unknown as AdvanceReason,
+          },
+        ];
+        const invalidCommand = { ...validCommand, runnerAdvances: invalidAdvance };
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError(
+            "Runner advance at index 0: invalid advanceReason 'INVALID_REASON'. Valid reasons: HIT, WALK, ERROR, WILD_PITCH, PASSED_BALL, STEAL, BALK, SACRIFICE, FIELDERS_CHOICE, OUT, GROUND_OUT, FLY_OUT, FORCE_OUT"
+          )
+        );
+      });
+
+      it('should throw error for both bases null', () => {
+        const invalidAdvance = [
+          {
+            playerId: PlayerId.generate(),
+            fromBase: null,
+            toBase: null as unknown as Base,
+            advanceReason: 'HIT',
+          },
+        ];
+        const invalidCommand = { ...validCommand, runnerAdvances: invalidAdvance };
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError(
+            'Runner advance at index 0: both fromBase and toBase cannot be null'
+          )
+        );
+      });
+
+      it('should allow batter put out (fromBase null, toBase OUT)', () => {
+        const validAdvance = [
+          {
+            playerId: PlayerId.generate(),
+            fromBase: null,
+            toBase: 'OUT' as const,
+            advanceReason: 'GROUND_OUT',
+          },
+        ];
+        const validCmd = { ...validCommand, runnerAdvances: validAdvance };
+        expect(() => RecordAtBatCommandValidator.validate(validCmd)).not.toThrow(); // This should be valid - batter put out
+      });
+
+      it('should throw error for invalid fromBase', () => {
+        const invalidAdvance = [
+          {
+            playerId: PlayerId.generate(),
+            fromBase: 'INVALID_BASE' as unknown as Base,
+            toBase: 'SECOND' as const,
+            advanceReason: 'HIT',
+          },
+        ];
+        const invalidCommand = { ...validCommand, runnerAdvances: invalidAdvance };
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError(
+            "Runner advance at index 0: invalid fromBase 'INVALID_BASE'"
+          )
+        );
+      });
+
+      it('should throw error for same fromBase and toBase', () => {
+        const invalidAdvance = [
+          {
+            playerId: PlayerId.generate(),
+            fromBase: 'SECOND' as const,
+            toBase: 'SECOND' as const,
+            advanceReason: 'HIT',
+          },
+        ];
+        const invalidCommand = { ...validCommand, runnerAdvances: invalidAdvance };
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError(
+            'Runner advance at index 0: cannot advance from SECOND to the same base'
+          )
+        );
+      });
+    });
+
+    describe('Notes Validation', () => {
+      it('should allow empty string notes', () => {
+        const command = { ...validCommand, notes: '' };
+        expect(() => RecordAtBatCommandValidator.validate(command)).not.toThrow();
+      });
+
+      it('should throw error for notes exceeding length limit', () => {
+        const longNotes = 'a'.repeat(501);
+        const invalidCommand = { ...validCommand, notes: longNotes };
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError('notes cannot exceed 500 characters')
+        );
+      });
+
+      it('should throw error for whitespace-only notes', () => {
+        const invalidCommand = { ...validCommand, notes: '   ' };
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError('notes cannot be only whitespace')
+        );
+      });
+    });
+
+    describe('Timestamp Validation', () => {
+      it('should validate valid timestamp', () => {
+        const command = { ...validCommand, timestamp: new Date() };
+        expect(() => RecordAtBatCommandValidator.validate(command)).not.toThrow();
+      });
+
+      it('should throw error for non-Date timestamp', () => {
+        const invalidCommand = {
+          ...validCommand,
+          timestamp: 'not-a-date',
+        } as unknown as RecordAtBatCommand;
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError('timestamp must be a valid Date object')
+        );
+      });
+
+      it('should throw error for invalid Date', () => {
+        const invalidCommand = { ...validCommand, timestamp: new Date('invalid') };
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError('timestamp must be a valid Date')
+        );
+      });
+
+      it('should throw error for timestamp too far in future', () => {
+        const futureDate = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
+        const invalidCommand = { ...validCommand, timestamp: futureDate };
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError(
+            'timestamp cannot be more than 1 hour in the future'
+          )
+        );
+      });
+
+      it('should throw error for timestamp too far in past', () => {
+        const pastDate = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000); // 400 days ago
+        const invalidCommand = { ...validCommand, timestamp: pastDate };
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+          new RecordAtBatCommandValidationError('timestamp cannot be more than 1 year in the past')
+        );
+      });
+    });
+  });
+
+  describe('RecordAtBatCommandFactory', () => {
+    describe('createSimple', () => {
+      it('should create simple command with valid data', () => {
+        const command = RecordAtBatCommandFactory.createSimple(
+          gameId,
+          batterId,
+          AtBatResultType.SINGLE,
+          'Clean hit to left field'
+        );
+
+        expect(command.gameId).toBe(gameId);
+        expect(command.batterId).toBe(batterId);
+        expect(command.result).toBe(AtBatResultType.SINGLE);
+        expect(command.notes).toBe('Clean hit to left field');
+        expect(command.runnerAdvances).toEqual([]);
+        expect(command.timestamp).toBeInstanceOf(Date);
+      });
+
+      it('should create simple command without notes', () => {
+        const command = RecordAtBatCommandFactory.createSimple(
+          gameId,
+          batterId,
+          AtBatResultType.STRIKEOUT
+        );
+
+        expect(command.notes).toBeUndefined();
+      });
+
+      it('should throw validation error for invalid data', () => {
+        expect(() =>
+          RecordAtBatCommandFactory.createSimple(
+            null as unknown as GameId,
+            batterId,
+            AtBatResultType.SINGLE
+          )
+        ).toThrow(RecordAtBatCommandValidationError);
+      });
+    });
+
+    describe('createStrikeout', () => {
+      it('should create strikeout command', () => {
+        const command = RecordAtBatCommandFactory.createStrikeout(
+          gameId,
+          batterId,
+          'Swinging strikeout'
+        );
+
+        expect(command.result).toBe(AtBatResultType.STRIKEOUT);
+        expect(command.runnerAdvances).toEqual([]);
+        expect(command.notes).toBe('Swinging strikeout');
+      });
+    });
+
+    describe('createHomeRun', () => {
+      it('should create home run command with no runners', () => {
+        const command = RecordAtBatCommandFactory.createHomeRun(
+          gameId,
+          batterId,
+          [],
+          'Solo home run'
+        );
+
+        expect(command.result).toBe(AtBatResultType.HOME_RUN);
+        expect(command.runnerAdvances).toHaveLength(1); // Just the batter
+        expect(command.runnerAdvances?.[0]?.playerId).toBe(batterId);
+        expect(command.runnerAdvances?.[0]?.fromBase).toBeNull();
+        expect(command.runnerAdvances?.[0]?.toBase).toBe('HOME');
+      });
+
+      it('should create home run command with runners on base', () => {
+        const runner1Id = PlayerId.generate();
+        const command = RecordAtBatCommandFactory.createHomeRun(
+          gameId,
+          batterId,
+          [runner1Id],
+          'Two-run home run'
+        );
+
+        expect(command.runnerAdvances).toHaveLength(2); // Runner + batter
+        expect(command.notes).toBe('Two-run home run');
+      });
+    });
+
+    describe('createWalk', () => {
+      it('should create walk command with no forced runners', () => {
+        const command = RecordAtBatCommandFactory.createWalk(
+          gameId,
+          batterId,
+          [],
+          'Four pitch walk'
+        );
+
+        expect(command.result).toBe(AtBatResultType.WALK);
+        expect(command.runnerAdvances).toHaveLength(1); // Just the batter
+        expect(command.runnerAdvances?.[0]?.toBase).toBe('FIRST');
+        expect(command.runnerAdvances?.[0]?.advanceReason).toBe('WALK');
+      });
+
+      it('should create walk command with forced runners', () => {
+        const forcedRunner: RunnerAdvanceDTO = {
+          playerId: PlayerId.generate(),
+          fromBase: 'FIRST',
+          toBase: 'SECOND',
+          advanceReason: 'WALK',
+        };
+
+        const command = RecordAtBatCommandFactory.createWalk(
+          gameId,
+          batterId,
+          [forcedRunner],
+          'Bases loaded walk'
+        );
+
+        expect(command.runnerAdvances).toHaveLength(2); // Forced runner + batter
+      });
+    });
+  });
+
+  describe('RecordAtBatCommandValidationError', () => {
+    it('should create error with correct properties', () => {
+      const error = new RecordAtBatCommandValidationError('Test error message');
+
+      expect(error.message).toBe('Test error message');
+      expect(error.name).toBe('RecordAtBatCommandValidationError');
+      expect(error).toBeInstanceOf(Error);
+      expect(error).toBeInstanceOf(RecordAtBatCommandValidationError);
     });
   });
 });

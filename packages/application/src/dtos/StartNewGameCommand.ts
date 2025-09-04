@@ -50,6 +50,16 @@
 import { GameId, PlayerId, JerseyNumber, FieldPosition } from '@twsoftball/domain';
 
 /**
+ * Validation error for StartNewGameCommand
+ */
+export class StartNewGameCommandValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StartNewGameCommandValidationError';
+  }
+}
+
+/**
  * Command to start a new softball game with complete setup information.
  *
  * @remarks
@@ -187,3 +197,287 @@ export interface GameRulesDTO {
    */
   readonly maxPlayersInLineup: number;
 }
+
+/**
+ * Validation functions for StartNewGameCommand
+ */
+export const StartNewGameCommandValidator = {
+  /**
+   * Validates a StartNewGameCommand for business rule compliance.
+   *
+   * @param command - The command to validate
+   * @throws {StartNewGameCommandValidationError} When validation fails
+   *
+   * @example
+   * ```typescript
+   * try {
+   *   StartNewGameCommandValidator.validate(command);
+   *   // Command is valid, proceed with use case
+   * } catch (error) {
+   *   // Handle validation error
+   * }
+   * ```
+   */
+  validate(command: StartNewGameCommand): void {
+    this.validateBasicFields(command);
+    this.validateLineup(command.initialLineup);
+    if (command.gameRules) {
+      this.validateGameRules(command.gameRules);
+    }
+  },
+
+  /**
+   * Validates basic command fields (team names, dates, etc.)
+   */
+  validateBasicFields(command: StartNewGameCommand): void {
+    if (!command.homeTeamName?.trim()) {
+      throw new StartNewGameCommandValidationError(
+        'Home team name is required and cannot be empty'
+      );
+    }
+
+    if (!command.awayTeamName?.trim()) {
+      throw new StartNewGameCommandValidationError(
+        'Away team name is required and cannot be empty'
+      );
+    }
+
+    if (command.homeTeamName === command.awayTeamName) {
+      throw new StartNewGameCommandValidationError('Home and away team names must be different');
+    }
+
+    if (command.ourTeamSide !== 'HOME' && command.ourTeamSide !== 'AWAY') {
+      throw new StartNewGameCommandValidationError('Our team side must be either HOME or AWAY');
+    }
+
+    if (!(command.gameDate instanceof Date) || isNaN(command.gameDate.getTime())) {
+      throw new StartNewGameCommandValidationError('Game date must be a valid Date object');
+    }
+
+    // Optional location validation - if provided, must not be empty
+    if (command.location !== undefined && !command.location.trim()) {
+      throw new StartNewGameCommandValidationError('Location cannot be empty if provided');
+    }
+  },
+
+  /**
+   * Validates the initial lineup for completeness and business rules
+   */
+  validateLineup(lineup: LineupPlayerDTO[]): void {
+    if (!Array.isArray(lineup)) {
+      throw new StartNewGameCommandValidationError('Initial lineup must be an array');
+    }
+
+    if (lineup.length < 9) {
+      throw new StartNewGameCommandValidationError('Initial lineup must have at least 9 players');
+    }
+
+    if (lineup.length > 20) {
+      throw new StartNewGameCommandValidationError('Initial lineup cannot exceed 20 players');
+    }
+
+    // Validate each player
+    lineup.forEach((player, index) => {
+      this.validateLineupPlayer(player, index);
+    });
+
+    // Check for uniqueness constraints
+    this.validateUniqueConstraints(lineup);
+
+    // Validate batting order sequence
+    this.validateBattingOrder(lineup);
+  },
+
+  /**
+   * Validates individual lineup player data
+   */
+  validateLineupPlayer(player: LineupPlayerDTO, index: number): void {
+    if (!player.playerId) {
+      throw new StartNewGameCommandValidationError(
+        `Player at index ${index}: playerId is required`
+      );
+    }
+
+    if (!player.name?.trim()) {
+      throw new StartNewGameCommandValidationError(
+        `Player at index ${index}: name is required and cannot be empty`
+      );
+    }
+
+    if (!player.jerseyNumber) {
+      throw new StartNewGameCommandValidationError(
+        `Player at index ${index}: jerseyNumber is required`
+      );
+    }
+
+    if (player.battingOrderPosition < 1 || player.battingOrderPosition > 20) {
+      throw new StartNewGameCommandValidationError(
+        `Player at index ${index}: battingOrderPosition must be between 1 and 20`
+      );
+    }
+
+    if (!Object.values(FieldPosition).includes(player.fieldPosition)) {
+      throw new StartNewGameCommandValidationError(
+        `Player at index ${index}: invalid fieldPosition`
+      );
+    }
+
+    if (!Array.isArray(player.preferredPositions)) {
+      throw new StartNewGameCommandValidationError(
+        `Player at index ${index}: preferredPositions must be an array`
+      );
+    }
+
+    // Validate preferred positions are valid field positions
+    player.preferredPositions.forEach(position => {
+      if (!Object.values(FieldPosition).includes(position)) {
+        throw new StartNewGameCommandValidationError(
+          `Player at index ${index}: invalid preferred position ${position}`
+        );
+      }
+    });
+  },
+
+  /**
+   * Validates uniqueness constraints across the lineup
+   */
+  validateUniqueConstraints(lineup: LineupPlayerDTO[]): void {
+    // Check unique player IDs
+    const playerIds = lineup.map(p => p.playerId.value);
+    const uniquePlayerIds = new Set(playerIds);
+    if (uniquePlayerIds.size !== playerIds.length) {
+      throw new StartNewGameCommandValidationError('All players must have unique player IDs');
+    }
+
+    // Check unique jersey numbers
+    const jerseyNumbers = lineup.map(p => p.jerseyNumber.value);
+    const uniqueJerseyNumbers = new Set(jerseyNumbers);
+    if (uniqueJerseyNumbers.size !== jerseyNumbers.length) {
+      throw new StartNewGameCommandValidationError('All players must have unique jersey numbers');
+    }
+
+    // Check unique batting order positions
+    const battingPositions = lineup.map(p => p.battingOrderPosition);
+    const uniqueBattingPositions = new Set(battingPositions);
+    if (uniqueBattingPositions.size !== battingPositions.length) {
+      throw new StartNewGameCommandValidationError(
+        'All players must have unique batting order positions'
+      );
+    }
+  },
+
+  /**
+   * Validates batting order sequence requirements
+   */
+  validateBattingOrder(lineup: LineupPlayerDTO[]): void {
+    const sortedPositions = lineup.map(p => p.battingOrderPosition).sort((a, b) => a - b);
+
+    // Check for consecutive sequence starting at 1
+    for (let i = 0; i < sortedPositions.length; i++) {
+      if (sortedPositions[i] !== i + 1) {
+        throw new StartNewGameCommandValidationError(
+          `Batting order must be consecutive starting from 1. Missing position ${i + 1}`
+        );
+      }
+    }
+  },
+
+  /**
+   * Validates game rules configuration
+   */
+  validateGameRules(rules: GameRulesDTO): void {
+    if (typeof rules.mercyRuleEnabled !== 'boolean') {
+      throw new StartNewGameCommandValidationError('mercyRuleEnabled must be a boolean');
+    }
+
+    if (rules.mercyRuleEnabled) {
+      if (rules.mercyRuleInning4 < 0 || rules.mercyRuleInning4 > 50) {
+        throw new StartNewGameCommandValidationError('mercyRuleInning4 must be between 0 and 50');
+      }
+
+      if (rules.mercyRuleInning5 < 0 || rules.mercyRuleInning5 > 50) {
+        throw new StartNewGameCommandValidationError('mercyRuleInning5 must be between 0 and 50');
+      }
+
+      // Business rule: inning 5 mercy should be less than or equal to inning 4
+      if (rules.mercyRuleInning5 > rules.mercyRuleInning4) {
+        throw new StartNewGameCommandValidationError(
+          'mercyRuleInning5 cannot be greater than mercyRuleInning4'
+        );
+      }
+    }
+
+    if (rules.timeLimitMinutes !== undefined) {
+      if (rules.timeLimitMinutes <= 0 || rules.timeLimitMinutes > 300) {
+        throw new StartNewGameCommandValidationError('timeLimitMinutes must be between 1 and 300');
+      }
+    }
+
+    if (typeof rules.extraPlayerAllowed !== 'boolean') {
+      throw new StartNewGameCommandValidationError('extraPlayerAllowed must be a boolean');
+    }
+
+    if (rules.maxPlayersInLineup < 9 || rules.maxPlayersInLineup > 20) {
+      throw new StartNewGameCommandValidationError('maxPlayersInLineup must be between 9 and 20');
+    }
+  },
+};
+
+/**
+ * Factory functions for creating StartNewGameCommand instances
+ */
+export const StartNewGameCommandFactory = {
+  /**
+   * Creates a StartNewGameCommand with default game rules
+   */
+  createWithDefaults(
+    gameId: GameId,
+    homeTeamName: string,
+    awayTeamName: string,
+    ourTeamSide: 'HOME' | 'AWAY',
+    gameDate: Date,
+    initialLineup: LineupPlayerDTO[],
+    location?: string
+  ): StartNewGameCommand {
+    const command: StartNewGameCommand = {
+      gameId,
+      homeTeamName,
+      awayTeamName,
+      ourTeamSide,
+      gameDate,
+      ...(location !== undefined && { location }),
+      initialLineup,
+      gameRules: this.getDefaultGameRules(),
+    };
+
+    StartNewGameCommandValidator.validate(command);
+    return command;
+  },
+
+  /**
+   * Gets default game rules for standard league play
+   */
+  getDefaultGameRules(): GameRulesDTO {
+    return {
+      mercyRuleEnabled: true,
+      mercyRuleInning4: 15,
+      mercyRuleInning5: 10,
+      extraPlayerAllowed: true,
+      maxPlayersInLineup: 12,
+    };
+  },
+
+  /**
+   * Creates game rules for tournament play (stricter mercy rules)
+   */
+  getTournamentGameRules(): GameRulesDTO {
+    return {
+      mercyRuleEnabled: true,
+      mercyRuleInning4: 12,
+      mercyRuleInning5: 7,
+      timeLimitMinutes: 75,
+      extraPlayerAllowed: false,
+      maxPlayersInLineup: 9,
+    };
+  },
+};

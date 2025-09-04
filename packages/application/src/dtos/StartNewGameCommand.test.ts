@@ -6,7 +6,14 @@
 import { GameId, PlayerId, JerseyNumber, FieldPosition } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from './StartNewGameCommand';
+import {
+  StartNewGameCommand,
+  LineupPlayerDTO,
+  GameRulesDTO,
+  StartNewGameCommandValidator,
+  StartNewGameCommandValidationError,
+  StartNewGameCommandFactory,
+} from './StartNewGameCommand';
 
 describe('StartNewGameCommand', () => {
   let validCommand: StartNewGameCommand;
@@ -17,24 +24,25 @@ describe('StartNewGameCommand', () => {
   beforeEach(() => {
     gameId = GameId.generate();
 
-    lineupPlayers = [
-      {
-        playerId: PlayerId.generate(),
-        name: 'John Smith',
-        jerseyNumber: JerseyNumber.fromNumber(1),
-        battingOrderPosition: 1,
-        fieldPosition: FieldPosition.PITCHER,
-        preferredPositions: [FieldPosition.PITCHER, FieldPosition.FIRST_BASE],
-      },
-      {
-        playerId: PlayerId.generate(),
-        name: 'Jane Doe',
-        jerseyNumber: JerseyNumber.fromNumber(2),
-        battingOrderPosition: 2,
-        fieldPosition: FieldPosition.CATCHER,
-        preferredPositions: [FieldPosition.CATCHER],
-      },
-    ];
+    // Create a full 9-player lineup for validation
+    lineupPlayers = Array.from({ length: 9 }, (_, i) => ({
+      playerId: PlayerId.generate(),
+      name: `Player ${i + 1}`,
+      jerseyNumber: JerseyNumber.fromNumber(i + 1),
+      battingOrderPosition: i + 1,
+      fieldPosition: [
+        FieldPosition.PITCHER,
+        FieldPosition.CATCHER,
+        FieldPosition.FIRST_BASE,
+        FieldPosition.SECOND_BASE,
+        FieldPosition.THIRD_BASE,
+        FieldPosition.SHORTSTOP,
+        FieldPosition.LEFT_FIELD,
+        FieldPosition.CENTER_FIELD,
+        FieldPosition.RIGHT_FIELD,
+      ][i]!,
+      preferredPositions: i < 2 ? [FieldPosition.PITCHER, FieldPosition.FIRST_BASE] : [],
+    }));
 
     gameRules = {
       mercyRuleEnabled: true,
@@ -210,7 +218,7 @@ describe('StartNewGameCommand', () => {
       const firstPlayer = command.initialLineup[0];
 
       expect(firstPlayer?.playerId).toBeInstanceOf(PlayerId);
-      expect(firstPlayer?.name).toBe('John Smith');
+      expect(firstPlayer?.name).toBe('Player 1');
       expect(firstPlayer?.jerseyNumber).toBeInstanceOf(JerseyNumber);
       expect(firstPlayer?.battingOrderPosition).toBe(1);
       expect(Object.values(FieldPosition)).toContain(firstPlayer?.fieldPosition);
@@ -371,6 +379,525 @@ describe('StartNewGameCommand', () => {
       const uniquePositions = [...new Set(positions)];
 
       expect(uniquePositions.length).toBe(positions.length);
+    });
+  });
+
+  describe('StartNewGameCommandValidator', () => {
+    describe('Basic Field Validation', () => {
+      it('should validate a complete valid command', () => {
+        expect(() => StartNewGameCommandValidator.validate(validCommand)).not.toThrow();
+      });
+
+      it('should throw error for empty home team name', () => {
+        const invalidCommand = { ...validCommand, homeTeamName: '' };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('Home team name is required and cannot be empty')
+        );
+      });
+
+      it('should throw error for whitespace-only home team name', () => {
+        const invalidCommand = { ...validCommand, homeTeamName: '   ' };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('Home team name is required and cannot be empty')
+        );
+      });
+
+      it('should throw error for empty away team name', () => {
+        const invalidCommand = { ...validCommand, awayTeamName: '' };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('Away team name is required and cannot be empty')
+        );
+      });
+
+      it('should throw error for identical team names', () => {
+        const invalidCommand = { ...validCommand, awayTeamName: 'Eagles' };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('Home and away team names must be different')
+        );
+      });
+
+      it('should throw error for invalid team side', () => {
+        const invalidCommand = {
+          ...validCommand,
+          ourTeamSide: 'INVALID',
+        } as unknown as StartNewGameCommand;
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('Our team side must be either HOME or AWAY')
+        );
+      });
+
+      it('should throw error for invalid game date', () => {
+        const invalidCommand = { ...validCommand, gameDate: new Date('invalid') };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('Game date must be a valid Date object')
+        );
+      });
+
+      it('should throw error for empty location string when provided', () => {
+        const invalidCommand = { ...validCommand, location: '   ' };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('Location cannot be empty if provided')
+        );
+      });
+
+      it('should allow undefined location', () => {
+        const { location: _location, ...commandWithoutLocation } = validCommand;
+        expect(() => StartNewGameCommandValidator.validate(commandWithoutLocation)).not.toThrow();
+      });
+    });
+
+    describe('Lineup Validation', () => {
+      it('should throw error for non-array lineup', () => {
+        const invalidCommand = {
+          ...validCommand,
+          initialLineup: 'not-array',
+        } as unknown as StartNewGameCommand;
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('Initial lineup must be an array')
+        );
+      });
+
+      it('should throw error for lineup with less than 9 players', () => {
+        const shortLineup = lineupPlayers.slice(0, 1);
+        const invalidCommand = { ...validCommand, initialLineup: shortLineup };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('Initial lineup must have at least 9 players')
+        );
+      });
+
+      it('should throw error for lineup with more than 20 players', () => {
+        const longLineup = Array.from({ length: 21 }, (_, i) => ({
+          playerId: PlayerId.generate(),
+          name: `Player ${i + 1}`,
+          jerseyNumber: JerseyNumber.fromNumber(i + 1),
+          battingOrderPosition: i + 1,
+          fieldPosition: FieldPosition.PITCHER,
+          preferredPositions: [],
+        }));
+        const invalidCommand = { ...validCommand, initialLineup: longLineup };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('Initial lineup cannot exceed 20 players')
+        );
+      });
+
+      it('should throw error for player without playerId', () => {
+        const invalidLineup = [...lineupPlayers];
+        invalidLineup[0] = { ...lineupPlayers[0]!, playerId: null } as unknown as LineupPlayerDTO;
+        const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('Player at index 0: playerId is required')
+        );
+      });
+
+      it('should throw error for player with empty name', () => {
+        const invalidLineup = [...lineupPlayers];
+        invalidLineup[0] = { ...lineupPlayers[0]!, name: '' };
+        const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError(
+            'Player at index 0: name is required and cannot be empty'
+          )
+        );
+      });
+
+      it('should throw error for player without jerseyNumber', () => {
+        const invalidLineup = [...lineupPlayers];
+        invalidLineup[0] = {
+          ...lineupPlayers[0]!,
+          jerseyNumber: null,
+        } as unknown as LineupPlayerDTO;
+        const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('Player at index 0: jerseyNumber is required')
+        );
+      });
+
+      it('should throw error for invalid batting order position (too low)', () => {
+        const invalidLineup = [...lineupPlayers];
+        invalidLineup[0] = { ...lineupPlayers[0]!, battingOrderPosition: 0 };
+        const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError(
+            'Player at index 0: battingOrderPosition must be between 1 and 20'
+          )
+        );
+      });
+
+      it('should throw error for invalid batting order position (too high)', () => {
+        const invalidLineup = [...lineupPlayers];
+        invalidLineup[0] = { ...lineupPlayers[0]!, battingOrderPosition: 21 };
+        const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError(
+            'Player at index 0: battingOrderPosition must be between 1 and 20'
+          )
+        );
+      });
+
+      it('should throw error for invalid field position', () => {
+        const invalidLineup = [...lineupPlayers];
+        invalidLineup[0] = {
+          ...lineupPlayers[0]!,
+          fieldPosition: 'INVALID_POSITION',
+        } as unknown as LineupPlayerDTO;
+        const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('Player at index 0: invalid fieldPosition')
+        );
+      });
+
+      it('should throw error for non-array preferred positions', () => {
+        const invalidLineup = [...lineupPlayers];
+        invalidLineup[0] = {
+          ...lineupPlayers[0]!,
+          preferredPositions: 'not-array',
+        } as unknown as LineupPlayerDTO;
+        const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError(
+            'Player at index 0: preferredPositions must be an array'
+          )
+        );
+      });
+
+      it('should throw error for invalid preferred position', () => {
+        const invalidLineup = [...lineupPlayers];
+        invalidLineup[0] = {
+          ...lineupPlayers[0]!,
+          preferredPositions: ['INVALID_POSITION'],
+        } as unknown as LineupPlayerDTO;
+        const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError(
+            'Player at index 0: invalid preferred position INVALID_POSITION'
+          )
+        );
+      });
+    });
+
+    describe('Uniqueness Constraint Validation', () => {
+      let fullLineup: LineupPlayerDTO[];
+
+      beforeEach(() => {
+        fullLineup = Array.from({ length: 9 }, (_, i) => ({
+          playerId: PlayerId.generate(),
+          name: `Player ${i + 1}`,
+          jerseyNumber: JerseyNumber.fromNumber(i + 1),
+          battingOrderPosition: i + 1,
+          fieldPosition: [
+            FieldPosition.PITCHER,
+            FieldPosition.CATCHER,
+            FieldPosition.FIRST_BASE,
+            FieldPosition.SECOND_BASE,
+            FieldPosition.THIRD_BASE,
+            FieldPosition.SHORTSTOP,
+            FieldPosition.LEFT_FIELD,
+            FieldPosition.CENTER_FIELD,
+            FieldPosition.RIGHT_FIELD,
+          ][i]!,
+          preferredPositions: [],
+        }));
+      });
+
+      it('should throw error for duplicate player IDs', () => {
+        const duplicateId = PlayerId.generate();
+        const modifiedLineup = fullLineup.map((player, index) =>
+          index === 0 || index === 1 ? { ...player, playerId: duplicateId } : player
+        );
+        const invalidCommand = { ...validCommand, initialLineup: modifiedLineup };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('All players must have unique player IDs')
+        );
+      });
+
+      it('should throw error for duplicate jersey numbers', () => {
+        const duplicateJerseyNumber = JerseyNumber.fromNumber(5);
+        const modifiedLineup = fullLineup.map((player, index) =>
+          index === 0 || index === 1 ? { ...player, jerseyNumber: duplicateJerseyNumber } : player
+        );
+        const invalidCommand = { ...validCommand, initialLineup: modifiedLineup };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('All players must have unique jersey numbers')
+        );
+      });
+
+      it('should throw error for duplicate batting order positions', () => {
+        const modifiedLineup = fullLineup.map((player, index) =>
+          index === 0 || index === 1 ? { ...player, battingOrderPosition: 3 } : player
+        );
+        const invalidCommand = { ...validCommand, initialLineup: modifiedLineup };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError(
+            'All players must have unique batting order positions'
+          )
+        );
+      });
+
+      it('should throw error for non-consecutive batting order', () => {
+        // Create a lineup where all positions are unique but not consecutive (skip position 2)
+        const gappedLineup = fullLineup.map((player, index) => ({
+          ...player,
+          battingOrderPosition: index === 1 ? 3 : index < 1 ? index + 1 : index + 2, // Skip position 2
+        }));
+        const invalidCommand = { ...validCommand, initialLineup: gappedLineup };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError(
+            'Batting order must be consecutive starting from 1. Missing position 2'
+          )
+        );
+      });
+
+      it('should allow valid consecutive batting order', () => {
+        const validCommand2 = { ...validCommand, initialLineup: fullLineup };
+        expect(() => StartNewGameCommandValidator.validate(validCommand2)).not.toThrow();
+      });
+    });
+
+    describe('Game Rules Validation', () => {
+      it('should throw error for non-boolean mercyRuleEnabled', () => {
+        const invalidRules = { ...gameRules, mercyRuleEnabled: 'yes' } as unknown as GameRulesDTO;
+        const invalidCommand = { ...validCommand, gameRules: invalidRules };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('mercyRuleEnabled must be a boolean')
+        );
+      });
+
+      it('should throw error for invalid mercyRuleInning4 (negative)', () => {
+        const invalidRules = { ...gameRules, mercyRuleInning4: -1 };
+        const invalidCommand = { ...validCommand, gameRules: invalidRules };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('mercyRuleInning4 must be between 0 and 50')
+        );
+      });
+
+      it('should throw error for invalid mercyRuleInning4 (too high)', () => {
+        const invalidRules = { ...gameRules, mercyRuleInning4: 51 };
+        const invalidCommand = { ...validCommand, gameRules: invalidRules };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('mercyRuleInning4 must be between 0 and 50')
+        );
+      });
+
+      it('should throw error for invalid mercyRuleInning5 (negative)', () => {
+        const invalidRules = { ...gameRules, mercyRuleInning5: -1 };
+        const invalidCommand = { ...validCommand, gameRules: invalidRules };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('mercyRuleInning5 must be between 0 and 50')
+        );
+      });
+
+      it('should throw error for invalid mercyRuleInning5 (too high)', () => {
+        const invalidRules = { ...gameRules, mercyRuleInning5: 51 };
+        const invalidCommand = { ...validCommand, gameRules: invalidRules };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('mercyRuleInning5 must be between 0 and 50')
+        );
+      });
+
+      it('should throw error when inning5 mercy is greater than inning4', () => {
+        const invalidRules = { ...gameRules, mercyRuleInning4: 10, mercyRuleInning5: 15 };
+        const invalidCommand = { ...validCommand, gameRules: invalidRules };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError(
+            'mercyRuleInning5 cannot be greater than mercyRuleInning4'
+          )
+        );
+      });
+
+      it('should throw error for invalid time limit (zero)', () => {
+        const invalidRules = { ...gameRules, timeLimitMinutes: 0 };
+        const invalidCommand = { ...validCommand, gameRules: invalidRules };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('timeLimitMinutes must be between 1 and 300')
+        );
+      });
+
+      it('should throw error for invalid time limit (too high)', () => {
+        const invalidRules = { ...gameRules, timeLimitMinutes: 301 };
+        const invalidCommand = { ...validCommand, gameRules: invalidRules };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('timeLimitMinutes must be between 1 and 300')
+        );
+      });
+
+      it('should allow undefined time limit', () => {
+        const { timeLimitMinutes: _timeLimitMinutes, ...rulesWithoutTimeLimit } = gameRules;
+        const validCommand2 = { ...validCommand, gameRules: rulesWithoutTimeLimit };
+        expect(() => StartNewGameCommandValidator.validate(validCommand2)).not.toThrow();
+      });
+
+      it('should throw error for non-boolean extraPlayerAllowed', () => {
+        const invalidRules = {
+          ...gameRules,
+          extraPlayerAllowed: 'maybe',
+        } as unknown as GameRulesDTO;
+        const invalidCommand = { ...validCommand, gameRules: invalidRules };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('extraPlayerAllowed must be a boolean')
+        );
+      });
+
+      it('should throw error for invalid maxPlayersInLineup (too low)', () => {
+        const invalidRules = { ...gameRules, maxPlayersInLineup: 8 };
+        const invalidCommand = { ...validCommand, gameRules: invalidRules };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('maxPlayersInLineup must be between 9 and 20')
+        );
+      });
+
+      it('should throw error for invalid maxPlayersInLineup (too high)', () => {
+        const invalidRules = { ...gameRules, maxPlayersInLineup: 21 };
+        const invalidCommand = { ...validCommand, gameRules: invalidRules };
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
+          new StartNewGameCommandValidationError('maxPlayersInLineup must be between 9 and 20')
+        );
+      });
+
+      it('should allow disabled mercy rule with zero values', () => {
+        const validRules = {
+          ...gameRules,
+          mercyRuleEnabled: false,
+          mercyRuleInning4: 0,
+          mercyRuleInning5: 0,
+        };
+        const validCommand2 = { ...validCommand, gameRules: validRules };
+        expect(() => StartNewGameCommandValidator.validate(validCommand2)).not.toThrow();
+      });
+    });
+  });
+
+  describe('StartNewGameCommandFactory', () => {
+    let minimalLineup: LineupPlayerDTO[];
+
+    beforeEach(() => {
+      minimalLineup = Array.from({ length: 9 }, (_, i) => ({
+        playerId: PlayerId.generate(),
+        name: `Player ${i + 1}`,
+        jerseyNumber: JerseyNumber.fromNumber(i + 1),
+        battingOrderPosition: i + 1,
+        fieldPosition: [
+          FieldPosition.PITCHER,
+          FieldPosition.CATCHER,
+          FieldPosition.FIRST_BASE,
+          FieldPosition.SECOND_BASE,
+          FieldPosition.THIRD_BASE,
+          FieldPosition.SHORTSTOP,
+          FieldPosition.LEFT_FIELD,
+          FieldPosition.CENTER_FIELD,
+          FieldPosition.RIGHT_FIELD,
+        ][i]!,
+        preferredPositions: [],
+      }));
+    });
+
+    describe('createWithDefaults', () => {
+      it('should create valid command with default rules', () => {
+        const gameId = GameId.generate();
+        const gameDate = new Date('2024-08-30T14:00:00Z');
+
+        const command = StartNewGameCommandFactory.createWithDefaults(
+          gameId,
+          'Eagles',
+          'Hawks',
+          'HOME',
+          gameDate,
+          minimalLineup,
+          'Field 1'
+        );
+
+        expect(command.gameId).toBe(gameId);
+        expect(command.homeTeamName).toBe('Eagles');
+        expect(command.awayTeamName).toBe('Hawks');
+        expect(command.ourTeamSide).toBe('HOME');
+        expect(command.gameDate).toBe(gameDate);
+        expect(command.location).toBe('Field 1');
+        expect(command.initialLineup).toBe(minimalLineup);
+        expect(command.gameRules).toEqual(StartNewGameCommandFactory.getDefaultGameRules());
+      });
+
+      it('should create valid command without location', () => {
+        const gameId = GameId.generate();
+        const gameDate = new Date('2024-08-30T14:00:00Z');
+
+        const command = StartNewGameCommandFactory.createWithDefaults(
+          gameId,
+          'Eagles',
+          'Hawks',
+          'AWAY',
+          gameDate,
+          minimalLineup
+        );
+
+        expect(command.location).toBeUndefined();
+        expect(command.ourTeamSide).toBe('AWAY');
+      });
+
+      it('should throw validation error for invalid data', () => {
+        const gameId = GameId.generate();
+        const gameDate = new Date('2024-08-30T14:00:00Z');
+        const shortLineup = minimalLineup.slice(0, 5); // Too few players
+
+        expect(() =>
+          StartNewGameCommandFactory.createWithDefaults(
+            gameId,
+            'Eagles',
+            'Hawks',
+            'HOME',
+            gameDate,
+            shortLineup
+          )
+        ).toThrow(StartNewGameCommandValidationError);
+      });
+    });
+
+    describe('getDefaultGameRules', () => {
+      it('should return consistent default rules', () => {
+        const rules1 = StartNewGameCommandFactory.getDefaultGameRules();
+        const rules2 = StartNewGameCommandFactory.getDefaultGameRules();
+
+        expect(rules1).toEqual(rules2);
+        expect(rules1.mercyRuleEnabled).toBe(true);
+        expect(rules1.mercyRuleInning4).toBe(15);
+        expect(rules1.mercyRuleInning5).toBe(10);
+        expect(rules1.timeLimitMinutes).toBeUndefined();
+        expect(rules1.extraPlayerAllowed).toBe(true);
+        expect(rules1.maxPlayersInLineup).toBe(12);
+      });
+    });
+
+    describe('getTournamentGameRules', () => {
+      it('should return tournament rules with stricter mercy rules', () => {
+        const tournamentRules = StartNewGameCommandFactory.getTournamentGameRules();
+        const defaultRules = StartNewGameCommandFactory.getDefaultGameRules();
+
+        expect(tournamentRules.mercyRuleInning4).toBeLessThan(defaultRules.mercyRuleInning4);
+        expect(tournamentRules.mercyRuleInning5).toBeLessThan(defaultRules.mercyRuleInning5);
+        expect(tournamentRules.timeLimitMinutes).toBeDefined();
+        expect(tournamentRules.extraPlayerAllowed).toBe(false);
+        expect(tournamentRules.maxPlayersInLineup).toBe(9);
+      });
+
+      it('should return valid tournament rules structure', () => {
+        const rules = StartNewGameCommandFactory.getTournamentGameRules();
+
+        expect(rules.mercyRuleEnabled).toBe(true);
+        expect(rules.mercyRuleInning4).toBe(12);
+        expect(rules.mercyRuleInning5).toBe(7);
+        expect(rules.timeLimitMinutes).toBe(75);
+        expect(rules.extraPlayerAllowed).toBe(false);
+        expect(rules.maxPlayersInLineup).toBe(9);
+      });
+    });
+  });
+
+  describe('StartNewGameCommandValidationError', () => {
+    it('should create error with correct properties', () => {
+      const error = new StartNewGameCommandValidationError('Test error message');
+
+      expect(error.message).toBe('Test error message');
+      expect(error.name).toBe('StartNewGameCommandValidationError');
+      expect(error).toBeInstanceOf(Error);
+      expect(error).toBeInstanceOf(StartNewGameCommandValidationError);
     });
   });
 });
