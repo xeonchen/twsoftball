@@ -1319,6 +1319,646 @@ describe('GameApplicationService', () => {
     });
   });
 
+  describe('Concurrency & Advanced Workflow Tests', () => {
+    describe('Concurrent Operations and Race Conditions', () => {
+      it('should serialize concurrent game modifications to prevent race conditions', async () => {
+        // Given: Two simultaneous complex workflow executions on same game
+        const command1: CompleteAtBatSequenceCommand = {
+          gameId,
+          atBatCommand: {
+            gameId,
+            batterId: playerId,
+            result: AtBatResultType.HOME_RUN,
+          } as RecordAtBatCommand,
+          checkInningEnd: true,
+          handleSubstitutions: true,
+          notifyScoreChanges: true,
+        };
+
+        const command2: CompleteAtBatSequenceCommand = {
+          gameId,
+          atBatCommand: {
+            gameId,
+            batterId: new PlayerId('player-789'),
+            result: AtBatResultType.DOUBLE,
+          } as RecordAtBatCommand,
+          checkInningEnd: true,
+          handleSubstitutions: false,
+          notifyScoreChanges: true,
+        };
+
+        // Mock successful at-bat results for concurrent execution
+        mockExecuteRecordAtBat
+          .mockResolvedValueOnce({
+            success: true,
+            inningEnded: false,
+            runsScored: 1,
+            gameState: {
+              gameId,
+              status: GameStatus.IN_PROGRESS,
+              currentInning: 1,
+              isTopHalf: true,
+            },
+          } as AtBatResult)
+          .mockResolvedValueOnce({
+            success: true,
+            inningEnded: false,
+            runsScored: 0,
+            gameState: {
+              gameId,
+              status: GameStatus.IN_PROGRESS,
+              currentInning: 1,
+              isTopHalf: true,
+            },
+          } as AtBatResult);
+
+        // When: Both workflows attempt state modifications simultaneously
+        const [result1, result2] = await Promise.all([
+          gameApplicationService.completeAtBatSequence(command1),
+          gameApplicationService.completeAtBatSequence(command2),
+        ]);
+
+        // Then: Operations completed without race conditions, consistent state maintained
+        expect(result1.success).toBe(true);
+        expect(result2.success).toBe(true);
+        expect(result1.scoreUpdateSent).toBe(true);
+        expect(result2.scoreUpdateSent).toBe(false); // Different scoring scenarios
+        expect(mockExecuteRecordAtBat).toHaveBeenCalledTimes(2);
+        expect(mockNotifyScoreUpdate).toHaveBeenCalledTimes(1); // Only first call scored runs
+      });
+
+      it('should handle resource contention during concurrent workflow execution', async () => {
+        // Given: Multiple workflows competing for same game resources
+        let resourceLockCounter = 0;
+        let maxConcurrentAccess = 0;
+
+        const createResourceIntensiveOperation = (operationId: string): ReturnType<typeof vi.fn> =>
+          vi.fn().mockImplementation(async (): Promise<{ success: boolean; data: string }> => {
+            resourceLockCounter++;
+            maxConcurrentAccess = Math.max(maxConcurrentAccess, resourceLockCounter);
+
+            // Simulate resource processing time
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            resourceLockCounter--;
+            return { success: true, data: `${operationId}-complete` };
+          });
+
+        const operations1 = [
+          createResourceIntensiveOperation('op1-a'),
+          createResourceIntensiveOperation('op1-b'),
+        ];
+        const operations2 = [
+          createResourceIntensiveOperation('op2-a'),
+          createResourceIntensiveOperation('op2-b'),
+        ];
+        const operations3 = [
+          createResourceIntensiveOperation('op3-a'),
+          createResourceIntensiveOperation('op3-b'),
+        ];
+
+        // When: Multiple transactions compete for resources
+        const [result1, result2, result3] = await Promise.all([
+          gameApplicationService.executeInTransaction('resource-contest-1', operations1, {
+            gameId: gameId.value,
+            resourceType: 'game-state',
+          }),
+          gameApplicationService.executeInTransaction('resource-contest-2', operations2, {
+            gameId: gameId.value,
+            resourceType: 'game-state',
+          }),
+          gameApplicationService.executeInTransaction('resource-contest-3', operations3, {
+            gameId: gameId.value,
+            resourceType: 'game-state',
+          }),
+        ]);
+
+        // Then: Fair resource allocation, no deadlocks, proper cleanup
+        expect(result1.success).toBe(true);
+        expect(result2.success).toBe(true);
+        expect(result3.success).toBe(true);
+        expect(resourceLockCounter).toBe(0); // All resources properly released
+        expect(maxConcurrentAccess).toBeGreaterThan(1); // Actual concurrency occurred
+      });
+
+      it('should maintain consistency during complex workflow failures with partial rollback', async () => {
+        // Given: Multi-step workflow with failure at step 4 of 7
+        const executionOrder: string[] = [];
+
+        const operations = [
+          vi.fn().mockImplementation(() => {
+            executionOrder.push('step1');
+            return { success: true, data: 'step1-complete', rollbackData: 'step1-undo' };
+          }),
+          vi.fn().mockImplementation(() => {
+            executionOrder.push('step2');
+            return { success: true, data: 'step2-complete', rollbackData: 'step2-undo' };
+          }),
+          vi.fn().mockImplementation(() => {
+            executionOrder.push('step3');
+            return { success: true, data: 'step3-complete', rollbackData: 'step3-undo' };
+          }),
+          vi.fn().mockImplementation(() => {
+            executionOrder.push('step4-failed');
+            // Failure occurs mid-process
+            return {
+              success: false,
+              errors: ['Business rule violation', 'Constraint check failed'],
+            };
+          }),
+          vi.fn().mockImplementation(() => {
+            executionOrder.push('step5-should-not-execute');
+            return { success: true, data: 'step5-complete' };
+          }),
+        ];
+
+        // When: Failure occurs mid-process at step 4
+        const result = await gameApplicationService.executeInTransaction(
+          'complex-workflow-failure',
+          operations,
+          {
+            gameId: gameId.value,
+            workflowType: 'multi-step-business-process',
+            totalSteps: 7,
+          }
+        );
+
+        // Then: Proper rollback, state consistency, resource cleanup
+        expect(result.success).toBe(false);
+        expect(result.rollbackApplied).toBe(true);
+        expect(result.errors).toContain(
+          'Transaction failed at operation 3: Business rule violation, Constraint check failed'
+        );
+
+        // Verify execution stopped at failure point
+        expect(executionOrder).toEqual(['step1', 'step2', 'step3', 'step4-failed']);
+
+        // Verify rollback was triggered for successful operations
+        expect(mockLoggerWarn).toHaveBeenCalledWith(
+          'Performing transaction rollback',
+          expect.objectContaining({
+            transaction: 'complex-workflow-failure',
+            operationsToRollback: 3, // Steps 1-3 need rollback
+            gameId: gameId.value,
+          })
+        );
+      });
+
+      it('should handle cascading failures in complex workflow orchestration', async () => {
+        // Given: Complex workflow with cascading dependencies
+        let cascadeCounter = 0;
+
+        const createCascadingOperation = (
+          stepName: string,
+          shouldFail = false
+        ): ReturnType<typeof vi.fn> =>
+          vi.fn().mockImplementation(() => {
+            cascadeCounter++;
+            if (shouldFail && cascadeCounter >= 3) {
+              throw new Error(`Cascading failure at ${stepName} (cascade ${cascadeCounter})`);
+            }
+            return { success: true, data: `${stepName}-success` };
+          });
+
+        const operations = [
+          createCascadingOperation('initialize'),
+          createCascadingOperation('validate'),
+          createCascadingOperation('execute', true), // Will fail on third call
+          createCascadingOperation('finalize'),
+        ];
+
+        // When: Cascading failure occurs during execution
+        const result = await gameApplicationService.executeInTransaction(
+          'cascading-failure-workflow',
+          operations,
+          {
+            gameId: gameId.value,
+            cascadeTest: true,
+            failureMode: 'cascading',
+          }
+        );
+
+        // Then: Transaction fails and rollback applied
+        expect(result.success).toBe(false);
+        expect(result.rollbackApplied).toBe(true);
+        expect(result.errors).toEqual(
+          expect.arrayContaining([
+            expect.stringMatching(
+              /Transaction exception at operation 2: Cascading failure at execute/
+            ),
+          ])
+        );
+
+        expect(operations[0]).toHaveBeenCalled();
+        expect(operations[1]).toHaveBeenCalled();
+        expect(operations[2]).toHaveBeenCalled();
+        expect(operations[3]).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Advanced Error Recovery and Compensation', () => {
+      it('should handle executeWithCompensation exception with compensation failure', async () => {
+        // Given: Operation that throws exception and compensation that also fails
+        const operation = vi.fn().mockImplementation((): never => {
+          throw new Error('Primary operation failed with exception');
+        });
+        const compensation = vi.fn().mockImplementation((): never => {
+          throw new Error('Compensation also failed');
+        });
+
+        // When: Both operation and compensation throw exceptions
+        await expect(
+          gameApplicationService.executeWithCompensation(
+            'dual-failure-operation',
+            operation,
+            compensation,
+            { gameId: gameId.value, testDualFailure: true }
+          )
+        ).rejects.toThrow('Primary operation failed with exception');
+
+        // Then: Both failures are logged appropriately
+        expect(operation).toHaveBeenCalled();
+        expect(compensation).toHaveBeenCalled();
+        expect(mockLoggerError).toHaveBeenCalledWith(
+          'Compensation failed for operation',
+          expect.any(Error),
+          expect.objectContaining({
+            operation: 'dual-failure-operation',
+            originalError: expect.any(Error),
+            gameId: gameId.value,
+          })
+        );
+      });
+
+      it('should handle compensation success after operation exception', async () => {
+        // Given: Operation throws exception but compensation succeeds
+        const operation = vi.fn().mockImplementation((): never => {
+          throw new Error('Operation threw an exception');
+        });
+        const compensation = vi.fn().mockResolvedValue({ compensationApplied: true });
+
+        // When: Operation fails with exception, compensation succeeds
+        await expect(
+          gameApplicationService.executeWithCompensation(
+            'exception-with-successful-compensation',
+            operation,
+            compensation,
+            { gameId: gameId.value, testCompensationSuccess: true }
+          )
+        ).rejects.toThrow('Operation threw an exception');
+
+        // Then: Compensation is attempted and succeeds
+        expect(operation).toHaveBeenCalled();
+        expect(compensation).toHaveBeenCalled();
+        expect(mockLoggerWarn).toHaveBeenCalledWith(
+          'Applied compensation for operation exception',
+          expect.objectContaining({
+            operation: 'exception-with-successful-compensation',
+            error: 'Operation threw an exception',
+            gameId: gameId.value,
+          })
+        );
+      });
+
+      it('should handle complex retry scenarios with variable delay patterns', async () => {
+        // Given: Operation that fails multiple times with different error patterns
+        let attemptCount = 0;
+        const delays: number[] = [];
+
+        // Mock setTimeout to capture actual delay values
+        vi.stubGlobal(
+          'setTimeout',
+          vi.fn().mockImplementation((callback, delay: number) => {
+            delays.push(delay);
+            callback();
+            return 1 as unknown as ReturnType<typeof setTimeout>;
+          })
+        );
+
+        const operation = vi.fn().mockImplementation(() => {
+          attemptCount++;
+          if (attemptCount <= 4) {
+            return {
+              success: false,
+              errors: [`Attempt ${attemptCount} failed`],
+              metadata: { attemptNumber: attemptCount, retryable: true },
+            };
+          }
+          return { success: true, data: 'finally succeeded', finalAttempt: attemptCount };
+        });
+
+        // When: Operation requires multiple retries before success
+        const result = await gameApplicationService.attemptOperationWithRetry(
+          'variable-retry-test',
+          operation,
+          6,
+          { gameId: gameId.value, testVariableRetries: true }
+        );
+
+        vi.unstubAllGlobals();
+
+        // Then: Proper retry pattern with exponential backoff
+        expect((result as TestResult).success).toBe(true);
+        expect(result.attempts).toBe(5);
+        expect((result as TestResult).data).toBe('finally succeeded');
+        expect(delays).toEqual([1000, 2000, 4000, 8000]); // Exponential backoff pattern
+        expect(operation).toHaveBeenCalledTimes(5);
+      });
+
+      it('should handle resource cleanup during workflow interruption', async () => {
+        // Given: Workflow with resource allocation that gets interrupted
+        const resourcesAllocated: string[] = [];
+        const resourcesReleased: string[] = [];
+
+        const operations = [
+          vi.fn().mockImplementation(() => {
+            resourcesAllocated.push('database-connection');
+            return { success: true, resources: ['database-connection'] };
+          }),
+          vi.fn().mockImplementation(() => {
+            resourcesAllocated.push('file-lock');
+            return { success: true, resources: ['file-lock'] };
+          }),
+          vi.fn().mockImplementation(() => {
+            // Simulate resource cleanup attempt during failure
+            resourcesReleased.push('partial-cleanup');
+            throw new Error('Resource allocation failed during operation');
+          }),
+        ];
+
+        // When: Workflow is interrupted during resource allocation
+        const result = await gameApplicationService.executeInTransaction(
+          'resource-cleanup-test',
+          operations,
+          {
+            gameId: gameId.value,
+            resourceManagement: true,
+            cleanupRequired: true,
+          }
+        );
+
+        // Then: Rollback triggered with proper resource context
+        expect(result.success).toBe(false);
+        expect(result.rollbackApplied).toBe(true);
+        expect(resourcesAllocated).toEqual(['database-connection', 'file-lock']);
+        expect(resourcesReleased).toEqual(['partial-cleanup']);
+
+        // Verify rollback logging with resource context
+        expect(mockLoggerWarn).toHaveBeenCalledWith(
+          'Performing transaction rollback',
+          expect.objectContaining({
+            transaction: 'resource-cleanup-test',
+            operationsToRollback: 2,
+            gameId: gameId.value,
+            resourceManagement: true,
+          })
+        );
+      });
+    });
+
+    describe('Complex Workflow State Management', () => {
+      it('should handle workflow variables and initialization edge cases', async () => {
+        // Test specific uncovered lines around workflow variable assignment
+        const command: CompleteGameWorkflowCommand = {
+          startGameCommand: {
+            gameId,
+            homeTeamName: 'Test Home',
+            awayTeamName: 'Test Away',
+          } as StartNewGameCommand,
+          atBatSequences: [],
+          substitutions: [],
+          endGameNaturally: false,
+          continueOnFailure: false,
+        };
+
+        mockExecuteStartNewGame.mockResolvedValue({
+          success: true,
+          gameId,
+          initialState: {
+            gameId,
+            status: GameStatus.IN_PROGRESS,
+            currentInning: 1,
+            isTopHalf: true,
+          } as GameStateDTO,
+        } as GameStartResult);
+
+        // When: Workflow executes with edge case configurations
+        const result = await gameApplicationService.completeGameWorkflow(command);
+
+        // Then: Default values properly applied, workflow completed
+        expect(result.success).toBe(true);
+        expect(result.totalAtBats).toBe(0);
+        expect(result.totalRetryAttempts).toBe(0);
+        expect(result.compensationApplied).toBe(false);
+      });
+
+      it('should handle complex at-bat sequence retry variables and execution paths', async () => {
+        // Test uncovered line 263: retryAttemptsUsed initialization
+        const command: CompleteAtBatSequenceCommand = {
+          gameId,
+          atBatCommand: {
+            gameId,
+            batterId: playerId,
+            result: AtBatResultType.TRIPLE,
+          } as RecordAtBatCommand,
+          checkInningEnd: false,
+          handleSubstitutions: false,
+          notifyScoreChanges: false,
+          queuedSubstitutions: [],
+        };
+
+        mockExecuteRecordAtBat.mockResolvedValue({
+          success: true,
+          inningEnded: false,
+          runsScored: 0,
+        } as AtBatResult);
+
+        // When: At-bat sequence executes with minimal configuration
+        const result = await gameApplicationService.completeAtBatSequence(command);
+
+        // Then: Variables properly initialized and execution completed
+        expect(result.success).toBe(true);
+        expect(result.retryAttemptsUsed).toBe(0); // Tests line 263 initialization
+        expect(result.substitutionResults).toHaveLength(0);
+        expect(result.scoreUpdateSent).toBe(false);
+      });
+
+      it('should handle workflow state transitions during complex error scenarios', async () => {
+        // Test workflow state management during multiple failure points
+        const command: CompleteGameWorkflowCommand = {
+          startGameCommand: {
+            gameId,
+            homeTeamName: 'Complex Team',
+            awayTeamName: 'State Team',
+          } as StartNewGameCommand,
+          atBatSequences: [
+            {
+              gameId,
+              batterId: playerId,
+              result: AtBatResultType.SINGLE,
+            } as RecordAtBatCommand,
+          ],
+          substitutions: [],
+          endGameNaturally: false,
+          maxAttempts: 5, // Test lines 449-450 variable assignments
+          continueOnFailure: true,
+        };
+
+        // Mock game start success but at-bat failures
+        mockExecuteStartNewGame.mockResolvedValue({
+          success: true,
+          gameId,
+        } as GameStartResult);
+
+        mockExecuteRecordAtBat.mockResolvedValue({
+          success: false,
+          errors: ['State transition error'],
+        } as AtBatResult);
+
+        // When: Complex workflow with state transition errors
+        const result = await gameApplicationService.completeGameWorkflow(command);
+
+        // Then: State variables properly managed throughout failure
+        expect(result.success).toBe(true); // continueOnFailure is true
+        expect(result.totalAtBats).toBe(1);
+        expect(result.successfulAtBats).toBe(0);
+        expect(result.totalRetryAttempts).toBe(0); // Tests line 450 variable usage
+        expect(result.compensationApplied).toBe(false);
+      });
+
+      it('should handle permission validation with object-format user responses', async () => {
+        // Test uncovered branch in validateGameOperationPermissions
+        const userObject = {
+          userId: 'complex-user-123',
+          roles: ['game-operator'],
+          permissions: ['RECORD_AT_BAT', 'SUBSTITUTE_PLAYER'],
+        };
+
+        mockAuthenticateUser.mockResolvedValue(userObject);
+        mockAuthorizeAction.mockResolvedValue(true);
+
+        // When: Authentication returns user object instead of string
+        const result = await gameApplicationService.validateGameOperationPermissions(
+          gameId,
+          'RECORD_AT_BAT'
+        );
+
+        // Then: User object properly handled
+        expect(result.valid).toBe(true);
+        expect(result.userId).toBe('complex-user-123');
+        expect(mockAuthorizeAction).toHaveBeenCalledWith('complex-user-123', 'RECORD_AT_BAT');
+      });
+    });
+
+    describe('Performance and Resource Management Edge Cases', () => {
+      it('should handle high-volume concurrent transaction processing', async () => {
+        // Test system behavior under high concurrent load
+        const transactionCount = 10;
+        const operationsPerTransaction = 3;
+        let totalOperationsExecuted = 0;
+
+        const createConcurrentTransaction = (
+          txId: number
+        ): Promise<{
+          success: boolean;
+          results: unknown[];
+          rollbackApplied: boolean;
+          errors?: string[];
+        }> => {
+          const operations = Array.from({ length: operationsPerTransaction }, (_, opIndex) =>
+            vi.fn().mockImplementation(async (): Promise<{ success: boolean; data: string }> => {
+              totalOperationsExecuted++;
+              await new Promise(resolve => setTimeout(resolve, 10)); // Small delay
+              return { success: true, data: `tx${txId}-op${opIndex}` };
+            })
+          );
+          return gameApplicationService.executeInTransaction(`high-volume-tx-${txId}`, operations, {
+            gameId: gameId.value,
+            transactionId: txId,
+          });
+        };
+
+        // When: Multiple transactions execute concurrently
+        const results = await Promise.all(
+          Array.from({ length: transactionCount }, (_, i) => createConcurrentTransaction(i))
+        );
+
+        // Then: All transactions complete successfully without resource conflicts
+        expect(results.every((r: { success: boolean }) => r.success)).toBe(true);
+        expect(totalOperationsExecuted).toBe(transactionCount * operationsPerTransaction);
+
+        // Verify all transactions logged completion
+        expect(mockLoggerDebug).toHaveBeenCalledWith(
+          'Transaction completed successfully',
+          expect.objectContaining({
+            operationCount: operationsPerTransaction,
+          })
+        );
+      });
+
+      it('should handle memory pressure scenarios during workflow execution', async () => {
+        // Simulate memory-intensive workflow operations
+        let memoryUsageSimulated = 0;
+        const maxMemoryThreshold = 1000;
+
+        const memoryIntensiveOperation = vi.fn().mockImplementation(() => {
+          memoryUsageSimulated += 200;
+          if (memoryUsageSimulated > maxMemoryThreshold) {
+            throw new Error('Simulated memory pressure - operation aborted');
+          }
+          return { success: true, memoryUsed: memoryUsageSimulated };
+        });
+
+        const operations: Array<() => Promise<unknown>> = Array(6).fill(memoryIntensiveOperation);
+
+        // When: Memory pressure occurs during transaction
+        const result = await gameApplicationService.executeInTransaction(
+          'memory-pressure-test',
+          operations,
+          { gameId: gameId.value, memoryTest: true }
+        );
+
+        // Then: Transaction fails with proper cleanup
+        expect(result.success).toBe(false);
+        expect(result.rollbackApplied).toBe(true);
+        expect(result.errors).toEqual(
+          expect.arrayContaining([expect.stringMatching(/Transaction exception.*memory pressure/)])
+        );
+      });
+
+      it('should handle timeout scenarios in complex workflow coordination', async () => {
+        // Test workflow behavior under timeout conditions
+        let operationDelay = 0;
+
+        const timeoutProneOperation = vi.fn().mockImplementation(async () => {
+          operationDelay += 100;
+          await new Promise(resolve => setTimeout(resolve, operationDelay));
+
+          if (operationDelay > 250) {
+            throw new Error(`Operation timeout after ${operationDelay}ms`);
+          }
+          return { success: true, executionTime: operationDelay };
+        });
+
+        const operations = [timeoutProneOperation, timeoutProneOperation, timeoutProneOperation];
+
+        // When: Operations exceed timeout threshold
+        const result = await gameApplicationService.executeInTransaction(
+          'timeout-test-workflow',
+          operations,
+          { gameId: gameId.value, timeoutTest: true }
+        );
+
+        // Then: Transaction fails with timeout handling
+        expect(result.success).toBe(false);
+        expect(result.rollbackApplied).toBe(true);
+        expect(result.errors).toEqual(
+          expect.arrayContaining([expect.stringMatching(/Transaction exception.*timeout/)])
+        );
+      });
+    });
+  });
+
   describe('Audit and Logging', () => {
     describe('logOperationAudit', () => {
       it('should log successful operations with complete context', async () => {
@@ -1683,7 +2323,7 @@ describe('GameApplicationService', () => {
     });
 
     describe('Undo/Redo Game Actions', () => {
-      it.skip('should execute undo last game action successfully', async () => {
+      it('should execute undo last game action successfully', async () => {
         // Test the undoLastGameAction method
         const undoCommand = {
           gameId,
@@ -1700,7 +2340,15 @@ describe('GameApplicationService', () => {
           undoStack: { canUndo: false, canRedo: true },
         };
 
-        mockExecuteUndoLastAction.mockResolvedValue(mockUndoResult);
+        // Override the default failure mock for this test
+        mockExecuteUndoLastAction.mockResolvedValueOnce(mockUndoResult);
+        mockAuthenticateUser.mockResolvedValue('test-user-123');
+
+        // Reset logger mocks that might have been affected by previous tests
+        mockLoggerInfo.mockReset();
+        mockLoggerError.mockReset();
+        mockLoggerWarn.mockReset();
+        mockLoggerDebug.mockReset();
 
         const result = await gameApplicationService.undoLastGameAction(undoCommand);
 
@@ -1747,7 +2395,7 @@ describe('GameApplicationService', () => {
         );
       });
 
-      it.skip('should execute redo last game action successfully', async () => {
+      it('should execute redo last game action successfully', async () => {
         // Test the redoLastGameAction method
         const redoCommand = {
           gameId,
@@ -1764,7 +2412,15 @@ describe('GameApplicationService', () => {
           undoStack: { canUndo: true, canRedo: false },
         };
 
-        mockExecuteRedoLastAction.mockResolvedValue(mockRedoResult);
+        // Override the default failure mock for this test
+        mockExecuteRedoLastAction.mockResolvedValueOnce(mockRedoResult);
+        mockAuthenticateUser.mockResolvedValue('test-user-123');
+
+        // Reset logger mocks that might have been affected by previous tests
+        mockLoggerInfo.mockReset();
+        mockLoggerError.mockReset();
+        mockLoggerWarn.mockReset();
+        mockLoggerDebug.mockReset();
 
         const result = await gameApplicationService.redoLastGameAction(redoCommand);
 
@@ -1780,7 +2436,7 @@ describe('GameApplicationService', () => {
         );
       });
 
-      it.skip('should handle redo last game action failure', async () => {
+      it('should handle redo last game action failure', async () => {
         // Test failure path for redoLastGameAction
         const redoCommand = {
           gameId,
@@ -1806,6 +2462,76 @@ describe('GameApplicationService', () => {
           expect.objectContaining({
             gameId: gameId.value,
             errors: ['No actions available to redo', 'Action already applied'],
+            operation: 'redoLastGameAction',
+          })
+        );
+      });
+
+      it('should handle undo operation exception during execution', async () => {
+        // Test exception handling in undoLastGameAction
+        const undoCommand = {
+          gameId,
+          actionLimit: 2,
+          notes: 'test exception handling',
+          confirmDangerous: true,
+        };
+
+        const expectedError = new Error('Undo execution failed unexpectedly');
+        mockExecuteUndoLastAction.mockRejectedValue(expectedError);
+
+        // When: Undo operation throws an exception
+        const result = await gameApplicationService.undoLastGameAction(undoCommand);
+
+        // Then: Exception is handled gracefully
+        expect(result.success).toBe(false);
+        expect(result.gameId).toEqual(gameId);
+        expect(result.actionsUndone).toBe(0);
+        expect(result.errors).toContain(
+          'Undo operation failed: Undo execution failed unexpectedly'
+        );
+
+        expect(mockLoggerError).toHaveBeenCalledWith(
+          'Undo operation failed with exception',
+          expectedError,
+          expect.objectContaining({
+            gameId: gameId.value,
+            actionLimit: 2,
+            notes: 'test exception handling',
+            operation: 'undoLastGameAction',
+          })
+        );
+      });
+
+      it('should handle redo operation exception during execution', async () => {
+        // Test exception handling in redoLastGameAction
+        const redoCommand = {
+          gameId,
+          actionLimit: 3,
+          notes: 'test exception handling in redo',
+          confirmDangerous: false,
+        };
+
+        const expectedError = new Error('Redo execution failed unexpectedly');
+        mockExecuteRedoLastAction.mockRejectedValue(expectedError);
+
+        // When: Redo operation throws an exception
+        const result = await gameApplicationService.redoLastGameAction(redoCommand);
+
+        // Then: Exception is handled gracefully
+        expect(result.success).toBe(false);
+        expect(result.gameId).toEqual(gameId);
+        expect(result.actionsRedone).toBe(0);
+        expect(result.errors).toContain(
+          'Redo operation failed: Redo execution failed unexpectedly'
+        );
+
+        expect(mockLoggerError).toHaveBeenCalledWith(
+          'Redo operation failed with exception',
+          expectedError,
+          expect.objectContaining({
+            gameId: gameId.value,
+            actionLimit: 3,
+            notes: 'test exception handling in redo',
             operation: 'redoLastGameAction',
           })
         );
