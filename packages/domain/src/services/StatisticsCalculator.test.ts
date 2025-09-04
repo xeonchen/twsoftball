@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { StatisticsCalculator, AtBatResult } from './StatisticsCalculator';
+
 import { AtBatResultType } from '../constants/AtBatResultType';
 import { DomainError } from '../errors/DomainError';
+
+import { StatisticsCalculator, AtBatResult } from './StatisticsCalculator';
 
 describe('StatisticsCalculator', () => {
   describe('calculateBattingAverage', () => {

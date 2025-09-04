@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { ScoreValidator } from './ScoreValidator';
+
 import { DomainError } from '../errors/DomainError';
+
+import { ScoreValidator } from './ScoreValidator';
 
 describe('ScoreValidator', () => {
   describe('validateScore', () => {

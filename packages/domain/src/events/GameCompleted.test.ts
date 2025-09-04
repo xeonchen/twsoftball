@@ -1,6 +1,7 @@
-import { GameCompleted } from './GameCompleted';
-import { GameId } from '../value-objects/GameId';
 import { DomainError } from '../errors/DomainError';
+import { GameId } from '../value-objects/GameId';
+
+import { GameCompleted } from './GameCompleted';
 
 describe('GameCompleted Domain Event', () => {
   let gameId: GameId;

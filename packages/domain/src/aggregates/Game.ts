@@ -1,13 +1,13 @@
-import { GameId } from '../value-objects/GameId';
 import { GameStatus } from '../constants/GameStatus';
-import { GameScore } from '../value-objects/GameScore';
+import { DomainError } from '../errors/DomainError';
 import { DomainEvent } from '../events/DomainEvent';
+import { GameCompleted } from '../events/GameCompleted';
 import { GameCreated } from '../events/GameCreated';
 import { GameStarted } from '../events/GameStarted';
-import { GameCompleted } from '../events/GameCompleted';
-import { ScoreUpdated } from '../events/ScoreUpdated';
 import { InningAdvanced } from '../events/InningAdvanced';
-import { DomainError } from '../errors/DomainError';
+import { ScoreUpdated } from '../events/ScoreUpdated';
+import { GameId } from '../value-objects/GameId';
+import { GameScore } from '../value-objects/GameScore';
 
 /**
  * Game aggregate root responsible for coordinating softball game state and business logic.

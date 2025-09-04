@@ -103,6 +103,9 @@ workbox-*.js.map
 # Vite
 .vite/
 
+# Turbo build cache
+.turbo/
+
 # Testing
 test-results/
 playwright-report/

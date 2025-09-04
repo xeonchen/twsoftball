@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { PlayerId } from './PlayerId';
+
 import { DomainError } from '../errors/DomainError';
+
+import { PlayerId } from './PlayerId';
 
 describe('PlayerId', () => {
   describe('Construction', () => {

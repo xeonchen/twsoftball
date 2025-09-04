@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { TeamValidation } from './TeamValidation';
+
 import { DomainError } from '../errors/DomainError';
+
+import { TeamValidation } from './TeamValidation';
 
 describe('TeamValidation', () => {
   describe('validateTeamDesignation', () => {

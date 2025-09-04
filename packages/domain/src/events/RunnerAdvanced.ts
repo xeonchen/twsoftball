@@ -1,8 +1,9 @@
-import { DomainEvent } from './DomainEvent';
+import { DomainError } from '../errors/DomainError';
+import { Base } from '../value-objects/BasesState';
 import { GameId } from '../value-objects/GameId';
 import { PlayerId } from '../value-objects/PlayerId';
-import { Base } from '../value-objects/BasesState';
-import { DomainError } from '../errors/DomainError';
+
+import { DomainEvent } from './DomainEvent';
 
 /**
  * Represents the reason why a runner advanced on the bases.

@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { SoftballRules, MercyRuleTier } from './SoftballRules';
+
 import { DomainError } from '../errors/DomainError';
+
+import { SoftballRules, MercyRuleTier } from './SoftballRules';
 
 describe('SoftballRules', () => {
   describe('Construction', () => {

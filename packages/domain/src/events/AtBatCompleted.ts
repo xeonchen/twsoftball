@@ -1,8 +1,9 @@
-import { DomainEvent } from './DomainEvent';
-import { GameId } from '../value-objects/GameId';
-import { PlayerId } from '../value-objects/PlayerId';
 import { AtBatResultType } from '../constants/AtBatResultType';
 import { DomainError } from '../errors/DomainError';
+import { GameId } from '../value-objects/GameId';
+import { PlayerId } from '../value-objects/PlayerId';
+
+import { DomainEvent } from './DomainEvent';
 
 export class AtBatCompleted extends DomainEvent {
   readonly type = 'AtBatCompleted';

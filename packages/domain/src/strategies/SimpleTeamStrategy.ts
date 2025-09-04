@@ -1,7 +1,8 @@
-import { PlayerId } from '../value-objects/PlayerId';
 import { FieldPosition } from '../constants/FieldPosition';
-import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
+import { SoftballRules } from '../rules/SoftballRules';
+import { PlayerId } from '../value-objects/PlayerId';
+
 import { BaseTeamStrategy } from './BaseTeamStrategy';
 import type { TeamPlayer, BattingSlotState } from './TeamStrategy';
 

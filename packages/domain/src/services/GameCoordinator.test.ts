@@ -1,17 +1,19 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { GameCoordinator, RunnerAdvancement } from './GameCoordinator';
+
 import { Game } from '../aggregates/Game';
-import { TeamLineup } from '../aggregates/TeamLineup';
 import { InningState } from '../aggregates/InningState';
-import { GameId } from '../value-objects/GameId';
-import { TeamLineupId } from '../value-objects/TeamLineupId';
-import { InningStateId } from '../value-objects/InningStateId';
-import { PlayerId } from '../value-objects/PlayerId';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
+import { TeamLineup } from '../aggregates/TeamLineup';
 import { AtBatResultType } from '../constants/AtBatResultType';
 import { FieldPosition } from '../constants/FieldPosition';
-import { BasesState } from '../value-objects/BasesState';
 import { SoftballRules } from '../rules/SoftballRules';
+import { BasesState } from '../value-objects/BasesState';
+import { GameId } from '../value-objects/GameId';
+import { InningStateId } from '../value-objects/InningStateId';
+import { JerseyNumber } from '../value-objects/JerseyNumber';
+import { PlayerId } from '../value-objects/PlayerId';
+import { TeamLineupId } from '../value-objects/TeamLineupId';
+
+import { GameCoordinator, RunnerAdvancement } from './GameCoordinator';
 
 describe('GameCoordinator', () => {
   // Test data helpers

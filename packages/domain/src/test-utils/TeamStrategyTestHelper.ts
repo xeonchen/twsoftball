@@ -1,5 +1,6 @@
 import { FieldPosition } from '../constants/FieldPosition';
 import type { TeamPlayer, TeamStrategy, BattingSlotState } from '../strategies/TeamStrategy';
+
 import { TestPlayerFactory } from './TestPlayerFactory';
 
 /**

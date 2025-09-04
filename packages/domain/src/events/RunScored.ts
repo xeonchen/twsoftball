@@ -1,9 +1,10 @@
-import { DomainEvent } from './DomainEvent';
+import { TeamValidation } from '../utils/TeamValidation';
+import { EventDataValidator } from '../validators/EventDataValidator';
+import { ScoreValidator } from '../validators/ScoreValidator';
 import { GameId } from '../value-objects/GameId';
 import { PlayerId } from '../value-objects/PlayerId';
-import { TeamValidation } from '../utils/TeamValidation';
-import { ScoreValidator } from '../validators/ScoreValidator';
-import { EventDataValidator } from '../validators/EventDataValidator';
+
+import { DomainEvent } from './DomainEvent';
 
 /**
  * Domain event representing a run being scored during a softball game.

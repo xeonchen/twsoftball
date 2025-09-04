@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { BasesState } from './BasesState';
 import { PlayerId } from './PlayerId';
 

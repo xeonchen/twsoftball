@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { DomainId } from './DomainId';
+
 import { DomainError } from '../errors/DomainError';
+
+import { DomainId } from './DomainId';
 
 /**
  * Concrete test implementation of DomainId for testing abstract base class.

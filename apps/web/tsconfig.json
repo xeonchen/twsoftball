@@ -1,11 +1,16 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true,
-    "allowJs": true,
-    "skipLibCheck": true
+    "composite": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "allowJs": true
   },
-  "include": ["src/**/*", "*.ts", "*.tsx"],
+  "include": ["src/**/*"],
   "exclude": [
     "node_modules",
     "dist",
@@ -14,5 +19,18 @@
     "../../packages/*/src/**/*.test.ts",
     "../../packages/*/src/**/*.test.tsx"
   ],
-  "files": []
+  "references": [
+    {
+      "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/application"
+    },
+    {
+      "path": "../../packages/infrastructure"
+    },
+    {
+      "path": "../../packages/shared"
+    }
+  ]
 }

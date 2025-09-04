@@ -1,6 +1,6 @@
-import { PlayerId } from '../value-objects/PlayerId';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
 import type { TeamPlayer } from '../strategies/TeamStrategy';
+import { JerseyNumber } from '../value-objects/JerseyNumber';
+import { PlayerId } from '../value-objects/PlayerId';
 
 /**
  * Factory for creating test players with consistent patterns.

@@ -1,6 +1,6 @@
-import { GameId } from '../value-objects/GameId';
 import { DomainError } from '../errors/DomainError';
 import type { DomainEvent } from '../events/DomainEvent';
+import { GameId } from '../value-objects/GameId';
 
 /**
  * Test helper for event and score testing operations.

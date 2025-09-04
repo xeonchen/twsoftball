@@ -1,10 +1,11 @@
-import { PlayerAddedToLineup } from './PlayerAddedToLineup';
-import { TeamLineupId } from '../value-objects/TeamLineupId';
-import { GameId } from '../value-objects/GameId';
-import { PlayerId } from '../value-objects/PlayerId';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
 import { FieldPosition } from '../constants/FieldPosition';
 import { DomainError } from '../errors/DomainError';
+import { GameId } from '../value-objects/GameId';
+import { JerseyNumber } from '../value-objects/JerseyNumber';
+import { PlayerId } from '../value-objects/PlayerId';
+import { TeamLineupId } from '../value-objects/TeamLineupId';
+
+import { PlayerAddedToLineup } from './PlayerAddedToLineup';
 
 describe('PlayerAddedToLineup', () => {
   let gameId: GameId;

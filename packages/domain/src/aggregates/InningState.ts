@@ -1,17 +1,17 @@
-import { InningStateId } from '../value-objects/InningStateId';
-import { GameId } from '../value-objects/GameId';
-import { PlayerId } from '../value-objects/PlayerId';
-import { BasesState, Base } from '../value-objects/BasesState';
 import { AtBatResultType } from '../constants/AtBatResultType';
-import { DomainEvent } from '../events/DomainEvent';
-import { InningStateCreated } from '../events/InningStateCreated';
+import { DomainError } from '../errors/DomainError';
 import { AtBatCompleted } from '../events/AtBatCompleted';
-import { RunnerAdvanced, AdvanceReason } from '../events/RunnerAdvanced';
-import { RunScored } from '../events/RunScored';
+import { CurrentBatterChanged } from '../events/CurrentBatterChanged';
+import { DomainEvent } from '../events/DomainEvent';
 import { HalfInningEnded } from '../events/HalfInningEnded';
 import { InningAdvanced } from '../events/InningAdvanced';
-import { CurrentBatterChanged } from '../events/CurrentBatterChanged';
-import { DomainError } from '../errors/DomainError';
+import { InningStateCreated } from '../events/InningStateCreated';
+import { RunnerAdvanced, AdvanceReason } from '../events/RunnerAdvanced';
+import { RunScored } from '../events/RunScored';
+import { BasesState, Base } from '../value-objects/BasesState';
+import { GameId } from '../value-objects/GameId';
+import { InningStateId } from '../value-objects/InningStateId';
+import { PlayerId } from '../value-objects/PlayerId';
 
 /**
  * Represents a runner movement instruction for base advancement.

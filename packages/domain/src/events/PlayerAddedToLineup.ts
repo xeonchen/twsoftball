@@ -1,10 +1,11 @@
-import { DomainEvent } from './DomainEvent';
-import { TeamLineupId } from '../value-objects/TeamLineupId';
-import { GameId } from '../value-objects/GameId';
-import { PlayerId } from '../value-objects/PlayerId';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
 import { FieldPosition } from '../constants/FieldPosition';
 import { DomainError } from '../errors/DomainError';
+import { GameId } from '../value-objects/GameId';
+import { JerseyNumber } from '../value-objects/JerseyNumber';
+import { PlayerId } from '../value-objects/PlayerId';
+import { TeamLineupId } from '../value-objects/TeamLineupId';
+
+import { DomainEvent } from './DomainEvent';
 
 /**
  * Domain event representing the addition of a player to the team lineup.

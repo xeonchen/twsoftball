@@ -1,6 +1,7 @@
-import { DomainEvent } from './DomainEvent';
-import { TeamLineupId } from '../value-objects/TeamLineupId';
 import { GameId } from '../value-objects/GameId';
+import { TeamLineupId } from '../value-objects/TeamLineupId';
+
+import { DomainEvent } from './DomainEvent';
 
 /**
  * Domain event representing the creation of a new team lineup.

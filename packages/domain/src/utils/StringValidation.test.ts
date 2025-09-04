@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { StringValidation } from './StringValidation';
+
 import { DomainError } from '../errors/DomainError';
+
+import { StringValidation } from './StringValidation';
 
 describe('StringValidation', () => {
   describe('validateNonEmptyString', () => {

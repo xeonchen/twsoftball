@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { TestGameFactory } from './TestGameFactory';
-import { GameId } from '../value-objects/GameId';
-import { Score } from '../value-objects/Score';
-import { GameScore } from '../value-objects/GameScore';
+
 import { SoftballRules } from '../rules/SoftballRules';
+import { GameId } from '../value-objects/GameId';
+import { GameScore } from '../value-objects/GameScore';
+import { Score } from '../value-objects/Score';
+
+import { TestGameFactory } from './TestGameFactory';
 
 describe('TestGameFactory', () => {
   beforeEach(() => {
@@ -242,38 +244,38 @@ describe('TestGameFactory', () => {
     it('should create tied game scenario', () => {
       const scenarios = TestGameFactory.createCommonScenarios();
 
-      expect(scenarios.tied!.isTied()).toBe(true);
-      expect(scenarios.tied!.getHomeRuns()).toBe(0);
-      expect(scenarios.tied!.getAwayRuns()).toBe(0);
+      expect(scenarios['tied']!.isTied()).toBe(true);
+      expect(scenarios['tied']!.getHomeRuns()).toBe(0);
+      expect(scenarios['tied']!.getAwayRuns()).toBe(0);
     });
 
     it('should create mercy rule scenario', () => {
       const scenarios = TestGameFactory.createCommonScenarios();
 
-      expect(scenarios.mercyRuleTriggered!.getRunDifferential()).toBeGreaterThanOrEqual(15);
-      expect(scenarios.mercyRuleTriggered!.isHomeWinning()).toBe(true);
+      expect(scenarios['mercyRuleTriggered']!.getRunDifferential()).toBeGreaterThanOrEqual(15);
+      expect(scenarios['mercyRuleTriggered']!.isHomeWinning()).toBe(true);
     });
 
     it('should create walkoff situation', () => {
       const scenarios = TestGameFactory.createCommonScenarios();
 
-      expect(scenarios.walkoffSituation!.isAwayWinning()).toBe(true);
-      expect(scenarios.walkoffSituation!.getRunDifferential()).toBe(-1); // Away leads by 1
+      expect(scenarios['walkoffSituation']!.isAwayWinning()).toBe(true);
+      expect(scenarios['walkoffSituation']!.getRunDifferential()).toBe(-1); // Away leads by 1
     });
 
     it('should create high-scoring scenario', () => {
       const scenarios = TestGameFactory.createCommonScenarios();
 
-      expect(scenarios.slugfest!.getHomeRuns()).toBe(18);
-      expect(scenarios.slugfest!.getAwayRuns()).toBe(16);
-      expect(scenarios.slugfest!.isHomeWinning()).toBe(true);
+      expect(scenarios['slugfest']!.getHomeRuns()).toBe(18);
+      expect(scenarios['slugfest']!.getAwayRuns()).toBe(16);
+      expect(scenarios['slugfest']!.isHomeWinning()).toBe(true);
     });
 
     it('should create shutout scenario', () => {
       const scenarios = TestGameFactory.createCommonScenarios();
 
-      expect(scenarios.shutout!.getAwayRuns()).toBe(0);
-      expect(scenarios.shutout!.getHomeRuns()).toBeGreaterThan(0);
+      expect(scenarios['shutout']!.getAwayRuns()).toBe(0);
+      expect(scenarios['shutout']!.getHomeRuns()).toBeGreaterThan(0);
     });
   });
 

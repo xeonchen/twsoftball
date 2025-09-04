@@ -4,6 +4,7 @@ import tseslintParser from '@typescript-eslint/parser';
 import prettier from 'eslint-config-prettier';
 import boundaries from 'eslint-plugin-boundaries';
 import importPlugin from 'eslint-plugin-import';
+import security from 'eslint-plugin-security';
 
 export default [
   // Base configs
@@ -17,7 +18,8 @@ export default [
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
-        project: ['./tsconfig.lint.json', './packages/*/tsconfig.lint.json'],
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
       },
       globals: {
         // Node.js globals
@@ -39,6 +41,7 @@ export default [
       '@typescript-eslint': tseslint,
       boundaries,
       import: importPlugin,
+      security,
     },
     rules: {
       // TypeScript ESLint recommended rules
@@ -46,7 +49,15 @@ export default [
       ...tseslint.configs['recommended-requiring-type-checking'].rules,
 
       // Custom TypeScript specific rules
-      '@typescript-eslint/no-unused-vars': 'error',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/explicit-function-return-type': 'warn',
       '@typescript-eslint/no-unsafe-assignment': 'error',
@@ -70,11 +81,45 @@ export default [
           ],
         },
       ],
+      'import/order': [
+        'error',
+        {
+          groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
+          'newlines-between': 'always',
+          alphabetize: {
+            order: 'asc',
+            caseInsensitive: true,
+          },
+        },
+      ],
+      // Disabled due to flat config incompatibility - see https://github.com/import-js/eslint-plugin-import/issues/3079
+      // 'import/no-unused-modules': [
+      //   'error',
+      //   {
+      //     unusedExports: true,
+      //     ignoreExports: [
+      //       '**/index.ts',
+      //       '**/*.test.ts',
+      //       '**/*.spec.ts',
+      //       '**/vitest.config.ts',
+      //       '**/vite.config.ts',
+      //     ],
+      //   },
+      // ],
+      'import/no-cycle': ['error', { maxDepth: 10 }],
+      'import/no-self-import': 'error',
 
       // General rules
       'no-console': 'warn',
       'prefer-const': 'error',
       'no-var': 'error',
+
+      // Security rules (adjusted for domain model patterns)
+      ...security.configs.recommended.rules,
+      'security/detect-object-injection': 'off', // Too many false positives with domain patterns
+      'security/detect-non-literal-fs-filename': 'error',
+      'security/detect-possible-timing-attacks': 'warn',
+      'security/detect-eval-with-expression': 'error',
 
       // Architecture boundaries
       'boundaries/element-types': [
@@ -139,6 +184,27 @@ export default [
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
+      // Security rules are often false positives in test files
+      'security/detect-object-injection': 'off',
+    },
+  },
+
+  // Node.js scripts (tools directory)
+  {
+    files: ['tools/**/*.js'],
+    languageOptions: {
+      globals: {
+        // Node.js globals
+        console: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        global: 'readonly',
+        module: 'readonly',
+        require: 'readonly',
+        exports: 'readonly',
+      },
     },
   },
 
@@ -147,6 +213,16 @@ export default [
 
   // Global ignores
   {
-    ignores: ['node_modules/**', 'dist/**', 'build/**', 'coverage/**', '.pnpm-store/**'],
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      'build/**',
+      'coverage/**',
+      '.pnpm-store/**',
+      '**/*.tsbuildinfo',
+      '**/.tsbuildinfo',
+      '**/dist/**',
+      '.next/**',
+    ],
   },
 ];

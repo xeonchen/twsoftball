@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { DetailedTeamStrategy } from './DetailedTeamStrategy';
-import { PlayerId } from '../value-objects/PlayerId';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
+
 import { FieldPosition } from '../constants/FieldPosition';
-import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
-import type { TeamPlayer } from './TeamStrategy';
+import { SoftballRules } from '../rules/SoftballRules';
 import { TestPlayerFactory, TeamStrategyTestHelper } from '../test-utils';
+import { JerseyNumber } from '../value-objects/JerseyNumber';
+import { PlayerId } from '../value-objects/PlayerId';
+
+import { DetailedTeamStrategy } from './DetailedTeamStrategy';
+import type { TeamPlayer } from './TeamStrategy';
 
 describe('DetailedTeamStrategy', () => {
   let strategy: DetailedTeamStrategy;

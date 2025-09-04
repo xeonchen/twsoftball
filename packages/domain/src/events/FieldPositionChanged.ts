@@ -1,9 +1,10 @@
-import { DomainEvent } from './DomainEvent';
-import { GameId } from '../value-objects/GameId';
-import { TeamLineupId } from '../value-objects/TeamLineupId';
-import { PlayerId } from '../value-objects/PlayerId';
 import { FieldPosition } from '../constants/FieldPosition';
 import { DomainError } from '../errors/DomainError';
+import { GameId } from '../value-objects/GameId';
+import { PlayerId } from '../value-objects/PlayerId';
+import { TeamLineupId } from '../value-objects/TeamLineupId';
+
+import { DomainEvent } from './DomainEvent';
 
 /**
  * Domain event representing a player's field position change during the game.

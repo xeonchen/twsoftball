@@ -1,6 +1,6 @@
+import { FieldPosition } from '../constants/FieldPosition';
 import { DomainError } from '../errors/DomainError';
 import type { TeamPlayer, BattingSlotState, TeamStrategy } from '../strategies/TeamStrategy';
-import { FieldPosition } from '../constants/FieldPosition';
 
 /**
  * Collection of common assertion helpers to eliminate duplication in test files.

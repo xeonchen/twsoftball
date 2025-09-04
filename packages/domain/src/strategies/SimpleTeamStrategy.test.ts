@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SimpleTeamStrategy } from './SimpleTeamStrategy';
+
 import { FieldPosition } from '../constants/FieldPosition';
-import { SoftballRules } from '../rules/SoftballRules';
 import { DomainError } from '../errors/DomainError';
-import type { TeamPlayer, BattingSlotState } from './TeamStrategy';
+import { SoftballRules } from '../rules/SoftballRules';
 import { TestPlayerFactory, TeamStrategyTestHelper } from '../test-utils';
+
+import { SimpleTeamStrategy } from './SimpleTeamStrategy';
+import type { TeamPlayer, BattingSlotState } from './TeamStrategy';
 
 describe('SimpleTeamStrategy', () => {
   let strategy: SimpleTeamStrategy;
