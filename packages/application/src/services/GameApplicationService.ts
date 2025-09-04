@@ -70,6 +70,7 @@ import { CompleteGameWorkflowCommand } from '../dtos/CompleteGameWorkflowCommand
 import { CompleteGameWorkflowResult } from '../dtos/CompleteGameWorkflowResult';
 import { GameStartResult } from '../dtos/GameStartResult';
 import { InningEndResult } from '../dtos/InningEndResult';
+import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand';
 import { RedoCommand } from '../dtos/RedoCommand';
 import { RedoResult } from '../dtos/RedoResult';
 import { StartNewGameCommand } from '../dtos/StartNewGameCommand';
@@ -448,7 +449,6 @@ export class GameApplicationService {
     const startTime = Date.now();
     const maxAttempts = command.maxAttempts || 3;
     const currentAttempts = 0;
-    let gameStartResult: GameStartResult | undefined;
 
     this.logger.info('Starting complete game workflow', {
       gameId: command.startGameCommand.gameId.value,
@@ -461,212 +461,44 @@ export class GameApplicationService {
 
     try {
       // Phase 1: Initialize game
-      gameStartResult = await this.startNewGame.execute(command.startGameCommand);
+      const gameStartResult = await this.startGamePhase(command);
       if (!gameStartResult.success) {
-        const duration = Date.now() - startTime;
-        return {
-          success: false,
-          gameId: command.startGameCommand.gameId,
+        return this.createFailedWorkflowResult(
+          command,
+          startTime,
+          currentAttempts,
           gameStartResult,
-          totalAtBats: 0,
-          successfulAtBats: 0,
-          totalRuns: 0,
-          totalSubstitutions: 0,
-          successfulSubstitutions: 0,
-          completedInnings: 0,
-          gameCompleted: false,
-          executionTimeMs: duration,
-          totalRetryAttempts: currentAttempts,
-          compensationApplied: false,
-          errors: [`Game initialization failed: ${gameStartResult.errors?.join(', ')}`],
-        };
-      }
-
-      // Send game start notification
-      if (command.enableNotifications !== false) {
-        await this.sendGameStartedNotifications(command.startGameCommand, gameStartResult);
+          [`Game initialization failed: ${gameStartResult.errors?.join(', ')}`]
+        );
       }
 
       // Phase 2: Execute at-bat sequences
-      let totalAtBats = 0;
-      let successfulAtBats = 0;
-      let totalRuns = 0;
-      let gameCompleted = false;
-      let failedAttempts = 0;
-
-      for (const atBatCommand of command.atBatSequences) {
-        totalAtBats++;
-
-        // Add delay if configured
-        if (command.operationDelay && command.operationDelay > 0) {
-          await new Promise(resolve => setTimeout(resolve, command.operationDelay));
-        }
-
-        try {
-          const atBatResult = await this.recordAtBat.execute(atBatCommand);
-
-          if (atBatResult.success) {
-            successfulAtBats++;
-            totalRuns += atBatResult.runsScored || 0;
-
-            // Check for natural game end
-            if (command.endGameNaturally && atBatResult.gameEnded) {
-              gameCompleted = true;
-              this.logger.info('Game ended naturally during workflow', {
-                gameId: command.startGameCommand.gameId.value,
-                totalAtBats,
-                totalRuns,
-                operation: 'completeGameWorkflow',
-              });
-              break;
-            }
-          } else {
-            failedAttempts++;
-            // Log the compensation/rollback attempt
-            this.logger.error('Game workflow failed, attempting compensation', undefined, {
-              gameId: command.startGameCommand.gameId.value,
-              operation: 'completeGameWorkflow',
-              errors: atBatResult.errors,
-            });
-
-            // If maxAttempts is not specified and continueOnFailure is false, return immediately
-            if (!command.maxAttempts && !command.continueOnFailure) {
-              // Apply rollback logic - reset counters to 0
-              const duration = Date.now() - startTime;
-              return {
-                success: false,
-                gameId: command.startGameCommand.gameId,
-                gameStartResult,
-                totalAtBats: 0, // Reset on rollback
-                successfulAtBats: 0,
-                totalRuns: 0,
-                totalSubstitutions: 0,
-                successfulSubstitutions: 0,
-                completedInnings: 0,
-                gameCompleted: false,
-                executionTimeMs: duration,
-                totalRetryAttempts: failedAttempts,
-                compensationApplied: false,
-                errors: [
-                  `Workflow failed during at-bat sequence: ${atBatResult.errors?.join(', ')}`,
-                ],
-              };
-            }
-          }
-
-          // Check max attempts limit after processing - stop if we've reached the limit
-          if (totalAtBats >= maxAttempts) {
-            this.logger.warn('Maximum workflow attempts exceeded', {
-              gameId: command.startGameCommand.gameId.value,
-              totalAtBats,
-              maxAttempts,
-              operation: 'completeGameWorkflow',
-            });
-
-            const duration = Date.now() - startTime;
-            return {
-              success: false,
-              gameId: command.startGameCommand.gameId,
-              gameStartResult,
-              totalAtBats: 0, // Reset on max attempts exceeded
-              successfulAtBats: 0,
-              totalRuns: 0,
-              totalSubstitutions: 0,
-              successfulSubstitutions: 0,
-              completedInnings: 0,
-              gameCompleted: false,
-              executionTimeMs: duration,
-              totalRetryAttempts: totalAtBats,
-              compensationApplied: false,
-              errors: [`Maximum workflow attempts exceeded (${maxAttempts})`],
-            };
-          }
-        } catch (error) {
-          failedAttempts++;
-          this.logger.error(
-            'Game workflow failed, attempting compensation',
-            error instanceof Error ? error : new Error(String(error)),
-            {
-              gameId: command.startGameCommand.gameId.value,
-              operation: 'completeGameWorkflow',
-            }
-          );
-
-          if (!command.continueOnFailure) {
-            // Apply compensation logic here if needed
-            const duration = Date.now() - startTime;
-            return {
-              success: false,
-              gameId: command.startGameCommand.gameId,
-              gameStartResult,
-              totalAtBats: 0, // Reset on compensation
-              successfulAtBats: 0,
-              totalRuns: 0,
-              totalSubstitutions: 0,
-              successfulSubstitutions: 0,
-              completedInnings: 0,
-              gameCompleted: false,
-              executionTimeMs: duration,
-              totalRetryAttempts: failedAttempts,
-              compensationApplied: true,
-              errors: [
-                `Workflow exception: ${error instanceof Error ? error.message : 'Unknown error'}`,
-              ],
-            };
-          }
-        }
+      const atBatResult = await this.processAtBatPhase(
+        command,
+        maxAttempts,
+        startTime,
+        currentAttempts,
+        gameStartResult
+      );
+      if (!atBatResult.success) {
+        return atBatResult.workflowResult!;
       }
 
-      // Phase 3: Process substitutions (simplified for now)
-      const totalSubstitutions = command.substitutions.length;
-      const successfulSubstitutions = totalSubstitutions; // Assume all succeed for now
+      // Phase 3: Process substitutions
+      const substitutionResult = this.processSubstitutionPhase(command);
 
       // Phase 4: Send game end notification if completed
-      if (gameCompleted && command.enableNotifications !== false) {
-        try {
-          await this.notificationService.notifyGameEnded(
-            command.startGameCommand.gameId.value,
-            totalRuns > 0
-              ? { homeScore: totalRuns, awayScore: 0, winner: 'home' }
-              : { homeScore: totalRuns, awayScore: 0 }
-          );
-        } catch (error) {
-          this.logger.warn('Failed to send game end notification', {
-            gameId: command.startGameCommand.gameId.value,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          });
-        }
-      }
+      await this.sendGameEndNotifications(command, atBatResult, gameStartResult);
 
-      const duration = Date.now() - startTime;
-
-      this.logger.info('Game workflow completed successfully', {
-        gameId: command.startGameCommand.gameId.value,
-        totalAtBats,
-        successfulAtBats,
-        totalRuns,
-        totalSubstitutions,
-        successfulSubstitutions,
-        gameCompleted,
-        duration,
-        operation: 'completeGameWorkflow',
-      });
-
-      return {
-        success: true,
-        gameId: command.startGameCommand.gameId,
+      // Phase 5: Assemble final result
+      return this.assembleWorkflowResult(
+        command,
+        startTime,
+        currentAttempts,
         gameStartResult,
-        totalAtBats,
-        successfulAtBats,
-        totalRuns,
-        totalSubstitutions,
-        successfulSubstitutions,
-        completedInnings: Math.floor(totalAtBats / 6), // Rough estimate
-        gameCompleted,
-        executionTimeMs: duration,
-        totalRetryAttempts: currentAttempts,
-        compensationApplied: false,
-      };
+        atBatResult,
+        substitutionResult
+      );
     } catch (error) {
       const duration = Date.now() - startTime;
 
@@ -679,7 +511,7 @@ export class GameApplicationService {
       return {
         success: false,
         gameId: command.startGameCommand.gameId,
-        gameStartResult: gameStartResult || {
+        gameStartResult: {
           success: false,
           gameId: command.startGameCommand.gameId,
           errors: ['Game start failed'],
@@ -1384,6 +1216,412 @@ export class GameApplicationService {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
+  }
+
+  /**
+   * Initializes the game for the workflow.
+   *
+   * @remarks
+   * This method handles the game initialization phase of the complete workflow,
+   * including game creation and initial notifications. It encapsulates all
+   * game start logic and error handling.
+   *
+   * @param command - Complete workflow command with game start parameters
+   * @returns Promise resolving to game start result
+   */
+  private async startGamePhase(command: CompleteGameWorkflowCommand): Promise<GameStartResult> {
+    const gameStartResult = await this.startNewGame.execute(command.startGameCommand);
+
+    if (gameStartResult.success && command.enableNotifications !== false) {
+      await this.sendGameStartedNotifications(command.startGameCommand, gameStartResult);
+    }
+
+    return gameStartResult;
+  }
+
+  /**
+   * Processes all at-bat sequences in the workflow.
+   *
+   * @remarks
+   * This method handles the sequential execution of at-bat commands with
+   * comprehensive error handling, retry logic, and game completion detection.
+   * It implements the core game progression logic.
+   *
+   * @param command - Complete workflow command with at-bat sequences
+   * @param maxAttempts - Maximum attempts allowed for the workflow
+   * @param startTime - Workflow start time for duration calculations
+   * @param currentAttempts - Current attempt counter
+   * @param gameStartResult - Result from the game initialization phase
+   * @returns Promise resolving to at-bat processing result with workflow data
+   */
+  private async processAtBatPhase(
+    command: CompleteGameWorkflowCommand,
+    maxAttempts: number,
+    startTime: number,
+    currentAttempts: number,
+    gameStartResult: GameStartResult
+  ): Promise<{
+    success: boolean;
+    totalAtBats: number;
+    successfulAtBats: number;
+    totalRuns: number;
+    gameCompleted: boolean;
+    workflowResult?: CompleteGameWorkflowResult;
+  }> {
+    let totalAtBats = 0;
+    let successfulAtBats = 0;
+    let totalRuns = 0;
+    let gameCompleted = false;
+    let failedAttempts = 0;
+
+    for (const atBatCommand of command.atBatSequences) {
+      totalAtBats++;
+
+      // Add delay if configured
+      if (command.operationDelay && command.operationDelay > 0) {
+        await new Promise(resolve => setTimeout(resolve, command.operationDelay));
+      }
+
+      const atBatResult = await this.executeAtBatWithErrorHandling(
+        atBatCommand,
+        command,
+        startTime,
+        currentAttempts,
+        gameStartResult,
+        totalAtBats,
+        failedAttempts
+      );
+
+      if (atBatResult.shouldReturn) {
+        return {
+          success: false,
+          totalAtBats: 0,
+          successfulAtBats: 0,
+          totalRuns: 0,
+          gameCompleted: false,
+          workflowResult: atBatResult.workflowResult!,
+        };
+      }
+
+      if (atBatResult.success) {
+        successfulAtBats++;
+        totalRuns += atBatResult.runsScored || 0;
+
+        // Check for natural game end
+        if (command.endGameNaturally && atBatResult.gameEnded) {
+          gameCompleted = true;
+          this.logger.info('Game ended naturally during workflow', {
+            gameId: command.startGameCommand.gameId.value,
+            totalAtBats,
+            totalRuns,
+            operation: 'completeGameWorkflow',
+          });
+          break;
+        }
+      } else {
+        failedAttempts++;
+      }
+
+      // Check max attempts limit after processing
+      if (totalAtBats >= maxAttempts) {
+        this.logger.warn('Maximum workflow attempts exceeded', {
+          gameId: command.startGameCommand.gameId.value,
+          totalAtBats,
+          maxAttempts,
+          operation: 'completeGameWorkflow',
+        });
+
+        return {
+          success: false,
+          totalAtBats: 0,
+          successfulAtBats: 0,
+          totalRuns: 0,
+          gameCompleted: false,
+          workflowResult: this.createFailedWorkflowResult(
+            command,
+            startTime,
+            totalAtBats,
+            gameStartResult,
+            [`Maximum workflow attempts exceeded (${maxAttempts})`]
+          ),
+        };
+      }
+    }
+
+    return {
+      success: true,
+      totalAtBats,
+      successfulAtBats,
+      totalRuns,
+      gameCompleted,
+    };
+  }
+
+  /**
+   * Executes a single at-bat command with comprehensive error handling.
+   *
+   * @remarks
+   * This method encapsulates the error handling logic for individual at-bat
+   * executions, including retry logic, compensation, and failure recovery.
+   *
+   * @param atBatCommand - At-bat command to execute
+   * @param command - Overall workflow command for context
+   * @param startTime - Workflow start time
+   * @param currentAttempts - Current attempt counter
+   * @param gameStartResult - Game start result
+   * @param totalAtBats - Current total at-bat count
+   * @param failedAttempts - Current failed attempt count
+   * @returns Promise resolving to at-bat execution result
+   */
+  private async executeAtBatWithErrorHandling(
+    atBatCommand: RecordAtBatCommand,
+    command: CompleteGameWorkflowCommand,
+    startTime: number,
+    _currentAttempts: number,
+    gameStartResult: GameStartResult,
+    _totalAtBats: number,
+    _failedAttempts: number
+  ): Promise<{
+    success: boolean;
+    runsScored?: number;
+    gameEnded?: boolean;
+    shouldReturn: boolean;
+    workflowResult?: CompleteGameWorkflowResult;
+  }> {
+    try {
+      const atBatResult = await this.recordAtBat.execute(atBatCommand);
+
+      if (atBatResult.success) {
+        return {
+          success: true,
+          runsScored: atBatResult.runsScored,
+          gameEnded: atBatResult.gameEnded,
+          shouldReturn: false,
+        };
+      }
+
+      // Handle at-bat failure
+      this.logger.error('Game workflow failed, attempting compensation', undefined, {
+        gameId: command.startGameCommand.gameId.value,
+        operation: 'completeGameWorkflow',
+        errors: atBatResult.errors,
+      });
+
+      if (!command.maxAttempts && !command.continueOnFailure) {
+        return {
+          success: false,
+          shouldReturn: true,
+          workflowResult: this.createFailedWorkflowResult(
+            command,
+            startTime,
+            1, // Count this failed at-bat attempt
+            gameStartResult,
+            [`Workflow failed during at-bat sequence: ${atBatResult.errors?.join(', ')}`]
+          ),
+        };
+      }
+
+      return {
+        success: false,
+        shouldReturn: false,
+      };
+    } catch (error) {
+      this.logger.error(
+        'Game workflow failed, attempting compensation',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          gameId: command.startGameCommand.gameId.value,
+          operation: 'completeGameWorkflow',
+        }
+      );
+
+      if (!command.continueOnFailure) {
+        return {
+          success: false,
+          shouldReturn: true,
+          workflowResult: this.createFailedWorkflowResult(
+            command,
+            startTime,
+            1, // Count this failed at-bat exception
+            gameStartResult,
+            [`Workflow exception: ${error instanceof Error ? error.message : 'Unknown error'}`],
+            true
+          ),
+        };
+      }
+
+      return {
+        success: false,
+        shouldReturn: false,
+      };
+    }
+  }
+
+  /**
+   * Processes all substitutions in the workflow.
+   *
+   * @remarks
+   * This method handles player substitution processing during the workflow.
+   * Currently simplified but provides the structure for comprehensive
+   * substitution management.
+   *
+   * @param command - Complete workflow command with substitution data
+   * @returns Promise resolving to substitution processing result
+   */
+  private processSubstitutionPhase(command: CompleteGameWorkflowCommand): {
+    totalSubstitutions: number;
+    successfulSubstitutions: number;
+  } {
+    // Phase 3: Process substitutions (simplified for now)
+    const totalSubstitutions = command.substitutions.length;
+    const successfulSubstitutions = totalSubstitutions; // Assume all succeed for now
+
+    return {
+      totalSubstitutions,
+      successfulSubstitutions,
+    };
+  }
+
+  /**
+   * Sends game end notifications if the game is completed.
+   *
+   * @remarks
+   * This method handles the notification logic for completed games,
+   * including error handling for notification failures.
+   *
+   * @param command - Complete workflow command with notification settings
+   * @param atBatResult - At-bat phase result with game completion status
+   * @param gameStartResult - Game start result for context
+   */
+  private async sendGameEndNotifications(
+    command: CompleteGameWorkflowCommand,
+    atBatResult: { gameCompleted: boolean; totalRuns: number },
+    _gameStartResult: GameStartResult
+  ): Promise<void> {
+    if (atBatResult.gameCompleted && command.enableNotifications !== false) {
+      try {
+        await this.notificationService.notifyGameEnded(
+          command.startGameCommand.gameId.value,
+          atBatResult.totalRuns > 0
+            ? { homeScore: atBatResult.totalRuns, awayScore: 0, winner: 'home' }
+            : { homeScore: atBatResult.totalRuns, awayScore: 0 }
+        );
+      } catch (error) {
+        this.logger.warn('Failed to send game end notification', {
+          gameId: command.startGameCommand.gameId.value,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+  }
+
+  /**
+   * Assembles the final workflow result from all phase results.
+   *
+   * @remarks
+   * This method combines results from all workflow phases into the final
+   * comprehensive result object, including performance metrics and audit data.
+   *
+   * @param command - Complete workflow command for context
+   * @param startTime - Workflow start time for duration calculation
+   * @param currentAttempts - Final attempt count
+   * @param gameStartResult - Game initialization result
+   * @param atBatResult - At-bat processing result
+   * @param substitutionResult - Substitution processing result
+   * @returns Complete workflow result
+   */
+  private assembleWorkflowResult(
+    command: CompleteGameWorkflowCommand,
+    startTime: number,
+    currentAttempts: number,
+    gameStartResult: GameStartResult,
+    atBatResult: {
+      totalAtBats: number;
+      successfulAtBats: number;
+      totalRuns: number;
+      gameCompleted: boolean;
+    },
+    substitutionResult: {
+      totalSubstitutions: number;
+      successfulSubstitutions: number;
+    }
+  ): CompleteGameWorkflowResult {
+    const duration = Date.now() - startTime;
+
+    this.logger.info('Game workflow completed successfully', {
+      gameId: command.startGameCommand.gameId.value,
+      totalAtBats: atBatResult.totalAtBats,
+      successfulAtBats: atBatResult.successfulAtBats,
+      totalRuns: atBatResult.totalRuns,
+      totalSubstitutions: substitutionResult.totalSubstitutions,
+      successfulSubstitutions: substitutionResult.successfulSubstitutions,
+      gameCompleted: atBatResult.gameCompleted,
+      duration,
+      operation: 'completeGameWorkflow',
+    });
+
+    return {
+      success: true,
+      gameId: command.startGameCommand.gameId,
+      gameStartResult,
+      totalAtBats: atBatResult.totalAtBats,
+      successfulAtBats: atBatResult.successfulAtBats,
+      totalRuns: atBatResult.totalRuns,
+      totalSubstitutions: substitutionResult.totalSubstitutions,
+      successfulSubstitutions: substitutionResult.successfulSubstitutions,
+      completedInnings: Math.floor(atBatResult.totalAtBats / 6), // Rough estimate
+      gameCompleted: atBatResult.gameCompleted,
+      executionTimeMs: duration,
+      totalRetryAttempts: currentAttempts,
+      compensationApplied: false,
+    };
+  }
+
+  /**
+   * Creates a standardized failed workflow result.
+   *
+   * @remarks
+   * This method provides consistent error result formatting for workflow
+   * failures, ensuring all failure paths return properly structured results.
+   *
+   * @param command - Complete workflow command for context
+   * @param startTime - Workflow start time for duration calculation
+   * @param retryAttempts - Number of retry attempts made
+   * @param gameStartResult - Game start result if available
+   * @param errors - List of error messages
+   * @param compensationApplied - Whether compensation was applied
+   * @returns Standardized failed workflow result
+   */
+  private createFailedWorkflowResult(
+    command: CompleteGameWorkflowCommand,
+    startTime: number,
+    retryAttempts: number,
+    gameStartResult: GameStartResult | undefined,
+    errors: string[],
+    compensationApplied = false
+  ): CompleteGameWorkflowResult {
+    const duration = Date.now() - startTime;
+
+    return {
+      success: false,
+      gameId: command.startGameCommand.gameId,
+      gameStartResult: gameStartResult || {
+        success: false,
+        gameId: command.startGameCommand.gameId,
+        errors: ['Game start failed'],
+      },
+      totalAtBats: 0,
+      successfulAtBats: 0,
+      totalRuns: 0,
+      totalSubstitutions: 0,
+      successfulSubstitutions: 0,
+      completedInnings: 0,
+      gameCompleted: false,
+      executionTimeMs: duration,
+      totalRetryAttempts: retryAttempts,
+      compensationApplied,
+      errors,
+    };
   }
 
   /**
