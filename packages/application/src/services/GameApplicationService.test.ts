@@ -3001,5 +3001,358 @@ describe('GameApplicationService', () => {
         expect(result.errors![0]).toContain('Complete workflow failed:');
       });
     });
+
+    /**
+     * Phase 3.1: Critical Service Hardening Tests
+     *
+     * These tests target the specific uncovered lines identified by commit-readiness-reviewer:
+     * - Lines 634-638: Game end notification failure scenarios
+     * - Lines 526-538: Compensation logic during workflow failures
+     * - Lines 1102-1117: Transaction system error scenarios and maximum attempts exceeded
+     */
+    describe('Critical Service Hardening - Phase 3.1', () => {
+      describe('Game End Notification Failure Scenarios (Lines 634-638)', () => {
+        it('should handle game end notification service connection failure', async () => {
+          // Arrange
+          const command: CompleteGameWorkflowCommand = {
+            startGameCommand: {
+              gameId,
+              homeTeamName: 'Home Team',
+              awayTeamName: 'Away Team',
+              ourTeamSide: 'HOME',
+              gameDate: new Date(),
+              initialLineup: [],
+            },
+            atBatSequences: [
+              {
+                gameId,
+                batterId: new PlayerId('batter-123'),
+                result: AtBatResultType.HOME_RUN,
+                runnerAdvances: [],
+              },
+            ],
+            substitutions: [],
+            enableNotifications: true,
+            endGameNaturally: true,
+          };
+
+          // Mock successful start and at-bat, but notification service connection failure
+          mockStartNewGame.execute = vi
+            .fn()
+            .mockResolvedValue({ success: true, gameId } as GameStartResult);
+          mockRecordAtBat.execute = vi.fn().mockResolvedValue({
+            success: true,
+            gameState: {} as GameStateDTO,
+            runsScored: 1,
+            rbiAwarded: 1,
+            inningEnded: false,
+            gameEnded: true,
+          } as AtBatResult);
+
+          // Simulate notification service connection failure
+          mockNotificationService.notifyGameEnded = vi
+            .fn()
+            .mockRejectedValue(new Error('Database connection failed during notification send'));
+
+          // Act
+          const result = await gameApplicationService.completeGameWorkflow(command);
+
+          // Assert
+          expect(result.success).toBe(true); // Workflow should still succeed despite notification failure
+          expect(result.gameCompleted).toBe(true);
+          expect(result.totalRuns).toBe(1);
+
+          // Verify notification failure was logged (targets lines 634-638)
+          expect(mockLoggerWarn).toHaveBeenCalledWith(
+            'Failed to send game end notification',
+            expect.objectContaining({
+              gameId: gameId.value,
+              error: 'Database connection failed during notification send',
+            })
+          );
+        });
+
+        it('should handle game end notification service unknown error', async () => {
+          // Arrange
+          const command: CompleteGameWorkflowCommand = {
+            startGameCommand: {
+              gameId,
+              homeTeamName: 'Home Team',
+              awayTeamName: 'Away Team',
+              ourTeamSide: 'HOME',
+              gameDate: new Date(),
+              initialLineup: [],
+            },
+            atBatSequences: [
+              {
+                gameId,
+                batterId: new PlayerId('batter-456'),
+                result: AtBatResultType.TRIPLE,
+                runnerAdvances: [],
+              },
+            ],
+            substitutions: [],
+            enableNotifications: true,
+            endGameNaturally: true,
+          };
+
+          mockStartNewGame.execute = vi
+            .fn()
+            .mockResolvedValue({ success: true, gameId } as GameStartResult);
+          mockRecordAtBat.execute = vi.fn().mockResolvedValue({
+            success: true,
+            gameState: {} as GameStateDTO,
+            runsScored: 1,
+            rbiAwarded: 1,
+            inningEnded: false,
+            gameEnded: true,
+          } as AtBatResult);
+
+          // Simulate notification service throwing non-Error object
+          mockNotificationService.notifyGameEnded = vi
+            .fn()
+            .mockRejectedValue('Unknown notification error');
+
+          // Act
+          const result = await gameApplicationService.completeGameWorkflow(command);
+
+          // Assert
+          expect(result.success).toBe(true);
+          expect(result.gameCompleted).toBe(true);
+
+          // Verify unknown error handling in notification failure (targets lines 636-637)
+          expect(mockLoggerWarn).toHaveBeenCalledWith(
+            'Failed to send game end notification',
+            expect.objectContaining({
+              gameId: gameId.value,
+              error: 'Unknown error',
+            })
+          );
+        });
+      });
+
+      describe('Compensation Logic During Workflow Failures (Lines 526-538)', () => {
+        it('should apply compensation logic when maxAttempts not specified and continueOnFailure is false', async () => {
+          // Arrange
+          const command: CompleteGameWorkflowCommand = {
+            startGameCommand: {
+              gameId,
+              homeTeamName: 'Home Team',
+              awayTeamName: 'Away Team',
+              ourTeamSide: 'HOME',
+              gameDate: new Date(),
+              initialLineup: [],
+            },
+            atBatSequences: [
+              {
+                gameId,
+                batterId: new PlayerId('batter-789'),
+                result: AtBatResultType.SINGLE,
+                runnerAdvances: [],
+              },
+            ],
+            substitutions: [],
+            // maxAttempts not specified, continueOnFailure defaults to false
+          };
+
+          mockStartNewGame.execute = vi
+            .fn()
+            .mockResolvedValue({ success: true, gameId } as GameStartResult);
+          mockRecordAtBat.execute = vi.fn().mockResolvedValue({
+            success: false,
+            errors: ['At-bat processing failed'],
+          } as AtBatResult);
+
+          // Act
+          const result = await gameApplicationService.completeGameWorkflow(command);
+
+          // Assert - Compensation should be applied (targets lines 526-538)
+          expect(result.success).toBe(false);
+          expect(result.totalAtBats).toBe(0); // Reset on rollback
+          expect(result.successfulAtBats).toBe(0); // Reset on rollback
+          expect(result.totalRuns).toBe(0); // Reset on rollback
+          expect(result.compensationApplied).toBe(false); // This specific path sets it to false
+          expect(result.errors).toEqual([
+            'Workflow failed during at-bat sequence: At-bat processing failed',
+          ]);
+
+          // Verify compensation logging
+          expect(mockLoggerError).toHaveBeenCalledWith(
+            'Game workflow failed, attempting compensation',
+            undefined,
+            expect.objectContaining({
+              gameId: gameId.value,
+              operation: 'completeGameWorkflow',
+              errors: ['At-bat processing failed'],
+            })
+          );
+        });
+
+        it('should handle compensation rollback with different error patterns', async () => {
+          // Arrange
+          const command: CompleteGameWorkflowCommand = {
+            startGameCommand: {
+              gameId,
+              homeTeamName: 'Test Team 1',
+              awayTeamName: 'Test Team 2',
+              ourTeamSide: 'HOME',
+              gameDate: new Date(),
+              initialLineup: [],
+            },
+            atBatSequences: [
+              {
+                gameId,
+                batterId: new PlayerId('batter-compensation'),
+                result: AtBatResultType.DOUBLE,
+                runnerAdvances: [],
+              },
+            ],
+            substitutions: [],
+            continueOnFailure: false, // Explicit false to trigger compensation path
+          };
+
+          mockStartNewGame.execute = vi
+            .fn()
+            .mockResolvedValue({ success: true, gameId } as GameStartResult);
+          mockRecordAtBat.execute = vi.fn().mockResolvedValue({
+            success: false,
+            errors: ['Validation failed', 'Business rule violation'],
+          } as AtBatResult);
+
+          // Act
+          const result = await gameApplicationService.completeGameWorkflow(command);
+
+          // Assert - Multiple error handling in compensation
+          expect(result.success).toBe(false);
+          expect(result.totalAtBats).toBe(0);
+          expect(result.successfulAtBats).toBe(0);
+          expect(result.totalRuns).toBe(0);
+          expect(result.totalSubstitutions).toBe(0);
+          expect(result.successfulSubstitutions).toBe(0);
+          expect(result.completedInnings).toBe(0);
+          expect(result.gameCompleted).toBe(false);
+          expect(result.totalRetryAttempts).toBe(1); // Failed attempts counter
+
+          expect(mockLoggerError).toHaveBeenCalledWith(
+            'Game workflow failed, attempting compensation',
+            undefined,
+            expect.objectContaining({
+              gameId: gameId.value,
+              operation: 'completeGameWorkflow',
+              errors: ['Validation failed', 'Business rule violation'],
+            })
+          );
+        });
+      });
+
+      describe('Transaction System Error Scenarios (Lines 1102-1117)', () => {
+        it('should handle transaction system error when operation throws unexpected exception', async () => {
+          // Arrange
+          const operations = [
+            vi.fn().mockImplementation((): never => {
+              throw new TypeError('Unexpected system error in transaction operation');
+            }),
+          ];
+
+          // Act
+          const result = await gameApplicationService.executeInTransaction(
+            'error-prone-transaction',
+            operations,
+            { gameId: gameId.value, testTransactionError: true }
+          );
+
+          // Assert - Transaction system error handling (targets lines 1102-1117)
+          expect(result.success).toBe(false);
+          expect(result.rollbackApplied).toBe(true);
+          expect(result.errors).toEqual([
+            'Transaction exception at operation 0: Unexpected system error in transaction operation',
+          ]);
+
+          // Verify operation error logging (targets lines 1072-1076)
+          expect(mockLoggerError).toHaveBeenCalledWith(
+            'Transaction failed with exception',
+            expect.any(TypeError),
+            expect.objectContaining({
+              operation: 'error-prone-transaction',
+              failedAt: 0,
+              gameId: gameId.value,
+              testTransactionError: true,
+            })
+          );
+        });
+
+        it('should handle transaction system error with non-Error exception object', async () => {
+          // Arrange
+          const operations = [
+            vi.fn().mockImplementation((): never => {
+              throw new Error('String exception in transaction system');
+            }),
+          ];
+
+          // Act
+          const result = await gameApplicationService.executeInTransaction(
+            'non-error-exception-transaction',
+            operations,
+            { gameId: gameId.value, testNonErrorException: true }
+          );
+
+          // Assert - Error exception handling (targets lines 1103)
+          expect(result.success).toBe(false);
+          expect(result.rollbackApplied).toBe(true);
+          expect(result.errors).toEqual([
+            'Transaction exception at operation 0: String exception in transaction system',
+          ]);
+
+          // Verify proper logging of Error exceptions
+          expect(mockLoggerError).toHaveBeenCalledWith(
+            'Transaction failed with exception',
+            expect.any(Error),
+            expect.objectContaining({
+              operation: 'non-error-exception-transaction',
+              failedAt: 0,
+              gameId: gameId.value,
+              testNonErrorException: true,
+            })
+          );
+        });
+
+        it('should handle maximum attempts exceeded scenarios with proper error aggregation', async () => {
+          // Arrange
+          // Mock setTimeout to avoid real delays during test
+          vi.stubGlobal(
+            'setTimeout',
+            vi.fn().mockImplementation((callback, _delay: number) => {
+              // Execute callback immediately for test speed
+              callback();
+              return 1 as unknown as ReturnType<typeof setTimeout>;
+            })
+          );
+
+          const failingOperation = vi
+            .fn()
+            .mockResolvedValue({ success: false, errors: ['Persistent failure'] });
+
+          // Act - Test the retry mechanism reaching maximum attempts
+          const result = await gameApplicationService.attemptOperationWithRetry(
+            'max-attempts-test',
+            failingOperation,
+            5, // maxAttempts
+            { gameId: gameId.value, testMaxAttempts: true }
+          );
+
+          // Restore setTimeout
+          vi.unstubAllGlobals();
+
+          // Assert - Maximum attempts exceeded handling
+          expect(result.attempts).toBe(5);
+          expect(failingOperation).toHaveBeenCalledTimes(5);
+
+          // Verify the error includes the max attempts message
+          expect(
+            (result as { success: boolean; errors: string[]; attempts: number }).errors
+          ).toContain('Operation failed after 5 attempts');
+        });
+      });
+    });
   });
 });

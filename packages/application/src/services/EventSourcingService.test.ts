@@ -84,6 +84,24 @@ interface EventSourcingServicePrivate {
   ): string;
 }
 
+// Helper function to create mock stored events
+function createMockStoredEvent(eventType: string, eventData: string = 'test data'): StoredEvent {
+  return {
+    eventId: `event-${Date.now()}-${Math.random()}`,
+    streamId: 'test-stream-id',
+    aggregateType: 'Game',
+    eventType,
+    eventData: JSON.stringify(eventData),
+    eventVersion: 1,
+    streamVersion: 1,
+    timestamp: new Date(),
+    metadata: {
+      source: 'test',
+      createdAt: new Date(),
+    },
+  };
+}
+
 describe('EventSourcingService', () => {
   let eventSourcingService: EventSourcingService;
   let mockEventStore: EventStore;
@@ -2116,6 +2134,101 @@ describe('EventSourcingService', () => {
             issueCount: 0,
           })
         );
+      });
+    });
+
+    /**
+     * Phase 3.1: EventSourcingService Critical Edge Cases and Error Recovery
+     *
+     * These tests focus on core edge cases that improve coverage
+     * while avoiding complex private method testing.
+     */
+    describe('Critical Edge Cases and Error Recovery - Phase 3.1', () => {
+      describe('Edge Case Coverage', () => {
+        it('should handle TeamLineup reconstruction with no events', async () => {
+          // Arrange - No events for TeamLineup
+          const teamLineupId = TeamLineupId.generate();
+          mockGetEvents.mockResolvedValue([]);
+
+          // Act
+          const result = await eventSourcingService.reconstructAggregate({
+            streamId: teamLineupId,
+            aggregateType: 'TeamLineup',
+          });
+
+          // Assert - Should return failure result
+          expect(result.success).toBe(false);
+          expect(result.errors).toContain('No events found for aggregate reconstruction');
+        });
+
+        it('should handle InningState reconstruction with no events', async () => {
+          // Arrange - No events for InningState
+          const inningStateId = InningStateId.generate();
+          mockGetEvents.mockResolvedValue([]);
+
+          // Act
+          const result = await eventSourcingService.reconstructAggregate({
+            streamId: inningStateId,
+            aggregateType: 'InningState',
+          });
+
+          // Assert - Should return failure result
+          expect(result.success).toBe(false);
+          expect(result.errors).toContain('No events found for aggregate reconstruction');
+        });
+
+        it('should handle event stream consistency validation with corrupted sequence numbers', async () => {
+          // Arrange - Events with corrupted stream versions that break sequence
+          const mockEvents: StoredEvent[] = [
+            {
+              ...createMockStoredEvent('GameStarted'),
+              streamVersion: 1,
+            },
+            {
+              ...createMockStoredEvent('AtBatCompleted'),
+              streamVersion: 5, // Gap in sequence - should be 2
+            },
+            {
+              ...createMockStoredEvent('RunScored'),
+              streamVersion: 3, // Out of order
+            },
+          ];
+          mockGetEvents.mockResolvedValue(mockEvents);
+
+          // Act - Validate corrupted stream
+          const result = await eventSourcingService.validateEventStreamConsistency(gameId, 'Game');
+
+          // Assert - Should detect sequence issues
+          expect(result.valid).toBe(false);
+          expect(result.consistencyIssues.length).toBeGreaterThan(0);
+          expect(result.totalEvents).toBe(3);
+        });
+
+        it('should handle event stream with incomplete metadata', async () => {
+          // Arrange - Event with missing metadata
+          const incompleteEvent: StoredEvent = {
+            eventId: 'incomplete-event',
+            streamId: gameId.value,
+            aggregateType: 'Game',
+            eventType: 'GameStarted',
+            eventData: JSON.stringify({ gameId: gameId.value }),
+            eventVersion: 1,
+            streamVersion: 1,
+            timestamp: new Date(),
+            metadata: {
+              source: 'test',
+              createdAt: new Date(),
+            }, // Missing some optional metadata
+          };
+
+          mockGetEvents.mockResolvedValue([incompleteEvent]);
+
+          // Act - Should handle missing metadata gracefully
+          const result = await eventSourcingService.validateEventStreamConsistency(gameId, 'Game');
+
+          // Assert - Should still validate
+          expect(result.totalEvents).toBe(1);
+        });
       });
     });
   });

@@ -1108,10 +1108,13 @@ export class GameApplicationService {
         ...context,
       });
 
+      // Perform rollback for system errors to maintain consistency
+      this.performTransactionRollback(transactionName, results, context);
+
       return {
         success: false,
         results,
-        rollbackApplied: false,
+        rollbackApplied: true,
         errors,
       };
     }
