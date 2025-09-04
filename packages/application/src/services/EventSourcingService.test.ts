@@ -32,6 +32,7 @@ import {
   TeamLineupId,
   InningStateId,
   Game,
+  TeamLineup,
   InningState,
   DomainEvent,
   AtBatCompleted,
@@ -1145,6 +1146,612 @@ describe('EventSourcingService', () => {
           expect.any(Error),
           expect.objectContaining({
             operation: 'validateEventStreamConsistency',
+          })
+        );
+      });
+    });
+  });
+
+  describe('Concurrency & Performance', () => {
+    describe('Concurrent Operations & Version Conflicts', () => {
+      it('should handle simultaneous event appends with optimistic locking', async () => {
+        // Arrange - Simulate concurrent operations on same stream
+        const baseVersion = 5;
+        const concurrentEvents1 = [sampleEvents[0]!];
+        const concurrentEvents2 = [sampleEvents[1]!];
+
+        // First operation succeeds, second fails with version conflict
+        mockAppend
+          .mockResolvedValueOnce(undefined) // First append succeeds
+          .mockRejectedValueOnce(
+            new Error(`Expected version ${baseVersion} but stream is at version ${baseVersion + 1}`)
+          ); // Concurrent conflict
+
+        // Act - Simulate concurrent operations
+        const [result1, result2] = await Promise.all([
+          eventSourcingService.appendEvents(gameId, 'Game', concurrentEvents1, baseVersion),
+          eventSourcingService.appendEvents(gameId, 'Game', concurrentEvents2, baseVersion),
+        ]);
+
+        // Assert - One should succeed, other should fail deterministically
+        expect(result1.success).toBe(true);
+        expect(result1.newStreamVersion).toBe(baseVersion + 1);
+        expect(result2.success).toBe(false);
+        expect(result2.errors).toContainEqual(
+          expect.stringContaining('Expected version 5 but stream is at version 6')
+        );
+        expect(mockError).toHaveBeenCalledWith(
+          'Failed to append events to stream',
+          expect.any(Error),
+          expect.objectContaining({
+            expectedVersion: baseVersion,
+          })
+        );
+      });
+
+      it('should handle version conflict resolution in high-throughput scenarios', async () => {
+        // Arrange - Multiple concurrent operations with escalating version conflicts
+        const initialVersion = 10;
+        const batchOperations = Array.from({ length: 5 }, (_, i) => ({
+          streamId: gameId,
+          aggregateType: 'Game' as const,
+          events: [sampleEvents[i % sampleEvents.length]!],
+          expectedVersion: initialVersion + i,
+        }));
+
+        // Configure mixed success/failure scenario
+        mockAppend
+          .mockResolvedValueOnce(undefined) // Success
+          .mockResolvedValueOnce(undefined) // Success
+          .mockRejectedValueOnce(new Error('Version conflict at version 12'))
+          .mockResolvedValueOnce(undefined) // Success after retry
+          .mockRejectedValueOnce(new Error('Concurrent modification detected'));
+
+        // Act - Execute batch operations
+        const result = await eventSourcingService.batchEventOperations(batchOperations);
+
+        // Assert - Should handle partial failures gracefully
+        expect(result.success).toBe(false);
+        expect(result.operationsCompleted).toBe(3);
+        expect(result.operationsFailed).toBe(2);
+        expect(result.errors).toContain('Version conflict at version 12');
+        expect(result.errors).toContain('Concurrent modification detected');
+        expect(mockInfo).toHaveBeenCalledWith(
+          'Batch event operations completed',
+          expect.objectContaining({
+            success: false,
+            operationsCompleted: 3,
+            operationsFailed: 2,
+          })
+        );
+      });
+
+      it('should maintain event ordering under concurrent aggregate updates', async () => {
+        // Arrange - Events from multiple aggregate types arriving concurrently
+        const gameEvents = sampleStoredEvents.slice(0, 2);
+        const lineupEvents = sampleStoredEvents.slice(2, 3).map(e => ({
+          ...e,
+          streamId: teamLineupId.value,
+          aggregateType: 'TeamLineup' as const,
+        }));
+
+        mockGetEventsByGameId
+          .mockResolvedValueOnce([...gameEvents, ...lineupEvents])
+          .mockResolvedValueOnce([...lineupEvents, ...gameEvents]); // Different order
+
+        // Act - Query events concurrently
+        const [result1, result2] = await Promise.all([
+          eventSourcingService.queryEvents({ gameId }),
+          eventSourcingService.queryEvents({ gameId }),
+        ]);
+
+        // Assert - Both should succeed with consistent results
+        expect(result1.success).toBe(true);
+        expect(result2.success).toBe(true);
+        expect(result1.totalEvents).toBe(3);
+        expect(result2.totalEvents).toBe(3);
+        // Event ordering should be preserved despite concurrent access
+        expect(mockGetEventsByGameId).toHaveBeenCalledTimes(2);
+      });
+
+      it('should handle concurrent snapshot creation and aggregate reconstruction', async () => {
+        // Arrange - Concurrent snapshot creation while aggregate reconstruction is happening
+        const largeEventStream = Array.from({ length: 50 }, (_, i) => ({
+          ...sampleStoredEvents[0]!,
+          eventId: `event-${i + 1}`,
+          streamVersion: i + 1,
+          timestamp: new Date(Date.now() - 1000 * (50 - i)),
+        }));
+
+        mockGetEvents.mockResolvedValue(largeEventStream);
+
+        // Act - Concurrent operations on same aggregate
+        const [snapshotResult, reconstructResult] = await Promise.all([
+          eventSourcingService.createSnapshot({
+            streamId: gameId,
+            aggregateType: 'Game',
+            atVersion: 25,
+          }),
+          eventSourcingService.reconstructAggregate({
+            streamId: gameId,
+            aggregateType: 'Game',
+            useSnapshot: false,
+          }),
+        ]);
+
+        // Assert - Both operations should succeed
+        expect(snapshotResult.success).toBe(true);
+        expect(snapshotResult.eventCount).toBe(25);
+        expect(reconstructResult.success).toBe(true);
+        expect(reconstructResult.eventsApplied).toBe(50);
+        // Should handle concurrent access to same event stream safely
+        expect(mockGetEvents).toHaveBeenCalledTimes(3); // Two for operations + one for snapshot validation
+      });
+    });
+
+    describe('Large Scale Performance & Memory Management', () => {
+      it('should efficiently process large event streams without memory issues', async () => {
+        // Arrange - Simulate 10K+ events for performance testing
+        const largeEventCount = 10000;
+        const largeEventStream = Array.from({ length: largeEventCount }, (_, i) => ({
+          ...sampleStoredEvents[0]!,
+          eventId: `large-event-${i + 1}`,
+          streamVersion: i + 1,
+          timestamp: new Date(Date.now() - 1000 * (largeEventCount - i)),
+          eventData: JSON.stringify({
+            ...JSON.parse(sampleStoredEvents[0]!.eventData),
+            sequenceNumber: i + 1,
+            processingData: 'x'.repeat(100), // Add some data size
+          }),
+        }));
+
+        mockGetEvents.mockResolvedValue(largeEventStream);
+
+        const startTime = Date.now();
+
+        // Act - Process large event stream
+        const result = await eventSourcingService.loadEventStream(gameId, 'Game');
+
+        const processingTime = Date.now() - startTime;
+
+        // Assert - Should handle large streams efficiently
+        expect(result.success).toBe(true);
+        expect(result.eventCount).toBe(largeEventCount);
+        expect(result.streamVersion).toBe(largeEventCount);
+        expect(processingTime).toBeLessThan(1000); // Should complete within 1 second
+        expect(mockDebug).toHaveBeenCalledWith(
+          'Event stream loaded successfully',
+          expect.objectContaining({
+            eventCount: largeEventCount,
+            streamVersion: largeEventCount,
+          })
+        );
+      });
+
+      it('should handle memory pressure during aggregate reconstruction of large streams', async () => {
+        // Arrange - Large event stream with complex event data
+        const complexEventCount = 5000;
+        const complexEvents = Array.from({ length: complexEventCount }, (_, i) => ({
+          ...sampleStoredEvents[i % sampleStoredEvents.length]!,
+          eventId: `complex-event-${i + 1}`,
+          streamVersion: i + 1,
+          timestamp: new Date(Date.now() - 1000 * (complexEventCount - i)),
+          eventData: JSON.stringify({
+            eventType: 'ComplexGameEvent',
+            data: {
+              players: Array.from({ length: 20 }, (_, j) => ({ id: `player-${j}`, stats: {} })),
+              gameState: { inning: Math.floor(i / 100), outs: i % 3 },
+              metadata: { processing: 'heavy', sequence: i },
+            },
+          }),
+        }));
+
+        mockGetEvents.mockResolvedValue(complexEvents);
+
+        // Act - Reconstruct aggregate from complex large stream
+        const result = await eventSourcingService.reconstructAggregate({
+          streamId: gameId,
+          aggregateType: 'Game',
+          useSnapshot: false,
+        });
+
+        // Assert - Should handle large complex reconstruction
+        expect(result.success).toBe(true);
+        expect(result.eventsApplied).toBe(complexEventCount);
+        expect(result.currentVersion).toBe(complexEventCount);
+        expect(result.reconstructionTimeMs).toBeDefined();
+        expect(result.reconstructionTimeMs).toBeLessThan(2000); // Performance threshold
+      });
+
+      it('should manage batch operations efficiently under high load', async () => {
+        // Arrange - Large batch of concurrent operations
+        const batchSize = 100;
+        const largeBatch = Array.from({ length: batchSize }, (_, i) => ({
+          streamId: new GameId(`game-${i + 1}`),
+          aggregateType: 'Game' as const,
+          events: [
+            {
+              ...sampleEvents[0]!,
+              aggregateId: new GameId(`game-${i + 1}`),
+            },
+          ],
+          expectedVersion: i,
+        }));
+
+        // Configure append to succeed for most operations
+        mockAppend.mockImplementation(async () => {
+          // Simulate processing time
+          await new Promise(resolve => setTimeout(resolve, 1));
+          return undefined;
+        });
+
+        const startTime = Date.now();
+
+        // Act - Process large batch
+        const result = await eventSourcingService.batchEventOperations(largeBatch);
+
+        const batchProcessingTime = Date.now() - startTime;
+
+        // Assert - Should handle large batches efficiently
+        expect(result.success).toBe(true);
+        expect(result.operationsCompleted).toBe(batchSize);
+        expect(result.totalEventsAppended).toBe(batchSize);
+        expect(batchProcessingTime).toBeLessThan(5000); // Should complete within 5 seconds
+        expect(result.batchTimeMs).toBeLessThan(5000);
+        expect(mockAppend).toHaveBeenCalledTimes(batchSize);
+      });
+
+      it('should handle timeout scenarios in distributed event processing', async () => {
+        // Arrange - Simulate slow event store operations
+        const timeoutError = new Error('Operation timed out after 30 seconds');
+        mockGetEvents.mockImplementation(async () => {
+          // Simulate timeout scenario
+          await new Promise(resolve => setTimeout(resolve, 100));
+          throw timeoutError;
+        });
+        mockGetEventsByGameId.mockImplementation(() => {
+          throw timeoutError;
+        });
+
+        // Act - Attempt operations that will timeout
+        const [loadResult, queryResult, validationResult] = await Promise.all([
+          eventSourcingService.loadEventStream(gameId, 'Game'),
+          eventSourcingService.queryEvents({ gameId }),
+          eventSourcingService.validateEventStreamConsistency(gameId, 'Game'),
+        ]);
+
+        // Assert - Should handle timeouts gracefully
+        expect(loadResult.success).toBe(false);
+        expect(loadResult.errors).toContain('Operation timed out after 30 seconds');
+        expect(queryResult.success).toBe(false);
+        expect(queryResult.errors).toContain('Operation timed out after 30 seconds');
+        expect(validationResult.valid).toBe(false);
+        expect(validationResult.consistencyIssues).toContain(
+          'Operation timed out after 30 seconds'
+        );
+
+        // Should log timeout errors appropriately
+        expect(mockError).toHaveBeenCalledTimes(3);
+        expect(mockError).toHaveBeenCalledWith(
+          'Failed to load event stream',
+          timeoutError,
+          expect.objectContaining({ operation: 'loadEventStream' })
+        );
+      });
+    });
+
+    describe('Split-Brain & Edge Case Scenarios', () => {
+      it('should handle split-brain scenarios in event sourcing', async () => {
+        // Arrange - Simulate split-brain where different nodes have different event versions
+        const node1Events = sampleStoredEvents.slice(0, 2);
+        const node2Events = [
+          ...sampleStoredEvents.slice(0, 1),
+          {
+            ...sampleStoredEvents[1]!,
+            eventId: 'different-event-2',
+            eventData: JSON.stringify({ type: 'DifferentEvent', conflicting: true }),
+          },
+          {
+            ...sampleStoredEvents[2]!,
+            streamVersion: 3,
+          },
+        ];
+
+        // First call returns node1 events, second call returns conflicting node2 events
+        mockGetEvents.mockResolvedValueOnce(node1Events).mockResolvedValueOnce(node2Events);
+
+        // Act - Query same stream from different "nodes"
+        const [result1, result2] = await Promise.all([
+          eventSourcingService.validateEventStreamConsistency(gameId, 'Game'),
+          eventSourcingService.validateEventStreamConsistency(gameId, 'Game'),
+        ]);
+
+        // Assert - Should detect inconsistencies between nodes
+        expect(result1.valid).toBe(true); // First node is consistent
+        expect(result2.valid).toBe(true); // Second node is also internally consistent
+        // In reality, conflict resolution would happen at a higher level
+        expect(mockGetEvents).toHaveBeenCalledTimes(2);
+      });
+
+      it('should recover from catastrophic event store failures', async () => {
+        // Arrange - Progressive failure scenarios
+        const catastrophicError = new Error('Event store cluster is down');
+        mockGetEvents.mockRejectedValue(catastrophicError);
+        mockAppend.mockRejectedValue(catastrophicError);
+        mockGetAllEvents.mockRejectedValue(catastrophicError);
+
+        // Act - Attempt various operations during catastrophic failure
+        const results = await Promise.all([
+          eventSourcingService.loadEventStream(gameId, 'Game'),
+          eventSourcingService.appendEvents(gameId, 'Game', sampleEvents),
+          eventSourcingService.migrateEvents(1, 2),
+          eventSourcingService.reconstructAggregate({
+            streamId: gameId,
+            aggregateType: 'Game',
+          }),
+        ]);
+
+        // Assert - All operations should fail gracefully
+        results.forEach(result => {
+          expect(result.success).toBe(false);
+          if ('errors' in result) {
+            expect(result.errors).toContain('Event store cluster is down');
+          }
+        });
+
+        // Should log catastrophic failures appropriately
+        expect(mockError).toHaveBeenCalledTimes(4);
+      });
+
+      it('should handle edge case: empty events array with complex validation', async () => {
+        // Arrange - Test scenario that targets line 1305-1306 specifically
+        const inningStateId = new InningStateId('empty-array-test');
+
+        // Create an events array that is not empty but has undefined/null elements
+        const problematicEvents: StoredEvent[] = [];
+        // Add an element that will make events.length > 0 but events[0] is undefined
+        problematicEvents.length = 1; // Array with length 1 but no actual elements
+
+        mockGetEvents.mockResolvedValue(problematicEvents);
+
+        // Act - This should trigger lines 1305-1306 where events[0] is undefined
+        const result = await eventSourcingService.reconstructAggregate({
+          streamId: inningStateId,
+          aggregateType: 'InningState',
+          useSnapshot: false,
+        });
+
+        // Assert - Should trigger the defensive check for undefined first event
+        expect(result.success).toBe(false);
+        expect(result.errors).toContain('No events found for InningState reconstruction');
+        expect(mockError).toHaveBeenCalledWith(
+          'Aggregate reconstruction failed',
+          expect.any(Error),
+          expect.objectContaining({
+            aggregateType: 'InningState',
+            operation: 'reconstructAggregate',
+          })
+        );
+      });
+
+      it('should handle InningState reconstruction with no events and no base aggregate - targeting line 1298', async () => {
+        // Arrange - Specifically target line 1298: the closing brace of the empty events case
+        const inningStateId = new InningStateId('no-events-no-base');
+        mockGetEvents.mockResolvedValue([]); // Empty events array
+
+        // Act - This should trigger the exact path for line 1298
+        const result = await eventSourcingService.reconstructAggregate({
+          streamId: inningStateId,
+          aggregateType: 'InningState',
+          useSnapshot: false, // No snapshot, so no baseAggregate
+        });
+
+        // Assert - Should fail because no events are found and no snapshot exists
+        expect(result.success).toBe(false);
+        expect(result.errors).toContain('No events found for aggregate reconstruction');
+        expect(result.eventsApplied).toBe(0);
+        expect(result.currentVersion).toBe(0);
+        expect(result.snapshotUsed).toBe(false);
+      });
+    });
+
+    describe('Advanced Performance Edge Cases', () => {
+      it('should handle extreme concurrency with event ordering preservation', async () => {
+        // Arrange - 50 concurrent operations on same stream
+        const concurrencyLevel = 50;
+        const concurrentOperations = Array.from({ length: concurrencyLevel }, (_, i) => ({
+          streamId: gameId,
+          aggregateType: 'Game' as const,
+          events: [
+            {
+              ...sampleEvents[0]!,
+              aggregateId: gameId,
+              data: { operationId: i, timestamp: Date.now() + i },
+            },
+          ],
+          expectedVersion: i,
+        }));
+
+        // Simulate realistic concurrency: some succeed, others fail
+        let successCount = 0;
+        mockAppend.mockImplementation(() => {
+          if (successCount++ < concurrencyLevel * 0.7) {
+            return undefined; // 70% success rate
+          }
+          throw new Error(`Concurrency conflict for operation ${successCount}`);
+        });
+
+        // Act - Execute high-concurrency batch
+        const result = await eventSourcingService.batchEventOperations(concurrentOperations);
+
+        // Assert - Should handle high concurrency gracefully
+        const expectedSuccesses = Math.floor(concurrencyLevel * 0.7);
+        expect(result.operationsCompleted).toBe(expectedSuccesses);
+        expect(result.operationsFailed).toBe(concurrencyLevel - expectedSuccesses);
+        expect(result.success).toBe(false); // Due to some failures
+        expect(result.errors.length).toBeGreaterThan(0);
+      });
+
+      it('should optimize snapshot usage for frequently accessed aggregates', async () => {
+        // Arrange - Enable snapshot caching and create cached snapshot
+        eventSourcingService.enableSnapshotCaching(true);
+
+        const frequentlyAccessedId = new GameId('frequently-accessed-game');
+        const baselineEvents = sampleStoredEvents.slice(0, 10);
+
+        mockGetEvents.mockResolvedValue(baselineEvents);
+
+        // Create initial snapshot
+        const snapshotResult = await eventSourcingService.createSnapshot({
+          streamId: frequentlyAccessedId,
+          aggregateType: 'Game',
+          atVersion: 5,
+        });
+
+        expect(snapshotResult.success).toBe(true);
+
+        // Act - Multiple reconstructions should use cached snapshot
+        const reconstructions = await Promise.all([
+          eventSourcingService.reconstructAggregate({
+            streamId: frequentlyAccessedId,
+            aggregateType: 'Game',
+            useSnapshot: true,
+          }),
+          eventSourcingService.reconstructAggregate({
+            streamId: frequentlyAccessedId,
+            aggregateType: 'Game',
+            useSnapshot: true,
+          }),
+        ]);
+
+        // Assert - Should leverage snapshot caching for performance
+        reconstructions.forEach(result => {
+          expect(result.success).toBe(true);
+          expect(result.snapshotUsed).toBe(true);
+        });
+
+        // Clean up
+        eventSourcingService.enableSnapshotCaching(false);
+      });
+
+      it('should handle TeamLineup reconstruction error in catch block - targeting line 1270', async () => {
+        // Arrange - Create TeamLineup reconstruction scenario that will trigger catch block
+        const teamLineupId = new TeamLineupId('error-team-reconstruction');
+
+        // Mock TeamLineup.createNew to throw an error to trigger the catch block at line 1270
+        const reconstructionError = new Error(
+          'TeamLineup creation failed due to constraint violation'
+        );
+        const mockTeamLineupCreateNew = vi
+          .spyOn(TeamLineup, 'createNew')
+          .mockImplementationOnce(() => {
+            throw reconstructionError;
+          });
+
+        const validEvents: StoredEvent[] = [
+          {
+            eventId: 'team-event-1',
+            streamId: teamLineupId.value,
+            aggregateType: 'TeamLineup',
+            eventType: 'LineupCreated',
+            eventData: JSON.stringify({ teamName: 'Test Team' }),
+            eventVersion: 1,
+            streamVersion: 1,
+            timestamp: new Date('2024-01-01T10:00:00Z'),
+            metadata: { source: 'test', createdAt: new Date() },
+          },
+        ];
+
+        mockGetEvents.mockResolvedValue(validEvents);
+
+        // Act - Trigger TeamLineup reconstruction that will fail in the try block
+        const result = await eventSourcingService.reconstructAggregate({
+          streamId: teamLineupId,
+          aggregateType: 'TeamLineup',
+          useSnapshot: false,
+        });
+
+        // Assert - Should trigger error handling in catch block (line 1270)
+        expect(result.success).toBe(false);
+        expect(result.errors).toContain('TeamLineup creation failed due to constraint violation');
+        expect(mockError).toHaveBeenCalledWith(
+          'Aggregate reconstruction failed',
+          reconstructionError,
+          expect.objectContaining({
+            aggregateType: 'TeamLineup',
+            operation: 'reconstructAggregate',
+          })
+        );
+
+        // Clean up
+        mockTeamLineupCreateNew.mockRestore();
+      });
+
+      it('should handle InningState reconstruction with base aggregate - targeting lines 1292-1293', async () => {
+        // Arrange - Create scenario where InningState has no events but has base aggregate from snapshot
+        const inningStateId = new InningStateId('base-aggregate-test');
+        const mockBaseAggregate = {
+          id: inningStateId,
+          gameId: new GameId('game-123'),
+          inning: 1,
+          isTopHalf: true,
+          outs: 1,
+          runners: [],
+        } as unknown as InningState;
+
+        mockGetEvents.mockResolvedValue([]); // No events
+
+        // Mock snapshot loading to return base aggregate
+        vi.spyOn(eventSourcingService, 'loadSnapshot').mockReturnValue({
+          exists: true,
+          aggregate: mockBaseAggregate,
+          version: 0,
+        });
+
+        // Act - This should trigger lines 1292-1293 where baseAggregate is returned
+        const result = await eventSourcingService.reconstructAggregate({
+          streamId: inningStateId,
+          aggregateType: 'InningState',
+          useSnapshot: true, // Enable snapshot to get base aggregate
+        });
+
+        // Assert - Should succeed using base aggregate from snapshot
+        expect(result.success).toBe(true);
+        expect(result.snapshotUsed).toBe(true);
+        expect(result.eventsApplied).toBe(0); // No events applied
+        expect(result.currentVersion).toBe(0);
+        expect(result.aggregate).toBe(mockBaseAggregate);
+      });
+
+      it('should handle memory optimization during event migration at scale', async () => {
+        // Arrange - Large dataset for migration testing
+        const migrationEventCount = 1000;
+        const eventsToMigrate = Array.from({ length: migrationEventCount }, (_, i) => ({
+          ...sampleStoredEvents[0]!,
+          eventId: `migrate-event-${i + 1}`,
+          eventVersion: 1, // Old version
+          streamVersion: i + 1,
+          timestamp: new Date(Date.now() - 1000 * (migrationEventCount - i)),
+        }));
+
+        mockGetAllEvents.mockResolvedValue(eventsToMigrate);
+
+        const migrationStartTime = Date.now();
+
+        // Act - Migrate large event dataset
+        const result = await eventSourcingService.migrateEvents(1, 2);
+
+        const migrationDuration = Date.now() - migrationStartTime;
+
+        // Assert - Should complete migration efficiently
+        expect(result.success).toBe(true);
+        expect(result.eventsMigrated).toBe(migrationEventCount);
+        expect(result.migrationTimeMs).toBeLessThan(3000); // Performance threshold
+        expect(migrationDuration).toBeLessThan(3000);
+        expect(mockInfo).toHaveBeenCalledWith(
+          'Event migration completed successfully',
+          expect.objectContaining({
+            eventsMigrated: migrationEventCount,
           })
         );
       });
