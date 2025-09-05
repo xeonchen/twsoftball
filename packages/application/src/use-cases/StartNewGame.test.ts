@@ -506,7 +506,25 @@ describe('StartNewGame', () => {
       expect(result.errors).toContain('Home team name is required and cannot be empty');
     });
 
+    it('should reject whitespace-only home team name', async () => {
+      const command = createValidCommand({ homeTeamName: '   ' });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('Home team name is required and cannot be empty');
+    });
+
     it('should reject empty away team name', async () => {
+      const command = createValidCommand({ awayTeamName: '' });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('Away team name is required and cannot be empty');
+    });
+
+    it('should reject whitespace-only away team name', async () => {
       const command = createValidCommand({ awayTeamName: '   ' });
 
       const result = await startNewGame.execute(command);
@@ -560,20 +578,100 @@ describe('StartNewGame', () => {
       const longLineup = [
         ...createValidLineup(),
         ...Array.from({ length: 12 }, (_, i) => ({
-          playerId: new PlayerId(`extra-player-${i + 10}`),
-          name: `Extra Player ${i + 10}`,
-          jerseyNumber: JerseyNumber.fromNumber(i + 10),
-          battingOrderPosition: i + 10,
+          playerId: new PlayerId(`extra-player-${i + 11}`),
+          name: `Extra Player ${i + 11}`,
+          jerseyNumber: JerseyNumber.fromNumber(i + 11),
+          battingOrderPosition: i + 11,
           fieldPosition: FieldPosition.RIGHT_FIELD,
           preferredPositions: [FieldPosition.RIGHT_FIELD],
         })),
-      ]; // 21 players total
+      ]; // 22 players total (exceeds DTO's 20 limit)
       const command = createValidCommand({ initialLineup: longLineup });
 
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
       expect(result.errors).toContain('Initial lineup cannot exceed 20 players');
+    });
+
+    it('should respect custom game rules max players limit', async () => {
+      const customRules: GameRulesDTO = {
+        mercyRuleEnabled: true,
+        mercyRuleInning4: 15,
+        mercyRuleInning5: 10,
+        timeLimitMinutes: 60,
+        extraPlayerAllowed: true,
+        maxPlayersInLineup: 11, // Custom limit
+      };
+
+      // Create lineup with 12 players (exceeds custom limit)
+      const longLineup = [
+        ...createValidLineup(),
+        {
+          playerId: new PlayerId('player-11'),
+          name: 'Extra Player 1',
+          jerseyNumber: JerseyNumber.fromNumber(11),
+          battingOrderPosition: 11,
+          fieldPosition: FieldPosition.EXTRA_PLAYER,
+          preferredPositions: [FieldPosition.EXTRA_PLAYER],
+        },
+        {
+          playerId: new PlayerId('player-12'),
+          name: 'Extra Player 2',
+          jerseyNumber: JerseyNumber.fromNumber(12),
+          battingOrderPosition: 12,
+          fieldPosition: FieldPosition.EXTRA_PLAYER,
+          preferredPositions: [FieldPosition.EXTRA_PLAYER],
+        },
+      ];
+
+      const command = createValidCommand({
+        initialLineup: longLineup,
+        gameRules: customRules,
+      });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('Lineup cannot exceed maximum players allowed');
+    });
+
+    it('should accept lineup within custom game rules limit', async () => {
+      const customRules: GameRulesDTO = {
+        mercyRuleEnabled: true,
+        mercyRuleInning4: 15,
+        mercyRuleInning5: 10,
+        timeLimitMinutes: 60,
+        extraPlayerAllowed: true,
+        maxPlayersInLineup: 11, // Custom limit allows 11 players
+      };
+
+      // Create lineup with exactly 11 players
+      const extendedLineup = [
+        ...createValidLineup(),
+        {
+          playerId: new PlayerId('player-11'),
+          name: 'Extra Player',
+          jerseyNumber: JerseyNumber.fromNumber(11),
+          battingOrderPosition: 11,
+          fieldPosition: FieldPosition.EXTRA_PLAYER,
+          preferredPositions: [FieldPosition.EXTRA_PLAYER],
+        },
+      ];
+
+      // Set up successful repository operations
+      mockExists.mockResolvedValue(false);
+      mockSave.mockResolvedValue(undefined);
+      mockAppend.mockResolvedValue(undefined);
+
+      const command = createValidCommand({
+        initialLineup: extendedLineup,
+        gameRules: customRules,
+      });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(true);
     });
   });
 
@@ -736,11 +834,115 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toEqual(
-        expect.arrayContaining([
-          expect.stringMatching(/mercyRule|timeLimitMinutes|extraPlayerAllowed|maxPlayersInLineup/),
-        ])
-      );
+      // DTO validator will catch the first error (negative mercy rule inning 4)
+      expect(result.errors).toContain('mercyRuleInning4 must be between 0 and 50');
+    });
+
+    it('should reject negative mercy rule inning 4 differential', async () => {
+      const invalidRules: GameRulesDTO = {
+        mercyRuleEnabled: true,
+        mercyRuleInning4: -1, // Negative runs invalid
+        mercyRuleInning5: 10,
+        timeLimitMinutes: 60,
+        extraPlayerAllowed: true,
+        maxPlayersInLineup: 12,
+      };
+      const command = createValidCommand({ gameRules: invalidRules });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('mercyRuleInning4 must be between 0 and 50');
+    });
+
+    it('should reject negative mercy rule inning 5 differential', async () => {
+      const invalidRules: GameRulesDTO = {
+        mercyRuleEnabled: true,
+        mercyRuleInning4: 15,
+        mercyRuleInning5: -2, // Negative runs invalid
+        timeLimitMinutes: 60,
+        extraPlayerAllowed: true,
+        maxPlayersInLineup: 12,
+      };
+      const command = createValidCommand({ gameRules: invalidRules });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('mercyRuleInning5 must be between 0 and 50');
+    });
+
+    it('should reject zero time limit when time limit is defined', async () => {
+      const invalidRules: GameRulesDTO = {
+        mercyRuleEnabled: true,
+        mercyRuleInning4: 15,
+        mercyRuleInning5: 10,
+        timeLimitMinutes: 0, // Zero minutes invalid
+        extraPlayerAllowed: true,
+        maxPlayersInLineup: 12,
+      };
+      const command = createValidCommand({ gameRules: invalidRules });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('timeLimitMinutes must be between 1 and 300');
+    });
+
+    it('should reject negative time limit when time limit is defined', async () => {
+      const invalidRules: GameRulesDTO = {
+        mercyRuleEnabled: true,
+        mercyRuleInning4: 15,
+        mercyRuleInning5: 10,
+        timeLimitMinutes: -30, // Negative time invalid
+        extraPlayerAllowed: true,
+        maxPlayersInLineup: 12,
+      };
+      const command = createValidCommand({ gameRules: invalidRules });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('timeLimitMinutes must be between 1 and 300');
+    });
+
+    it('should reject too few max players in lineup', async () => {
+      const invalidRules: GameRulesDTO = {
+        mercyRuleEnabled: true,
+        mercyRuleInning4: 15,
+        mercyRuleInning5: 10,
+        timeLimitMinutes: 60,
+        extraPlayerAllowed: true,
+        maxPlayersInLineup: 8, // Less than required 9 players
+      };
+      const command = createValidCommand({ gameRules: invalidRules });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('maxPlayersInLineup must be between 9 and 20');
+    });
+
+    it('should allow undefined time limit (no time constraint)', async () => {
+      const validRules = {
+        mercyRuleEnabled: true,
+        mercyRuleInning4: 15,
+        mercyRuleInning5: 10,
+        // timeLimitMinutes omitted to test undefined case
+        extraPlayerAllowed: true,
+        maxPlayersInLineup: 12,
+      } as GameRulesDTO;
+
+      // Set up successful repository operations
+      mockExists.mockResolvedValue(false);
+      mockSave.mockResolvedValue(undefined);
+      mockAppend.mockResolvedValue(undefined);
+
+      const command = createValidCommand({ gameRules: validRules });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(true);
     });
   });
 
@@ -1326,6 +1528,86 @@ describe('StartNewGame', () => {
 
       // Mock null error
       mockSave.mockRejectedValue(null);
+
+      // Act
+      const result = await startNewGame.execute(command);
+
+      // Assert - Should use generic error message
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('An unexpected error occurred');
+    });
+
+    it('should handle undefined errors in error translation', async () => {
+      // Arrange
+      const command = createValidCommand();
+
+      // Mock undefined error
+      mockSave.mockRejectedValue(undefined);
+
+      // Act
+      const result = await startNewGame.execute(command);
+
+      // Assert - Should use generic error message
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('An unexpected error occurred');
+    });
+
+    it('should handle Database error messages in error categorization', async () => {
+      // Arrange
+      const command = createValidCommand();
+
+      // Mock Database error (should trigger Database branch in categorizeError)
+      const databaseError = new Error('Database connection timeout');
+      mockSave.mockRejectedValue(databaseError);
+
+      // Act
+      const result = await startNewGame.execute(command);
+
+      // Assert - Should categorize as database error
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('Failed to save game state');
+    });
+
+    it('should handle save error messages in error categorization', async () => {
+      // Arrange
+      const command = createValidCommand();
+
+      // Mock save error (should trigger save branch in categorizeError)
+      const saveError = new Error('Failed to save entity');
+      mockSave.mockRejectedValue(saveError);
+
+      // Act
+      const result = await startNewGame.execute(command);
+
+      // Assert - Should categorize as save error
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('Failed to save game state');
+    });
+
+    it('should handle store error messages in error categorization', async () => {
+      // Arrange
+      const command = createValidCommand();
+
+      // Mock successful save but failed event store (triggers store branch)
+      mockSave.mockResolvedValue(undefined);
+      const storeError = new Error('Event store is down');
+      mockAppend.mockRejectedValue(storeError);
+
+      // Act
+      const result = await startNewGame.execute(command);
+
+      // Assert - Should categorize as store error
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('Failed to store game events');
+    });
+
+    it('should handle generic Error with unknown message in error categorization', async () => {
+      // Arrange
+      const command = createValidCommand();
+
+      // Mock generic error that doesn't match any specific categories
+      const genericError = new Error('Some random error occurred');
+      mockSave.mockRejectedValue(genericError);
 
       // Act
       const result = await startNewGame.execute(command);

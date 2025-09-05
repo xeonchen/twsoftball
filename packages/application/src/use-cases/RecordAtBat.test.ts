@@ -413,5 +413,357 @@ describe('RecordAtBat Use Case', () => {
       expect(result.success).toBe(false);
       expect(result.errors).toContain('Invalid batter state');
     });
+
+    it('should handle "Transaction compensation failed" error messages', async () => {
+      // Arrange - Mock repository to fail with compensation error
+      const compensationError = new Error(
+        'Transaction compensation failed for game test-game. Original error: Event store failed. Compensation error: Repository down. System may be in inconsistent state and requires manual intervention.'
+      );
+      vi.mocked(mockGameRepository.findById).mockRejectedValue(compensationError);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(false);
+      // The error message gets passed through as-is when it contains "Transaction compensation failed"
+      expect(result.errors?.[0]).toContain('Transaction compensation failed');
+    });
+  });
+
+  describe('Edge Cases and Error Recovery', () => {
+    it('should handle double play scenarios that end the inning', async () => {
+      // Arrange - Create a scenario where ground out with multiple outs might be 3rd out
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.GROUND_OUT)
+        .withRunnerAdvances([
+          {
+            playerId: new PlayerId(SecureTestUtils.generatePlayerId('runner-1')),
+            fromBase: 'FIRST',
+            toBase: 'OUT',
+            advanceReason: 'FORCE_OUT',
+          },
+          {
+            playerId: batterId,
+            fromBase: null,
+            toBase: 'OUT',
+            advanceReason: 'GROUND_OUT',
+          },
+        ])
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.inningEnded).toBe(true); // Should end inning due to double play heuristic
+    });
+
+    it('should handle failed game state loading during error handling', async () => {
+      // Arrange - Mock both initial load and error recovery load to fail
+      const initialError = new Error('Primary database failure');
+      const loadError = new Error('Secondary load also failed');
+
+      vi.mocked(mockGameRepository.findById)
+        .mockRejectedValueOnce(initialError) // Initial load fails
+        .mockRejectedValueOnce(loadError); // Error recovery load also fails
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('An unexpected error occurred during at-bat processing');
+
+      // Should attempt to load game twice
+      expect(mockGameRepository.findById).toHaveBeenCalledTimes(2);
+
+      // Should log warning about failed game state loading
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Failed to load game state for error result',
+        expect.objectContaining({
+          gameId: gameId.value,
+          originalError: initialError,
+          loadError: loadError,
+        })
+      );
+    });
+  });
+
+  describe('Database Error Handling', () => {
+    it('should log database-specific errors correctly', async () => {
+      // Arrange - Setup successful game find, but fail event store with database error
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+
+      // Make event store fail with database connection error
+      vi.mocked(mockEventStore.append).mockRejectedValue(
+        new Error('Database connection failed - could not persist events')
+      );
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Should fail and log database-specific error
+      expect(result.success).toBe(false);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Database persistence failed',
+        expect.any(Error),
+        expect.objectContaining({
+          gameId: gameId.value,
+          operation: 'persistChanges',
+          errorType: 'database',
+          compensationApplied: true,
+        })
+      );
+    });
+
+    it('should log event store-specific errors correctly', async () => {
+      // Arrange - Setup successful game find, but fail event store with store error
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+
+      // Make event store fail with event store-specific error
+      vi.mocked(mockEventStore.append).mockRejectedValue(
+        new Error('Event store unavailable - service temporarily down')
+      );
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Should fail and log event store-specific error
+      expect(result.success).toBe(false);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Event store persistence failed',
+        expect.any(Error),
+        expect.objectContaining({
+          gameId: gameId.value,
+          operation: 'persistChanges',
+          errorType: 'eventStore',
+          compensationApplied: true,
+        })
+      );
+    });
+
+    it('should log generic persistence errors', async () => {
+      // Arrange - Setup successful game find, but fail event store with generic error
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+
+      // Make event store fail with generic error (not database or event store specific)
+      vi.mocked(mockEventStore.append).mockRejectedValue(new Error('Network timeout occurred'));
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Should fail but not log with specific error type
+      expect(result.success).toBe(false);
+      // Should not call the specific database or event store error logging
+      expect(mockLogger.error).not.toHaveBeenCalledWith(
+        'Database persistence failed',
+        expect.any(Error),
+        expect.any(Object)
+      );
+      expect(mockLogger.error).not.toHaveBeenCalledWith(
+        'Event store persistence failed',
+        expect.any(Error),
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('Compensation Failure Handling', () => {
+    it('should handle compensation failure when event store fails after game save', async () => {
+      // Arrange - Setup scenario where game save succeeds but event store fails
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+
+      // Make game repository save succeed first time, then fail during compensation
+      vi.mocked(mockGameRepository.save)
+        .mockResolvedValueOnce(undefined) // First save (successful)
+        .mockRejectedValueOnce(new Error('Compensation save failed')); // Compensation save fails
+
+      // Make event store fail
+      vi.mocked(mockEventStore.append).mockRejectedValue(new Error('Event store connection lost'));
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Should fail with compensation failure error
+      expect(result.success).toBe(false);
+      expect(result.errors?.[0]).toContain('Transaction compensation failed');
+      expect(result.errors?.[0]).toContain('Original error: Event store connection lost');
+      expect(result.errors?.[0]).toContain('Compensation error: Compensation save failed');
+      expect(result.errors?.[0]).toContain('System may be in inconsistent state');
+    });
+
+    it('should log compensation attempt and failure correctly', async () => {
+      // Arrange - Setup scenario where compensation fails
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+
+      // Make game repository save succeed first time, then fail during compensation
+      vi.mocked(mockGameRepository.save)
+        .mockResolvedValueOnce(undefined) // First save (successful)
+        .mockRejectedValueOnce(new Error('Repository unavailable')); // Compensation fails
+
+      // Make event store fail
+      const originalError = new Error('Event store critical failure');
+      vi.mocked(mockEventStore.append).mockRejectedValue(originalError);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Should log compensation attempt and failure
+      expect(result.success).toBe(false);
+
+      // Should log compensation warning
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Attempting transaction compensation',
+        expect.objectContaining({
+          gameId: gameId.value,
+          operation: 'compensateFailedTransaction',
+          reason: 'Event store failed after game save',
+          originalError: 'Event store critical failure',
+        })
+      );
+
+      // Should log compensation failure error
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Transaction compensation failed',
+        expect.any(Error),
+        expect.objectContaining({
+          gameId: gameId.value,
+          operation: 'compensateFailedTransaction',
+          originalError: 'Event store critical failure',
+          systemState: 'potentially_inconsistent',
+          requiresManualIntervention: true,
+        })
+      );
+    });
+
+    it('should handle compensation failure with non-Error objects', async () => {
+      // Arrange - Setup scenario where compensation fails with non-Error
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+
+      // Make game repository save succeed first time, then fail with non-Error
+      vi.mocked(mockGameRepository.save)
+        .mockResolvedValueOnce(undefined) // First save (successful)
+        .mockRejectedValueOnce('String error during compensation'); // Non-Error compensation failure
+
+      // Make event store fail with non-Error
+      vi.mocked(mockEventStore.append).mockRejectedValue('String error in event store');
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Should handle non-Error objects gracefully
+      expect(result.success).toBe(false);
+      expect(result.errors?.[0]).toContain('Original error: Unknown');
+      expect(result.errors?.[0]).toContain('Compensation error: Unknown');
+
+      // Should log with 'Unknown error' for non-Error objects
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Attempting transaction compensation',
+        expect.objectContaining({
+          originalError: 'Unknown error',
+        })
+      );
+    });
+
+    it('should successfully log compensation when recovery succeeds', async () => {
+      // Arrange - Setup scenario where compensation succeeds
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+
+      // Make game repository save succeed both times
+      vi.mocked(mockGameRepository.save)
+        .mockResolvedValueOnce(undefined) // First save (successful)
+        .mockResolvedValueOnce(undefined); // Compensation save succeeds
+
+      // Make event store fail
+      vi.mocked(mockEventStore.append).mockRejectedValue(new Error('Temporary event store issue'));
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Should still fail overall but log successful compensation
+      expect(result.success).toBe(false);
+
+      // Should log successful compensation
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        'Transaction compensation successful',
+        expect.objectContaining({
+          gameId: gameId.value,
+          operation: 'compensateFailedTransaction',
+        })
+      );
+    });
   });
 });

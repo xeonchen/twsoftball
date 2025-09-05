@@ -3,6 +3,10 @@
  * Comprehensive tests for the EndInning use case following TDD approach.
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/explicit-function-return-type */
+
 import { Game, GameId, GameStatus, DomainError } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -169,6 +173,36 @@ describe('EndInning Use Case', () => {
 
       expect(result.success).toBe(false);
       expect(result.errors).toContain('finalOuts must be an integer between 0 and 3');
+    });
+
+    it('should validate final outs is integer using internal validation (lines 387-388)', async () => {
+      // Test the specific validation path directly on the private method
+      const validateCommandInput = (useCase as any).validateCommandInput;
+
+      const invalidCommand = {
+        ...validCommand,
+        finalOuts: 2.5, // Not an integer but within range
+      };
+
+      const result = validateCommandInput.call(useCase, invalidCommand);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('Final outs must be an integer');
+    });
+
+    it('should validate final outs range using internal validation (lines 384-385)', async () => {
+      // Test the specific validation path directly on the private method
+      const validateCommandInput = (useCase as any).validateCommandInput;
+
+      const invalidCommand = {
+        ...validCommand,
+        finalOuts: 5, // Out of range but is an integer
+      };
+
+      const result = validateCommandInput.call(useCase, invalidCommand);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('Final outs must be between 0 and 3');
     });
 
     it('should validate ending reason is valid', async () => {
@@ -432,6 +466,27 @@ describe('EndInning Use Case', () => {
       expect(result.gameEnded).toBe(true);
       expect(result.gameEndingType).toBe('REGULATION');
       expect(result.newHalf).toBeNull(); // No next half - game over
+    });
+
+    it('should detect regulation game completion without explicit gameEnding flag (lines 585-586)', async () => {
+      // Test the automatic game ending detection for regulation completion
+      const command = {
+        ...validCommand,
+        inning: 7,
+        isTopHalf: false,
+        endingReason: 'THREE_OUTS' as const,
+        finalOuts: 3,
+        gameEnding: false, // Explicit false - should still end due to regulation completion
+      };
+
+      mockFindById.mockResolvedValue(mockGame);
+
+      const result = await useCase.execute(command);
+
+      expect(result.success).toBe(true);
+      expect(result.transitionType).toBe('GAME_END');
+      expect(result.gameEnded).toBe(true);
+      expect(result.gameEndingType).toBe('REGULATION');
     });
 
     it('should detect mercy rule game ending', async () => {
@@ -1002,6 +1057,301 @@ describe('EndInning Use Case', () => {
       expect(result.success).toBe(false);
       expect(result.errors).toBeDefined();
       expect(result.errors!.length).toBeGreaterThan(0);
+    });
+
+    it('should cover debug logging after game save in persistChanges (line 711)', async () => {
+      // Test coverage for line 711: debug logging after successful game save
+      mockFindById.mockResolvedValue(mockGame);
+      mockSave.mockResolvedValue(undefined);
+      mockAppend.mockResolvedValue(undefined);
+
+      await useCase.execute(validCommand);
+
+      expect(mockSave).toHaveBeenCalled();
+      expect(mockAppend).toHaveBeenCalled();
+      expect(mockDebug).toHaveBeenCalledWith(
+        'Game aggregate saved successfully',
+        expect.objectContaining({
+          gameId: mockGame.id.value,
+          operation: 'persistGame',
+        })
+      );
+    });
+
+    it('should handle load error message in handleError method (line 857)', async () => {
+      // Test coverage for line 857: error message containing 'load'
+      const loadError = new Error('Failed to load game data from database');
+      mockFindById.mockRejectedValue(loadError);
+
+      const result = await useCase.execute(validCommand);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('Failed to load game');
+    });
+
+    it('should cover HOME leader case in score calculation (line 927)', async () => {
+      // Test coverage for line 927: HOME team has higher score
+      mockFindById.mockResolvedValue(mockGame);
+      mockSave.mockResolvedValue(undefined);
+      mockAppend.mockResolvedValue(undefined);
+
+      const gameEndingCommand = {
+        ...validCommand,
+        gameEnding: true,
+        inning: 7,
+        isTopHalf: false,
+      };
+
+      // Mock calculateFinalScore to return HOME team leading
+      const originalCalculateFinalScore = (useCase as any).calculateFinalScore;
+      (useCase as any).calculateFinalScore = () => ({ home: 8, away: 3 });
+
+      const result = await useCase.execute(gameEndingCommand);
+
+      expect(result.success).toBe(true);
+      expect(result.gameState.score.leader).toBe('HOME');
+      expect(result.gameState.score.home).toBe(8);
+      expect(result.gameState.score.away).toBe(3);
+
+      // Restore original method
+      (useCase as any).calculateFinalScore = originalCalculateFinalScore;
+    });
+
+    it('should cover TIE case in score calculation (line 929)', async () => {
+      // Test coverage for line 929: tied game scenario
+      mockFindById.mockResolvedValue(mockGame);
+      mockSave.mockResolvedValue(undefined);
+      mockAppend.mockResolvedValue(undefined);
+
+      const gameEndingCommand = {
+        ...validCommand,
+        gameEnding: true,
+        inning: 7,
+        isTopHalf: false,
+      };
+
+      // Mock calculateFinalScore to return tied score
+      const originalCalculateFinalScore = (useCase as any).calculateFinalScore;
+      (useCase as any).calculateFinalScore = () => ({ home: 5, away: 5 });
+
+      const result = await useCase.execute(gameEndingCommand);
+
+      expect(result.success).toBe(true);
+      expect(result.gameState.score.leader).toBe('TIE');
+      expect(result.gameState.score.home).toBe(5);
+      expect(result.gameState.score.away).toBe(5);
+      expect(result.gameState.score.difference).toBe(0);
+
+      // Restore original method
+      (useCase as any).calculateFinalScore = originalCalculateFinalScore;
+    });
+
+    it('should cover AWAY leader case in score calculation (line 929)', async () => {
+      // Test coverage for line 929: AWAY team has higher score
+      mockFindById.mockResolvedValue(mockGame);
+      mockSave.mockResolvedValue(undefined);
+      mockAppend.mockResolvedValue(undefined);
+
+      const gameEndingCommand = {
+        ...validCommand,
+        gameEnding: true,
+        inning: 7,
+        isTopHalf: false,
+      };
+
+      // Mock calculateFinalScore to return AWAY team leading
+      const originalCalculateFinalScore = (useCase as any).calculateFinalScore;
+      (useCase as any).calculateFinalScore = () => ({ home: 2, away: 7 });
+
+      const result = await useCase.execute(gameEndingCommand);
+
+      expect(result.success).toBe(true);
+      expect(result.gameState.score.leader).toBe('AWAY');
+      expect(result.gameState.score.home).toBe(2);
+      expect(result.gameState.score.away).toBe(7);
+      expect(result.gameState.score.difference).toBe(5);
+
+      // Restore original method
+      (useCase as any).calculateFinalScore = originalCalculateFinalScore;
+    });
+
+    it('should cover fallback catch block in calculateFinalScore (lines 607-611)', async () => {
+      // Test coverage for lines 607-611: error handling in calculateFinalScore
+      // We need to directly call the private method since it's hard to trigger the error path through the public API
+
+      // Access the private method for testing
+      const calculateFinalScore = (useCase as any).calculateFinalScore;
+
+      // Create a mock game that throws error when accessing score
+      const gameWithBrokenScore = {
+        ...mockGame,
+        get score() {
+          throw new Error('Score calculation failed');
+        },
+      } as unknown as Game;
+
+      // Call the private method directly to test the catch block
+      const result = calculateFinalScore.call(useCase, gameWithBrokenScore);
+
+      // Should use fallback score from catch block (lines 607-611)
+      expect(result.home).toBe(5);
+      expect(result.away).toBe(3);
+    });
+
+    it('should cover gameEndingType spread operator in createSuccessResult (line 786)', async () => {
+      // Test coverage for line 786: gameEndingType spread operator when gameEndingType exists
+      mockFindById.mockResolvedValue(mockGame);
+      mockSave.mockResolvedValue(undefined);
+      mockAppend.mockResolvedValue(undefined);
+
+      const gameEndingCommand = {
+        ...validCommand,
+        gameEnding: true,
+        endingReason: 'MERCY_RULE' as const,
+        inning: 5,
+        isTopHalf: false,
+      };
+
+      const result = await useCase.execute(gameEndingCommand);
+
+      expect(result.success).toBe(true);
+      expect(result.gameEndingType).toBe('MERCY_RULE');
+      expect(result.gameEnded).toBe(true);
+    });
+
+    it('should cover invalid ending reason error message using internal validation (line 374)', async () => {
+      // Test the specific validation path directly on the private method
+      const validateCommandInput = (useCase as any).validateCommandInput;
+
+      const invalidCommand = {
+        ...validCommand,
+        endingReason: 'INVALID_REASON' as any,
+      };
+
+      const result = validateCommandInput.call(useCase, invalidCommand);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('Invalid ending reason');
+    });
+
+    it('should cover non-number finalOuts validation using internal validation (line 378)', async () => {
+      // Test the specific validation path directly on the private method
+      const validateCommandInput = (useCase as any).validateCommandInput;
+
+      const invalidCommand = {
+        ...validCommand,
+        finalOuts: 'not-a-number' as any,
+      };
+
+      const result = validateCommandInput.call(useCase, invalidCommand);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('Final outs must be a valid number');
+    });
+
+    it('should cover non-finite finalOuts validation using internal validation (lines 381-382)', async () => {
+      // Test the specific validation path directly on the private method
+      const validateCommandInput = (useCase as any).validateCommandInput;
+
+      const invalidCommand = {
+        ...validCommand,
+        finalOuts: Infinity, // Non-finite number
+      };
+
+      const result = validateCommandInput.call(useCase, invalidCommand);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('Final outs must be a finite number');
+    });
+
+    it('should cover inning integer validation using internal validation (lines 361-362)', async () => {
+      // Test the specific validation path directly on the private method
+      const validateCommandInput = (useCase as any).validateCommandInput;
+
+      const invalidCommand = {
+        ...validCommand,
+        inning: 5.5, // Not an integer
+      };
+
+      const result = validateCommandInput.call(useCase, invalidCommand);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('Inning must be an integer');
+    });
+
+    it('should cover isTopHalf boolean validation using internal validation (lines 367-368)', async () => {
+      // Test the specific validation path directly on the private method
+      const validateCommandInput = (useCase as any).validateCommandInput;
+
+      const invalidCommand = {
+        ...validCommand,
+        isTopHalf: 'not-a-boolean' as any,
+      };
+
+      const result = validateCommandInput.call(useCase, invalidCommand);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('isTopHalf must be a boolean');
+    });
+
+    it('should cover inning finite number validation using internal validation (lines 355-356)', async () => {
+      // Test the specific validation path directly on the private method
+      const validateCommandInput = (useCase as any).validateCommandInput;
+
+      const invalidCommand = {
+        ...validCommand,
+        inning: Infinity, // Not a finite number
+      };
+
+      const result = validateCommandInput.call(useCase, invalidCommand);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('Inning must be a finite number');
+    });
+
+    it('should cover inning minimum value validation using internal validation (lines 358-359)', async () => {
+      // Test the specific validation path directly on the private method
+      const validateCommandInput = (useCase as any).validateCommandInput;
+
+      const invalidCommand = {
+        ...validCommand,
+        inning: 0, // Less than 1
+      };
+
+      const result = validateCommandInput.call(useCase, invalidCommand);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('Inning must be 1 or greater');
+    });
+
+    it('should cover null gameId validation using internal validation (lines 347-348)', async () => {
+      // Test the specific validation path directly on the private method
+      const validateCommandInput = (useCase as any).validateCommandInput;
+
+      const invalidCommand = {
+        ...validCommand,
+        gameId: null,
+      };
+
+      const result = validateCommandInput.call(useCase, invalidCommand);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('GameId cannot be null or undefined');
+    });
+
+    it('should cover invalid inning type validation using internal validation (line 352)', async () => {
+      // Test the specific validation path directly on the private method
+      const validateCommandInput = (useCase as any).validateCommandInput;
+
+      const invalidCommand = {
+        ...validCommand,
+        inning: 'not-a-number' as any,
+      };
+
+      const result = validateCommandInput.call(useCase, invalidCommand);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain('Inning must be a valid number');
     });
   });
 });

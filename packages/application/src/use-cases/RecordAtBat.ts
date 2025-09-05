@@ -786,6 +786,9 @@ export class RecordAtBat {
       if (error.message && error.message.includes('Invalid batter')) {
         return 'Invalid batter state';
       }
+      if (error.message && error.message.includes('Transaction compensation failed')) {
+        return error.message;
+      }
       if (error.message && error.message.includes('Unexpected error occurred')) {
         return `An unexpected error occurred: ${error.message}`;
       }
