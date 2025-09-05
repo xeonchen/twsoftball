@@ -500,18 +500,20 @@ describe('StartNewGameCommand', () => {
       it('should throw error for whitespace-only home team name', () => {
         const invalidCommand = { ...validCommand, homeTeamName: '   ' };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError(
-            'Home team name is required and cannot be empty',
-            'homeTeamName',
-            '   '
-          )
+          expect.objectContaining({
+            message: 'Home team name is required and cannot be empty',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
       it('should throw error for empty away team name', () => {
         const invalidCommand = { ...validCommand, awayTeamName: '' };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError('Away team name is required and cannot be empty')
+          expect.objectContaining({
+            message: 'Away team name is required and cannot be empty',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
@@ -531,26 +533,34 @@ describe('StartNewGameCommand', () => {
           ourTeamSide: 'INVALID',
         } as unknown as StartNewGameCommand;
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError('Our team side must be either HOME or AWAY')
+          expect.objectContaining({
+            message: 'Our team side must be either HOME or AWAY',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
       it('should throw error for invalid game date', () => {
         const invalidDate = new Date('invalid');
         const invalidCommand = { ...validCommand, gameDate: invalidDate };
-        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError(
-            'Game date must be a valid Date object',
-            'gameDate',
-            invalidDate
-          )
-        );
+        let thrownError: StartNewGameCommandValidationError | undefined;
+        try {
+          StartNewGameCommandValidator.validate(invalidCommand);
+        } catch (error) {
+          thrownError = error as StartNewGameCommandValidationError;
+        }
+        expect(thrownError).toBeInstanceOf(StartNewGameCommandValidationError);
+        expect(thrownError?.message).toBe('Game date must be a valid Date object');
+        expect(thrownError?.errorType).toBe('StartNewGameCommandValidationError');
       });
 
       it('should throw error for empty location string when provided', () => {
         const invalidCommand = { ...validCommand, location: '   ' };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError('Location cannot be empty if provided')
+          expect.objectContaining({
+            message: 'Location cannot be empty if provided',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
@@ -567,7 +577,10 @@ describe('StartNewGameCommand', () => {
           initialLineup: 'not-array',
         } as unknown as StartNewGameCommand;
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError('Initial lineup must be an array')
+          expect.objectContaining({
+            message: 'Initial lineup must be an array',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
@@ -575,7 +588,10 @@ describe('StartNewGameCommand', () => {
         const shortLineup = lineupPlayers.slice(0, 1);
         const invalidCommand = { ...validCommand, initialLineup: shortLineup };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError('Initial lineup must have at least 9 players')
+          expect.objectContaining({
+            message: 'Initial lineup must have at least 9 players',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
@@ -590,7 +606,10 @@ describe('StartNewGameCommand', () => {
         }));
         const invalidCommand = { ...validCommand, initialLineup: longLineup };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError('Initial lineup cannot exceed 20 players')
+          expect.objectContaining({
+            message: 'Initial lineup cannot exceed 20 players',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
@@ -599,7 +618,10 @@ describe('StartNewGameCommand', () => {
         invalidLineup[0] = { ...lineupPlayers[0]!, playerId: null } as unknown as LineupPlayerDTO;
         const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError('Player at index 0: playerId is required')
+          expect.objectContaining({
+            message: 'Player at index 0: playerId is required',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
@@ -608,9 +630,10 @@ describe('StartNewGameCommand', () => {
         invalidLineup[0] = { ...lineupPlayers[0]!, name: '' };
         const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError(
-            'Player at index 0: name is required and cannot be empty'
-          )
+          expect.objectContaining({
+            message: 'Player at index 0: name is required and cannot be empty',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
@@ -622,7 +645,10 @@ describe('StartNewGameCommand', () => {
         } as unknown as LineupPlayerDTO;
         const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError('Player at index 0: jerseyNumber is required')
+          expect.objectContaining({
+            message: 'Player at index 0: jerseyNumber is required',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
@@ -630,12 +656,8 @@ describe('StartNewGameCommand', () => {
         const invalidLineup = [...lineupPlayers];
         invalidLineup[0] = { ...lineupPlayers[0]!, battingOrderPosition: 0 };
         const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
-        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError(
-            'Player at index 0: battingOrderPosition must be between 1 and 20',
-            'initialLineup[0].battingOrderPosition',
-            0
-          )
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrowError(
+          'Player at index 0: battingOrderPosition must be between 1 and 20'
         );
       });
 
@@ -664,11 +686,10 @@ describe('StartNewGameCommand', () => {
         } as unknown as LineupPlayerDTO;
         const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError(
-            'Player at index 0: invalid fieldPosition',
-            'initialLineup[0].fieldPosition',
-            invalidPosition
-          )
+          expect.objectContaining({
+            message: 'Player at index 0: invalid fieldPosition',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
@@ -695,9 +716,10 @@ describe('StartNewGameCommand', () => {
         } as unknown as LineupPlayerDTO;
         const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError(
-            'Player at index 0: invalid preferred position INVALID_POSITION'
-          )
+          expect.objectContaining({
+            message: 'Player at index 0: invalid preferred position INVALID_POSITION',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
     });
@@ -735,11 +757,14 @@ describe('StartNewGameCommand', () => {
         const invalidCommand = { ...validCommand, initialLineup: modifiedLineup };
         const expectedPlayerIds = modifiedLineup.map(p => p.playerId.value);
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError(
-            'All players must have unique player IDs',
-            'initialLineup',
-            expectedPlayerIds
-          )
+          expect.objectContaining({
+            message: 'All players must have unique player IDs',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'initialLineup',
+              value: expectedPlayerIds,
+            }),
+          }) as Error
         );
       });
 
@@ -748,14 +773,9 @@ describe('StartNewGameCommand', () => {
         const modifiedLineup = fullLineup.map((player, index) =>
           index === 0 || index === 1 ? { ...player, jerseyNumber: duplicateJerseyNumber } : player
         );
-        const expectedJerseyNumbers = modifiedLineup.map(p => p.jerseyNumber.value);
         const invalidCommand = { ...validCommand, initialLineup: modifiedLineup };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError(
-            'All players must have unique jersey numbers',
-            'initialLineup',
-            expectedJerseyNumbers
-          )
+          'All players must have unique jersey numbers'
         );
       });
 
@@ -765,9 +785,10 @@ describe('StartNewGameCommand', () => {
         );
         const invalidCommand = { ...validCommand, initialLineup: modifiedLineup };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError(
-            'All players must have unique batting order positions'
-          )
+          expect.objectContaining({
+            message: 'All players must have unique batting order positions',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
@@ -779,9 +800,10 @@ describe('StartNewGameCommand', () => {
         }));
         const invalidCommand = { ...validCommand, initialLineup: gappedLineup };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError(
-            'Batting order must be consecutive starting from 1. Missing position 2'
-          )
+          expect.objectContaining({
+            message: 'Batting order must be consecutive starting from 1. Missing position 2',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
@@ -796,7 +818,10 @@ describe('StartNewGameCommand', () => {
         const invalidRules = { ...gameRules, mercyRuleEnabled: 'yes' } as unknown as GameRulesDTO;
         const invalidCommand = { ...validCommand, gameRules: invalidRules };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError('mercyRuleEnabled must be a boolean')
+          expect.objectContaining({
+            message: 'mercyRuleEnabled must be a boolean',
+            errorType: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
@@ -815,7 +840,10 @@ describe('StartNewGameCommand', () => {
         const invalidRules = { ...gameRules, mercyRuleInning4: 51 };
         const invalidCommand = { ...validCommand, gameRules: invalidRules };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError('mercyRuleInning4 must be between 0 and 50')
+          expect.objectContaining({
+            message: 'mercyRuleInning4 must be between 0 and 50',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
@@ -834,17 +862,15 @@ describe('StartNewGameCommand', () => {
         const invalidRules = { ...gameRules, mercyRuleInning5: 51 };
         const invalidCommand = { ...validCommand, gameRules: invalidRules };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError('mercyRuleInning5 must be between 0 and 50')
+          'mercyRuleInning5 must be between 0 and 50'
         );
       });
 
       it('should throw error when inning5 mercy is greater than inning4', () => {
         const invalidRules = { ...gameRules, mercyRuleInning4: 10, mercyRuleInning5: 15 };
         const invalidCommand = { ...validCommand, gameRules: invalidRules };
-        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError(
-            'mercyRuleInning5 cannot be greater than mercyRuleInning4'
-          )
+        expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrowError(
+          'mercyRuleInning5 cannot be greater than mercyRuleInning4'
         );
       });
 
@@ -852,7 +878,10 @@ describe('StartNewGameCommand', () => {
         const invalidRules = { ...gameRules, timeLimitMinutes: 0 };
         const invalidCommand = { ...validCommand, gameRules: invalidRules };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError('timeLimitMinutes must be between 1 and 300')
+          expect.objectContaining({
+            message: 'timeLimitMinutes must be between 1 and 300',
+            name: 'StartNewGameCommandValidationError',
+          }) as Error
         );
       });
 
@@ -905,11 +934,14 @@ describe('StartNewGameCommand', () => {
         const invalidRules = { ...gameRules, maxPlayersInLineup: 21 };
         const invalidCommand = { ...validCommand, gameRules: invalidRules };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
-          new StartNewGameCommandValidationError(
-            'maxPlayersInLineup must be between 9 and 20',
-            'maxPlayersInLineup',
-            21
-          )
+          expect.objectContaining({
+            message: 'maxPlayersInLineup must be between 9 and 20',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'maxPlayersInLineup',
+              value: 21,
+            }),
+          }) as Error
         );
       });
 

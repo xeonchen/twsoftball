@@ -496,21 +496,30 @@ describe('AtBatResult', () => {
       it('should throw error for non-boolean success', () => {
         const invalidResult = { ...validResult, success: 'true' } as unknown as AtBatResult;
         expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-          new AtBatResultValidationError('success field must be a boolean')
+          expect.objectContaining({
+            message: 'success field must be a boolean',
+            name: 'AtBatResultValidationError',
+          }) as Error
         );
       });
 
       it('should throw error for missing gameState', () => {
         const invalidResult = { ...validResult, gameState: null } as unknown as AtBatResult;
         expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-          new AtBatResultValidationError('gameState is required')
+          expect.objectContaining({
+            message: 'gameState is required',
+            name: 'AtBatResultValidationError',
+          }) as Error
         );
       });
 
       it('should throw error for negative runsScored', () => {
         const invalidResult = { ...validResult, runsScored: -1 };
         expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-          new AtBatResultValidationError('runsScored must be a non-negative number')
+          expect.objectContaining({
+            message: 'runsScored must be a non-negative number',
+            name: 'AtBatResultValidationError',
+          }) as Error
         );
       });
 
@@ -527,9 +536,10 @@ describe('AtBatResult', () => {
       it('should throw error for excessive rbiAwarded', () => {
         const invalidResult = { ...validResult, rbiAwarded: 5 };
         expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-          new AtBatResultValidationError(
-            'rbiAwarded cannot exceed 4 (maximum possible in single at-bat)'
-          )
+          expect.objectContaining({
+            message: 'rbiAwarded cannot exceed 4 (maximum possible in single at-bat)',
+            name: 'AtBatResultValidationError',
+          }) as Error
         );
       });
     });
@@ -543,7 +553,10 @@ describe('AtBatResult', () => {
       it('should throw error for excessive RBI without runs', () => {
         const invalidResult = { ...validResult, runsScored: 0, rbiAwarded: 2 };
         expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-          new AtBatResultValidationError('Cannot award more than 1 RBI when no runs are scored')
+          expect.objectContaining({
+            message: 'Cannot award more than 1 RBI when no runs are scored',
+            name: 'AtBatResultValidationError',
+          }) as Error
         );
       });
     });
@@ -552,7 +565,7 @@ describe('AtBatResult', () => {
       it('should throw error when game ends but inning does not', () => {
         const invalidResult = { ...validResult, gameEnded: true, inningEnded: false };
         expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-          new AtBatResultValidationError('If game ended, inning must also be ended')
+          'If game ended, inning must also be ended'
         );
       });
 
@@ -600,11 +613,14 @@ describe('AtBatResult', () => {
           errors: tooManyErrors,
         };
         expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-          new AtBatResultValidationError(
-            'errors array cannot exceed 10 items',
-            'errors',
-            tooManyErrors
-          )
+          expect.objectContaining({
+            message: 'errors array cannot exceed 10 items',
+            name: 'AtBatResultValidationError',
+            validationContext: expect.objectContaining({
+              field: 'errors',
+              value: tooManyErrors,
+            }),
+          }) as Error
         );
       });
     });
@@ -803,11 +819,14 @@ describe('AtBatResult', () => {
       } as unknown as AtBatResult;
 
       expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-        new AtBatResultValidationError(
-          'errors must be an array when provided',
-          'errors',
-          invalidValue
-        )
+        expect.objectContaining({
+          message: 'errors must be an array when provided',
+          errorType: 'AtBatResultValidationError',
+          validationContext: expect.objectContaining({
+            field: 'errors',
+            value: invalidValue,
+          }),
+        }) as Error
       );
     });
   });

@@ -502,14 +502,20 @@ describe('RecordAtBatCommand', () => {
       it('should throw error for missing batterId', () => {
         const invalidCommand = { ...validCommand, batterId: null } as unknown as RecordAtBatCommand;
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError('batterId is required')
+          expect.objectContaining({
+            message: 'batterId is required',
+            name: 'RecordAtBatCommandValidationError',
+          }) as Error
         );
       });
 
       it('should throw error for missing result', () => {
         const invalidCommand = { ...validCommand, result: null } as unknown as RecordAtBatCommand;
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError('result is required')
+          expect.objectContaining({
+            message: 'result is required',
+            name: 'RecordAtBatCommandValidationError',
+          }) as Error
         );
       });
 
@@ -538,8 +544,8 @@ describe('RecordAtBatCommand', () => {
           ...validCommand,
           runnerAdvances: 'not-array',
         } as unknown as RecordAtBatCommand;
-        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError('runnerAdvances must be an array if provided')
+        expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrowError(
+          'runnerAdvances must be an array if provided'
         );
       });
 
@@ -552,9 +558,10 @@ describe('RecordAtBatCommand', () => {
         }));
         const invalidCommand = { ...validCommand, runnerAdvances: tooManyAdvances };
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError(
-            'runnerAdvances cannot exceed 4 advances (max bases + batter)'
-          )
+          expect.objectContaining({
+            message: 'runnerAdvances cannot exceed 4 advances (max bases + batter)',
+            name: 'RecordAtBatCommandValidationError',
+          }) as Error
         );
       });
 
@@ -576,7 +583,10 @@ describe('RecordAtBatCommand', () => {
         ];
         const invalidCommand = { ...validCommand, runnerAdvances: duplicateAdvances };
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError('Each player can only have one advance per at-bat')
+          expect.objectContaining({
+            message: 'Each player can only have one advance per at-bat',
+            name: 'RecordAtBatCommandValidationError',
+          }) as Error
         );
       });
 
@@ -609,9 +619,11 @@ describe('RecordAtBatCommand', () => {
         ];
         const invalidCommand = { ...validCommand, runnerAdvances: invalidAdvance };
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError(
-            "Runner advance at index 0: invalid advanceReason 'INVALID_REASON'. Valid reasons: HIT, WALK, ERROR, WILD_PITCH, PASSED_BALL, STEAL, BALK, SACRIFICE, FIELDERS_CHOICE, OUT, GROUND_OUT, FLY_OUT, FORCE_OUT"
-          )
+          expect.objectContaining({
+            message:
+              "Runner advance at index 0: invalid advanceReason 'INVALID_REASON'. Valid reasons: HIT, WALK, ERROR, WILD_PITCH, PASSED_BALL, STEAL, BALK, SACRIFICE, FIELDERS_CHOICE, OUT, GROUND_OUT, FLY_OUT, FORCE_OUT",
+            name: 'RecordAtBatCommandValidationError',
+          }) as Error
         );
       });
 
@@ -626,9 +638,10 @@ describe('RecordAtBatCommand', () => {
         ];
         const invalidCommand = { ...validCommand, runnerAdvances: invalidAdvance };
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError(
-            'Runner advance at index 0: both fromBase and toBase cannot be null'
-          )
+          expect.objectContaining({
+            message: 'Runner advance at index 0: both fromBase and toBase cannot be null',
+            name: 'RecordAtBatCommandValidationError',
+          }) as Error
         );
       });
 
@@ -656,9 +669,10 @@ describe('RecordAtBatCommand', () => {
         ];
         const invalidCommand = { ...validCommand, runnerAdvances: invalidAdvance };
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError(
-            "Runner advance at index 0: invalid fromBase 'INVALID_BASE'"
-          )
+          expect.objectContaining({
+            message: "Runner advance at index 0: invalid fromBase 'INVALID_BASE'",
+            name: 'RecordAtBatCommandValidationError',
+          }) as Error
         );
       });
 
@@ -673,9 +687,7 @@ describe('RecordAtBatCommand', () => {
         ];
         const invalidCommand = { ...validCommand, runnerAdvances: invalidAdvance };
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError(
-            'Runner advance at index 0: cannot advance from SECOND to the same base'
-          )
+          'Runner advance at index 0: cannot advance from SECOND to the same base'
         );
       });
     });
@@ -755,11 +767,10 @@ describe('RecordAtBatCommand', () => {
         const futureDate = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
         const invalidCommand = { ...validCommand, timestamp: futureDate };
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError(
-            'timestamp cannot be more than 1 hour in the future',
-            'timestamp',
-            futureDate
-          ) as Error
+          expect.objectContaining({
+            message: 'timestamp cannot be more than 1 hour in the future',
+            name: 'RecordAtBatCommandValidationError',
+          }) as Error
         );
       });
 
@@ -910,9 +921,10 @@ describe('RecordAtBatCommand', () => {
       const invalidCommand = { ...validCommand, runnerAdvances: invalidAdvance };
 
       expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-        new RecordAtBatCommandValidationError(
-          "Runner advance at index 0: invalid toBase 'INVALID_BASE'"
-        )
+        expect.objectContaining({
+          message: "Runner advance at index 0: invalid toBase 'INVALID_BASE'",
+          name: 'RecordAtBatCommandValidationError',
+        }) as Error
       );
     });
 
@@ -1021,9 +1033,10 @@ describe('RecordAtBatCommand', () => {
 
       // This should trigger the validation on lines 256-259
       expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-        new RecordAtBatCommandValidationError(
-          "Runner advance at index 0: invalid toBase 'INVALID_BASE'"
-        )
+        expect.objectContaining({
+          message: "Runner advance at index 0: invalid toBase 'INVALID_BASE'",
+          name: 'RecordAtBatCommandValidationError',
+        }) as Error
       );
     });
 
@@ -1039,9 +1052,10 @@ describe('RecordAtBatCommand', () => {
       const invalidCommand = { ...validCommand, runnerAdvances: undefinedToBaseAdvance };
 
       expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-        new RecordAtBatCommandValidationError(
-          "Runner advance at index 0: invalid toBase 'undefined'"
-        )
+        expect.objectContaining({
+          message: "Runner advance at index 0: invalid toBase 'undefined'",
+          name: 'RecordAtBatCommandValidationError',
+        }) as Error
       );
     });
 

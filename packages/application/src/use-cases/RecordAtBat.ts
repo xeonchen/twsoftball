@@ -777,13 +777,13 @@ export class RecordAtBat {
    */
   private categorizeError(error: unknown): string {
     if (error instanceof Error) {
-      if (error.message.includes('Database connection failed')) {
+      if (error.message && error.message.includes('Database connection failed')) {
         return `Failed to save game state: ${error.message}`;
       }
-      if (error.message.includes('Event store unavailable')) {
+      if (error.message && error.message.includes('Event store unavailable')) {
         return `Failed to store events: ${error.message}`;
       }
-      if (error.message.includes('Invalid batter')) {
+      if (error.message && error.message.includes('Invalid batter')) {
         return 'Invalid batter state';
       }
       if (error.message && error.message.includes('Unexpected error occurred')) {
