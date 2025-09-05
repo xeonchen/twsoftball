@@ -107,8 +107,11 @@ export class EventSourcingService {
       aggregate: Game | TeamLineup | InningState;
       createdAt: Date;
       metadata: Record<string, unknown>;
+      lastAccessed: Date;
     }
   >();
+  private readonly MAX_CACHE_SIZE = 1000;
+  private readonly CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour TTL
   private readonly minimumEventsForSnapshot = 2;
 
   /**
@@ -559,7 +562,7 @@ export class EventSourcingService {
       // Store in cache if enabled
       if (this.snapshotCacheEnabled) {
         const cacheKey = this.getSnapshotCacheKey(command.streamId, command.aggregateType);
-        this.snapshotCache.set(cacheKey, snapshotData);
+        this.setCacheEntry(cacheKey, snapshotData);
       }
 
       const duration = Date.now() - startTime;
@@ -630,7 +633,7 @@ export class EventSourcingService {
       // Check cache first if enabled
       if (this.snapshotCacheEnabled) {
         const cacheKey = this.getSnapshotCacheKey(streamId, aggregateType);
-        const cachedSnapshot = this.snapshotCache.get(cacheKey);
+        const cachedSnapshot = this.getCacheEntry(cacheKey);
 
         if (cachedSnapshot) {
           this.logger.debug('Snapshot loaded from cache', {
@@ -1015,27 +1018,52 @@ export class EventSourcingService {
    * improve aggregate reconstruction performance. Caching can significantly
    * reduce reconstruction time for frequently accessed aggregates.
    *
-   * **Caching Strategy**: Uses in-memory caching with LRU eviction policy.
-   * Cache size and eviction policies can be configured based on memory
-   * constraints and usage patterns.
+   * **Caching Strategy**: Uses in-memory caching with LRU eviction policy
+   * and TTL-based expiration. Cache size is bounded to prevent memory leaks.
+   *
+   * **Cache Configuration**:
+   * - Maximum cache size: 1000 entries
+   * - TTL: 1 hour per entry
+   * - Eviction policy: LRU (Least Recently Used)
    *
    * @param enabled - Whether to enable snapshot caching
-   * @returns Cache configuration result
+   * @returns Cache configuration result with current statistics
    */
-  enableSnapshotCaching(enabled: boolean): { enabled: boolean } {
+  enableSnapshotCaching(enabled: boolean): {
+    enabled: boolean;
+    maxSize: number;
+    ttlMs: number;
+    currentSize: number;
+  } {
     this.snapshotCacheEnabled = enabled;
 
     if (!enabled) {
+      const previousSize = this.snapshotCache.size;
       this.snapshotCache.clear();
+
+      this.logger.info('Snapshot cache cleared', {
+        previousSize,
+        operation: 'enableSnapshotCaching',
+      });
+    } else {
+      // Evict stale entries when enabling to start fresh
+      this.evictStaleEntries();
     }
 
     this.logger.info('Snapshot caching configuration updated', {
       enabled,
-      cacheSize: this.snapshotCache.size,
+      maxSize: this.MAX_CACHE_SIZE,
+      ttlMs: this.CACHE_TTL_MS,
+      currentSize: this.snapshotCache.size,
       operation: 'enableSnapshotCaching',
     });
 
-    return { enabled };
+    return {
+      enabled,
+      maxSize: this.MAX_CACHE_SIZE,
+      ttlMs: this.CACHE_TTL_MS,
+      currentSize: this.snapshotCache.size,
+    };
   }
 
   /**
@@ -1367,6 +1395,133 @@ export class EventSourcingService {
       fromVersion,
       toVersion,
     });
+  }
+
+  /**
+   * Evicts old cache entries to maintain size and TTL limits.
+   *
+   * @private
+   */
+  private evictStaleEntries(): void {
+    if (!this.snapshotCacheEnabled) {
+      return;
+    }
+
+    const now = new Date();
+    const entriesToEvict: string[] = [];
+
+    // Identify expired entries based on TTL
+    for (const [key, entry] of this.snapshotCache.entries()) {
+      const age = now.getTime() - entry.lastAccessed.getTime();
+      if (age > this.CACHE_TTL_MS) {
+        entriesToEvict.push(key);
+      }
+    }
+
+    // Evict expired entries
+    for (const key of entriesToEvict) {
+      this.snapshotCache.delete(key);
+      this.logger.debug('Evicted expired cache entry', {
+        cacheKey: key,
+        operation: 'evictStaleEntries',
+      });
+    }
+
+    // If still over size limit, evict least recently accessed entries
+    if (this.snapshotCache.size >= this.MAX_CACHE_SIZE) {
+      const entriesByLastAccessed = Array.from(this.snapshotCache.entries()).sort(
+        ([, a], [, b]) => a.lastAccessed.getTime() - b.lastAccessed.getTime()
+      );
+
+      const numToEvict = this.snapshotCache.size - this.MAX_CACHE_SIZE + 1;
+
+      for (let i = 0; i < numToEvict && i < entriesByLastAccessed.length; i++) {
+        const [key] = entriesByLastAccessed[i]!;
+        this.snapshotCache.delete(key);
+        this.logger.debug('Evicted LRU cache entry', {
+          cacheKey: key,
+          operation: 'evictStaleEntries',
+        });
+      }
+    }
+  }
+
+  /**
+   * Adds or updates a cache entry with LRU management.
+   *
+   * @private
+   */
+  private setCacheEntry(
+    key: string,
+    entry: {
+      id: string;
+      streamId: string;
+      aggregateType: 'Game' | 'TeamLineup' | 'InningState';
+      version: number;
+      aggregate: Game | TeamLineup | InningState;
+      createdAt: Date;
+      metadata: Record<string, unknown>;
+    }
+  ): void {
+    if (!this.snapshotCacheEnabled) {
+      return;
+    }
+
+    // Evict stale entries before adding new ones
+    this.evictStaleEntries();
+
+    // Add the new entry with current access time
+    this.snapshotCache.set(key, {
+      ...entry,
+      lastAccessed: new Date(),
+    });
+
+    this.logger.debug('Added cache entry', {
+      cacheKey: key,
+      cacheSize: this.snapshotCache.size,
+      operation: 'setCacheEntry',
+    });
+  }
+
+  /**
+   * Gets a cache entry and updates its access time for LRU.
+   *
+   * @private
+   */
+  private getCacheEntry(key: string):
+    | {
+        id: string;
+        streamId: string;
+        aggregateType: 'Game' | 'TeamLineup' | 'InningState';
+        version: number;
+        aggregate: Game | TeamLineup | InningState;
+        createdAt: Date;
+        metadata: Record<string, unknown>;
+        lastAccessed: Date;
+      }
+    | undefined {
+    if (!this.snapshotCacheEnabled) {
+      return undefined;
+    }
+
+    const entry = this.snapshotCache.get(key);
+    if (entry) {
+      // Update last accessed time for LRU
+      entry.lastAccessed = new Date();
+      this.snapshotCache.set(key, entry);
+
+      this.logger.debug('Cache hit', {
+        cacheKey: key,
+        operation: 'getCacheEntry',
+      });
+    } else {
+      this.logger.debug('Cache miss', {
+        cacheKey: key,
+        operation: 'getCacheEntry',
+      });
+    }
+
+    return entry;
   }
 }
 

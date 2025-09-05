@@ -6,11 +6,14 @@
 import { GameId } from '@twsoftball/domain';
 import { describe, it, expect } from 'vitest';
 
-import type {
+import {
   EndGameCommand,
   GameEndReason,
   WeatherConditionsDTO,
   ForfeitDetailsDTO,
+  EndGameCommandValidator,
+  EndGameCommandValidationError,
+  EndGameCommandFactory,
 } from './EndGameCommand';
 
 describe('EndGameCommand', () => {
@@ -323,6 +326,719 @@ describe('EndGameCommand', () => {
     });
   });
 
+  describe('Validation - EndGameCommandValidator', () => {
+    describe('Basic Field Validation', () => {
+      it('should require gameId', () => {
+        const command = {
+          gameId: null as unknown as GameId,
+          reason: 'mercy_rule' as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 1,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 0, away: 0 },
+          winner: null,
+          officialGame: false,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          EndGameCommandValidationError
+        );
+        expect(() => EndGameCommandValidator.validate(command)).toThrow('gameId is required');
+      });
+
+      it('should require description', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'mercy_rule' as GameEndReason,
+          description: '',
+          endTime: new Date(),
+          currentInning: 1,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 0, away: 0 },
+          winner: null,
+          officialGame: false,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'description is required and cannot be empty'
+        );
+      });
+
+      it('should limit description length to 500 characters', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'mercy_rule' as GameEndReason,
+          description: 'a'.repeat(501),
+          endTime: new Date(),
+          currentInning: 1,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 0, away: 0 },
+          winner: null,
+          officialGame: false,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'description cannot exceed 500 characters'
+        );
+      });
+
+      it('should require valid endTime', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'mercy_rule' as GameEndReason,
+          description: 'Test',
+          endTime: new Date('invalid'),
+          currentInning: 1,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 0, away: 0 },
+          winner: null,
+          officialGame: false,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'endTime must be a valid Date object'
+        );
+      });
+
+      it('should require initiatedBy', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'mercy_rule' as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 1,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 0, away: 0 },
+          winner: null,
+          officialGame: false,
+          initiatedBy: '',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'initiatedBy is required and cannot be empty'
+        );
+      });
+
+      it('should limit initiatedBy length to 50 characters', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'mercy_rule' as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 1,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 0, away: 0 },
+          winner: null,
+          officialGame: false,
+          initiatedBy: 'a'.repeat(51),
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'initiatedBy cannot exceed 50 characters'
+        );
+      });
+
+      it('should require officialGame to be boolean', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'mercy_rule' as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 1,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 0, away: 0 },
+          winner: null,
+          officialGame: 'true' as unknown as boolean,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'officialGame must be a boolean'
+        );
+      });
+    });
+
+    describe('Game State Validation', () => {
+      it('should require positive integer inning', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'mercy_rule' as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 0,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 0, away: 0 },
+          winner: null,
+          officialGame: false,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'currentInning must be a positive integer'
+        );
+      });
+
+      it('should limit inning to maximum of 20', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'mercy_rule' as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 21,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 0, away: 0 },
+          winner: null,
+          officialGame: false,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'currentInning cannot exceed 20'
+        );
+      });
+
+      it('should require valid currentHalf', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'mercy_rule' as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 1,
+          currentHalf: 'middle' as unknown as 'top' | 'bottom',
+          currentOuts: 0,
+          finalScore: { home: 0, away: 0 },
+          winner: null,
+          officialGame: false,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'currentHalf must be either "top" or "bottom"'
+        );
+      });
+
+      it('should validate outs between 0 and 3', () => {
+        const invalidOuts = [-1, 4];
+
+        invalidOuts.forEach(outs => {
+          const command = {
+            gameId: GameId.generate(),
+            reason: 'mercy_rule' as GameEndReason,
+            description: 'Test',
+            endTime: new Date(),
+            currentInning: 1,
+            currentHalf: 'top' as const,
+            currentOuts: outs,
+            finalScore: { home: 0, away: 0 },
+            winner: null,
+            officialGame: false,
+            initiatedBy: 'test',
+          };
+
+          expect(() => EndGameCommandValidator.validate(command)).toThrow(
+            'currentOuts must be an integer between 0 and 3'
+          );
+        });
+      });
+    });
+
+    describe('End Reason Validation', () => {
+      it('should validate end reason', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'invalid_reason' as unknown as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 1,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 0, away: 0 },
+          winner: null,
+          officialGame: false,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow('reason must be one of:');
+      });
+
+      it('should require forfeitDetails when reason is forfeit', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'forfeit' as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 1,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 0, away: 0 },
+          winner: null,
+          officialGame: false,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'forfeitDetails is required when reason is forfeit'
+        );
+      });
+
+      it('should require weatherConditions when reason is weather', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'weather' as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 1,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 0, away: 0 },
+          winner: null,
+          officialGame: false,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'weatherConditions is required when reason is weather'
+        );
+      });
+
+      it('should warn about mercy rule games not being official', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'mercy_rule' as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 1,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 15, away: 0 },
+          winner: 'home' as const,
+          officialGame: false,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'mercy rule games should typically be official'
+        );
+      });
+    });
+
+    describe('Score Validation', () => {
+      it('should require non-negative integer scores', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'administrative' as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 5,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: -1, away: 0 },
+          winner: null,
+          officialGame: false,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'finalScore.home must be a non-negative integer'
+        );
+      });
+
+      it('should limit scores to maximum of 100', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'administrative' as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 5,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 101, away: 0 },
+          winner: null,
+          officialGame: false,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'scores cannot exceed 100 runs'
+        );
+      });
+
+      it('should validate winner consistency with score for official games', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'mercy_rule' as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 5,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 5, away: 10 },
+          winner: 'home' as const,
+          officialGame: true,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow(
+          'winner cannot be "home" if away team has higher score'
+        );
+      });
+
+      it('should validate winner consistency for tied games', () => {
+        const command = {
+          gameId: GameId.generate(),
+          reason: 'administrative' as GameEndReason,
+          description: 'Test',
+          endTime: new Date(),
+          currentInning: 5,
+          currentHalf: 'top' as const,
+          currentOuts: 0,
+          finalScore: { home: 5, away: 5 },
+          winner: 'home' as const,
+          officialGame: true,
+          initiatedBy: 'test',
+        };
+
+        expect(() => EndGameCommandValidator.validate(command)).toThrow('winner cannot be "home"');
+      });
+    });
+
+    describe('Weather Conditions Validation', () => {
+      it('should validate weather condition types', () => {
+        const weather: WeatherConditionsDTO = {
+          condition: 'invalid_condition' as unknown as WeatherConditionsDTO['condition'],
+          description: 'Test weather',
+        };
+
+        expect(() => EndGameCommandValidator.validateWeatherConditions(weather)).toThrow(
+          'weather.condition must be one of:'
+        );
+      });
+
+      it('should require weather description', () => {
+        const weather: WeatherConditionsDTO = {
+          condition: 'lightning',
+          description: '',
+        };
+
+        expect(() => EndGameCommandValidator.validateWeatherConditions(weather)).toThrow(
+          'weather.description is required and cannot be empty'
+        );
+      });
+
+      it('should validate temperature range', () => {
+        const weather: WeatherConditionsDTO = {
+          condition: 'lightning',
+          description: 'Test',
+          temperature: 200,
+        };
+
+        expect(() => EndGameCommandValidator.validateWeatherConditions(weather)).toThrow(
+          'weather.temperature must be between -50 and 150 degrees'
+        );
+      });
+
+      it('should validate wind speed range', () => {
+        const weather: WeatherConditionsDTO = {
+          condition: 'lightning',
+          description: 'Test',
+          windSpeed: 250,
+        };
+
+        expect(() => EndGameCommandValidator.validateWeatherConditions(weather)).toThrow(
+          'weather.windSpeed must be between 0 and 200 mph'
+        );
+      });
+
+      it('should validate estimated clearance range', () => {
+        const weather: WeatherConditionsDTO = {
+          condition: 'lightning',
+          description: 'Test',
+          estimatedClearance: 2000,
+        };
+
+        expect(() => EndGameCommandValidator.validateWeatherConditions(weather)).toThrow(
+          'weather.estimatedClearance must be between 0 and 1440 minutes'
+        );
+      });
+    });
+
+    describe('Forfeit Details Validation', () => {
+      it('should validate forfeiting team', () => {
+        const forfeit: ForfeitDetailsDTO = {
+          forfeitingTeam: 'middle' as unknown as 'home' | 'away',
+          forfeitReason: 'insufficient_players',
+          details: 'Test forfeit',
+        };
+
+        expect(() => EndGameCommandValidator.validateForfeitDetails(forfeit)).toThrow(
+          'forfeit.forfeitingTeam must be "home" or "away"'
+        );
+      });
+
+      it('should validate forfeit reason', () => {
+        const forfeit: ForfeitDetailsDTO = {
+          forfeitingTeam: 'home',
+          forfeitReason: 'invalid_reason' as unknown as ForfeitDetailsDTO['forfeitReason'],
+          details: 'Test forfeit',
+        };
+
+        expect(() => EndGameCommandValidator.validateForfeitDetails(forfeit)).toThrow(
+          'forfeit.forfeitReason must be one of:'
+        );
+      });
+
+      it('should require forfeit details', () => {
+        const forfeit: ForfeitDetailsDTO = {
+          forfeitingTeam: 'home',
+          forfeitReason: 'insufficient_players',
+          details: '',
+        };
+
+        expect(() => EndGameCommandValidator.validateForfeitDetails(forfeit)).toThrow(
+          'forfeit.details is required and cannot be empty'
+        );
+      });
+
+      it('should limit forfeit details length', () => {
+        const forfeit: ForfeitDetailsDTO = {
+          forfeitingTeam: 'home',
+          forfeitReason: 'insufficient_players',
+          details: 'a'.repeat(1001),
+        };
+
+        expect(() => EndGameCommandValidator.validateForfeitDetails(forfeit)).toThrow(
+          'forfeit.details cannot exceed 1000 characters'
+        );
+      });
+    });
+
+    describe('Optional Fields Validation', () => {
+      it('should validate rule reference length', () => {
+        expect(() => EndGameCommandValidator.validateRuleReference('a'.repeat(101))).toThrow(
+          'ruleReference cannot exceed 100 characters'
+        );
+      });
+
+      it('should not allow whitespace-only rule reference', () => {
+        expect(() => EndGameCommandValidator.validateRuleReference('   ')).toThrow(
+          'ruleReference cannot be only whitespace'
+        );
+      });
+
+      it('should validate notes length', () => {
+        expect(() => EndGameCommandValidator.validateNotes('a'.repeat(1001))).toThrow(
+          'notes cannot exceed 1000 characters'
+        );
+      });
+
+      it('should not allow whitespace-only notes', () => {
+        expect(() => EndGameCommandValidator.validateNotes('   ')).toThrow(
+          'notes cannot be only whitespace'
+        );
+      });
+
+      it('should allow empty string notes', () => {
+        expect(() => EndGameCommandValidator.validateNotes('')).not.toThrow();
+      });
+    });
+  });
+
+  describe('Factory Functions - EndGameCommandFactory', () => {
+    describe('createMercyRule', () => {
+      it('should create valid mercy rule command', () => {
+        const gameId = GameId.generate();
+        const command = EndGameCommandFactory.createMercyRule(
+          gameId,
+          5,
+          'bottom',
+          1,
+          { home: 18, away: 3 },
+          'umpire'
+        );
+
+        expect(command.reason).toBe('mercy_rule');
+        expect(command.gameId).toBe(gameId);
+        expect(command.winner).toBe('home');
+        expect(command.officialGame).toBe(true);
+        expect(command.description).toContain('15 run difference');
+      });
+
+      it('should include rule reference when provided', () => {
+        const command = EndGameCommandFactory.createMercyRule(
+          GameId.generate(),
+          5,
+          'bottom',
+          1,
+          { home: 18, away: 3 },
+          'umpire',
+          'Rule 4.10(c)'
+        );
+
+        expect(command.ruleReference).toBe('Rule 4.10(c)');
+      });
+    });
+
+    describe('createWeatherEnding', () => {
+      it('should create valid weather ending command', () => {
+        const gameId = GameId.generate();
+        const weather: WeatherConditionsDTO = {
+          condition: 'lightning',
+          description: 'Lightning detected',
+        };
+
+        const command = EndGameCommandFactory.createWeatherEnding(
+          gameId,
+          3,
+          'top',
+          2,
+          { home: 2, away: 4 },
+          weather,
+          'umpire'
+        );
+
+        expect(command.reason).toBe('weather');
+        expect(command.weatherConditions).toBe(weather);
+        expect(command.winner).toBeNull();
+        expect(command.officialGame).toBe(false);
+        expect(command.resumptionPossible).toBe(true);
+      });
+
+      it('should handle official weather games', () => {
+        const weather: WeatherConditionsDTO = {
+          condition: 'lightning',
+          description: 'Lightning detected',
+        };
+
+        const command = EndGameCommandFactory.createWeatherEnding(
+          GameId.generate(),
+          6,
+          'top',
+          2,
+          { home: 5, away: 3 },
+          weather,
+          'umpire',
+          true,
+          false
+        );
+
+        expect(command.officialGame).toBe(true);
+        expect(command.winner).toBe('home');
+        expect(command.resumptionPossible).toBe(false);
+      });
+    });
+
+    describe('createForfeit', () => {
+      it('should create valid forfeit command', () => {
+        const gameId = GameId.generate();
+        const forfeitDetails: ForfeitDetailsDTO = {
+          forfeitingTeam: 'away',
+          forfeitReason: 'insufficient_players',
+          details: 'Only 7 players available',
+        };
+
+        const command = EndGameCommandFactory.createForfeit(
+          gameId,
+          4,
+          'bottom',
+          0,
+          { home: 5, away: 3 },
+          forfeitDetails,
+          'umpire'
+        );
+
+        expect(command.reason).toBe('forfeit');
+        expect(command.winner).toBe('home');
+        expect(command.officialGame).toBe(true);
+        expect(command.forfeitDetails).toBe(forfeitDetails);
+      });
+
+      it('should include rule reference when provided', () => {
+        const forfeitDetails: ForfeitDetailsDTO = {
+          forfeitingTeam: 'home',
+          forfeitReason: 'insufficient_players',
+          details: 'Test',
+        };
+
+        const command = EndGameCommandFactory.createForfeit(
+          GameId.generate(),
+          4,
+          'bottom',
+          0,
+          { home: 3, away: 5 }, // Away team winning so forfeit makes sense
+          forfeitDetails,
+          'umpire',
+          'Rule 4.17'
+        );
+
+        expect(command.ruleReference).toBe('Rule 4.17');
+        expect(command.winner).toBe('away');
+      });
+    });
+
+    describe('createTimeLimit', () => {
+      it('should create valid time limit command', () => {
+        const gameId = GameId.generate();
+        const command = EndGameCommandFactory.createTimeLimit(
+          gameId,
+          7,
+          'bottom',
+          1,
+          { home: 6, away: 6 },
+          'umpire',
+          120
+        );
+
+        expect(command.reason).toBe('time_limit');
+        expect(command.winner).toBeNull();
+        expect(command.officialGame).toBe(true);
+        expect(command.description).toContain('120-minute time limit');
+        expect(command.ruleReference).toBe('Time Limit Rule');
+      });
+
+      it('should determine winner when scores differ', () => {
+        const command = EndGameCommandFactory.createTimeLimit(
+          GameId.generate(),
+          7,
+          'bottom',
+          1,
+          { home: 8, away: 6 },
+          'umpire',
+          120
+        );
+
+        expect(command.winner).toBe('home');
+      });
+
+      it('should mark games before 5 innings as unofficial', () => {
+        const command = EndGameCommandFactory.createTimeLimit(
+          GameId.generate(),
+          4,
+          'bottom',
+          1,
+          { home: 8, away: 6 },
+          'umpire',
+          120
+        );
+
+        expect(command.officialGame).toBe(false);
+      });
+    });
+  });
+
   describe('Edge cases and validation', () => {
     it('should handle games ending in first inning', () => {
       const firstInningEnd: EndGameCommand = {
@@ -365,6 +1081,24 @@ describe('EndGameCommand', () => {
       expect(perfectGameEnd.finalScore.home).toBe(21);
       expect(perfectGameEnd.finalScore.away).toBe(0);
       expect(perfectGameEnd.notes).toContain('Perfect game');
+    });
+
+    it('should pass validation for valid commands', () => {
+      const validCommand: EndGameCommand = {
+        gameId: GameId.generate(),
+        reason: 'mercy_rule',
+        description: 'Valid mercy rule ending',
+        endTime: new Date(),
+        currentInning: 5,
+        currentHalf: 'bottom',
+        currentOuts: 1,
+        finalScore: { home: 15, away: 0 },
+        winner: 'home',
+        officialGame: true,
+        initiatedBy: 'umpire',
+      };
+
+      expect(() => EndGameCommandValidator.validate(validCommand)).not.toThrow();
     });
   });
 });

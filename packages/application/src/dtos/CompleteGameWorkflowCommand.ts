@@ -63,6 +63,16 @@ import { StartNewGameCommand } from './StartNewGameCommand';
 import { SubstitutePlayerCommand } from './SubstitutePlayerCommand';
 
 /**
+ * Validation error for CompleteGameWorkflowCommand
+ */
+export class CompleteGameWorkflowCommandValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CompleteGameWorkflowCommandValidationError';
+  }
+}
+
+/**
  * Command for executing a complete game workflow from start to finish.
  *
  * @remarks
@@ -172,3 +182,234 @@ export interface CompleteGameWorkflowCommand {
    */
   readonly operationDelay?: number;
 }
+
+/**
+ * Validation functions for CompleteGameWorkflowCommand
+ */
+export const CompleteGameWorkflowCommandValidator = {
+  /**
+   * Validates a CompleteGameWorkflowCommand for business rule compliance.
+   *
+   * @param command - The command to validate
+   * @throws {CompleteGameWorkflowCommandValidationError} When validation fails
+   *
+   * @example
+   * ```typescript
+   * try {
+   *   CompleteGameWorkflowCommandValidator.validate(command);
+   *   // Command is valid, proceed with use case
+   * } catch (error) {
+   *   // Handle validation error
+   * }
+   * ```
+   */
+  validate(command: CompleteGameWorkflowCommand): void {
+    this.validateBasicFields(command);
+    this.validateAtBatSequences(command.atBatSequences);
+    this.validateSubstitutions(command.substitutions);
+    this.validateOptions(command);
+  },
+
+  /**
+   * Validates basic command fields
+   */
+  validateBasicFields(command: CompleteGameWorkflowCommand): void {
+    if (!command.startGameCommand) {
+      throw new CompleteGameWorkflowCommandValidationError('startGameCommand is required');
+    }
+
+    // The StartNewGameCommand validation will be handled by its own validator
+    // We just need to ensure consistency at this level
+  },
+
+  /**
+   * Validates at-bat sequences
+   */
+  validateAtBatSequences(atBatSequences: RecordAtBatCommand[]): void {
+    if (!Array.isArray(atBatSequences)) {
+      throw new CompleteGameWorkflowCommandValidationError('atBatSequences must be an array');
+    }
+
+    if (atBatSequences.length > 200) {
+      throw new CompleteGameWorkflowCommandValidationError(
+        'atBatSequences cannot exceed 200 at-bats for safety limits'
+      );
+    }
+
+    // Each at-bat command will be validated by its own validator
+  },
+
+  /**
+   * Validates substitutions
+   */
+  validateSubstitutions(substitutions: SubstitutePlayerCommand[]): void {
+    if (!Array.isArray(substitutions)) {
+      throw new CompleteGameWorkflowCommandValidationError('substitutions must be an array');
+    }
+
+    if (substitutions.length > 50) {
+      throw new CompleteGameWorkflowCommandValidationError(
+        'substitutions cannot exceed 50 substitutions for safety limits'
+      );
+    }
+
+    // Each substitution command will be validated by its own validator
+  },
+
+  /**
+   * Validates workflow options
+   */
+  validateOptions(command: CompleteGameWorkflowCommand): void {
+    if (command.endGameNaturally !== undefined && typeof command.endGameNaturally !== 'boolean') {
+      throw new CompleteGameWorkflowCommandValidationError(
+        'endGameNaturally must be a boolean if provided'
+      );
+    }
+
+    if (command.maxAttempts !== undefined) {
+      if (!Number.isInteger(command.maxAttempts) || command.maxAttempts < 1) {
+        throw new CompleteGameWorkflowCommandValidationError(
+          'maxAttempts must be a positive integer if provided'
+        );
+      }
+
+      if (command.maxAttempts > 20) {
+        throw new CompleteGameWorkflowCommandValidationError(
+          'maxAttempts cannot exceed 20 for safety limits'
+        );
+      }
+    }
+
+    if (command.continueOnFailure !== undefined && typeof command.continueOnFailure !== 'boolean') {
+      throw new CompleteGameWorkflowCommandValidationError(
+        'continueOnFailure must be a boolean if provided'
+      );
+    }
+
+    if (
+      command.enableNotifications !== undefined &&
+      typeof command.enableNotifications !== 'boolean'
+    ) {
+      throw new CompleteGameWorkflowCommandValidationError(
+        'enableNotifications must be a boolean if provided'
+      );
+    }
+
+    if (command.operationDelay !== undefined) {
+      if (!Number.isInteger(command.operationDelay) || command.operationDelay < 0) {
+        throw new CompleteGameWorkflowCommandValidationError(
+          'operationDelay must be a non-negative integer if provided'
+        );
+      }
+
+      if (command.operationDelay > 30000) {
+        throw new CompleteGameWorkflowCommandValidationError(
+          'operationDelay cannot exceed 30000ms (30 seconds) for reasonable performance'
+        );
+      }
+    }
+  },
+};
+
+/**
+ * Factory functions for creating CompleteGameWorkflowCommand instances
+ */
+export const CompleteGameWorkflowCommandFactory = {
+  /**
+   * Creates a simple CompleteGameWorkflowCommand for testing
+   */
+  createSimple(
+    startGameCommand: StartNewGameCommand,
+    atBatSequences: RecordAtBatCommand[]
+  ): CompleteGameWorkflowCommand {
+    const command: CompleteGameWorkflowCommand = {
+      startGameCommand,
+      atBatSequences,
+      substitutions: [],
+      endGameNaturally: true,
+      maxAttempts: 3,
+      continueOnFailure: false,
+      enableNotifications: false,
+      operationDelay: 0,
+    };
+
+    CompleteGameWorkflowCommandValidator.validate(command);
+    return command;
+  },
+
+  /**
+   * Creates a full CompleteGameWorkflowCommand with all options
+   */
+  createFull(
+    startGameCommand: StartNewGameCommand,
+    atBatSequences: RecordAtBatCommand[],
+    substitutions: SubstitutePlayerCommand[],
+    options: {
+      endGameNaturally?: boolean;
+      maxAttempts?: number;
+      continueOnFailure?: boolean;
+      enableNotifications?: boolean;
+      operationDelay?: number;
+    } = {}
+  ): CompleteGameWorkflowCommand {
+    const command: CompleteGameWorkflowCommand = {
+      startGameCommand,
+      atBatSequences,
+      substitutions,
+      endGameNaturally: options.endGameNaturally ?? true,
+      maxAttempts: options.maxAttempts ?? 3,
+      continueOnFailure: options.continueOnFailure ?? false,
+      enableNotifications: options.enableNotifications ?? false,
+      operationDelay: options.operationDelay ?? 0,
+    };
+
+    CompleteGameWorkflowCommandValidator.validate(command);
+    return command;
+  },
+
+  /**
+   * Creates a demo workflow for demonstration purposes
+   */
+  createDemo(
+    startGameCommand: StartNewGameCommand,
+    atBatSequences: RecordAtBatCommand[],
+    substitutions: SubstitutePlayerCommand[] = []
+  ): CompleteGameWorkflowCommand {
+    const command: CompleteGameWorkflowCommand = {
+      startGameCommand,
+      atBatSequences,
+      substitutions,
+      endGameNaturally: true,
+      maxAttempts: 2,
+      continueOnFailure: true, // Demo should continue despite errors
+      enableNotifications: true,
+      operationDelay: 1000, // 1 second delay for demo pacing
+    };
+
+    CompleteGameWorkflowCommandValidator.validate(command);
+    return command;
+  },
+
+  /**
+   * Creates a testing workflow for automated testing
+   */
+  createTesting(
+    startGameCommand: StartNewGameCommand,
+    atBatSequences: RecordAtBatCommand[],
+    substitutions: SubstitutePlayerCommand[] = []
+  ): CompleteGameWorkflowCommand {
+    const command: CompleteGameWorkflowCommand = {
+      startGameCommand,
+      atBatSequences,
+      substitutions,
+      endGameNaturally: false, // Testing may want specific scenarios
+      maxAttempts: 1, // Fail fast in testing
+      continueOnFailure: false,
+      enableNotifications: false, // No notifications during testing
+      operationDelay: 0, // No delay for fast testing
+    };
+
+    CompleteGameWorkflowCommandValidator.validate(command);
+    return command;
+  },
+};

@@ -385,7 +385,7 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Home team name cannot be empty');
+      expect(result.errors).toContain('Home team name is required and cannot be empty');
     });
 
     it('should reject empty away team name', async () => {
@@ -394,7 +394,7 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Away team name cannot be empty');
+      expect(result.errors).toContain('Away team name is required and cannot be empty');
     });
 
     it('should reject identical team names', async () => {
@@ -406,7 +406,7 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Team names must be different');
+      expect(result.errors).toContain('Home and away team names must be different');
     });
 
     it('should reject game date in the past', async () => {
@@ -425,7 +425,7 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Initial lineup cannot be empty');
+      expect(result.errors).toContain('Initial lineup must have at least 9 players');
     });
 
     it('should reject lineup with too few players', async () => {
@@ -435,7 +435,7 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Lineup must have at least 9 players');
+      expect(result.errors).toContain('Initial lineup must have at least 9 players');
     });
 
     it('should reject lineup with too many players', async () => {
@@ -455,7 +455,7 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Lineup cannot exceed maximum players allowed');
+      expect(result.errors).toContain('Initial lineup cannot exceed 20 players');
     });
   });
 
@@ -470,7 +470,7 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Duplicate jersey numbers: #1 assigned to multiple players');
+      expect(result.errors).toContain('All players must have unique jersey numbers');
     });
 
     it('should reject duplicate player IDs', async () => {
@@ -483,7 +483,7 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Duplicate player IDs in lineup');
+      expect(result.errors).toContain('All players must have unique player IDs');
     });
 
     it('should reject invalid batting order positions', async () => {
@@ -496,7 +496,11 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Invalid batting order position: must be 1-20');
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/battingOrderPosition must be between 1 and 20/),
+        ])
+      );
     });
 
     it('should reject duplicate batting order positions', async () => {
@@ -509,7 +513,7 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Duplicate batting order position: 1');
+      expect(result.errors).toContain('All players must have unique batting order positions');
     });
 
     it('should reject missing required field positions', async () => {
@@ -535,7 +539,9 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Player name cannot be empty');
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringMatching(/name is required and cannot be empty/)])
+      );
     });
 
     it('should reject empty preferred positions array', async () => {
@@ -591,7 +597,11 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Invalid game rules configuration');
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/mercyRule|timeLimitMinutes|extraPlayerAllowed|maxPlayersInLineup/),
+        ])
+      );
     });
   });
 
@@ -654,7 +664,7 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Team names must be different');
+      expect(result.errors).toContain('Home and away team names must be different');
     });
 
     it('should handle unexpected errors gracefully', async () => {
@@ -749,10 +759,11 @@ describe('StartNewGame', () => {
       await startNewGame.execute(command);
 
       expect(mockWarn).toHaveBeenCalledWith(
-        'Game creation failed due to validation errors',
+        'Game creation failed due to DTO validation error',
         expect.objectContaining({
           gameId: testGameId.value,
           operation: 'startNewGame',
+          error: expect.any(String),
         })
       );
     });

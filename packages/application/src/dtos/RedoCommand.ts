@@ -50,6 +50,16 @@
 import { GameId } from '@twsoftball/domain';
 
 /**
+ * Validation error for RedoCommand
+ */
+export class RedoCommandValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RedoCommandValidationError';
+  }
+}
+
+/**
  * Command to redo the last undone action(s) performed in a softball game.
  *
  * @remarks
@@ -149,3 +159,149 @@ export interface RedoCommand {
    */
   readonly timestamp?: Date;
 }
+
+/**
+ * Validation functions for RedoCommand
+ */
+export const RedoCommandValidator = {
+  /**
+   * Validates a RedoCommand for business rule compliance.
+   *
+   * @param command - The command to validate
+   * @throws {RedoCommandValidationError} When validation fails
+   *
+   * @example
+   * ```typescript
+   * try {
+   *   RedoCommandValidator.validate(command);
+   *   // Command is valid, proceed with use case
+   * } catch (error) {
+   *   // Handle validation error
+   * }
+   * ```
+   */
+  validate(command: RedoCommand): void {
+    this.validateBasicFields(command);
+    if (command.actionLimit !== undefined) {
+      this.validateActionLimit(command.actionLimit, command.confirmDangerous);
+    }
+    if (command.notes !== undefined) {
+      this.validateNotes(command.notes);
+    }
+    if (command.timestamp !== undefined) {
+      this.validateTimestamp(command.timestamp);
+    }
+  },
+
+  /**
+   * Validates basic command fields (gameId)
+   */
+  validateBasicFields(command: RedoCommand): void {
+    if (!command.gameId) {
+      throw new RedoCommandValidationError('gameId is required');
+    }
+  },
+
+  /**
+   * Validates action limit and dangerous operation confirmation
+   */
+  validateActionLimit(actionLimit: number, confirmDangerous?: boolean): void {
+    if (!Number.isInteger(actionLimit) || actionLimit < 1) {
+      throw new RedoCommandValidationError('actionLimit must be a positive integer');
+    }
+
+    if (actionLimit > 10) {
+      throw new RedoCommandValidationError('actionLimit cannot exceed 10 actions for safety');
+    }
+
+    if (actionLimit > 3 && !confirmDangerous) {
+      throw new RedoCommandValidationError(
+        'confirmDangerous must be true for actionLimit greater than 3'
+      );
+    }
+  },
+
+  /**
+   * Validates optional notes field
+   */
+  validateNotes(notes: string): void {
+    if (notes.length > 500) {
+      throw new RedoCommandValidationError('notes cannot exceed 500 characters');
+    }
+
+    // Allow empty string as valid (means no notes)
+    // But trim and check for meaningful content if provided
+    if (notes.trim().length === 0 && notes.length > 0) {
+      throw new RedoCommandValidationError('notes cannot be only whitespace');
+    }
+  },
+
+  /**
+   * Validates optional timestamp field
+   */
+  validateTimestamp(timestamp: Date): void {
+    if (!(timestamp instanceof Date)) {
+      throw new RedoCommandValidationError('timestamp must be a valid Date object');
+    }
+
+    if (isNaN(timestamp.getTime())) {
+      throw new RedoCommandValidationError('timestamp must be a valid Date');
+    }
+
+    // Business rule: timestamp cannot be too far in the future
+    const now = new Date();
+    const maxFutureMinutes = 60; // Allow up to 1 hour in future for time zone differences
+    const maxFutureTime = new Date(now.getTime() + maxFutureMinutes * 60 * 1000);
+
+    if (timestamp > maxFutureTime) {
+      throw new RedoCommandValidationError('timestamp cannot be more than 1 hour in the future');
+    }
+
+    // Business rule: timestamp cannot be too far in the past (e.g., more than 1 year ago)
+    const minPastTime = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    if (timestamp < minPastTime) {
+      throw new RedoCommandValidationError('timestamp cannot be more than 1 year in the past');
+    }
+  },
+};
+
+/**
+ * Factory functions for creating RedoCommand instances
+ */
+export const RedoCommandFactory = {
+  /**
+   * Creates a simple RedoCommand for the last undone action
+   */
+  createSimple(gameId: GameId, notes?: string): RedoCommand {
+    const command: RedoCommand = {
+      gameId,
+      actionLimit: 1,
+      ...(notes !== undefined && { notes }),
+      timestamp: new Date(),
+    };
+
+    RedoCommandValidator.validate(command);
+    return command;
+  },
+
+  /**
+   * Creates a RedoCommand for multiple actions (dangerous operation)
+   */
+  createMultiple(
+    gameId: GameId,
+    actionLimit: number,
+    notes: string,
+    confirmDangerous = true
+  ): RedoCommand {
+    const command: RedoCommand = {
+      gameId,
+      actionLimit,
+      confirmDangerous,
+      notes,
+      timestamp: new Date(),
+    };
+
+    RedoCommandValidator.validate(command);
+    return command;
+  },
+};

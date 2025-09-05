@@ -6,7 +6,12 @@
 import { GameId, PlayerId, TeamLineupId, JerseyNumber, FieldPosition } from '@twsoftball/domain';
 import { describe, it, expect } from 'vitest';
 
-import { SubstitutePlayerCommand } from './SubstitutePlayerCommand';
+import {
+  SubstitutePlayerCommand,
+  SubstitutePlayerCommandValidator,
+  SubstitutePlayerCommandValidationError,
+  SubstitutePlayerCommandFactory,
+} from './SubstitutePlayerCommand';
 
 describe('SubstitutePlayerCommand', () => {
   // Test data factories
@@ -393,6 +398,308 @@ describe('SubstitutePlayerCommand', () => {
     });
   });
 
+  describe('Validation - SubstitutePlayerCommandValidator', () => {
+    describe('Basic Field Validation', () => {
+      it('should require gameId', () => {
+        const command = createValidCommand({ gameId: null as unknown as GameId });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          SubstitutePlayerCommandValidationError
+        );
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'gameId is required'
+        );
+      });
+
+      it('should require teamLineupId', () => {
+        const command = createValidCommand({ teamLineupId: null as unknown as TeamLineupId });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'teamLineupId is required'
+        );
+      });
+
+      it('should validate batting slot range (1-20)', () => {
+        const invalidSlots = [0, 21, -1, 1.5];
+
+        invalidSlots.forEach(slot => {
+          const command = createValidCommand({ battingSlot: slot });
+          expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+            'battingSlot must be an integer between 1 and 20'
+          );
+        });
+      });
+
+      it('should validate inning as positive integer', () => {
+        const invalidInnings = [0, -1, 1.5];
+
+        invalidInnings.forEach(inning => {
+          const command = createValidCommand({ inning });
+          expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+            'inning must be a positive integer'
+          );
+        });
+      });
+
+      it('should limit inning to maximum 15', () => {
+        const command = createValidCommand({ inning: 16 });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'inning cannot exceed 15'
+        );
+      });
+
+      it('should require boolean isReentry', () => {
+        const command = createValidCommand({ isReentry: 'true' as unknown as boolean });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'isReentry must be a boolean'
+        );
+      });
+    });
+
+    describe('Player Field Validation', () => {
+      it('should require outgoingPlayerId', () => {
+        const command = createValidCommand({ outgoingPlayerId: null as unknown as PlayerId });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'outgoingPlayerId is required'
+        );
+      });
+
+      it('should require incomingPlayerId', () => {
+        const command = createValidCommand({ incomingPlayerId: null as unknown as PlayerId });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'incomingPlayerId is required'
+        );
+      });
+
+      it('should prevent same player for outgoing and incoming', () => {
+        const samePlayer = new PlayerId('same-player');
+        const command = createValidCommand({
+          outgoingPlayerId: samePlayer,
+          incomingPlayerId: samePlayer,
+        });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'outgoingPlayerId and incomingPlayerId cannot be the same player'
+        );
+      });
+
+      it('should require incomingPlayerName', () => {
+        const command = createValidCommand({ incomingPlayerName: '' });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'incomingPlayerName is required and cannot be empty'
+        );
+      });
+
+      it('should limit incomingPlayerName length to 50 characters', () => {
+        const command = createValidCommand({ incomingPlayerName: 'a'.repeat(51) });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'incomingPlayerName cannot exceed 50 characters'
+        );
+      });
+
+      it('should require incomingJerseyNumber', () => {
+        const command = createValidCommand({
+          incomingJerseyNumber: null as unknown as JerseyNumber,
+        });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'incomingJerseyNumber is required'
+        );
+      });
+    });
+
+    describe('Position Validation', () => {
+      it('should validate field position', () => {
+        const command = createValidCommand({
+          newFieldPosition: 'INVALID_POSITION' as unknown as FieldPosition,
+        });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'newFieldPosition must be a valid FieldPosition'
+        );
+      });
+
+      it('should accept all valid field positions', () => {
+        const validPositions = Object.values(FieldPosition);
+
+        validPositions.forEach(position => {
+          const command = createValidCommand({ newFieldPosition: position });
+          expect(() => SubstitutePlayerCommandValidator.validate(command)).not.toThrow();
+        });
+      });
+    });
+
+    describe('Notes Validation', () => {
+      it('should limit notes length to 500 characters', () => {
+        const command = createValidCommand({ notes: 'a'.repeat(501) });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'notes cannot exceed 500 characters'
+        );
+      });
+
+      it('should not allow whitespace-only notes', () => {
+        const command = createValidCommand({ notes: '   ' });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'notes cannot be only whitespace'
+        );
+      });
+
+      it('should allow empty string notes', () => {
+        const command = createValidCommand({ notes: '' });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).not.toThrow();
+      });
+
+      it('should allow undefined notes', () => {
+        const command = createValidCommand();
+        // Remove notes from command
+        delete (command as unknown as { notes?: string }).notes;
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).not.toThrow();
+      });
+    });
+
+    describe('Timestamp Validation', () => {
+      it('should require valid Date object', () => {
+        const command = createValidCommand({ timestamp: 'invalid' as unknown as Date });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'timestamp must be a valid Date object'
+        );
+      });
+
+      it('should require valid date value', () => {
+        const command = createValidCommand({ timestamp: new Date('invalid') });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'timestamp must be a valid Date'
+        );
+      });
+
+      it('should not allow timestamp too far in future', () => {
+        const futureTime = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours
+        const command = createValidCommand({ timestamp: futureTime });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'timestamp cannot be more than 1 hour in the future'
+        );
+      });
+
+      it('should not allow timestamp too far in past', () => {
+        const pastTime = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000); // 2 years ago
+        const command = createValidCommand({ timestamp: pastTime });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
+          'timestamp cannot be more than 1 year in the past'
+        );
+      });
+
+      it('should allow reasonable timestamp', () => {
+        const recentTime = new Date(Date.now() - 10 * 60 * 1000); // 10 minutes ago
+        const command = createValidCommand({ timestamp: recentTime });
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).not.toThrow();
+      });
+
+      it('should allow undefined timestamp', () => {
+        const command = createValidCommand();
+        // Remove timestamp from command
+        delete (command as unknown as { timestamp?: Date }).timestamp;
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).not.toThrow();
+      });
+    });
+
+    it('should pass validation for valid commands', () => {
+      const command = createValidCommand();
+      expect(() => SubstitutePlayerCommandValidator.validate(command)).not.toThrow();
+    });
+  });
+
+  describe('Factory Functions - SubstitutePlayerCommandFactory', () => {
+    describe('createRegular', () => {
+      it('should create valid regular substitution command', () => {
+        const gameId = new GameId('test-game');
+        const teamLineupId = new TeamLineupId('test-lineup');
+        const outgoingPlayer = new PlayerId('outgoing');
+        const incomingPlayer = new PlayerId('incoming');
+        const jerseyNumber = JerseyNumber.fromNumber(15);
+
+        const command = SubstitutePlayerCommandFactory.createRegular(
+          gameId,
+          teamLineupId,
+          5,
+          outgoingPlayer,
+          incomingPlayer,
+          'New Player',
+          jerseyNumber,
+          FieldPosition.SECOND_BASE,
+          7,
+          'Strategic substitution'
+        );
+
+        expect(command.gameId).toBe(gameId);
+        expect(command.teamLineupId).toBe(teamLineupId);
+        expect(command.battingSlot).toBe(5);
+        expect(command.outgoingPlayerId).toBe(outgoingPlayer);
+        expect(command.incomingPlayerId).toBe(incomingPlayer);
+        expect(command.incomingPlayerName).toBe('New Player');
+        expect(command.incomingJerseyNumber).toBe(jerseyNumber);
+        expect(command.newFieldPosition).toBe(FieldPosition.SECOND_BASE);
+        expect(command.inning).toBe(7);
+        expect(command.isReentry).toBe(false);
+        expect(command.notes).toBe('Strategic substitution');
+        expect(command.timestamp).toBeInstanceOf(Date);
+      });
+
+      it('should work without optional notes', () => {
+        const command = SubstitutePlayerCommandFactory.createRegular(
+          new GameId('test'),
+          new TeamLineupId('test'),
+          1,
+          new PlayerId('out'),
+          new PlayerId('in'),
+          'Player',
+          JerseyNumber.fromNumber(1),
+          FieldPosition.PITCHER,
+          1
+        );
+
+        expect(command.notes).toBeUndefined();
+      });
+    });
+
+    describe('createReentry', () => {
+      it('should create valid reentry substitution command', () => {
+        const gameId = new GameId('test-game');
+        const teamLineupId = new TeamLineupId('test-lineup');
+        const outgoingPlayer = new PlayerId('substitute');
+        const returningPlayer = new PlayerId('original-starter');
+        const jerseyNumber = JerseyNumber.fromNumber(5);
+
+        const command = SubstitutePlayerCommandFactory.createReentry(
+          gameId,
+          teamLineupId,
+          3,
+          outgoingPlayer,
+          returningPlayer,
+          'Original Starter',
+          jerseyNumber,
+          FieldPosition.THIRD_BASE,
+          8,
+          'Starter returning for defense'
+        );
+
+        expect(command.isReentry).toBe(true);
+        expect(command.incomingPlayerId).toBe(returningPlayer);
+        expect(command.notes).toBe('Starter returning for defense');
+      });
+
+      it('should use default notes if none provided', () => {
+        const command = SubstitutePlayerCommandFactory.createReentry(
+          new GameId('test'),
+          new TeamLineupId('test'),
+          1,
+          new PlayerId('out'),
+          new PlayerId('returning'),
+          'Returning Player',
+          JerseyNumber.fromNumber(1),
+          FieldPosition.PITCHER,
+          1
+        );
+
+        expect(command.notes).toBe('Starter re-entry');
+      });
+    });
+  });
+
   describe('Edge Cases', () => {
     it('should handle maximum batting slot position', () => {
       const maxSlotCommand = createValidCommand({
@@ -438,6 +745,40 @@ describe('SubstitutePlayerCommand', () => {
       });
 
       expect(detailedCommand.notes).toBe(detailedNotes);
+    });
+
+    it('should validate all factory functions create valid commands', () => {
+      const factories = [
+        (): SubstitutePlayerCommand =>
+          SubstitutePlayerCommandFactory.createRegular(
+            new GameId('test'),
+            new TeamLineupId('test'),
+            1,
+            new PlayerId('out'),
+            new PlayerId('in'),
+            'Player',
+            JerseyNumber.fromNumber(1),
+            FieldPosition.PITCHER,
+            1
+          ),
+        (): SubstitutePlayerCommand =>
+          SubstitutePlayerCommandFactory.createReentry(
+            new GameId('test'),
+            new TeamLineupId('test'),
+            1,
+            new PlayerId('out'),
+            new PlayerId('returning'),
+            'Returning Player',
+            JerseyNumber.fromNumber(1),
+            FieldPosition.PITCHER,
+            1
+          ),
+      ];
+
+      factories.forEach(factory => {
+        const command = factory();
+        expect(() => SubstitutePlayerCommandValidator.validate(command)).not.toThrow();
+      });
     });
   });
 });

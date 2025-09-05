@@ -310,9 +310,7 @@ describe('SubstitutePlayer Use Case', () => {
       const result = await substitutePlayer.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toEqual(
-        expect.arrayContaining([expect.stringMatching(/batting slot/i)])
-      );
+      expect(result.errors).toContain('battingSlot must be an integer between 1 and 20');
     });
 
     it('should fail for invalid inning', async () => {
@@ -447,9 +445,7 @@ describe('SubstitutePlayer Use Case', () => {
       const result = await substitutePlayer.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toEqual(
-        expect.arrayContaining([expect.stringMatching(/player name.*empty/i)])
-      );
+      expect(result.errors).toContain('incomingPlayerName is required and cannot be empty');
     });
 
     it('should fail with invalid field position combination', async () => {

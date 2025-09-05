@@ -46,6 +46,16 @@
 import { GameId } from '@twsoftball/domain';
 
 /**
+ * Validation error for EndInningCommand
+ */
+export class EndInningCommandValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EndInningCommandValidationError';
+  }
+}
+
+/**
  * Command to end a half-inning or complete inning in a softball game.
  *
  * @remarks
@@ -117,3 +127,241 @@ export interface EndInningCommand {
    */
   readonly timestamp?: Date;
 }
+
+/**
+ * Validation functions for EndInningCommand
+ */
+export const EndInningCommandValidator = {
+  /**
+   * Validates an EndInningCommand for business rule compliance.
+   *
+   * @param command - The command to validate
+   * @throws {EndInningCommandValidationError} When validation fails
+   *
+   * @example
+   * ```typescript
+   * try {
+   *   EndInningCommandValidator.validate(command);
+   *   // Command is valid, proceed with use case
+   * } catch (error) {
+   *   // Handle validation error
+   * }
+   * ```
+   */
+  validate(command: EndInningCommand): void {
+    this.validateBasicFields(command);
+    this.validateGameState(command);
+    if (command.notes !== undefined) {
+      this.validateNotes(command.notes);
+    }
+    if (command.timestamp !== undefined) {
+      this.validateTimestamp(command.timestamp);
+    }
+  },
+
+  /**
+   * Validates basic command fields
+   */
+  validateBasicFields(command: EndInningCommand): void {
+    if (!command.gameId) {
+      throw new EndInningCommandValidationError('gameId is required');
+    }
+
+    if (!Number.isInteger(command.inning) || command.inning < 1) {
+      throw new EndInningCommandValidationError('inning must be a positive integer (1 or greater)');
+    }
+
+    if (command.inning > 20) {
+      throw new EndInningCommandValidationError('inning cannot exceed 20 for safety limits');
+    }
+
+    if (typeof command.isTopHalf !== 'boolean') {
+      throw new EndInningCommandValidationError('isTopHalf must be a boolean');
+    }
+
+    if (!command.endingReason) {
+      throw new EndInningCommandValidationError('endingReason is required');
+    }
+
+    const validReasons = ['THREE_OUTS', 'MERCY_RULE', 'TIME_LIMIT', 'FORFEIT', 'WALKOFF', 'MANUAL'];
+    if (!validReasons.includes(command.endingReason)) {
+      throw new EndInningCommandValidationError(
+        `endingReason must be one of: ${validReasons.join(', ')}`
+      );
+    }
+  },
+
+  /**
+   * Validates game state fields
+   */
+  validateGameState(command: EndInningCommand): void {
+    if (!Number.isInteger(command.finalOuts) || command.finalOuts < 0 || command.finalOuts > 3) {
+      throw new EndInningCommandValidationError('finalOuts must be an integer between 0 and 3');
+    }
+
+    if (command.gameEnding !== undefined && typeof command.gameEnding !== 'boolean') {
+      throw new EndInningCommandValidationError('gameEnding must be a boolean if provided');
+    }
+
+    // Business rule: For regulation ending, finalOuts should be 3 (unless special circumstances)
+    if (command.endingReason === 'THREE_OUTS' && command.finalOuts !== 3) {
+      throw new EndInningCommandValidationError(
+        'finalOuts must be 3 when endingReason is THREE_OUTS'
+      );
+    }
+
+    // Business rule: For walkoff, game must be ending
+    if (command.endingReason === 'WALKOFF' && !command.gameEnding) {
+      throw new EndInningCommandValidationError(
+        'gameEnding must be true when endingReason is WALKOFF'
+      );
+    }
+  },
+
+  /**
+   * Validates optional notes field
+   */
+  validateNotes(notes: string): void {
+    if (notes.length > 500) {
+      throw new EndInningCommandValidationError('notes cannot exceed 500 characters');
+    }
+
+    if (notes.trim().length === 0 && notes.length > 0) {
+      throw new EndInningCommandValidationError('notes cannot be only whitespace');
+    }
+  },
+
+  /**
+   * Validates optional timestamp field
+   */
+  validateTimestamp(timestamp: Date): void {
+    if (!(timestamp instanceof Date)) {
+      throw new EndInningCommandValidationError('timestamp must be a valid Date object');
+    }
+
+    if (isNaN(timestamp.getTime())) {
+      throw new EndInningCommandValidationError('timestamp must be a valid Date');
+    }
+
+    // Business rule: timestamp cannot be too far in the future
+    const now = new Date();
+    const maxFutureMinutes = 60; // Allow up to 1 hour in future for time zone differences
+    const maxFutureTime = new Date(now.getTime() + maxFutureMinutes * 60 * 1000);
+
+    if (timestamp > maxFutureTime) {
+      throw new EndInningCommandValidationError(
+        'timestamp cannot be more than 1 hour in the future'
+      );
+    }
+
+    // Business rule: timestamp cannot be too far in the past (e.g., more than 1 year ago)
+    const minPastTime = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    if (timestamp < minPastTime) {
+      throw new EndInningCommandValidationError('timestamp cannot be more than 1 year in the past');
+    }
+  },
+};
+
+/**
+ * Factory functions for creating EndInningCommand instances
+ */
+export const EndInningCommandFactory = {
+  /**
+   * Creates a standard three-outs EndInningCommand
+   */
+  createThreeOuts(
+    gameId: GameId,
+    inning: number,
+    isTopHalf: boolean,
+    gameEnding = false,
+    notes?: string
+  ): EndInningCommand {
+    const command: EndInningCommand = {
+      gameId,
+      inning,
+      isTopHalf,
+      endingReason: 'THREE_OUTS',
+      finalOuts: 3,
+      gameEnding,
+      ...(notes !== undefined && { notes }),
+      timestamp: new Date(),
+    };
+
+    EndInningCommandValidator.validate(command);
+    return command;
+  },
+
+  /**
+   * Creates a walkoff EndInningCommand
+   */
+  createWalkoff(
+    gameId: GameId,
+    inning: number,
+    finalOuts: number,
+    notes?: string
+  ): EndInningCommand {
+    const command: EndInningCommand = {
+      gameId,
+      inning,
+      isTopHalf: false, // Walkoffs happen in bottom half
+      endingReason: 'WALKOFF',
+      finalOuts,
+      gameEnding: true, // Walkoffs always end the game
+      notes: notes || 'Game-winning run scored',
+      timestamp: new Date(),
+    };
+
+    EndInningCommandValidator.validate(command);
+    return command;
+  },
+
+  /**
+   * Creates a mercy rule EndInningCommand
+   */
+  createMercyRule(
+    gameId: GameId,
+    inning: number,
+    isTopHalf: boolean,
+    finalOuts: number,
+    notes?: string
+  ): EndInningCommand {
+    const command: EndInningCommand = {
+      gameId,
+      inning,
+      isTopHalf,
+      endingReason: 'MERCY_RULE',
+      finalOuts,
+      gameEnding: true, // Mercy rule always ends the game
+      notes: notes || `Mercy rule applied after ${inning} innings`,
+      timestamp: new Date(),
+    };
+
+    EndInningCommandValidator.validate(command);
+    return command;
+  },
+
+  /**
+   * Creates a forfeit EndInningCommand
+   */
+  createForfeit(
+    gameId: GameId,
+    inning: number,
+    isTopHalf: boolean,
+    finalOuts: number,
+    notes?: string
+  ): EndInningCommand {
+    const command: EndInningCommand = {
+      gameId,
+      inning,
+      isTopHalf,
+      endingReason: 'FORFEIT',
+      finalOuts,
+      gameEnding: true, // Forfeit always ends the game
+      notes: notes || 'Game ended due to forfeit',
+      timestamp: new Date(),
+    };
+
+    EndInningCommandValidator.validate(command);
+    return command;
+  },
+};

@@ -6,7 +6,12 @@
 import { GameId } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { EndInningCommand } from './EndInningCommand';
+import {
+  EndInningCommand,
+  EndInningCommandValidator,
+  EndInningCommandValidationError,
+  EndInningCommandFactory,
+} from './EndInningCommand';
 
 describe('EndInningCommand', () => {
   let validCommand: EndInningCommand;
@@ -488,6 +493,403 @@ describe('EndInningCommand', () => {
     });
   });
 
+  describe('Validation - EndInningCommandValidator', () => {
+    describe('Basic Field Validation', () => {
+      it('should require gameId', () => {
+        const command: EndInningCommand = {
+          gameId: null as unknown as GameId,
+          inning: 1,
+          isTopHalf: true,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 3,
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          EndInningCommandValidationError
+        );
+        expect(() => EndInningCommandValidator.validate(command)).toThrow('gameId is required');
+      });
+
+      it('should require positive integer inning', () => {
+        const command: EndInningCommand = {
+          gameId,
+          inning: 0,
+          isTopHalf: true,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 3,
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          'inning must be a positive integer'
+        );
+      });
+
+      it('should limit inning to maximum 20', () => {
+        const command: EndInningCommand = {
+          gameId,
+          inning: 21,
+          isTopHalf: true,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 3,
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          'inning cannot exceed 20'
+        );
+      });
+
+      it('should require boolean isTopHalf', () => {
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: 'true' as unknown as boolean,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 3,
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          'isTopHalf must be a boolean'
+        );
+      });
+
+      it('should require valid endingReason', () => {
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: true,
+          endingReason: 'INVALID_REASON' as unknown as EndInningCommand['endingReason'],
+          finalOuts: 3,
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          'endingReason must be one of:'
+        );
+      });
+
+      it('should require endingReason', () => {
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: true,
+          endingReason: null as unknown as EndInningCommand['endingReason'],
+          finalOuts: 3,
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          'endingReason is required'
+        );
+      });
+    });
+
+    describe('Game State Validation', () => {
+      it('should validate finalOuts range (0-3)', () => {
+        const invalidOuts = [-1, 4, 1.5];
+
+        invalidOuts.forEach(outs => {
+          const command: EndInningCommand = {
+            gameId,
+            inning: 1,
+            isTopHalf: true,
+            endingReason: 'MERCY_RULE',
+            finalOuts: outs,
+          };
+
+          expect(() => EndInningCommandValidator.validate(command)).toThrow(
+            'finalOuts must be an integer between 0 and 3'
+          );
+        });
+      });
+
+      it('should require boolean gameEnding if provided', () => {
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: true,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 3,
+          gameEnding: 'true' as unknown as boolean,
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          'gameEnding must be a boolean'
+        );
+      });
+
+      it('should require finalOuts to be 3 for THREE_OUTS reason', () => {
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: true,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 2,
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          'finalOuts must be 3 when endingReason is THREE_OUTS'
+        );
+      });
+
+      it('should require gameEnding to be true for WALKOFF', () => {
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: false,
+          endingReason: 'WALKOFF',
+          finalOuts: 2,
+          gameEnding: false,
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          'gameEnding must be true when endingReason is WALKOFF'
+        );
+      });
+    });
+
+    describe('Notes Validation', () => {
+      it('should limit notes length to 500 characters', () => {
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: true,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 3,
+          notes: 'a'.repeat(501),
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          'notes cannot exceed 500 characters'
+        );
+      });
+
+      it('should not allow whitespace-only notes', () => {
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: true,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 3,
+          notes: '   ',
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          'notes cannot be only whitespace'
+        );
+      });
+
+      it('should allow empty string notes', () => {
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: true,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 3,
+          notes: '',
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).not.toThrow();
+      });
+
+      it('should allow undefined notes', () => {
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: true,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 3,
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).not.toThrow();
+      });
+    });
+
+    describe('Timestamp Validation', () => {
+      it('should require valid Date object', () => {
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: true,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 3,
+          timestamp: 'invalid' as unknown as Date,
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          'timestamp must be a valid Date object'
+        );
+      });
+
+      it('should require valid date value', () => {
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: true,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 3,
+          timestamp: new Date('invalid'),
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          'timestamp must be a valid Date'
+        );
+      });
+
+      it('should not allow timestamp too far in future', () => {
+        const futureTime = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: true,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 3,
+          timestamp: futureTime,
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          'timestamp cannot be more than 1 hour in the future'
+        );
+      });
+
+      it('should not allow timestamp too far in past', () => {
+        const pastTime = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000); // 2 years ago
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: true,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 3,
+          timestamp: pastTime,
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).toThrow(
+          'timestamp cannot be more than 1 year in the past'
+        );
+      });
+
+      it('should allow reasonable timestamp', () => {
+        const recentTime = new Date(Date.now() - 10 * 60 * 1000); // 10 minutes ago
+        const command: EndInningCommand = {
+          gameId,
+          inning: 1,
+          isTopHalf: true,
+          endingReason: 'THREE_OUTS',
+          finalOuts: 3,
+          timestamp: recentTime,
+        };
+
+        expect(() => EndInningCommandValidator.validate(command)).not.toThrow();
+      });
+    });
+
+    it('should pass validation for valid commands', () => {
+      const command: EndInningCommand = {
+        gameId,
+        inning: 5,
+        isTopHalf: true,
+        endingReason: 'THREE_OUTS',
+        finalOuts: 3,
+        gameEnding: false,
+        notes: 'Standard top half ending',
+        timestamp: new Date(), // Use current time instead of old timestamp
+      };
+      expect(() => EndInningCommandValidator.validate(command)).not.toThrow();
+    });
+  });
+
+  describe('Factory Functions - EndInningCommandFactory', () => {
+    describe('createThreeOuts', () => {
+      it('should create valid three outs command', () => {
+        const command = EndInningCommandFactory.createThreeOuts(
+          gameId,
+          5,
+          true,
+          false,
+          'Standard inning end'
+        );
+
+        expect(command.gameId).toBe(gameId);
+        expect(command.inning).toBe(5);
+        expect(command.isTopHalf).toBe(true);
+        expect(command.endingReason).toBe('THREE_OUTS');
+        expect(command.finalOuts).toBe(3);
+        expect(command.gameEnding).toBe(false);
+        expect(command.notes).toBe('Standard inning end');
+        expect(command.timestamp).toBeInstanceOf(Date);
+      });
+
+      it('should work without optional parameters', () => {
+        const command = EndInningCommandFactory.createThreeOuts(gameId, 7, false);
+
+        expect(command.gameEnding).toBe(false);
+        expect(command.notes).toBeUndefined();
+      });
+    });
+
+    describe('createWalkoff', () => {
+      it('should create valid walkoff command', () => {
+        const command = EndInningCommandFactory.createWalkoff(gameId, 9, 2, 'Game-winning homer!');
+
+        expect(command.inning).toBe(9);
+        expect(command.isTopHalf).toBe(false);
+        expect(command.endingReason).toBe('WALKOFF');
+        expect(command.finalOuts).toBe(2);
+        expect(command.gameEnding).toBe(true);
+        expect(command.notes).toBe('Game-winning homer!');
+      });
+
+      it('should use default notes if none provided', () => {
+        const command = EndInningCommandFactory.createWalkoff(gameId, 7, 1);
+
+        expect(command.notes).toBe('Game-winning run scored');
+      });
+    });
+
+    describe('createMercyRule', () => {
+      it('should create valid mercy rule command', () => {
+        const command = EndInningCommandFactory.createMercyRule(
+          gameId,
+          5,
+          false,
+          1,
+          '15-run mercy rule'
+        );
+
+        expect(command.endingReason).toBe('MERCY_RULE');
+        expect(command.gameEnding).toBe(true);
+        expect(command.finalOuts).toBe(1);
+        expect(command.notes).toBe('15-run mercy rule');
+      });
+
+      it('should use default notes if none provided', () => {
+        const command = EndInningCommandFactory.createMercyRule(gameId, 5, false, 1);
+
+        expect(command.notes).toBe('Mercy rule applied after 5 innings');
+      });
+    });
+
+    describe('createForfeit', () => {
+      it('should create valid forfeit command', () => {
+        const command = EndInningCommandFactory.createForfeit(
+          gameId,
+          3,
+          true,
+          0,
+          'Team forfeited due to ejections'
+        );
+
+        expect(command.endingReason).toBe('FORFEIT');
+        expect(command.gameEnding).toBe(true);
+        expect(command.finalOuts).toBe(0);
+        expect(command.notes).toBe('Team forfeited due to ejections');
+      });
+
+      it('should use default notes if none provided', () => {
+        const command = EndInningCommandFactory.createForfeit(gameId, 4, false, 2);
+
+        expect(command.notes).toBe('Game ended due to forfeit');
+      });
+    });
+  });
+
   describe('Edge Cases and Error Scenarios', () => {
     it('should handle forfeit with zero outs', () => {
       const forfeit: EndInningCommand = {
@@ -535,6 +937,20 @@ describe('EndInningCommand', () => {
       expect(manual.endingReason).toBe('MANUAL');
       expect(manual.gameEnding).toBe(false);
       expect(manual.notes).toContain('field maintenance');
+    });
+
+    it('should validate all factory functions create valid commands', () => {
+      const factories = [
+        (): EndInningCommand => EndInningCommandFactory.createThreeOuts(gameId, 5, true),
+        (): EndInningCommand => EndInningCommandFactory.createWalkoff(gameId, 7, 2),
+        (): EndInningCommand => EndInningCommandFactory.createMercyRule(gameId, 5, false, 1),
+        (): EndInningCommand => EndInningCommandFactory.createForfeit(gameId, 3, true, 0),
+      ];
+
+      factories.forEach(factory => {
+        const command = factory();
+        expect(() => EndInningCommandValidator.validate(command)).not.toThrow();
+      });
     });
   });
 });

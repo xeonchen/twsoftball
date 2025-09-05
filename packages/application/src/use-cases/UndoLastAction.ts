@@ -81,7 +81,7 @@ import {
 } from '@twsoftball/domain';
 
 import { GameStateDTO } from '../dtos/GameStateDTO';
-import { UndoCommand } from '../dtos/UndoCommand';
+import { UndoCommand, UndoCommandValidator } from '../dtos/UndoCommand';
 import { UndoResult, UndoStackInfo, UndoneActionDetail } from '../dtos/UndoResult';
 import { EventStore, StoredEvent } from '../ports/out/EventStore';
 import { GameRepository } from '../ports/out/GameRepository';
@@ -212,6 +212,22 @@ export class UndoLastAction {
     }
 
     try {
+      // Step 0: Fail-fast DTO validation
+      try {
+        UndoCommandValidator.validate(command);
+      } catch (validationError) {
+        this.logger.warn('Undo operation failed due to DTO validation error', {
+          gameId: command.gameId.value,
+          actionLimit,
+          error:
+            validationError instanceof Error ? validationError.message : 'Unknown validation error',
+          operation: 'undoLastAction',
+        });
+        return this.createFailureResult(command.gameId, [
+          validationError instanceof Error ? validationError.message : 'Invalid command structure',
+        ]);
+      }
+
       // Step 1: Load and validate game
       const game = await this.loadAndValidateGame(command.gameId);
 

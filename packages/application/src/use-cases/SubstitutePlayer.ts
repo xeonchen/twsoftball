@@ -121,7 +121,10 @@ import {
 } from '@twsoftball/domain';
 
 import { GameStateDTO } from '../dtos/GameStateDTO';
-import { SubstitutePlayerCommand } from '../dtos/SubstitutePlayerCommand';
+import {
+  SubstitutePlayerCommand,
+  SubstitutePlayerCommandValidator,
+} from '../dtos/SubstitutePlayerCommand';
 import { SubstitutionResult, SubstitutionDetailsDTO } from '../dtos/SubstitutionResult';
 import { EventStore } from '../ports/out/EventStore';
 import { GameRepository } from '../ports/out/GameRepository';
@@ -258,6 +261,23 @@ export class SubstitutePlayer {
     });
 
     try {
+      // Step 0: Fail-fast DTO validation
+      try {
+        SubstitutePlayerCommandValidator.validate(command);
+      } catch (validationError) {
+        this.logger.warn('Player substitution failed due to DTO validation error', {
+          gameId: command.gameId.value,
+          teamLineupId: command.teamLineupId.value,
+          battingSlot: command.battingSlot,
+          error:
+            validationError instanceof Error ? validationError.message : 'Unknown validation error',
+          operation: 'substitutePlayer',
+        });
+        return this.createFailureResult(null, [
+          validationError instanceof Error ? validationError.message : 'Invalid command structure',
+        ]);
+      }
+
       // Step 1: Load and validate game
       const game = await this.loadAndValidateGame(command.gameId);
       if (!game) {

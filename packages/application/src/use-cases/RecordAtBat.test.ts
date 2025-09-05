@@ -149,13 +149,13 @@ describe('RecordAtBat Use Case', () => {
             playerId: new PlayerId('runner-3'),
             fromBase: 'THIRD',
             toBase: 'HOME',
-            advanceReason: 'BATTED_BALL',
+            advanceReason: 'HIT',
           },
           {
             playerId: batterId,
             fromBase: null,
             toBase: 'HOME',
-            advanceReason: 'BATTED_BALL',
+            advanceReason: 'HIT',
           },
         ],
         notes: 'Solo home run',
@@ -200,13 +200,13 @@ describe('RecordAtBat Use Case', () => {
             playerId: runner2Id,
             fromBase: 'SECOND',
             toBase: 'HOME',
-            advanceReason: 'BATTED_BALL',
+            advanceReason: 'HIT',
           },
           {
             playerId: batterId,
             fromBase: null,
             toBase: 'FIRST',
-            advanceReason: 'BATTED_BALL',
+            advanceReason: 'HIT',
           },
         ],
       };
@@ -302,7 +302,7 @@ describe('RecordAtBat Use Case', () => {
             playerId: batterId,
             fromBase: null,
             toBase: 'OUT',
-            advanceReason: 'STRIKEOUT',
+            advanceReason: 'OUT',
           },
         ],
       };
@@ -383,7 +383,7 @@ describe('RecordAtBat Use Case', () => {
             playerId: batterId,
             fromBase: null,
             toBase: 'FIRST',
-            advanceReason: 'BATTED_BALL',
+            advanceReason: 'HIT',
           },
         ],
       };
@@ -424,7 +424,7 @@ describe('RecordAtBat Use Case', () => {
             playerId: batterId,
             fromBase: null,
             toBase: 'FIRST',
-            advanceReason: 'BATTED_BALL',
+            advanceReason: 'HIT',
           },
         ],
       };
@@ -478,7 +478,7 @@ describe('RecordAtBat Use Case', () => {
             playerId: batterId,
             fromBase: null,
             toBase: 'SECOND',
-            advanceReason: 'BATTED_BALL',
+            advanceReason: 'HIT',
           },
         ],
       };
@@ -513,7 +513,7 @@ describe('RecordAtBat Use Case', () => {
             playerId: batterId,
             fromBase: null,
             toBase: 'HOME',
-            advanceReason: 'BATTED_BALL',
+            advanceReason: 'HIT',
           },
         ],
       };
@@ -616,13 +616,13 @@ describe('RecordAtBat Use Case', () => {
             playerId: new PlayerId('runner-1'),
             fromBase: 'FIRST',
             toBase: 'HOME',
-            advanceReason: 'BATTED_BALL',
+            advanceReason: 'HIT',
           },
           {
             playerId: new PlayerId('batter-123'),
             fromBase: null,
             toBase: 'HOME',
-            advanceReason: 'BATTED_BALL',
+            advanceReason: 'HIT',
           },
         ],
       };
@@ -654,13 +654,13 @@ describe('RecordAtBat Use Case', () => {
             playerId: new PlayerId('runner-1'),
             fromBase: 'THIRD',
             toBase: 'HOME',
-            advanceReason: 'BATTED_BALL',
+            advanceReason: 'HIT',
           },
           {
             playerId: new PlayerId('runner-2'),
             fromBase: 'SECOND',
             toBase: 'HOME',
-            advanceReason: 'BATTED_BALL',
+            advanceReason: 'HIT',
           },
         ],
       };

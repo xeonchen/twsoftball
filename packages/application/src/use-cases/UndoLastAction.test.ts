@@ -57,7 +57,9 @@ describe('UndoLastAction Use Case', () => {
   const batterId = PlayerId.generate();
   const substitutedPlayerId = PlayerId.generate();
   const substitutionPlayerId = PlayerId.generate();
-  const timestamp = new Date('2024-08-31T15:30:00Z');
+  // Use recent timestamps to avoid validation issues
+  const now = new Date();
+  const timestamp = new Date(now.getTime() - 60 * 1000); // 1 minute ago
 
   // Common test setup helpers
   const createTestGame = (status: GameStatus = GameStatus.IN_PROGRESS): Game => {
@@ -189,7 +191,7 @@ describe('UndoLastAction Use Case', () => {
     it('should undo last at-bat with proper state restoration', async () => {
       // Arrange
       const game = createTestGame();
-      const lastAtBatEvent = createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'));
+      const lastAtBatEvent = createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000));
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue([lastAtBatEvent]);
@@ -229,7 +231,9 @@ describe('UndoLastAction Use Case', () => {
     it('should undo substitution with lineup restoration', async () => {
       // Arrange
       const game = createTestGame();
-      const lastSubstitutionEvent = createMockSubstitutionEvent(new Date('2024-08-31T15:20:00Z'));
+      const lastSubstitutionEvent = createMockSubstitutionEvent(
+        new Date(now.getTime() - 10 * 60 * 1000)
+      );
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue([lastSubstitutionEvent]);
@@ -261,7 +265,7 @@ describe('UndoLastAction Use Case', () => {
     it('should undo inning ending with complex state restoration', async () => {
       // Arrange
       const game = createTestGame();
-      const lastInningEndEvent = createMockInningEndEvent(new Date('2024-08-31T15:15:00Z'));
+      const lastInningEndEvent = createMockInningEndEvent(new Date(now.getTime() - 15 * 60 * 1000));
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue([lastInningEndEvent]);
@@ -300,7 +304,7 @@ describe('UndoLastAction Use Case', () => {
     it('should handle default actionLimit of 1', async () => {
       // Arrange
       const game = createTestGame();
-      const lastEvent = createMockAtBatEvent(new Date('2024-08-31T15:10:00Z'));
+      const lastEvent = createMockAtBatEvent(new Date(now.getTime() - 20 * 60 * 1000));
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue([lastEvent]);
@@ -328,9 +332,9 @@ describe('UndoLastAction Use Case', () => {
       // Arrange
       const game = createTestGame();
       const events = [
-        createMockAtBatEvent(new Date('2024-08-31T15:28:00Z')), // Most recent
-        createMockAtBatEvent(new Date('2024-08-31T15:26:00Z')), // Second most recent
-        createMockAtBatEvent(new Date('2024-08-31T15:24:00Z')), // Third most recent
+        createMockAtBatEvent(new Date(now.getTime() - 2 * 60 * 1000)), // Most recent
+        createMockAtBatEvent(new Date(now.getTime() - 4 * 60 * 1000)), // Second most recent
+        createMockAtBatEvent(new Date(now.getTime() - 6 * 60 * 1000)), // Third most recent
       ];
 
       mockFindById.mockResolvedValue(game);
@@ -367,8 +371,8 @@ describe('UndoLastAction Use Case', () => {
       // Arrange
       const game = createTestGame();
       const events = [
-        createMockSubstitutionEvent(new Date('2024-08-31T15:30:00Z')),
-        createMockAtBatEvent(new Date('2024-08-31T15:28:00Z')),
+        createMockSubstitutionEvent(new Date(now.getTime() - 60 * 1000)),
+        createMockAtBatEvent(new Date(now.getTime() - 2 * 60 * 1000)),
       ];
 
       mockFindById.mockResolvedValue(game);
@@ -409,7 +413,7 @@ describe('UndoLastAction Use Case', () => {
       // Arrange
       const game = createTestGame();
       const events = Array.from({ length: 5 }, (_, i) =>
-        createMockAtBatEvent(new Date(`2024-08-31T15:${30 - i * 2}:00Z`))
+        createMockAtBatEvent(new Date(now.getTime() - (i + 1) * 2 * 60 * 1000))
       );
 
       mockFindById.mockResolvedValue(game);
@@ -445,8 +449,8 @@ describe('UndoLastAction Use Case', () => {
       // Arrange
       const game = createTestGame();
       const events = [
-        createMockAtBatEvent(new Date('2024-08-31T15:25:00Z')),
-        createMockSubstitutionEvent(new Date('2024-08-31T15:20:00Z')),
+        createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000)),
+        createMockSubstitutionEvent(new Date(now.getTime() - 10 * 60 * 1000)),
       ];
 
       mockFindById.mockResolvedValue(game);
@@ -472,7 +476,7 @@ describe('UndoLastAction Use Case', () => {
     it('should indicate no more undo available when last action undone', async () => {
       // Arrange
       const game = createTestGame();
-      const events = [createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'))];
+      const events = [createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000))];
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue(events);
@@ -559,7 +563,7 @@ describe('UndoLastAction Use Case', () => {
       // Arrange
       const game = createTestGame();
       const events = Array.from({ length: 10 }, (_, i) =>
-        createMockAtBatEvent(new Date(`2024-08-31T15:${50 - i}:00Z`))
+        createMockAtBatEvent(new Date(now.getTime() - (i + 1) * 60 * 1000))
       );
 
       mockFindById.mockResolvedValue(game);
@@ -577,16 +581,17 @@ describe('UndoLastAction Use Case', () => {
 
       // Assert
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Dangerous undo operation requires explicit confirmation');
-      expect(result.errors).toContain('Set confirmDangerous: true to proceed with actionLimit > 3');
+      expect(result.errors).toContain(
+        'confirmDangerous must be true for actionLimit greater than 3'
+      );
     });
 
     it('should handle actionLimit exceeding available actions', async () => {
       // Arrange
       const game = createTestGame();
       const events = [
-        createMockAtBatEvent(new Date('2024-08-31T15:25:00Z')),
-        createMockAtBatEvent(new Date('2024-08-31T15:20:00Z')),
+        createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000)),
+        createMockAtBatEvent(new Date(now.getTime() - 10 * 60 * 1000)),
       ]; // Only 2 events available
 
       mockFindById.mockResolvedValue(game);
@@ -595,6 +600,7 @@ describe('UndoLastAction Use Case', () => {
       const command: UndoCommand = {
         gameId,
         actionLimit: 5, // Requesting more than available
+        confirmDangerous: true, // Required for actionLimit > 3
       };
 
       // Act
@@ -635,7 +641,7 @@ describe('UndoLastAction Use Case', () => {
     it('should handle repository save failures', async () => {
       // Arrange
       const game = createTestGame();
-      const events = [createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'))];
+      const events = [createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000))];
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue(events);
@@ -659,7 +665,7 @@ describe('UndoLastAction Use Case', () => {
     it('should handle event store failures', async () => {
       // Arrange
       const game = createTestGame();
-      const events = [createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'))];
+      const events = [createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000))];
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue(events);
@@ -683,7 +689,7 @@ describe('UndoLastAction Use Case', () => {
     it('should handle domain rule violations during undo', async () => {
       // Arrange
       const game = createTestGame();
-      const events = [createMockSubstitutionEvent(new Date('2024-08-31T15:25:00Z'))];
+      const events = [createMockSubstitutionEvent(new Date(now.getTime() - 5 * 60 * 1000))];
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue(events);
@@ -739,7 +745,7 @@ describe('UndoLastAction Use Case', () => {
     it('should handle concurrent modification during undo', async () => {
       // Arrange
       const game = createTestGame();
-      const events = [createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'))];
+      const events = [createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000))];
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue(events);
@@ -767,13 +773,13 @@ describe('UndoLastAction Use Case', () => {
     it('should properly handle timestamps in undo operations', async () => {
       // Arrange
       const game = createTestGame();
-      const originalTimestamp = new Date('2024-08-31T15:20:00Z');
+      const originalTimestamp = new Date(now.getTime() - 10 * 60 * 1000);
       const events = [createMockAtBatEvent(originalTimestamp)];
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue(events);
 
-      const undoTimestamp = new Date('2024-08-31T15:30:00Z');
+      const undoTimestamp = new Date(now.getTime() - 60 * 1000);
       const command: UndoCommand = {
         gameId,
         timestamp: undoTimestamp,
@@ -792,7 +798,7 @@ describe('UndoLastAction Use Case', () => {
     it('should generate system timestamp when not provided', async () => {
       // Arrange
       const game = createTestGame();
-      const events = [createMockAtBatEvent(new Date('2024-08-31T15:20:00Z'))];
+      const events = [createMockAtBatEvent(new Date(now.getTime() - 10 * 60 * 1000))];
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue(events);
@@ -816,7 +822,7 @@ describe('UndoLastAction Use Case', () => {
     it('should log comprehensive audit information for successful undo', async () => {
       // Arrange
       const game = createTestGame();
-      const events = [createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'))];
+      const events = [createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000))];
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue(events);
@@ -875,7 +881,7 @@ describe('UndoLastAction Use Case', () => {
       // Arrange
       const game = createTestGame();
       const events = Array.from({ length: 5 }, (_, i) =>
-        createMockAtBatEvent(new Date(`2024-08-31T15:${30 - i}:00Z`))
+        createMockAtBatEvent(new Date(now.getTime() - (i + 1) * 60 * 1000))
       );
 
       mockFindById.mockResolvedValue(game);
@@ -900,7 +906,7 @@ describe('UndoLastAction Use Case', () => {
     it('should include performance metrics in logging', async () => {
       // Arrange
       const game = createTestGame();
-      const events = [createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'))];
+      const events = [createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000))];
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue(events);
@@ -926,7 +932,7 @@ describe('UndoLastAction Use Case', () => {
       // Test coverage for line 659 - event type extraction
       const game = createTestGame();
       const customEvent = {
-        ...createMockAtBatEvent(new Date('2024-08-31T15:25:00Z')),
+        ...createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000)),
         type: 'AtBatCompleted',
         eventType: 'AtBatCompleted',
       } as DomainEvent;
@@ -947,7 +953,7 @@ describe('UndoLastAction Use Case', () => {
       // Test coverage for line 667 - substitution event compensation
       const game = createTestGame();
       const substitutionEvent = {
-        ...createMockSubstitutionEvent(new Date('2024-08-31T15:25:00Z')),
+        ...createMockSubstitutionEvent(new Date(now.getTime() - 5 * 60 * 1000)),
         type: 'PlayerSubstitutedIntoGame',
       };
 
@@ -1056,7 +1062,7 @@ describe('UndoLastAction Use Case', () => {
     it('should cover event compensation edge cases for applyAggregateUpdates', async () => {
       // Test coverage for lines 692-702: edge case in generateEventCompensation
       const game = createTestGame();
-      const testEvent = createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'));
+      const testEvent = createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000));
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue([testEvent]);
@@ -1075,8 +1081,8 @@ describe('UndoLastAction Use Case', () => {
       // Test coverage for lines 962-968: optional property assignments in createSuccessResult
       const game = createTestGame();
       const testEvents = [
-        createMockAtBatEvent(new Date('2024-08-31T15:25:00Z')),
-        createMockSubstitutionEvent(new Date('2024-08-31T15:26:00Z')),
+        createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000)),
+        createMockSubstitutionEvent(new Date(now.getTime() - 4 * 60 * 1000)),
       ];
 
       mockFindById.mockResolvedValue(game);
@@ -1103,7 +1109,7 @@ describe('UndoLastAction Use Case', () => {
     it('should handle database connection error in error handling', async () => {
       // Test coverage for specific database error handling paths
       const game = createTestGame();
-      const testEvent = createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'));
+      const testEvent = createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000));
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue([testEvent]);
@@ -1129,7 +1135,7 @@ describe('UndoLastAction Use Case', () => {
     it('should handle database error in persistence layer', async () => {
       // Test coverage for Database error handling path
       const game = createTestGame();
-      const testEvent = createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'));
+      const testEvent = createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000));
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue([testEvent]);
@@ -1155,7 +1161,7 @@ describe('UndoLastAction Use Case', () => {
     it('should handle connection error in event store', async () => {
       // Test coverage for connection error in event store
       const game = createTestGame();
-      const testEvent = createMockAtBatEvent(new Date('2024-08-31T15:25:00Z'));
+      const testEvent = createMockAtBatEvent(new Date(now.getTime() - 5 * 60 * 1000));
 
       mockFindById.mockResolvedValue(game);
       mockGetGameEvents.mockResolvedValue([testEvent]);

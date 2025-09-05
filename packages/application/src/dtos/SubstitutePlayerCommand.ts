@@ -54,6 +54,16 @@
 import { GameId, PlayerId, TeamLineupId, JerseyNumber, FieldPosition } from '@twsoftball/domain';
 
 /**
+ * Validation error for SubstitutePlayerCommand
+ */
+export class SubstitutePlayerCommandValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SubstitutePlayerCommandValidationError';
+  }
+}
+
+/**
  * Command to substitute a player in a softball game lineup and field positions.
  *
  * @remarks
@@ -149,3 +159,242 @@ export interface SubstitutePlayerCommand {
    */
   readonly timestamp?: Date;
 }
+
+/**
+ * Validation functions for SubstitutePlayerCommand
+ */
+export const SubstitutePlayerCommandValidator = {
+  /**
+   * Validates a SubstitutePlayerCommand for business rule compliance.
+   *
+   * @param command - The command to validate
+   * @throws {SubstitutePlayerCommandValidationError} When validation fails
+   *
+   * @example
+   * ```typescript
+   * try {
+   *   SubstitutePlayerCommandValidator.validate(command);
+   *   // Command is valid, proceed with use case
+   * } catch (error) {
+   *   // Handle validation error
+   * }
+   * ```
+   */
+  validate(command: SubstitutePlayerCommand): void {
+    this.validateBasicFields(command);
+    this.validatePlayerFields(command);
+    this.validatePositionAndTiming(command);
+    if (command.notes !== undefined) {
+      this.validateNotes(command.notes);
+    }
+    if (command.timestamp !== undefined) {
+      this.validateTimestamp(command.timestamp);
+    }
+  },
+
+  /**
+   * Validates basic command fields (gameId, teamLineupId, etc.)
+   */
+  validateBasicFields(command: SubstitutePlayerCommand): void {
+    if (!command.gameId) {
+      throw new SubstitutePlayerCommandValidationError('gameId is required');
+    }
+
+    if (!command.teamLineupId) {
+      throw new SubstitutePlayerCommandValidationError('teamLineupId is required');
+    }
+
+    if (
+      !Number.isInteger(command.battingSlot) ||
+      command.battingSlot < 1 ||
+      command.battingSlot > 20
+    ) {
+      throw new SubstitutePlayerCommandValidationError(
+        'battingSlot must be an integer between 1 and 20'
+      );
+    }
+
+    if (!Number.isInteger(command.inning) || command.inning < 1) {
+      throw new SubstitutePlayerCommandValidationError(
+        'inning must be a positive integer (1 or greater)'
+      );
+    }
+
+    if (command.inning > 15) {
+      throw new SubstitutePlayerCommandValidationError('inning cannot exceed 15 for safety limits');
+    }
+
+    if (typeof command.isReentry !== 'boolean') {
+      throw new SubstitutePlayerCommandValidationError('isReentry must be a boolean');
+    }
+  },
+
+  /**
+   * Validates player-related fields
+   */
+  validatePlayerFields(command: SubstitutePlayerCommand): void {
+    if (!command.outgoingPlayerId) {
+      throw new SubstitutePlayerCommandValidationError('outgoingPlayerId is required');
+    }
+
+    if (!command.incomingPlayerId) {
+      throw new SubstitutePlayerCommandValidationError('incomingPlayerId is required');
+    }
+
+    if (command.outgoingPlayerId.value === command.incomingPlayerId.value) {
+      throw new SubstitutePlayerCommandValidationError(
+        'outgoingPlayerId and incomingPlayerId cannot be the same player'
+      );
+    }
+
+    if (!command.incomingPlayerName?.trim()) {
+      throw new SubstitutePlayerCommandValidationError(
+        'incomingPlayerName is required and cannot be empty'
+      );
+    }
+
+    if (command.incomingPlayerName.length > 50) {
+      throw new SubstitutePlayerCommandValidationError(
+        'incomingPlayerName cannot exceed 50 characters'
+      );
+    }
+
+    if (!command.incomingJerseyNumber) {
+      throw new SubstitutePlayerCommandValidationError('incomingJerseyNumber is required');
+    }
+  },
+
+  /**
+   * Validates position and timing constraints
+   */
+  validatePositionAndTiming(command: SubstitutePlayerCommand): void {
+    if (!Object.values(FieldPosition).includes(command.newFieldPosition)) {
+      throw new SubstitutePlayerCommandValidationError(
+        `newFieldPosition must be a valid FieldPosition: ${command.newFieldPosition}`
+      );
+    }
+
+    // Business rule: Cannot substitute in the same inning a player entered (need at least 1 inning between)
+    // This would be validated more thoroughly by the use case, but we can check basic constraints
+  },
+
+  /**
+   * Validates optional notes field
+   */
+  validateNotes(notes: string): void {
+    if (notes.length > 500) {
+      throw new SubstitutePlayerCommandValidationError('notes cannot exceed 500 characters');
+    }
+
+    // Allow empty string as valid (means no notes)
+    // But trim and check for meaningful content if provided
+    if (notes.trim().length === 0 && notes.length > 0) {
+      throw new SubstitutePlayerCommandValidationError('notes cannot be only whitespace');
+    }
+  },
+
+  /**
+   * Validates optional timestamp field
+   */
+  validateTimestamp(timestamp: Date): void {
+    if (!(timestamp instanceof Date)) {
+      throw new SubstitutePlayerCommandValidationError('timestamp must be a valid Date object');
+    }
+
+    if (isNaN(timestamp.getTime())) {
+      throw new SubstitutePlayerCommandValidationError('timestamp must be a valid Date');
+    }
+
+    // Business rule: timestamp cannot be too far in the future
+    const now = new Date();
+    const maxFutureMinutes = 60; // Allow up to 1 hour in future for time zone differences
+    const maxFutureTime = new Date(now.getTime() + maxFutureMinutes * 60 * 1000);
+
+    if (timestamp > maxFutureTime) {
+      throw new SubstitutePlayerCommandValidationError(
+        'timestamp cannot be more than 1 hour in the future'
+      );
+    }
+
+    // Business rule: timestamp cannot be too far in the past (e.g., more than 1 year ago)
+    const minPastTime = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    if (timestamp < minPastTime) {
+      throw new SubstitutePlayerCommandValidationError(
+        'timestamp cannot be more than 1 year in the past'
+      );
+    }
+  },
+};
+
+/**
+ * Factory functions for creating SubstitutePlayerCommand instances
+ */
+export const SubstitutePlayerCommandFactory = {
+  /**
+   * Creates a regular SubstitutePlayerCommand (non-reentry)
+   */
+  createRegular(
+    gameId: GameId,
+    teamLineupId: TeamLineupId,
+    battingSlot: number,
+    outgoingPlayerId: PlayerId,
+    incomingPlayerId: PlayerId,
+    incomingPlayerName: string,
+    incomingJerseyNumber: JerseyNumber,
+    newFieldPosition: FieldPosition,
+    inning: number,
+    notes?: string
+  ): SubstitutePlayerCommand {
+    const command: SubstitutePlayerCommand = {
+      gameId,
+      teamLineupId,
+      battingSlot,
+      outgoingPlayerId,
+      incomingPlayerId,
+      incomingPlayerName,
+      incomingJerseyNumber,
+      newFieldPosition,
+      inning,
+      isReentry: false,
+      ...(notes !== undefined && { notes }),
+      timestamp: new Date(),
+    };
+
+    SubstitutePlayerCommandValidator.validate(command);
+    return command;
+  },
+
+  /**
+   * Creates a reentry SubstitutePlayerCommand (starter returning)
+   */
+  createReentry(
+    gameId: GameId,
+    teamLineupId: TeamLineupId,
+    battingSlot: number,
+    outgoingPlayerId: PlayerId,
+    returningPlayerId: PlayerId,
+    returningPlayerName: string,
+    returningJerseyNumber: JerseyNumber,
+    newFieldPosition: FieldPosition,
+    inning: number,
+    notes?: string
+  ): SubstitutePlayerCommand {
+    const command: SubstitutePlayerCommand = {
+      gameId,
+      teamLineupId,
+      battingSlot,
+      outgoingPlayerId,
+      incomingPlayerId: returningPlayerId,
+      incomingPlayerName: returningPlayerName,
+      incomingJerseyNumber: returningJerseyNumber,
+      newFieldPosition,
+      inning,
+      isReentry: true,
+      notes: notes || 'Starter re-entry',
+      timestamp: new Date(),
+    };
+
+    SubstitutePlayerCommandValidator.validate(command);
+    return command;
+  },
+};

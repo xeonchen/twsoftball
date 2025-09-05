@@ -49,6 +49,16 @@ import { RecordAtBatCommand } from './RecordAtBatCommand';
 import { SubstitutePlayerCommand } from './SubstitutePlayerCommand';
 
 /**
+ * Validation error for CompleteAtBatSequenceCommand
+ */
+export class CompleteAtBatSequenceCommandValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CompleteAtBatSequenceCommandValidationError';
+  }
+}
+
+/**
  * Command for executing a complete at-bat sequence with orchestrated follow-up actions.
  *
  * @remarks
@@ -134,3 +144,205 @@ export interface CompleteAtBatSequenceCommand {
    */
   readonly maxRetryAttempts?: number;
 }
+
+/**
+ * Validation functions for CompleteAtBatSequenceCommand
+ */
+export const CompleteAtBatSequenceCommandValidator = {
+  /**
+   * Validates a CompleteAtBatSequenceCommand for business rule compliance.
+   *
+   * @param command - The command to validate
+   * @throws {CompleteAtBatSequenceCommandValidationError} When validation fails
+   *
+   * @example
+   * ```typescript
+   * try {
+   *   CompleteAtBatSequenceCommandValidator.validate(command);
+   *   // Command is valid, proceed with use case
+   * } catch (error) {
+   *   // Handle validation error
+   * }
+   * ```
+   */
+  validate(command: CompleteAtBatSequenceCommand): void {
+    this.validateBasicFields(command);
+    this.validateAtBatCommand(command);
+    this.validateOptions(command);
+    if (command.queuedSubstitutions && command.queuedSubstitutions.length > 0) {
+      this.validateQueuedSubstitutions(command.queuedSubstitutions);
+    }
+  },
+
+  /**
+   * Validates basic command fields
+   */
+  validateBasicFields(command: CompleteAtBatSequenceCommand): void {
+    if (!command.gameId) {
+      throw new CompleteAtBatSequenceCommandValidationError('gameId is required');
+    }
+
+    if (!command.atBatCommand) {
+      throw new CompleteAtBatSequenceCommandValidationError('atBatCommand is required');
+    }
+  },
+
+  /**
+   * Validates the at-bat command
+   */
+  validateAtBatCommand(command: CompleteAtBatSequenceCommand): void {
+    // Check that the gameId matches
+    if (command.atBatCommand.gameId.value !== command.gameId.value) {
+      throw new CompleteAtBatSequenceCommandValidationError(
+        'atBatCommand.gameId must match the command gameId'
+      );
+    }
+
+    // The RecordAtBatCommand validation will be handled by its own validator
+    // We just need to ensure consistency at this level
+  },
+
+  /**
+   * Validates configuration options
+   */
+  validateOptions(command: CompleteAtBatSequenceCommand): void {
+    if (command.checkInningEnd !== undefined && typeof command.checkInningEnd !== 'boolean') {
+      throw new CompleteAtBatSequenceCommandValidationError(
+        'checkInningEnd must be a boolean if provided'
+      );
+    }
+
+    if (
+      command.handleSubstitutions !== undefined &&
+      typeof command.handleSubstitutions !== 'boolean'
+    ) {
+      throw new CompleteAtBatSequenceCommandValidationError(
+        'handleSubstitutions must be a boolean if provided'
+      );
+    }
+
+    if (
+      command.notifyScoreChanges !== undefined &&
+      typeof command.notifyScoreChanges !== 'boolean'
+    ) {
+      throw new CompleteAtBatSequenceCommandValidationError(
+        'notifyScoreChanges must be a boolean if provided'
+      );
+    }
+
+    if (command.maxRetryAttempts !== undefined) {
+      if (!Number.isInteger(command.maxRetryAttempts) || command.maxRetryAttempts < 0) {
+        throw new CompleteAtBatSequenceCommandValidationError(
+          'maxRetryAttempts must be a non-negative integer'
+        );
+      }
+
+      if (command.maxRetryAttempts > 10) {
+        throw new CompleteAtBatSequenceCommandValidationError(
+          'maxRetryAttempts cannot exceed 10 for safety limits'
+        );
+      }
+    }
+  },
+
+  /**
+   * Validates queued substitutions
+   */
+  validateQueuedSubstitutions(substitutions: SubstitutePlayerCommand[]): void {
+    if (!Array.isArray(substitutions)) {
+      throw new CompleteAtBatSequenceCommandValidationError(
+        'queuedSubstitutions must be an array if provided'
+      );
+    }
+
+    if (substitutions.length > 5) {
+      throw new CompleteAtBatSequenceCommandValidationError(
+        'queuedSubstitutions cannot exceed 5 substitutions per at-bat'
+      );
+    }
+
+    // Check for duplicate batting slots (can't substitute same slot multiple times)
+    const battingSlots = substitutions.map(sub => sub.battingSlot);
+    const uniqueSlots = new Set(battingSlots);
+    if (uniqueSlots.size !== battingSlots.length) {
+      throw new CompleteAtBatSequenceCommandValidationError(
+        'queuedSubstitutions cannot have duplicate battingSlot values'
+      );
+    }
+
+    // Each substitution command will be validated by its own validator
+  },
+};
+
+/**
+ * Factory functions for creating CompleteAtBatSequenceCommand instances
+ */
+export const CompleteAtBatSequenceCommandFactory = {
+  /**
+   * Creates a simple CompleteAtBatSequenceCommand with default settings
+   */
+  createSimple(gameId: GameId, atBatCommand: RecordAtBatCommand): CompleteAtBatSequenceCommand {
+    const command: CompleteAtBatSequenceCommand = {
+      gameId,
+      atBatCommand,
+      checkInningEnd: true,
+      handleSubstitutions: false,
+      notifyScoreChanges: false,
+      maxRetryAttempts: 1,
+    };
+
+    CompleteAtBatSequenceCommandValidator.validate(command);
+    return command;
+  },
+
+  /**
+   * Creates a full CompleteAtBatSequenceCommand with all options
+   */
+  createFull(
+    gameId: GameId,
+    atBatCommand: RecordAtBatCommand,
+    options: {
+      checkInningEnd?: boolean;
+      handleSubstitutions?: boolean;
+      queuedSubstitutions?: SubstitutePlayerCommand[];
+      notifyScoreChanges?: boolean;
+      maxRetryAttempts?: number;
+    } = {}
+  ): CompleteAtBatSequenceCommand {
+    const command: CompleteAtBatSequenceCommand = {
+      gameId,
+      atBatCommand,
+      checkInningEnd: options.checkInningEnd ?? true,
+      handleSubstitutions: options.handleSubstitutions ?? false,
+      ...(options.queuedSubstitutions && { queuedSubstitutions: options.queuedSubstitutions }),
+      notifyScoreChanges: options.notifyScoreChanges ?? false,
+      maxRetryAttempts: options.maxRetryAttempts ?? 1,
+    };
+
+    CompleteAtBatSequenceCommandValidator.validate(command);
+    return command;
+  },
+
+  /**
+   * Creates a command with substitutions
+   */
+  createWithSubstitutions(
+    gameId: GameId,
+    atBatCommand: RecordAtBatCommand,
+    queuedSubstitutions: SubstitutePlayerCommand[],
+    enableNotifications = false
+  ): CompleteAtBatSequenceCommand {
+    const command: CompleteAtBatSequenceCommand = {
+      gameId,
+      atBatCommand,
+      checkInningEnd: true,
+      handleSubstitutions: true,
+      queuedSubstitutions,
+      notifyScoreChanges: enableNotifications,
+      maxRetryAttempts: 2, // Higher retry for complex operations
+    };
+
+    CompleteAtBatSequenceCommandValidator.validate(command);
+    return command;
+  },
+};

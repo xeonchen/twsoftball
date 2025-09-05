@@ -94,7 +94,12 @@ import {
 import { GameStartResult } from '../dtos/GameStartResult';
 import { GameStateDTO } from '../dtos/GameStateDTO';
 import { PlayerStatisticsDTO, FieldingStatisticsDTO } from '../dtos/PlayerStatisticsDTO';
-import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from '../dtos/StartNewGameCommand';
+import {
+  StartNewGameCommand,
+  LineupPlayerDTO,
+  GameRulesDTO,
+  StartNewGameCommandValidator,
+} from '../dtos/StartNewGameCommand';
 import { TeamLineupDTO, BattingSlotDTO } from '../dtos/TeamLineupDTO';
 import { EventStore } from '../ports/out/EventStore';
 import { GameRepository } from '../ports/out/GameRepository';
@@ -220,6 +225,21 @@ export class StartNewGame {
     });
 
     try {
+      // Step 0: Fail-fast DTO validation
+      try {
+        StartNewGameCommandValidator.validate(command);
+      } catch (validationError) {
+        this.logger.warn('Game creation failed due to DTO validation error', {
+          gameId: command.gameId.value,
+          error:
+            validationError instanceof Error ? validationError.message : 'Unknown validation error',
+          operation: 'startNewGame',
+        });
+        return this.createFailureResult(command.gameId, [
+          validationError instanceof Error ? validationError.message : 'Invalid command structure',
+        ]);
+      }
+
       // Step 1: Validate command input
       const inputValidation = this.validateCommandInput(command);
       if (!inputValidation.valid) {

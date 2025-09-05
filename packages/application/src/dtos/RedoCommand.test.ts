@@ -6,11 +6,250 @@
 import { GameId } from '@twsoftball/domain';
 import { describe, it, expect } from 'vitest';
 
-import { RedoCommand } from './RedoCommand';
+import {
+  RedoCommand,
+  RedoCommandValidator,
+  RedoCommandValidationError,
+  RedoCommandFactory,
+} from './RedoCommand';
 
 describe('RedoCommand', () => {
   const mockGameId = new GameId('test-game-123');
   const mockTimestamp = new Date('2024-07-15T14:30:00Z');
+
+  describe('Validation - RedoCommandValidator', () => {
+    describe('Basic Field Validation', () => {
+      it('should require gameId', () => {
+        const command: RedoCommand = {
+          gameId: null as unknown as GameId,
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).toThrow(RedoCommandValidationError);
+        expect(() => RedoCommandValidator.validate(command)).toThrow('gameId is required');
+      });
+    });
+
+    describe('Action Limit Validation', () => {
+      it('should require positive integer actionLimit', () => {
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          actionLimit: 0,
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).toThrow(
+          'actionLimit must be a positive integer'
+        );
+      });
+
+      it('should reject negative actionLimit', () => {
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          actionLimit: -1,
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).toThrow(
+          'actionLimit must be a positive integer'
+        );
+      });
+
+      it('should reject non-integer actionLimit', () => {
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          actionLimit: 1.5,
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).toThrow(
+          'actionLimit must be a positive integer'
+        );
+      });
+
+      it('should limit actionLimit to maximum 10', () => {
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          actionLimit: 11,
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).toThrow(
+          'actionLimit cannot exceed 10 actions for safety'
+        );
+      });
+
+      it('should require confirmation for dangerous actionLimit (>3)', () => {
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          actionLimit: 5,
+          confirmDangerous: false,
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).toThrow(
+          'confirmDangerous must be true'
+        );
+      });
+
+      it('should allow dangerous actionLimit with confirmation', () => {
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          actionLimit: 5,
+          confirmDangerous: true,
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).not.toThrow();
+      });
+
+      it('should allow actionLimit <= 3 without confirmation', () => {
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          actionLimit: 3,
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).not.toThrow();
+      });
+    });
+
+    describe('Notes Validation', () => {
+      it('should limit notes length to 500 characters', () => {
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          notes: 'a'.repeat(501),
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).toThrow(
+          'notes cannot exceed 500 characters'
+        );
+      });
+
+      it('should not allow whitespace-only notes', () => {
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          notes: '   ',
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).toThrow(
+          'notes cannot be only whitespace'
+        );
+      });
+
+      it('should allow empty string notes', () => {
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          notes: '',
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).not.toThrow();
+      });
+
+      it('should allow undefined notes', () => {
+        const command: RedoCommand = {
+          gameId: mockGameId,
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).not.toThrow();
+      });
+    });
+
+    describe('Timestamp Validation', () => {
+      it('should require valid Date object', () => {
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          timestamp: 'invalid' as unknown as Date,
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).toThrow(
+          'timestamp must be a valid Date object'
+        );
+      });
+
+      it('should require valid date value', () => {
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          timestamp: new Date('invalid'),
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).toThrow(
+          'timestamp must be a valid Date'
+        );
+      });
+
+      it('should not allow timestamp too far in future', () => {
+        const futureTime = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          timestamp: futureTime,
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).toThrow(
+          'timestamp cannot be more than 1 hour in the future'
+        );
+      });
+
+      it('should not allow timestamp too far in past', () => {
+        const pastTime = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000); // 2 years ago
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          timestamp: pastTime,
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).toThrow(
+          'timestamp cannot be more than 1 year in the past'
+        );
+      });
+
+      it('should allow reasonable timestamp', () => {
+        const recentTime = new Date(Date.now() - 10 * 60 * 1000); // 10 minutes ago
+        const command: RedoCommand = {
+          gameId: mockGameId,
+          timestamp: recentTime,
+        };
+
+        expect(() => RedoCommandValidator.validate(command)).not.toThrow();
+      });
+    });
+
+    it('should pass validation for valid commands', () => {
+      const command: RedoCommand = {
+        gameId: mockGameId,
+        actionLimit: 1,
+        notes: 'Valid redo',
+      };
+
+      expect(() => RedoCommandValidator.validate(command)).not.toThrow();
+    });
+  });
+
+  describe('Factory Functions - RedoCommandFactory', () => {
+    describe('createSimple', () => {
+      it('should create valid simple redo command', () => {
+        const command = RedoCommandFactory.createSimple(mockGameId, 'Redo last action');
+
+        expect(command.gameId).toBe(mockGameId);
+        expect(command.actionLimit).toBe(1);
+        expect(command.notes).toBe('Redo last action');
+        expect(command.timestamp).toBeInstanceOf(Date);
+      });
+
+      it('should work without notes', () => {
+        const command = RedoCommandFactory.createSimple(mockGameId);
+        expect(command.notes).toBeUndefined();
+      });
+    });
+
+    describe('createMultiple', () => {
+      it('should create valid multiple redo command', () => {
+        const command = RedoCommandFactory.createMultiple(mockGameId, 3, 'Redo sequence', false);
+
+        expect(command.actionLimit).toBe(3);
+        expect(command.confirmDangerous).toBe(false);
+        expect(command.notes).toBe('Redo sequence');
+      });
+
+      it('should set confirmDangerous for actionLimit > 3', () => {
+        const command = RedoCommandFactory.createMultiple(mockGameId, 5, 'Dangerous redo');
+
+        expect(command.confirmDangerous).toBe(true);
+        expect(command.actionLimit).toBe(5);
+      });
+    });
+  });
 
   describe('Type Safety and Interface Compliance', () => {
     it('should accept minimal valid command with only required fields', () => {
@@ -511,6 +750,19 @@ describe('RedoCommand', () => {
       expect(serializable.confirmDangerous).toBe(true);
       expect(serializable.notes).toBe('Test serialization');
       expect(serializable.timestamp).toBe('2024-07-15T14:30:00.000Z');
+    });
+
+    it('should validate all factory functions create valid commands', () => {
+      const factories = [
+        (): RedoCommand => RedoCommandFactory.createSimple(mockGameId),
+        (): RedoCommand => RedoCommandFactory.createMultiple(mockGameId, 2, 'Multiple redo', false),
+        (): RedoCommand => RedoCommandFactory.createMultiple(mockGameId, 5, 'Dangerous redo'),
+      ];
+
+      factories.forEach(factory => {
+        const command = factory();
+        expect(() => RedoCommandValidator.validate(command)).not.toThrow();
+      });
     });
   });
 });

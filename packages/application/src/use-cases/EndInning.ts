@@ -92,7 +92,7 @@ import {
   PlayerId,
 } from '@twsoftball/domain';
 
-import { EndInningCommand } from '../dtos/EndInningCommand';
+import { EndInningCommand, EndInningCommandValidator } from '../dtos/EndInningCommand';
 import { GameStateDTO } from '../dtos/GameStateDTO';
 import { InningEndResult, InningHalfState } from '../dtos/InningEndResult';
 import { TeamLineupDTO } from '../dtos/TeamLineupDTO';
@@ -226,6 +226,29 @@ export class EndInning {
     });
 
     try {
+      // Step 0: Fail-fast DTO validation
+      try {
+        EndInningCommandValidator.validate(command);
+      } catch (validationError) {
+        this.logger.warn('Inning ending failed due to DTO validation error', {
+          gameId: command.gameId?.value || 'null',
+          inning: command.inning,
+          isTopHalf: command.isTopHalf,
+          error:
+            validationError instanceof Error ? validationError.message : 'Unknown validation error',
+          operation: 'endInning',
+        });
+        return this.createFailureResult(
+          null,
+          [
+            validationError instanceof Error
+              ? validationError.message
+              : 'Invalid command structure',
+          ],
+          command
+        );
+      }
+
       // Step 1: Validate command input
       const inputValidation = this.validateCommandInput(command);
       if (!inputValidation.valid) {

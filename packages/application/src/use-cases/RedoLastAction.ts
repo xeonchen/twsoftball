@@ -78,7 +78,7 @@ import {
 } from '@twsoftball/domain';
 
 import { GameStateDTO } from '../dtos/GameStateDTO';
-import { RedoCommand } from '../dtos/RedoCommand';
+import { RedoCommand, RedoCommandValidator } from '../dtos/RedoCommand';
 import { RedoResult, RedoStackInfo, RedoneActionDetail } from '../dtos/RedoResult';
 import { EventStore, StoredEvent } from '../ports/out/EventStore';
 import { GameRepository } from '../ports/out/GameRepository';
@@ -210,6 +210,22 @@ export class RedoLastAction {
     }
 
     try {
+      // Step 0: Fail-fast DTO validation
+      try {
+        RedoCommandValidator.validate(command);
+      } catch (validationError) {
+        this.logger.warn('Redo operation failed due to DTO validation error', {
+          gameId: command.gameId.value,
+          actionLimit,
+          error:
+            validationError instanceof Error ? validationError.message : 'Unknown validation error',
+          operation: 'redoLastAction',
+        });
+        return this.createFailureResult(command.gameId, [
+          validationError instanceof Error ? validationError.message : 'Invalid command structure',
+        ]);
+      }
+
       // Step 1: Load and validate game
       const game = await this.loadAndValidateGame(command.gameId);
       if (!game) {

@@ -300,7 +300,8 @@ describe('RedoLastAction', () => {
   let mockLogger: MockLogger;
 
   const testGameId = new GameId('test-game-123');
-  const mockTimestamp = new Date('2024-07-15T14:30:00Z');
+  // Use recent timestamp to avoid validation issues
+  const mockTimestamp = new Date(new Date().getTime() - 5 * 60 * 1000);
 
   beforeEach(() => {
     mockGameRepository = new MockGameRepository();
@@ -539,7 +540,9 @@ describe('RedoLastAction', () => {
       const result = await redoLastAction.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Dangerous redo operation requires explicit confirmation');
+      expect(result.errors).toContain(
+        'confirmDangerous must be true for actionLimit greater than 3'
+      );
     });
 
     it('should succeed for dangerous operations with confirmation', async () => {

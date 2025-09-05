@@ -59,6 +59,16 @@
 import { GameId } from '@twsoftball/domain';
 
 /**
+ * Validation error for EndGameCommand
+ */
+export class EndGameCommandValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EndGameCommandValidationError';
+  }
+}
+
+/**
  * Command to end a softball game before natural completion.
  *
  * @remarks
@@ -237,3 +247,441 @@ export interface ForfeitDetailsDTO {
   /** League official overseeing the forfeit decision */
   readonly official?: string;
 }
+
+/**
+ * Validation functions for EndGameCommand
+ */
+export const EndGameCommandValidator = {
+  /**
+   * Validates an EndGameCommand for business rule compliance.
+   *
+   * @param command - The command to validate
+   * @throws {EndGameCommandValidationError} When validation fails
+   *
+   * @example
+   * ```typescript
+   * try {
+   *   EndGameCommandValidator.validate(command);
+   *   // Command is valid, proceed with use case
+   * } catch (error) {
+   *   // Handle validation error
+   * }
+   * ```
+   */
+  validate(command: EndGameCommand): void {
+    this.validateBasicFields(command);
+    this.validateGameState(command);
+    this.validateEndReason(command);
+    this.validateScore(command);
+    if (command.weatherConditions) {
+      this.validateWeatherConditions(command.weatherConditions);
+    }
+    if (command.forfeitDetails) {
+      this.validateForfeitDetails(command.forfeitDetails);
+    }
+    if (command.ruleReference) {
+      this.validateRuleReference(command.ruleReference);
+    }
+    if (command.notes) {
+      this.validateNotes(command.notes);
+    }
+  },
+
+  /**
+   * Validates basic command fields
+   */
+  validateBasicFields(command: EndGameCommand): void {
+    if (!command.gameId) {
+      throw new EndGameCommandValidationError('gameId is required');
+    }
+
+    if (!command.description?.trim()) {
+      throw new EndGameCommandValidationError('description is required and cannot be empty');
+    }
+
+    if (command.description.length > 500) {
+      throw new EndGameCommandValidationError('description cannot exceed 500 characters');
+    }
+
+    if (!(command.endTime instanceof Date) || isNaN(command.endTime.getTime())) {
+      throw new EndGameCommandValidationError('endTime must be a valid Date object');
+    }
+
+    if (!command.initiatedBy?.trim()) {
+      throw new EndGameCommandValidationError('initiatedBy is required and cannot be empty');
+    }
+
+    if (command.initiatedBy.length > 50) {
+      throw new EndGameCommandValidationError('initiatedBy cannot exceed 50 characters');
+    }
+
+    if (typeof command.officialGame !== 'boolean') {
+      throw new EndGameCommandValidationError('officialGame must be a boolean');
+    }
+  },
+
+  /**
+   * Validates game state fields
+   */
+  validateGameState(command: EndGameCommand): void {
+    if (!Number.isInteger(command.currentInning) || command.currentInning < 1) {
+      throw new EndGameCommandValidationError('currentInning must be a positive integer');
+    }
+
+    if (command.currentInning > 20) {
+      throw new EndGameCommandValidationError('currentInning cannot exceed 20');
+    }
+
+    if (!['top', 'bottom'].includes(command.currentHalf)) {
+      throw new EndGameCommandValidationError('currentHalf must be either "top" or "bottom"');
+    }
+
+    if (
+      !Number.isInteger(command.currentOuts) ||
+      command.currentOuts < 0 ||
+      command.currentOuts > 3
+    ) {
+      throw new EndGameCommandValidationError('currentOuts must be an integer between 0 and 3');
+    }
+  },
+
+  /**
+   * Validates end reason
+   */
+  validateEndReason(command: EndGameCommand): void {
+    const validReasons: GameEndReason[] = [
+      'mercy_rule',
+      'time_limit',
+      'weather',
+      'forfeit',
+      'administrative',
+      'mutual_agreement',
+      'facility_issue',
+      'injury',
+      'darkness',
+      'curfew',
+    ];
+
+    if (!validReasons.includes(command.reason)) {
+      throw new EndGameCommandValidationError(`reason must be one of: ${validReasons.join(', ')}`);
+    }
+
+    // Business rules for specific end reasons
+    if (command.reason === 'forfeit' && !command.forfeitDetails) {
+      throw new EndGameCommandValidationError('forfeitDetails is required when reason is forfeit');
+    }
+
+    if (command.reason === 'weather' && !command.weatherConditions) {
+      throw new EndGameCommandValidationError(
+        'weatherConditions is required when reason is weather'
+      );
+    }
+
+    if (command.reason === 'mercy_rule' && !command.officialGame) {
+      throw new EndGameCommandValidationError('mercy rule games should typically be official');
+    }
+  },
+
+  /**
+   * Validates score and winner
+   */
+  validateScore(command: EndGameCommand): void {
+    if (!Number.isInteger(command.finalScore.home) || command.finalScore.home < 0) {
+      throw new EndGameCommandValidationError('finalScore.home must be a non-negative integer');
+    }
+
+    if (!Number.isInteger(command.finalScore.away) || command.finalScore.away < 0) {
+      throw new EndGameCommandValidationError('finalScore.away must be a non-negative integer');
+    }
+
+    if (command.finalScore.home > 100 || command.finalScore.away > 100) {
+      throw new EndGameCommandValidationError('scores cannot exceed 100 runs');
+    }
+
+    // Validate winner consistency with score
+    if (command.winner !== null) {
+      if (!['home', 'away'].includes(command.winner)) {
+        throw new EndGameCommandValidationError('winner must be "home", "away", or null');
+      }
+
+      if (command.officialGame) {
+        const homeWinning = command.finalScore.home > command.finalScore.away;
+        const awayWinning = command.finalScore.away > command.finalScore.home;
+        const isTie = command.finalScore.home === command.finalScore.away;
+
+        if (command.winner === 'home' && !homeWinning) {
+          throw new EndGameCommandValidationError(
+            'winner cannot be "home" if away team has higher score'
+          );
+        }
+
+        if (command.winner === 'away' && !awayWinning) {
+          throw new EndGameCommandValidationError(
+            'winner cannot be "away" if home team has higher score'
+          );
+        }
+
+        if (isTie && command.winner !== null) {
+          throw new EndGameCommandValidationError('winner must be null when scores are tied');
+        }
+      }
+    }
+  },
+
+  /**
+   * Validates weather conditions if provided
+   */
+  validateWeatherConditions(weather: WeatherConditionsDTO): void {
+    const validConditions = [
+      'lightning',
+      'heavy_rain',
+      'hail',
+      'high_winds',
+      'tornado_warning',
+      'extreme_heat',
+    ];
+
+    if (!validConditions.includes(weather.condition)) {
+      throw new EndGameCommandValidationError(
+        `weather.condition must be one of: ${validConditions.join(', ')}`
+      );
+    }
+
+    if (!weather.description?.trim()) {
+      throw new EndGameCommandValidationError(
+        'weather.description is required and cannot be empty'
+      );
+    }
+
+    if (
+      weather.temperature !== undefined &&
+      (weather.temperature < -50 || weather.temperature > 150)
+    ) {
+      throw new EndGameCommandValidationError(
+        'weather.temperature must be between -50 and 150 degrees'
+      );
+    }
+
+    if (weather.windSpeed !== undefined && (weather.windSpeed < 0 || weather.windSpeed > 200)) {
+      throw new EndGameCommandValidationError('weather.windSpeed must be between 0 and 200 mph');
+    }
+
+    if (
+      weather.estimatedClearance !== undefined &&
+      (weather.estimatedClearance < 0 || weather.estimatedClearance > 1440)
+    ) {
+      throw new EndGameCommandValidationError(
+        'weather.estimatedClearance must be between 0 and 1440 minutes (24 hours)'
+      );
+    }
+  },
+
+  /**
+   * Validates forfeit details if provided
+   */
+  validateForfeitDetails(forfeit: ForfeitDetailsDTO): void {
+    if (!['home', 'away'].includes(forfeit.forfeitingTeam)) {
+      throw new EndGameCommandValidationError('forfeit.forfeitingTeam must be "home" or "away"');
+    }
+
+    const validReasons = [
+      'insufficient_players',
+      'multiple_ejections',
+      'unsportsmanlike_conduct',
+      'rule_violations',
+      'safety_concerns',
+      'other',
+    ];
+
+    if (!validReasons.includes(forfeit.forfeitReason)) {
+      throw new EndGameCommandValidationError(
+        `forfeit.forfeitReason must be one of: ${validReasons.join(', ')}`
+      );
+    }
+
+    if (!forfeit.details?.trim()) {
+      throw new EndGameCommandValidationError('forfeit.details is required and cannot be empty');
+    }
+
+    if (forfeit.details.length > 1000) {
+      throw new EndGameCommandValidationError('forfeit.details cannot exceed 1000 characters');
+    }
+  },
+
+  /**
+   * Validates rule reference if provided
+   */
+  validateRuleReference(ruleReference: string): void {
+    if (ruleReference.length > 100) {
+      throw new EndGameCommandValidationError('ruleReference cannot exceed 100 characters');
+    }
+
+    if (!ruleReference.trim()) {
+      throw new EndGameCommandValidationError('ruleReference cannot be only whitespace');
+    }
+  },
+
+  /**
+   * Validates notes if provided
+   */
+  validateNotes(notes: string): void {
+    if (notes.length > 1000) {
+      throw new EndGameCommandValidationError('notes cannot exceed 1000 characters');
+    }
+
+    if (notes.trim().length === 0 && notes.length > 0) {
+      throw new EndGameCommandValidationError('notes cannot be only whitespace');
+    }
+  },
+};
+
+/**
+ * Factory functions for creating EndGameCommand instances
+ */
+export const EndGameCommandFactory = {
+  /**
+   * Creates a mercy rule EndGameCommand
+   */
+  createMercyRule(
+    gameId: GameId,
+    currentInning: number,
+    currentHalf: 'top' | 'bottom',
+    currentOuts: number,
+    finalScore: { home: number; away: number },
+    initiatedBy: string,
+    ruleReference?: string
+  ): EndGameCommand {
+    const winner = finalScore.home > finalScore.away ? 'home' : 'away';
+    const runDifference = Math.abs(finalScore.home - finalScore.away);
+
+    const command: EndGameCommand = {
+      gameId,
+      reason: 'mercy_rule',
+      description: `Mercy rule applied: ${runDifference} run difference after ${currentInning} innings`,
+      endTime: new Date(),
+      currentInning,
+      currentHalf,
+      currentOuts,
+      finalScore,
+      winner,
+      officialGame: true,
+      initiatedBy,
+      ...(ruleReference && { ruleReference }),
+    };
+
+    EndGameCommandValidator.validate(command);
+    return command;
+  },
+
+  /**
+   * Creates a weather-related EndGameCommand
+   */
+  createWeatherEnding(
+    gameId: GameId,
+    currentInning: number,
+    currentHalf: 'top' | 'bottom',
+    currentOuts: number,
+    finalScore: { home: number; away: number },
+    weatherConditions: WeatherConditionsDTO,
+    initiatedBy: string,
+    officialGame: boolean = false,
+    resumptionPossible: boolean = true
+  ): EndGameCommand {
+    const command: EndGameCommand = {
+      gameId,
+      reason: 'weather',
+      description: `Game suspended due to ${weatherConditions.condition}: ${weatherConditions.description}`,
+      endTime: new Date(),
+      currentInning,
+      currentHalf,
+      currentOuts,
+      finalScore,
+      winner:
+        officialGame && finalScore.home !== finalScore.away
+          ? finalScore.home > finalScore.away
+            ? 'home'
+            : 'away'
+          : null,
+      officialGame,
+      initiatedBy,
+      resumptionPossible,
+      weatherConditions,
+    };
+
+    EndGameCommandValidator.validate(command);
+    return command;
+  },
+
+  /**
+   * Creates a forfeit EndGameCommand
+   */
+  createForfeit(
+    gameId: GameId,
+    currentInning: number,
+    currentHalf: 'top' | 'bottom',
+    currentOuts: number,
+    finalScore: { home: number; away: number },
+    forfeitDetails: ForfeitDetailsDTO,
+    initiatedBy: string,
+    ruleReference?: string
+  ): EndGameCommand {
+    const winner = forfeitDetails.forfeitingTeam === 'home' ? 'away' : 'home';
+
+    const command: EndGameCommand = {
+      gameId,
+      reason: 'forfeit',
+      description: `Game forfeited by ${forfeitDetails.forfeitingTeam} team: ${forfeitDetails.forfeitReason}`,
+      endTime: new Date(),
+      currentInning,
+      currentHalf,
+      currentOuts,
+      finalScore,
+      winner,
+      officialGame: true,
+      initiatedBy,
+      ...(ruleReference && { ruleReference }),
+      forfeitDetails,
+    };
+
+    EndGameCommandValidator.validate(command);
+    return command;
+  },
+
+  /**
+   * Creates a time limit EndGameCommand
+   */
+  createTimeLimit(
+    gameId: GameId,
+    currentInning: number,
+    currentHalf: 'top' | 'bottom',
+    currentOuts: number,
+    finalScore: { home: number; away: number },
+    initiatedBy: string,
+    timeLimitMinutes: number
+  ): EndGameCommand {
+    const winner =
+      finalScore.home === finalScore.away
+        ? null
+        : finalScore.home > finalScore.away
+          ? 'home'
+          : 'away';
+
+    const command: EndGameCommand = {
+      gameId,
+      reason: 'time_limit',
+      description: `Game ended due to ${timeLimitMinutes}-minute time limit`,
+      endTime: new Date(),
+      currentInning,
+      currentHalf,
+      currentOuts,
+      finalScore,
+      winner,
+      officialGame: currentInning >= 5, // Games are official after 5 innings
+      initiatedBy,
+      ruleReference: 'Time Limit Rule',
+    };
+
+    EndGameCommandValidator.validate(command);
+    return command;
+  },
+};

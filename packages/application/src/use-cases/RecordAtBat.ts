@@ -94,7 +94,7 @@ import {
 
 import { AtBatResult } from '../dtos/AtBatResult';
 import { GameStateDTO } from '../dtos/GameStateDTO';
-import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand';
+import { RecordAtBatCommand, RecordAtBatCommandValidator } from '../dtos/RecordAtBatCommand';
 import { RunnerAdvanceDTO } from '../dtos/RunnerAdvanceDTO';
 import { EventStore } from '../ports/out/EventStore';
 import { GameRepository } from '../ports/out/GameRepository';
@@ -213,6 +213,22 @@ export class RecordAtBat {
     });
 
     try {
+      // Step 0: Fail-fast DTO validation
+      try {
+        RecordAtBatCommandValidator.validate(command);
+      } catch (validationError) {
+        this.logger.warn('At-bat recording failed due to DTO validation error', {
+          gameId: command.gameId.value,
+          batterId: command.batterId.value,
+          error:
+            validationError instanceof Error ? validationError.message : 'Unknown validation error',
+          operation: 'recordAtBat',
+        });
+        return this.createFailureResult(null, [
+          validationError instanceof Error ? validationError.message : 'Invalid command structure',
+        ]);
+      }
+
       // Step 1: Load and validate game
       const game = await this.loadAndValidateGame(command.gameId);
       if (!game) {

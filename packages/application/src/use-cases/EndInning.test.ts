@@ -79,7 +79,7 @@ describe('EndInning Use Case', () => {
       finalOuts: 3,
       gameEnding: false,
       notes: 'Standard inning ending',
-      timestamp: new Date('2024-08-30T15:30:00Z'),
+      timestamp: new Date(), // Use current timestamp to avoid validation issues
     };
 
     // Create mock game
@@ -132,7 +132,7 @@ describe('EndInning Use Case', () => {
       const result = await useCase.execute(invalidCommand);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Inning must be 1 or greater');
+      expect(result.errors).toContain('inning must be a positive integer (1 or greater)');
     });
 
     it('should validate inning number is integer', async () => {
@@ -144,7 +144,7 @@ describe('EndInning Use Case', () => {
       const result = await useCase.execute(invalidCommand);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Inning must be an integer');
+      expect(result.errors).toContain('inning must be a positive integer (1 or greater)');
     });
 
     it('should validate final outs count range', async () => {
@@ -156,7 +156,7 @@ describe('EndInning Use Case', () => {
       const result = await useCase.execute(invalidCommand);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Final outs must be between 0 and 3');
+      expect(result.errors).toContain('finalOuts must be an integer between 0 and 3');
     });
 
     it('should validate final outs count upper bound', async () => {
@@ -168,7 +168,7 @@ describe('EndInning Use Case', () => {
       const result = await useCase.execute(invalidCommand);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Final outs must be between 0 and 3');
+      expect(result.errors).toContain('finalOuts must be an integer between 0 and 3');
     });
 
     it('should validate ending reason is valid', async () => {
@@ -180,7 +180,9 @@ describe('EndInning Use Case', () => {
       const result = await useCase.execute(invalidCommand);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Invalid ending reason');
+      expect(result.errors).toContain(
+        'endingReason must be one of: THREE_OUTS, MERCY_RULE, TIME_LIMIT, FORFEIT, WALKOFF, MANUAL'
+      );
     });
 
     it('should accept all valid ending reasons', async () => {
