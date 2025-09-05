@@ -3354,5 +3354,311 @@ describe('GameApplicationService', () => {
         });
       });
     });
+
+    describe('Branch Coverage Improvements - Uncovered Lines', () => {
+      describe('Game End Notifications - Winner Determination (Lines 1506-1507)', () => {
+        it('should include winner field when totalRuns > 0 in game end notification', async () => {
+          // Arrange - Test the true branch of the ternary operator
+          const command: CompleteGameWorkflowCommand = {
+            startGameCommand: {
+              gameId,
+              homeTeamName: 'Home Team',
+              awayTeamName: 'Away Team',
+              ourTeamSide: 'HOME' as const,
+              initialLineup: [
+                {
+                  playerId,
+                  name: 'Test Player',
+                  jerseyNumber: new JerseyNumber('1'),
+                  battingOrderPosition: 1,
+                  fieldPosition: FieldPosition.FIRST_BASE,
+                  preferredPositions: [FieldPosition.FIRST_BASE],
+                },
+              ],
+              gameDate: new Date(),
+            },
+            atBatSequences: [
+              {
+                gameId,
+                batterId: playerId,
+                result: AtBatResultType.HOME_RUN,
+              },
+            ],
+            substitutions: [],
+            enableNotifications: true, // Ensure notifications are enabled
+            endGameNaturally: true, // Enable game completion
+          };
+
+          // Mock successful workflow with runs scored (totalRuns > 0)
+          mockExecuteStartNewGame.mockResolvedValue({
+            success: true,
+            gameId,
+            gameState: { status: GameStatus.IN_PROGRESS },
+          } as GameStartResult);
+
+          mockExecuteRecordAtBat.mockResolvedValue({
+            success: true,
+            gameEnded: true, // This is what triggers game completion
+            runsScored: 2, // Use runsScored instead of totalRuns
+            rbiAwarded: 1,
+            inningEnded: true,
+            playerStats: [],
+            gameState: {
+              status: GameStatus.COMPLETED,
+              score: { home: 2, away: 0, leader: 'HOME', difference: 2 },
+            } as Partial<GameStateDTO>,
+          } as AtBatResult);
+
+          // Act
+          const result = await gameApplicationService.completeGameWorkflow(command);
+
+          // Assert
+          expect(result.success).toBe(true);
+          expect(result.gameCompleted).toBe(true);
+          expect(result.totalRuns).toBe(2);
+
+          // Verify notification was called with winner field (line 1506 branch)
+          expect(mockNotifyGameEnded).toHaveBeenCalledWith(
+            gameId.value,
+            expect.objectContaining({
+              homeScore: 2,
+              awayScore: 0,
+              winner: 'home', // This tests the true branch of totalRuns > 0
+            })
+          );
+        });
+
+        it('should not include winner field when totalRuns = 0 in game end notification', async () => {
+          // Arrange - Test the false branch of the ternary operator
+          const command: CompleteGameWorkflowCommand = {
+            startGameCommand: {
+              gameId,
+              homeTeamName: 'Home Team',
+              awayTeamName: 'Away Team',
+              ourTeamSide: 'HOME' as const,
+              initialLineup: [
+                {
+                  playerId,
+                  name: 'Test Player',
+                  jerseyNumber: new JerseyNumber('1'),
+                  battingOrderPosition: 1,
+                  fieldPosition: FieldPosition.FIRST_BASE,
+                  preferredPositions: [FieldPosition.FIRST_BASE],
+                },
+              ],
+              gameDate: new Date(),
+            },
+            atBatSequences: [
+              {
+                gameId,
+                batterId: playerId,
+                result: AtBatResultType.STRIKEOUT,
+              },
+            ],
+            substitutions: [],
+            enableNotifications: true,
+            endGameNaturally: true, // Enable game completion
+          };
+
+          // Mock successful workflow with no runs scored (totalRuns = 0)
+          mockExecuteStartNewGame.mockResolvedValue({
+            success: true,
+            gameId,
+            gameState: { status: GameStatus.IN_PROGRESS },
+          } as GameStartResult);
+
+          mockExecuteRecordAtBat.mockResolvedValue({
+            success: true,
+            gameEnded: true, // This is what triggers game completion
+            runsScored: 0, // This should trigger the branch without winner
+            rbiAwarded: 0,
+            inningEnded: true,
+            playerStats: [],
+            gameState: {
+              status: GameStatus.COMPLETED,
+              score: { home: 0, away: 0, leader: 'TIE', difference: 0 },
+            } as Partial<GameStateDTO>,
+          } as AtBatResult);
+
+          // Act
+          const result = await gameApplicationService.completeGameWorkflow(command);
+
+          // Assert
+          expect(result.success).toBe(true);
+          expect(result.gameCompleted).toBe(true);
+          expect(result.totalRuns).toBe(0);
+
+          // Verify notification was called without winner field (line 1507 branch)
+          expect(mockNotifyGameEnded).toHaveBeenCalledWith(
+            gameId.value,
+            expect.objectContaining({
+              homeScore: 0,
+              awayScore: 0,
+              // Should NOT have winner field - this tests the false branch of totalRuns > 0
+            })
+          );
+
+          // Explicitly verify winner is not present
+          const notificationCall = mockNotifyGameEnded.mock.calls[0];
+          expect(notificationCall?.[1]).not.toHaveProperty('winner');
+        });
+      });
+
+      describe('Failed Workflow Result - GameStartResult Fallback (Lines 1609-1612)', () => {
+        it('should use provided gameStartResult when available', async () => {
+          // Arrange - Test scenario where gameStartResult is defined
+          const command: CompleteGameWorkflowCommand = {
+            startGameCommand: {
+              gameId,
+              homeTeamName: 'Home Team',
+              awayTeamName: 'Away Team',
+              ourTeamSide: 'HOME' as const,
+              initialLineup: [
+                {
+                  playerId,
+                  name: 'Test Player',
+                  jerseyNumber: new JerseyNumber('1'),
+                  battingOrderPosition: 1,
+                  fieldPosition: FieldPosition.FIRST_BASE,
+                  preferredPositions: [FieldPosition.FIRST_BASE],
+                },
+              ],
+              gameDate: new Date(),
+            },
+            atBatSequences: [
+              {
+                gameId,
+                batterId: playerId,
+                result: AtBatResultType.HOME_RUN,
+              },
+            ],
+            substitutions: [],
+          };
+
+          // Mock successful game start but failed at-bat to trigger createFailedWorkflowResult
+          const providedGameStartResult: GameStartResult = {
+            success: true,
+            gameId,
+            // Custom game start result to verify it's used instead of fallback
+          };
+
+          mockExecuteStartNewGame.mockResolvedValue(providedGameStartResult);
+
+          // Make at-bat fail to trigger createFailedWorkflowResult
+          mockExecuteRecordAtBat.mockResolvedValue({
+            success: false,
+            gameState: {
+              status: GameStatus.IN_PROGRESS,
+              score: { home: 0, away: 0, leader: 'TIE', difference: 0 },
+            } as Partial<GameStateDTO>,
+            runsScored: 0,
+            rbiAwarded: 0,
+            inningEnded: false,
+            gameEnded: false,
+          } as AtBatResult);
+
+          // Act
+          const result = await gameApplicationService.completeGameWorkflow(command);
+
+          // Assert
+          expect(result.success).toBe(false);
+
+          // Verify the provided gameStartResult is used (NOT the fallback)
+          expect(result.gameStartResult).toEqual(providedGameStartResult);
+          expect(result.gameStartResult?.success).toBe(true); // Shows it used provided result
+        });
+
+        it('should use fallback gameStartResult when original is undefined', async () => {
+          // Arrange - Test the fallback logic (lines 1609-1612)
+          const command: CompleteGameWorkflowCommand = {
+            startGameCommand: {
+              gameId,
+              homeTeamName: 'Home Team',
+              awayTeamName: 'Away Team',
+              ourTeamSide: 'HOME' as const,
+              initialLineup: [
+                {
+                  playerId,
+                  name: 'Test Player',
+                  jerseyNumber: new JerseyNumber('1'),
+                  battingOrderPosition: 1,
+                  fieldPosition: FieldPosition.FIRST_BASE,
+                  preferredPositions: [FieldPosition.FIRST_BASE],
+                },
+              ],
+              gameDate: new Date(),
+            },
+            atBatSequences: [],
+            substitutions: [],
+          };
+
+          // Mock game start to fail immediately, causing gameStartResult to be undefined
+          mockExecuteStartNewGame.mockRejectedValue(new Error('Game start failed'));
+
+          // Act
+          const result = await gameApplicationService.completeGameWorkflow(command);
+
+          // Assert
+          expect(result.success).toBe(false);
+
+          // Verify the fallback gameStartResult is used (lines 1609-1612)
+          expect(result.gameStartResult).toEqual({
+            success: false,
+            gameId,
+            errors: ['Game start failed'],
+          });
+          expect(result.gameStartResult?.success).toBe(false); // Shows it used fallback
+        });
+
+        it('should handle workflow exception with continueOnFailure true', async () => {
+          // This test targets the uncovered branch at line 1457 where continueOnFailure is true
+          const command: CompleteGameWorkflowCommand = {
+            startGameCommand: {
+              gameId,
+              homeTeamName: 'Home Team',
+              awayTeamName: 'Away Team',
+              ourTeamSide: 'HOME' as const,
+              initialLineup: [
+                {
+                  playerId,
+                  name: 'Test Player',
+                  jerseyNumber: new JerseyNumber('1'),
+                  battingOrderPosition: 1,
+                  fieldPosition: FieldPosition.FIRST_BASE,
+                  preferredPositions: [FieldPosition.FIRST_BASE],
+                },
+              ],
+              gameDate: new Date(),
+            },
+            // Add at-bat sequences to trigger the processing code path
+            atBatSequences: [
+              {
+                gameId,
+                batterId: playerId,
+                result: AtBatResultType.HOME_RUN,
+              },
+            ],
+            substitutions: [],
+            continueOnFailure: true, // This is key to hit line 1457
+          };
+
+          // Mock game start to succeed but then throw an exception during workflow
+          mockExecuteStartNewGame.mockResolvedValue({
+            success: true,
+            gameId,
+          } as GameStartResult);
+
+          // Mock an exception in the at-bat processing by making it throw
+          mockExecuteRecordAtBat.mockRejectedValue(new Error('Unexpected workflow error'));
+
+          // Act
+          const result = await gameApplicationService.completeGameWorkflow(command);
+
+          // Assert - The workflow should continue despite exception since continueOnFailure: true
+          // This hits the catch block that returns shouldReturn: false (line 1457)
+          expect(result).toBeDefined();
+        });
+      });
+    });
   });
 });

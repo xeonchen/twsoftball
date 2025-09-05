@@ -10,11 +10,27 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-import { StartNewGame, RecordAtBat, SubstitutePlayer, EndInning } from '../index';
+import {
+  StartNewGame,
+  RecordAtBat,
+  SubstitutePlayer,
+  EndInning,
+  UndoLastAction,
+  RedoLastAction,
+} from '../index';
 
 import * as ServicesIndex from './index';
 
 // Mock interfaces for proper typing
+
+interface MockGameRepository {
+  findById: ReturnType<typeof vi.fn>;
+  save: ReturnType<typeof vi.fn>;
+  findByStatus: ReturnType<typeof vi.fn>;
+  findByDateRange: ReturnType<typeof vi.fn>;
+  exists: ReturnType<typeof vi.fn>;
+  delete: ReturnType<typeof vi.fn>;
+}
 
 interface MockEventStore {
   append: ReturnType<typeof vi.fn>;
@@ -157,6 +173,16 @@ describe('Services Index', () => {
         disableTwoFactor: vi.fn(),
         getCurrentUser: vi.fn(),
       };
+
+      const mockGameRepository: MockGameRepository = {
+        findById: vi.fn(),
+        save: vi.fn(),
+        findByStatus: vi.fn(),
+        findByDateRange: vi.fn(),
+        exists: vi.fn(),
+        delete: vi.fn(),
+      };
+
       const mockEventStore: MockEventStore = {
         append: vi.fn(),
         getEvents: vi.fn(),
@@ -166,6 +192,9 @@ describe('Services Index', () => {
         getEventsByGameId: vi.fn(),
       };
 
+      const mockUndoLastAction = new UndoLastAction(mockGameRepository, mockEventStore, mockLogger);
+      const mockRedoLastAction = new RedoLastAction(mockGameRepository, mockEventStore, mockLogger);
+
       // Test GameApplicationService instantiation
       expect(() => {
         return new ServicesIndex.GameApplicationService(
@@ -173,6 +202,8 @@ describe('Services Index', () => {
           mockRecordAtBat,
           mockSubstitutePlayer,
           mockEndInning,
+          mockUndoLastAction,
+          mockRedoLastAction,
           mockLogger,
           mockNotificationService,
           mockAuthService

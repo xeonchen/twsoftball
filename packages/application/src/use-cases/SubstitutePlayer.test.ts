@@ -716,4 +716,158 @@ describe('SubstitutePlayer Use Case', () => {
       expect(result.substitutionDetails).toBeUndefined();
     });
   });
+
+  describe('Edge Cases for Error Handling Coverage', () => {
+    it('should handle generic error messages for non-domain errors', async () => {
+      // Test coverage for lines 863-864: generic error message handling
+      const command = createValidCommand();
+
+      // Create a generic error that doesn't match specific patterns
+      const genericError = new Error('Generic operation failed');
+      mockSave.mockRejectedValue(genericError);
+      mockFindById.mockResolvedValue(testGame);
+
+      const result = await substitutePlayer.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toEqual([
+        'An unexpected error occurred during substitution: Generic operation failed',
+      ]);
+
+      // Verify error was logged properly
+      expect(mockError).toHaveBeenCalledWith(
+        'Failed to execute player substitution',
+        genericError,
+        expect.objectContaining({
+          gameId: command.gameId.value,
+          operation: 'substitutePlayer',
+        })
+      );
+    });
+
+    it('should handle unknown error types in error processing', async () => {
+      // Test coverage for lines 867-868: unknown error type handling
+      const command = createValidCommand();
+
+      // Create non-Error object to trigger unknown error path
+      const unknownError = { customProperty: 'not a standard error' };
+      mockSave.mockRejectedValue(unknownError);
+      mockFindById.mockResolvedValue(testGame);
+
+      const result = await substitutePlayer.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toEqual([
+        'An unexpected error occurred during player substitution processing',
+      ]);
+
+      // Verify error was logged with unknown error object
+      expect(mockError).toHaveBeenCalledWith(
+        'Failed to execute player substitution',
+        unknownError,
+        expect.objectContaining({
+          gameId: command.gameId.value,
+          operation: 'substitutePlayer',
+        })
+      );
+    });
+
+    it('should handle database-related error messages specifically', async () => {
+      // Test database error pattern matching
+      const command = createValidCommand();
+
+      const databaseError = new Error('Database connection timeout during save operation');
+      mockSave.mockRejectedValue(databaseError);
+      mockFindById.mockResolvedValue(testGame);
+
+      const result = await substitutePlayer.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toEqual([
+        'Failed to save game state: Database connection timeout during save operation',
+      ]);
+    });
+
+    it('should handle event store error messages specifically', async () => {
+      // Test event store error pattern matching
+      const command = createValidCommand();
+
+      mockSave.mockResolvedValue(undefined); // Save succeeds
+      const eventStoreError = new Error('Event store service unavailable');
+      mockAppend.mockRejectedValue(eventStoreError);
+      mockFindById.mockResolvedValue(testGame);
+
+      const result = await substitutePlayer.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toEqual(['Failed to store events: Event store service unavailable']);
+    });
+
+    it('should handle game loading failure during error result creation', async () => {
+      // Test scenario where game can't be loaded for error context
+      const command = createValidCommand();
+
+      // First call fails (triggering main error), second call also fails during error handling
+      const mainError = new Error('Main operation failed');
+      const loadError = new Error('Unable to load game for error context');
+
+      mockFindById
+        .mockRejectedValueOnce(mainError) // Main execution fails
+        .mockRejectedValueOnce(loadError); // Loading for error context also fails
+
+      const result = await substitutePlayer.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toBeDefined();
+      expect(result.gameState).toBeDefined(); // Should still provide some game state
+
+      // Verify warning was logged about loading failure
+      expect(mockWarn).toHaveBeenCalledWith(
+        'Failed to load game state for error result',
+        expect.objectContaining({
+          gameId: command.gameId.value,
+          originalError: mainError,
+          loadError: loadError,
+        })
+      );
+    });
+
+    it('should cover all branches in error message construction', async () => {
+      // Test various error message patterns to ensure all branches are covered
+      const command = createValidCommand();
+      mockFindById.mockResolvedValue(testGame);
+
+      // Test 1: Error with "Database" in message
+      const dbError = new Error('Database integrity violation');
+      mockSave.mockRejectedValue(dbError);
+
+      let result = await substitutePlayer.execute(command);
+      expect(result.success).toBe(false);
+      expect(result.errors![0]).toContain('Failed to save game state');
+
+      // Reset mocks
+      vi.clearAllMocks();
+      mockFindById.mockResolvedValue(testGame);
+
+      // Test 2: Error with "store" in message (but not "Event store")
+      const storeError = new Error('Data store corruption detected');
+      mockSave.mockRejectedValue(storeError);
+
+      result = await substitutePlayer.execute(command);
+      expect(result.success).toBe(false);
+      expect(result.errors![0]).toContain('Failed to store events');
+
+      // Reset mocks
+      vi.clearAllMocks();
+      mockFindById.mockResolvedValue(testGame);
+
+      // Test 3: Generic error path
+      const otherError = new Error('Network timeout');
+      mockSave.mockRejectedValue(otherError);
+
+      result = await substitutePlayer.execute(command);
+      expect(result.success).toBe(false);
+      expect(result.errors![0]).toContain('An unexpected error occurred during substitution');
+    });
+  });
 });

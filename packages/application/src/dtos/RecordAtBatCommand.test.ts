@@ -854,6 +854,179 @@ describe('RecordAtBatCommand', () => {
     });
   });
 
+  describe('Base Movement Validation Edge Cases', () => {
+    it('should throw error for invalid toBase values', () => {
+      const invalidAdvance = [
+        {
+          playerId: PlayerId.generate(),
+          fromBase: 'FIRST' as const,
+          toBase: 'INVALID_BASE' as unknown as Base,
+          advanceReason: 'HIT',
+        },
+      ];
+      const invalidCommand = { ...validCommand, runnerAdvances: invalidAdvance };
+
+      expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+        new RecordAtBatCommandValidationError(
+          "Runner advance at index 0: invalid toBase 'INVALID_BASE'"
+        )
+      );
+    });
+
+    it('should allow valid toBase values including OUT', () => {
+      const validToBases = ['FIRST', 'SECOND', 'THIRD', 'HOME', 'OUT'];
+
+      validToBases.forEach(toBase => {
+        const validAdvance = [
+          {
+            playerId: PlayerId.generate(),
+            fromBase: 'FIRST' as const,
+            toBase: toBase as 'HOME' | 'FIRST' | 'SECOND' | 'THIRD' | 'OUT',
+            advanceReason: 'HIT',
+          },
+        ];
+        const validCmd = { ...validCommand, runnerAdvances: validAdvance };
+
+        if (toBase === 'FIRST') {
+          // Same base should throw error
+          expect(() => RecordAtBatCommandValidator.validate(validCmd)).toThrow();
+        } else {
+          // Other bases should be valid
+          expect(() => RecordAtBatCommandValidator.validate(validCmd)).not.toThrow();
+        }
+      });
+    });
+
+    it('should handle backwards runner movement validation - allowed cases', () => {
+      // Test backwards movement that should be allowed (runner being thrown out at previous base)
+      const backwardsMovementAdvance = [
+        {
+          playerId: PlayerId.generate(),
+          fromBase: 'THIRD' as const,
+          toBase: 'SECOND' as const, // Backwards but potentially valid in certain plays
+          advanceReason: 'OUT',
+        },
+      ];
+      const commandWithBackwards = { ...validCommand, runnerAdvances: backwardsMovementAdvance };
+
+      // This should pass validation at the DTO level - business rules are validated in use cases
+      expect(() => RecordAtBatCommandValidator.validate(commandWithBackwards)).not.toThrow();
+    });
+
+    it('should handle complex base movement scenarios', () => {
+      // Test the specific logic around fromIndex >= toIndex
+      const complexAdvances = [
+        {
+          playerId: PlayerId.generate(),
+          fromBase: 'SECOND' as const,
+          toBase: 'FIRST' as const, // Backwards movement
+          advanceReason: 'OUT',
+        },
+      ];
+      const commandWithComplex = { ...validCommand, runnerAdvances: complexAdvances };
+
+      // The DTO validation should allow this - use case will handle business logic
+      expect(() => RecordAtBatCommandValidator.validate(commandWithComplex)).not.toThrow();
+    });
+
+    it('should validate edge case where runner advances to OUT from any base', () => {
+      const validFromBases = ['FIRST', 'SECOND', 'THIRD'];
+
+      validFromBases.forEach(fromBase => {
+        const outAdvance = [
+          {
+            playerId: PlayerId.generate(),
+            fromBase: fromBase as 'FIRST' | 'SECOND' | 'THIRD',
+            toBase: 'OUT' as const,
+            advanceReason: 'FORCE_OUT',
+          },
+        ];
+        const validCmd = { ...validCommand, runnerAdvances: outAdvance };
+
+        expect(() => RecordAtBatCommandValidator.validate(validCmd)).not.toThrow();
+      });
+    });
+  });
+
+  describe('Runner Advance Validation Complex Scenarios', () => {
+    it('should validate when toBase is null (edge case)', () => {
+      const nullToBaseAdvance = [
+        {
+          playerId: PlayerId.generate(),
+          fromBase: 'FIRST' as const,
+          toBase: null as unknown as Base,
+          advanceReason: 'HIT',
+        },
+      ];
+      const invalidCommand = { ...validCommand, runnerAdvances: nullToBaseAdvance };
+
+      // When toBase is null, the validation logic allows it since it only validates
+      // toBase when it's not null. This represents scenarios like picked off runners
+      expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).not.toThrow();
+    });
+
+    it('should trigger invalid toBase validation for non-standard values', () => {
+      const invalidToBaseAdvance = [
+        {
+          playerId: PlayerId.generate(),
+          fromBase: 'FIRST' as const,
+          toBase: 'INVALID_BASE' as unknown as Base,
+          advanceReason: 'HIT',
+        },
+      ];
+      const invalidCommand = { ...validCommand, runnerAdvances: invalidToBaseAdvance };
+
+      // This should trigger the validation on lines 256-259
+      expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+        new RecordAtBatCommandValidationError(
+          "Runner advance at index 0: invalid toBase 'INVALID_BASE'"
+        )
+      );
+    });
+
+    it('should handle undefined toBase in validation', () => {
+      const undefinedToBaseAdvance = [
+        {
+          playerId: PlayerId.generate(),
+          fromBase: 'FIRST' as const,
+          toBase: undefined as unknown as Base,
+          advanceReason: 'HIT',
+        },
+      ];
+      const invalidCommand = { ...validCommand, runnerAdvances: undefinedToBaseAdvance };
+
+      expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
+        new RecordAtBatCommandValidationError(
+          "Runner advance at index 0: invalid toBase 'undefined'"
+        )
+      );
+    });
+
+    it('should properly handle base order index calculations', () => {
+      // Test the specific logic in lines 277-281 where base order calculations occur
+      const testCases: Array<{ from: 'FIRST' | 'SECOND' | 'THIRD'; to: string }> = [
+        { from: 'THIRD', to: 'SECOND' }, // fromIndex 2, toIndex 1 - backward
+        { from: 'SECOND', to: 'FIRST' }, // fromIndex 1, toIndex 0 - backward
+        { from: 'FIRST', to: 'HOME' }, // fromIndex 0, toIndex 3 - forward (large jump)
+      ];
+
+      testCases.forEach(({ from, to }) => {
+        const testAdvance = [
+          {
+            playerId: PlayerId.generate(),
+            fromBase: from,
+            toBase: to as 'HOME' | 'FIRST' | 'SECOND' | 'THIRD' | 'OUT',
+            advanceReason: 'HIT',
+          },
+        ];
+        const testCommand = { ...validCommand, runnerAdvances: testAdvance };
+
+        // All these should pass DTO validation - use case handles business rules
+        expect(() => RecordAtBatCommandValidator.validate(testCommand)).not.toThrow();
+      });
+    });
+  });
+
   describe('RecordAtBatCommandValidationError', () => {
     it('should create error with correct properties', () => {
       const error = new RecordAtBatCommandValidationError('Test error message');

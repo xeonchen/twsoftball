@@ -15,10 +15,15 @@ import {
 import { describe, it, expect, beforeEach } from 'vitest';
 
 import { AtBatResult } from '../../dtos/AtBatResult';
+import { EndGameResult } from '../../dtos/EndGameResult';
 import { GameStartResult } from '../../dtos/GameStartResult';
+import { InningEndResult } from '../../dtos/InningEndResult';
 import { RecordAtBatCommand } from '../../dtos/RecordAtBatCommand';
+import { RedoResult } from '../../dtos/RedoResult';
 import { StartNewGameCommand } from '../../dtos/StartNewGameCommand';
+import { SubstitutionResult } from '../../dtos/SubstitutionResult';
 import { TeamLineupDTO } from '../../dtos/TeamLineupDTO';
+import { UndoResult } from '../../dtos/UndoResult';
 
 import { GameCommandService } from './GameCommandService';
 
@@ -104,24 +109,24 @@ class MockGameCommandService implements GameCommandService {
     });
   }
 
-  substitutePlayer(): Promise<Record<string, unknown>> {
-    return Promise.resolve({ success: true });
+  substitutePlayer(): Promise<SubstitutionResult> {
+    return Promise.reject(new Error('Substitution not supported'));
   }
 
-  endInning(): Promise<Record<string, unknown>> {
-    return Promise.resolve({ success: true });
+  endInning(): Promise<InningEndResult> {
+    return Promise.reject(new Error('End inning not supported'));
   }
 
-  endGame(): Promise<Record<string, unknown>> {
-    return Promise.resolve({ success: true });
+  endGame(): Promise<EndGameResult> {
+    return Promise.reject(new Error('End game not supported'));
   }
 
-  undoLastAction(): Promise<Record<string, unknown>> {
-    return Promise.resolve({ success: true });
+  undoLastAction(): Promise<UndoResult> {
+    return Promise.reject(new Error('Undo not supported'));
   }
 
-  redoLastAction(): Promise<Record<string, unknown>> {
-    return Promise.resolve({ success: true });
+  redoLastAction(): Promise<RedoResult> {
+    return Promise.reject(new Error('Redo not supported'));
   }
 }
 
@@ -369,20 +374,20 @@ describe('GameCommandService Interface', () => {
         }
 
         // Other methods...
-        substitutePlayer(): Promise<Record<string, unknown>> {
-          return Promise.resolve({ success: false });
+        substitutePlayer(): Promise<SubstitutionResult> {
+          return Promise.reject(new Error('Substitution failed'));
         }
-        endInning(): Promise<Record<string, unknown>> {
-          return Promise.resolve({ success: false });
+        endInning(): Promise<InningEndResult> {
+          return Promise.reject(new Error('End inning failed'));
         }
-        endGame(): Promise<Record<string, unknown>> {
-          return Promise.resolve({ success: false });
+        endGame(): Promise<EndGameResult> {
+          return Promise.reject(new Error('End game failed'));
         }
-        undoLastAction(): Promise<Record<string, unknown>> {
-          return Promise.resolve({ success: false });
+        undoLastAction(): Promise<UndoResult> {
+          return Promise.reject(new Error('Undo failed'));
         }
-        redoLastAction(): Promise<Record<string, unknown>> {
-          return Promise.resolve({ success: false });
+        redoLastAction(): Promise<RedoResult> {
+          return Promise.reject(new Error('Redo failed'));
         }
       }
 

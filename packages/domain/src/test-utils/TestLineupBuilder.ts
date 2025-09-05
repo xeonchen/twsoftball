@@ -29,10 +29,27 @@ import { TestPlayerFactory } from './TestPlayerFactory';
  */
 export class TestLineupBuilder {
   /**
-   * Standard defensive position assignments for a 9-player softball lineup.
-   * Follows typical softball positioning strategy.
+   * Standard defensive position assignments for a 10-player slow-pitch softball lineup.
+   * Follows typical slow-pitch softball positioning strategy.
    */
   public static readonly STANDARD_POSITIONS: readonly FieldPosition[] = [
+    FieldPosition.PITCHER, // Slot 1
+    FieldPosition.CATCHER, // Slot 2
+    FieldPosition.FIRST_BASE, // Slot 3
+    FieldPosition.SECOND_BASE, // Slot 4
+    FieldPosition.THIRD_BASE, // Slot 5
+    FieldPosition.SHORTSTOP, // Slot 6
+    FieldPosition.LEFT_FIELD, // Slot 7
+    FieldPosition.CENTER_FIELD, // Slot 8
+    FieldPosition.RIGHT_FIELD, // Slot 9
+    FieldPosition.SHORT_FIELDER, // Slot 10 - Standard in slow-pitch
+  ] as const;
+
+  /**
+   * Nine-player defensive positions for boundary testing.
+   * Traditional baseball lineup without SHORT_FIELDER.
+   */
+  public static readonly NINE_PLAYER_POSITIONS: readonly FieldPosition[] = [
     FieldPosition.PITCHER, // Slot 1
     FieldPosition.CATCHER, // Slot 2
     FieldPosition.FIRST_BASE, // Slot 3
@@ -45,40 +62,32 @@ export class TestLineupBuilder {
   ] as const;
 
   /**
-   * Extended defensive position assignments for 10-player slow-pitch softball.
-   * Includes the additional short fielder position.
-   */
-  public static readonly EXTENDED_POSITIONS: readonly FieldPosition[] = [
-    ...TestLineupBuilder.STANDARD_POSITIONS,
-    FieldPosition.SHORT_FIELDER, // Slot 10
-  ] as const;
-
-  /**
-   * Creates a complete 9-player lineup with standard positions.
+   * Creates a complete 10-player lineup with standard slow-pitch positions.
    *
    * @param players - Optional array of players to use (defaults to created players)
-   * @returns Array of BattingSlotState representing a full lineup
+   * @returns Array of BattingSlotState representing a standard lineup
    *
    * @throws {Error} If players array length doesn't match expected lineup size
    *
    * @example
    * ```typescript
    * // With default players
-   * const lineup = TestLineupBuilder.createFullLineup();
-   * expect(lineup).toHaveLength(9);
+   * const lineup = TestLineupBuilder.createStandardLineup();
+   * expect(lineup).toHaveLength(10);
    * expect(lineup[0].currentPosition).toBe(FieldPosition.PITCHER);
+   * expect(lineup[9].currentPosition).toBe(FieldPosition.SHORT_FIELDER);
    *
    * // With custom players
-   * const players = TestPlayerFactory.createPlayers(9);
-   * const lineup = TestLineupBuilder.createFullLineup(players);
+   * const players = TestPlayerFactory.createPlayers(10);
+   * const lineup = TestLineupBuilder.createStandardLineup(players);
    * expect(lineup[0].currentPlayer).toBe(players[0]);
    * ```
    */
-  public static createFullLineup(players?: TeamPlayer[]): BattingSlotState[] {
-    const lineupPlayers = players || TestPlayerFactory.createPlayers(9);
+  public static createStandardLineup(players?: TeamPlayer[]): BattingSlotState[] {
+    const lineupPlayers = players || TestPlayerFactory.createPlayers(10);
 
-    if (lineupPlayers.length !== 9) {
-      throw new Error(`Expected 9 players for full lineup, got ${lineupPlayers.length}`);
+    if (lineupPlayers.length !== 10) {
+      throw new Error(`Expected 10 players for standard lineup, got ${lineupPlayers.length}`);
     }
 
     return lineupPlayers.map((player, index) => ({
@@ -86,6 +95,39 @@ export class TestLineupBuilder {
       currentPlayer: player,
       currentPosition: this.STANDARD_POSITIONS[index]!,
     }));
+  }
+
+  /**
+   * Creates a 9-player lineup for boundary testing.
+   *
+   * @param players - Optional array of players to use (defaults to created players)
+   * @returns Array of BattingSlotState representing a 9-player lineup
+   *
+   * @throws {Error} If players array length doesn't match expected lineup size
+   */
+  public static createNinePlayerLineup(players?: TeamPlayer[]): BattingSlotState[] {
+    const lineupPlayers = players || TestPlayerFactory.createPlayers(9);
+
+    if (lineupPlayers.length !== 9) {
+      throw new Error(`Expected 9 players for nine-player lineup, got ${lineupPlayers.length}`);
+    }
+
+    return lineupPlayers.map((player, index) => ({
+      slotNumber: index + 1,
+      currentPlayer: player,
+      currentPosition: this.NINE_PLAYER_POSITIONS[index]!,
+    }));
+  }
+
+  /**
+   * Creates a complete lineup with standard positions (alias for createStandardLineup).
+   *
+   * @deprecated Use createStandardLineup() for 10-player or createNinePlayerLineup() for 9-player lineups
+   * @param players - Optional array of players to use
+   * @returns Array of BattingSlotState representing a standard 10-player lineup
+   */
+  public static createFullLineup(players?: TeamPlayer[]): BattingSlotState[] {
+    return this.createStandardLineup(players);
   }
 
   /**
@@ -176,7 +218,7 @@ export class TestLineupBuilder {
     return lineupPlayers.map((player, index) => ({
       slotNumber: index + 1,
       currentPlayer: player,
-      currentPosition: this.EXTENDED_POSITIONS[index]!,
+      currentPosition: this.STANDARD_POSITIONS[index]!,
     }));
   }
 
@@ -248,7 +290,10 @@ export class TestLineupBuilder {
     return lineupPlayers.map((player, index) => ({
       slotNumber: slotNumbers[index]!,
       currentPlayer: player,
-      currentPosition: this.STANDARD_POSITIONS[index % this.STANDARD_POSITIONS.length]!,
+      currentPosition:
+        index < this.STANDARD_POSITIONS.length
+          ? this.STANDARD_POSITIONS[index]!
+          : FieldPosition.EXTRA_PLAYER,
     }));
   }
 

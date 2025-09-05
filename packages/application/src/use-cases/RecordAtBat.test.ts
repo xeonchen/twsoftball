@@ -723,5 +723,115 @@ describe('RecordAtBat Use Case', () => {
       expect(result.success).toBe(false);
       expect(result.errors).toContain('An unexpected error occurred: ');
     });
+
+    it('should cover isLikelyThirdOut method for GROUND_OUT scenarios', async () => {
+      // Test coverage for line 469: return statement in isLikelyThirdOut method
+      const game = createTestGame();
+      mockFindById.mockResolvedValue(game);
+
+      const command: RecordAtBatCommand = {
+        gameId,
+        batterId: new PlayerId('batter-123'),
+        result: AtBatResultType.GROUND_OUT,
+        runnerAdvances: [
+          // Create double play scenario with 2 outs
+          {
+            playerId: new PlayerId('runner-1'),
+            fromBase: 'FIRST',
+            toBase: 'OUT',
+            advanceReason: 'FORCE_OUT',
+          },
+          {
+            playerId: new PlayerId('batter-123'),
+            fromBase: null,
+            toBase: 'OUT',
+            advanceReason: 'FORCE_OUT',
+          },
+        ],
+      };
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Should successfully process double play scenario
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.runsScored).toBe(0);
+        expect(result.rbiAwarded).toBe(0);
+      }
+    });
+
+    it('should cover consistency check branch in generateEvents method', async () => {
+      // Test coverage for line 515: consistency check in generateEvents method
+      const game = createTestGame();
+      mockFindById.mockResolvedValue(game);
+
+      const command: RecordAtBatCommand = {
+        gameId,
+        batterId: new PlayerId('batter-123'),
+        result: AtBatResultType.HOME_RUN,
+        runnerAdvances: [
+          // Create scenario where runs calculation consistency is verified
+          {
+            playerId: new PlayerId('batter-123'),
+            fromBase: null,
+            toBase: 'HOME',
+            advanceReason: 'HIT',
+          },
+        ],
+      };
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Should handle consistency check (even if it's just a comment)
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.runsScored).toBe(1);
+        expect(result.rbiAwarded).toBe(1);
+      }
+    });
+
+    it('should handle transaction compensation failure', async () => {
+      // Test coverage for lines 677-691: transaction compensation failure scenario
+      const game = createTestGame();
+      // Clone for compensation - variable used in rollback testing
+
+      mockFindById.mockResolvedValue(game);
+
+      // Mock save to fail, triggering compensation
+      mockSave.mockRejectedValue(new Error('Save failed'));
+
+      // Mock a scenario where compensation also fails
+      // This would be triggered in the compensateTransaction method
+      mockFindById
+        .mockResolvedValueOnce(game) // First call succeeds
+        .mockRejectedValueOnce(new Error('Compensation load failed')); // Compensation fails
+
+      const command: RecordAtBatCommand = {
+        gameId,
+        batterId: new PlayerId('batter-123'),
+        result: AtBatResultType.SINGLE,
+        runnerAdvances: [
+          {
+            playerId: new PlayerId('batter-123'),
+            fromBase: null,
+            toBase: 'FIRST',
+            advanceReason: 'HIT',
+          },
+        ],
+      };
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Should handle compensation failure gracefully
+      expect(result.success).toBe(false);
+      expect(result.errors).toBeDefined();
+      expect(result.errors!.length).toBeGreaterThan(0);
+
+      // Verify error logging occurred
+      expect(mockError).toHaveBeenCalled();
+    });
   });
 });

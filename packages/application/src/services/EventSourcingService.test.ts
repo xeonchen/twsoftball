@@ -82,6 +82,30 @@ interface EventSourcingServicePrivate {
     streamId: GameId | TeamLineupId | InningStateId,
     aggregateType: string
   ): string;
+  setCacheEntry(
+    key: string,
+    entry: {
+      id: string;
+      streamId: string;
+      aggregateType: 'Game' | 'TeamLineup' | 'InningState';
+      version: number;
+      aggregate: Game | TeamLineup | InningState;
+      createdAt: Date;
+      metadata: Record<string, unknown>;
+    }
+  ): void;
+  getCacheEntry(key: string):
+    | {
+        id: string;
+        streamId: string;
+        aggregateType: 'Game' | 'TeamLineup' | 'InningState';
+        version: number;
+        aggregate: Game | TeamLineup | InningState;
+        createdAt: Date;
+        metadata: Record<string, unknown>;
+        lastAccessed: Date;
+      }
+    | undefined;
 }
 
 // Helper function to create mock stored events
@@ -1014,6 +1038,102 @@ describe('EventSourcingService', () => {
           expect(cacheKey1).toBe('Game-consistent-key-game');
         });
 
+        it('should evict LRU entries when MAX_CACHE_SIZE is exceeded', () => {
+          // This test targets the specific uncovered lines 1432-1446 in evictStaleEntries
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const privateService = eventSourcingService as any;
+
+          // Enable caching and access private cache
+          eventSourcingService.enableSnapshotCaching(true);
+
+          // Mock Date.now for consistent timestamps
+          const mockNow = vi.fn();
+          const originalDateNow = Date.now;
+          Date.now = mockNow;
+
+          let currentTime = 1000000;
+          mockNow.mockReturnValue(currentTime);
+
+          // Force cache to exceed MAX_CACHE_SIZE by directly manipulating the cache
+          const cache = privateService.snapshotCache;
+          const maxSize = privateService.MAX_CACHE_SIZE;
+
+          // Fill cache to max + 1
+          for (let i = 0; i <= maxSize; i++) {
+            const mockEntry = {
+              id: `snapshot-${i}`,
+              streamId: `game-${i}`,
+              aggregateType: 'Game' as const,
+              version: 1,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              aggregate: {} as any,
+              createdAt: new Date(currentTime + i * 1000),
+              metadata: {},
+              lastAccessed: new Date(currentTime + i * 1000),
+            };
+            cache.set(`Game-game-${i}`, mockEntry);
+            currentTime += 1000; // Different access times for LRU
+            mockNow.mockReturnValue(currentTime);
+          }
+
+          // Act - Call evictStaleEntries to trigger LRU eviction logic
+          privateService.evictStaleEntries();
+
+          // Assert - Cache should be at or below max size
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+          expect(cache.size).toBeLessThanOrEqual(maxSize);
+
+          // Cleanup
+          Date.now = originalDateNow;
+        });
+
+        it('should evict TTL-expired entries', () => {
+          // This test targets the specific uncovered line 1428 in evictStaleEntries
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const privateService = eventSourcingService as any;
+
+          // Enable caching and access private cache
+          eventSourcingService.enableSnapshotCaching(true);
+
+          // Mock Date.now for time manipulation
+          const mockNow = vi.fn();
+          const originalDateNow = Date.now;
+          Date.now = mockNow;
+
+          const startTime = 1000000;
+          mockNow.mockReturnValue(startTime);
+
+          // Add an entry to cache
+          const cache = privateService.snapshotCache;
+          const ttlMs = privateService.CACHE_TTL_MS;
+
+          const mockEntry = {
+            id: 'ttl-test-snapshot',
+            streamId: 'ttl-test-game',
+            aggregateType: 'Game' as const,
+            version: 1,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            aggregate: {} as any,
+            createdAt: new Date(startTime),
+            metadata: {},
+            lastAccessed: new Date(startTime),
+          };
+          cache.set('Game-ttl-test-game', mockEntry);
+
+          // Act - Advance time beyond TTL
+          mockNow.mockReturnValue(startTime + ttlMs + 1000);
+
+          // Call evictStaleEntries to trigger TTL-based eviction
+          privateService.evictStaleEntries();
+
+          // Assert - TTL-expired entry should be evicted
+          expect(cache.has('Game-ttl-test-game')).toBe(false);
+          expect(cache.size).toBe(0);
+
+          // Cleanup
+          Date.now = originalDateNow;
+        });
+
         it('should generate different cache keys for different aggregates', () => {
           // Arrange
           const gameId = new GameId('different-key-game');
@@ -1135,6 +1255,51 @@ describe('EventSourcingService', () => {
 
           // Cache behavior depends on implementation - verify that operations complete successfully
           // The actual caching effectiveness is tested through the configuration tests
+        });
+
+        it('should handle setCacheEntry early return when caching disabled', () => {
+          // Arrange - Ensure caching is disabled to trigger line 1467-1468
+          eventSourcingService.enableSnapshotCaching(false);
+
+          const mockEntry = {
+            id: 'test-snapshot-id',
+            streamId: 'test-stream-id',
+            aggregateType: 'Game' as const,
+            version: 1,
+            aggregate: Game.createNew(new GameId('test-game'), 'Home Team', 'Away Team'),
+            createdAt: new Date(),
+            metadata: { source: 'test' },
+          };
+
+          // Act - Call setCacheEntry directly when cache is disabled
+          // This should trigger the early return in setCacheEntry (lines 1467-1468)
+          const privateService = eventSourcingService as unknown as EventSourcingServicePrivate;
+
+          // This should return early without doing anything due to cache being disabled
+          expect(() => {
+            privateService.setCacheEntry('test-cache-key', mockEntry);
+          }).not.toThrow();
+
+          // Assert - No cache operations should have been logged since cache is disabled
+          expect(mockDebug).not.toHaveBeenCalledWith('Added cache entry', expect.any(Object));
+        });
+
+        it('should handle getCacheEntry early return when caching disabled', () => {
+          // Arrange - Ensure caching is disabled to trigger line 1504-1505
+          eventSourcingService.enableSnapshotCaching(false);
+
+          // Act - Call getCacheEntry directly when cache is disabled
+          // This should trigger the early return in getCacheEntry (lines 1504-1505)
+          const privateService = eventSourcingService as unknown as EventSourcingServicePrivate;
+
+          const result = privateService.getCacheEntry('test-cache-key');
+
+          // Assert - Should return undefined immediately due to cache being disabled
+          expect(result).toBeUndefined();
+
+          // Verify no cache hit/miss logging occurred since cache is disabled
+          expect(mockDebug).not.toHaveBeenCalledWith('Cache hit', expect.any(Object));
+          expect(mockDebug).not.toHaveBeenCalledWith('Cache miss', expect.any(Object));
         });
       });
     });
@@ -2617,6 +2782,129 @@ describe('EventSourcingService', () => {
         // Assert - Should succeed without caching
         expect(result).toBeDefined();
         expect(mockGetEvents).toHaveBeenCalledWith(gameId, 0);
+      });
+    });
+
+    describe('Cache Eviction Logic (Lines 1428, 1432-1446)', () => {
+      it('should evict LRU entries when cache exceeds max size', async () => {
+        // Arrange - Set up service with small cache size
+        const maxCacheSize = 2; // Small cache for testing
+        const eventSourcingService = new EventSourcingService(mockEventStore, mockLogger);
+        (eventSourcingService as unknown as { MAX_CACHE_SIZE: number })['MAX_CACHE_SIZE'] =
+          maxCacheSize;
+
+        const gameId1 = GameId.generate();
+        const gameId2 = GameId.generate();
+        const gameId3 = GameId.generate();
+
+        const mockEvents1 = [
+          {
+            eventId: 'event1',
+            streamId: gameId1.value,
+            aggregateType: 'Game',
+            eventType: 'GameStarted',
+            eventData: '{}',
+            eventVersion: 1,
+            streamVersion: 1,
+            timestamp: new Date(),
+            metadata: {},
+          },
+        ];
+        const mockEvents2 = [
+          {
+            eventId: 'event2',
+            streamId: gameId2.value,
+            aggregateType: 'Game',
+            eventType: 'GameStarted',
+            eventData: '{}',
+            eventVersion: 1,
+            streamVersion: 1,
+            timestamp: new Date(),
+            metadata: {},
+          },
+        ];
+        const mockEvents3 = [
+          {
+            eventId: 'event3',
+            streamId: gameId3.value,
+            aggregateType: 'Game',
+            eventType: 'GameStarted',
+            eventData: '{}',
+            eventVersion: 1,
+            streamVersion: 1,
+            timestamp: new Date(),
+            metadata: {},
+          },
+        ];
+
+        mockGetEvents
+          .mockResolvedValueOnce(mockEvents1)
+          .mockResolvedValueOnce(mockEvents2)
+          .mockResolvedValueOnce(mockEvents3);
+
+        // Act - Fill cache beyond max size
+        await eventSourcingService.reconstructAggregate({
+          streamId: gameId1,
+          aggregateType: 'Game',
+        });
+        await new Promise(resolve => setTimeout(resolve, 10)); // Small delay to ensure different timestamps
+
+        await eventSourcingService.reconstructAggregate({
+          streamId: gameId2,
+          aggregateType: 'Game',
+        });
+        await new Promise(resolve => setTimeout(resolve, 10)); // Small delay to ensure different timestamps
+
+        // This should trigger eviction of gameId1 (oldest)
+        await eventSourcingService.reconstructAggregate({
+          streamId: gameId3,
+          aggregateType: 'Game',
+        });
+
+        // Assert - Check that the cache size is maintained (eviction occurred)
+        // Note: The eviction happens internally and may not always log debug messages
+        expect(mockGetEvents).toHaveBeenCalledTimes(3);
+
+        // Verify some cache management occurred by checking internal state
+        const cacheSize =
+          (eventSourcingService as unknown as { snapshotCache: Map<string, unknown> })[
+            'snapshotCache'
+          ]?.size || 0;
+        expect(cacheSize).toBeLessThanOrEqual(maxCacheSize);
+      });
+
+      it('should handle cache eviction when no entries need eviction', async () => {
+        // Arrange - Set up service with large cache size
+        const maxCacheSize = 100;
+        const eventSourcingService = new EventSourcingService(mockEventStore, mockLogger);
+        (eventSourcingService as unknown as { MAX_CACHE_SIZE: number })['MAX_CACHE_SIZE'] =
+          maxCacheSize;
+
+        const gameId = GameId.generate();
+        const mockEvents = [
+          {
+            eventId: 'event1',
+            streamId: gameId.value,
+            aggregateType: 'Game',
+            eventType: 'GameStarted',
+            eventData: '{}',
+            eventVersion: 1,
+            streamVersion: 1,
+            timestamp: new Date(),
+            metadata: {},
+          },
+        ];
+
+        mockGetEvents.mockResolvedValue(mockEvents);
+
+        // Act - Add single entry to cache (should not trigger eviction)
+        await eventSourcingService.reconstructAggregate({
+          streamId: gameId,
+          aggregateType: 'Game',
+        });
+
+        // Assert - No eviction debug logs should be called
+        expect(mockDebug).not.toHaveBeenCalledWith('Evicted LRU cache entry', expect.anything());
       });
     });
   });

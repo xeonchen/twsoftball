@@ -24,8 +24,8 @@ describe('StartNewGameCommand', () => {
   beforeEach(() => {
     gameId = GameId.generate();
 
-    // Create a full 9-player lineup for validation
-    lineupPlayers = Array.from({ length: 9 }, (_, i) => ({
+    // Create a full 10-player lineup for validation (standard slow-pitch softball)
+    lineupPlayers = Array.from({ length: 10 }, (_, i) => ({
       playerId: PlayerId.generate(),
       name: `Player ${i + 1}`,
       jerseyNumber: JerseyNumber.fromNumber(i + 1),
@@ -40,6 +40,7 @@ describe('StartNewGameCommand', () => {
         FieldPosition.LEFT_FIELD,
         FieldPosition.CENTER_FIELD,
         FieldPosition.RIGHT_FIELD,
+        FieldPosition.SHORT_FIELDER,
       ][i]!,
       preferredPositions: i < 2 ? [FieldPosition.PITCHER, FieldPosition.FIRST_BASE] : [],
     }));
@@ -134,8 +135,40 @@ describe('StartNewGameCommand', () => {
   });
 
   describe('Initial Lineup', () => {
-    it('should handle minimum lineup (9 players)', () => {
-      const minimalLineup: LineupPlayerDTO[] = Array.from({ length: 9 }, (_, i) => ({
+    it('should handle standard lineup (10 players with SF)', () => {
+      const standardLineup: LineupPlayerDTO[] = Array.from({ length: 10 }, (_, i) => ({
+        playerId: PlayerId.generate(),
+        name: `Player ${i + 1}`,
+        jerseyNumber: JerseyNumber.fromNumber(i + 1),
+        battingOrderPosition: i + 1,
+        fieldPosition: [
+          FieldPosition.PITCHER,
+          FieldPosition.CATCHER,
+          FieldPosition.FIRST_BASE,
+          FieldPosition.SECOND_BASE,
+          FieldPosition.THIRD_BASE,
+          FieldPosition.SHORTSTOP,
+          FieldPosition.LEFT_FIELD,
+          FieldPosition.CENTER_FIELD,
+          FieldPosition.RIGHT_FIELD,
+          FieldPosition.SHORT_FIELDER,
+        ][i]!,
+        preferredPositions: [],
+      }));
+
+      const command = {
+        ...validCommand,
+        initialLineup: standardLineup,
+      };
+
+      expect(command.initialLineup).toHaveLength(10);
+      expect(command.initialLineup[0]?.battingOrderPosition).toBe(1);
+      expect(command.initialLineup[9]?.battingOrderPosition).toBe(10);
+      expect(command.initialLineup[9]?.fieldPosition).toBe(FieldPosition.SHORT_FIELDER);
+    });
+
+    it('should handle 9-player lineup (without SF)', () => {
+      const ninePlayerLineup: LineupPlayerDTO[] = Array.from({ length: 9 }, (_, i) => ({
         playerId: PlayerId.generate(),
         name: `Player ${i + 1}`,
         jerseyNumber: JerseyNumber.fromNumber(i + 1),
@@ -156,21 +189,23 @@ describe('StartNewGameCommand', () => {
 
       const command = {
         ...validCommand,
-        initialLineup: minimalLineup,
+        initialLineup: ninePlayerLineup,
       };
 
       expect(command.initialLineup).toHaveLength(9);
       expect(command.initialLineup[0]?.battingOrderPosition).toBe(1);
       expect(command.initialLineup[8]?.battingOrderPosition).toBe(9);
+      expect(command.initialLineup.some(p => p.fieldPosition === FieldPosition.SHORT_FIELDER)).toBe(
+        false
+      );
     });
 
-    it('should handle extended lineup (with extra players)', () => {
-      // Start with 9 baseline players
-      const extendedLineup: LineupPlayerDTO[] = [];
+    it('should handle 11-player lineup (10 fielders + 1 EP)', () => {
+      const elevenPlayerLineup: LineupPlayerDTO[] = [];
 
-      // Add 9 regular players first
-      for (let i = 1; i <= 9; i++) {
-        extendedLineup.push({
+      // Add 10 fielding players first (including SF)
+      for (let i = 1; i <= 10; i++) {
+        elevenPlayerLineup.push({
           playerId: PlayerId.generate(),
           name: `Player ${i}`,
           jerseyNumber: JerseyNumber.fromNumber(i),
@@ -185,14 +220,68 @@ describe('StartNewGameCommand', () => {
             FieldPosition.LEFT_FIELD,
             FieldPosition.CENTER_FIELD,
             FieldPosition.RIGHT_FIELD,
+            FieldPosition.SHORT_FIELDER,
           ][i - 1]!,
           preferredPositions: [],
         });
       }
 
-      // Add extra players
-      for (let i = 10; i <= 12; i++) {
-        extendedLineup.push({
+      // Add 1 extra player
+      elevenPlayerLineup.push({
+        playerId: PlayerId.generate(),
+        name: 'Extra Player 11',
+        jerseyNumber: JerseyNumber.fromNumber(11),
+        battingOrderPosition: 11,
+        fieldPosition: FieldPosition.EXTRA_PLAYER,
+        preferredPositions: [FieldPosition.LEFT_FIELD, FieldPosition.RIGHT_FIELD],
+      });
+
+      const command = {
+        ...validCommand,
+        initialLineup: elevenPlayerLineup,
+      };
+
+      expect(command.initialLineup).toHaveLength(11);
+      expect(command.initialLineup.some(p => p.fieldPosition === FieldPosition.SHORT_FIELDER)).toBe(
+        true
+      );
+      expect(command.initialLineup.some(p => p.fieldPosition === FieldPosition.EXTRA_PLAYER)).toBe(
+        true
+      );
+      expect(
+        command.initialLineup.filter(p => p.fieldPosition === FieldPosition.EXTRA_PLAYER)
+      ).toHaveLength(1);
+    });
+
+    it('should handle 12-player lineup (10 fielders + 2 EPs)', () => {
+      const twelvePlayerLineup: LineupPlayerDTO[] = [];
+
+      // Add 10 fielding players first (including SF)
+      for (let i = 1; i <= 10; i++) {
+        twelvePlayerLineup.push({
+          playerId: PlayerId.generate(),
+          name: `Player ${i}`,
+          jerseyNumber: JerseyNumber.fromNumber(i),
+          battingOrderPosition: i,
+          fieldPosition: [
+            FieldPosition.PITCHER,
+            FieldPosition.CATCHER,
+            FieldPosition.FIRST_BASE,
+            FieldPosition.SECOND_BASE,
+            FieldPosition.THIRD_BASE,
+            FieldPosition.SHORTSTOP,
+            FieldPosition.LEFT_FIELD,
+            FieldPosition.CENTER_FIELD,
+            FieldPosition.RIGHT_FIELD,
+            FieldPosition.SHORT_FIELDER,
+          ][i - 1]!,
+          preferredPositions: [],
+        });
+      }
+
+      // Add 2 extra players
+      for (let i = 11; i <= 12; i++) {
+        twelvePlayerLineup.push({
           playerId: PlayerId.generate(),
           name: `Extra Player ${i}`,
           jerseyNumber: JerseyNumber.fromNumber(i),
@@ -204,13 +293,19 @@ describe('StartNewGameCommand', () => {
 
       const command = {
         ...validCommand,
-        initialLineup: extendedLineup,
+        initialLineup: twelvePlayerLineup,
       };
 
-      expect(command.initialLineup.length).toBeGreaterThan(9);
+      expect(command.initialLineup).toHaveLength(12);
+      expect(command.initialLineup.some(p => p.fieldPosition === FieldPosition.SHORT_FIELDER)).toBe(
+        true
+      );
       expect(command.initialLineup.some(p => p.fieldPosition === FieldPosition.EXTRA_PLAYER)).toBe(
         true
       );
+      expect(
+        command.initialLineup.filter(p => p.fieldPosition === FieldPosition.EXTRA_PLAYER)
+      ).toHaveLength(2);
     });
 
     it('should handle lineup player properties correctly', () => {
@@ -579,7 +674,7 @@ describe('StartNewGameCommand', () => {
       let fullLineup: LineupPlayerDTO[];
 
       beforeEach(() => {
-        fullLineup = Array.from({ length: 9 }, (_, i) => ({
+        fullLineup = Array.from({ length: 10 }, (_, i) => ({
           playerId: PlayerId.generate(),
           name: `Player ${i + 1}`,
           jerseyNumber: JerseyNumber.fromNumber(i + 1),
@@ -594,6 +689,7 @@ describe('StartNewGameCommand', () => {
             FieldPosition.LEFT_FIELD,
             FieldPosition.CENTER_FIELD,
             FieldPosition.RIGHT_FIELD,
+            FieldPosition.SHORT_FIELDER,
           ][i]!,
           preferredPositions: [],
         }));
@@ -767,10 +863,10 @@ describe('StartNewGameCommand', () => {
   });
 
   describe('StartNewGameCommandFactory', () => {
-    let minimalLineup: LineupPlayerDTO[];
+    let standardLineup: LineupPlayerDTO[];
 
     beforeEach(() => {
-      minimalLineup = Array.from({ length: 9 }, (_, i) => ({
+      standardLineup = Array.from({ length: 10 }, (_, i) => ({
         playerId: PlayerId.generate(),
         name: `Player ${i + 1}`,
         jerseyNumber: JerseyNumber.fromNumber(i + 1),
@@ -785,6 +881,7 @@ describe('StartNewGameCommand', () => {
           FieldPosition.LEFT_FIELD,
           FieldPosition.CENTER_FIELD,
           FieldPosition.RIGHT_FIELD,
+          FieldPosition.SHORT_FIELDER,
         ][i]!,
         preferredPositions: [],
       }));
@@ -801,7 +898,7 @@ describe('StartNewGameCommand', () => {
           'Hawks',
           'HOME',
           gameDate,
-          minimalLineup,
+          standardLineup,
           'Field 1'
         );
 
@@ -811,7 +908,7 @@ describe('StartNewGameCommand', () => {
         expect(command.ourTeamSide).toBe('HOME');
         expect(command.gameDate).toBe(gameDate);
         expect(command.location).toBe('Field 1');
-        expect(command.initialLineup).toBe(minimalLineup);
+        expect(command.initialLineup).toBe(standardLineup);
         expect(command.gameRules).toEqual(StartNewGameCommandFactory.getDefaultGameRules());
       });
 
@@ -825,7 +922,7 @@ describe('StartNewGameCommand', () => {
           'Hawks',
           'AWAY',
           gameDate,
-          minimalLineup
+          standardLineup
         );
 
         expect(command.location).toBeUndefined();
@@ -835,7 +932,7 @@ describe('StartNewGameCommand', () => {
       it('should throw validation error for invalid data', () => {
         const gameId = GameId.generate();
         const gameDate = new Date('2024-08-30T14:00:00Z');
-        const shortLineup = minimalLineup.slice(0, 5); // Too few players
+        const shortLineup = standardLineup.slice(0, 5); // Too few players
 
         expect(() =>
           StartNewGameCommandFactory.createWithDefaults(

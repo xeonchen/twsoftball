@@ -776,6 +776,74 @@ describe('AtBatResult', () => {
     });
   });
 
+  describe('Statistical Consistency Edge Cases', () => {
+    it('should throw error when RBI significantly exceeds runs scored by more than 2', () => {
+      const invalidResult: AtBatResult = {
+        ...validResult,
+        runsScored: 1,
+        rbiAwarded: 4, // 3 more than runs scored - should trigger the extreme case validation
+      };
+
+      expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
+        new AtBatResultValidationError(
+          'rbiAwarded significantly exceeds runsScored, check for data consistency'
+        )
+      );
+    });
+
+    it('should allow RBI to exceed runs scored by exactly 2', () => {
+      const edgeCaseResult: AtBatResult = {
+        ...validResult,
+        runsScored: 1,
+        rbiAwarded: 3, // 2 more than runs scored - should be allowed
+      };
+
+      expect(() => AtBatResultValidator.validate(edgeCaseResult)).not.toThrow();
+    });
+
+    it('should allow RBI to exceed runs scored by 1', () => {
+      const validExceptionResult: AtBatResult = {
+        ...validResult,
+        runsScored: 2,
+        rbiAwarded: 3, // 1 more than runs scored - valid sacrifice scenario
+      };
+
+      expect(() => AtBatResultValidator.validate(validExceptionResult)).not.toThrow();
+    });
+  });
+
+  describe('Game State Structure Validation Edge Cases', () => {
+    it('should throw error for null gameId in game state', () => {
+      const invalidGameState = {
+        ...gameState,
+        gameId: null as unknown as GameId,
+      };
+      const invalidResult: AtBatResult = {
+        ...validResult,
+        gameState: invalidGameState,
+      };
+
+      expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
+        new AtBatResultValidationError('gameState must have a valid gameId')
+      );
+    });
+
+    it('should throw error for undefined gameId in game state', () => {
+      const invalidGameState = {
+        ...gameState,
+        gameId: undefined as unknown as GameId,
+      };
+      const invalidResult: AtBatResult = {
+        ...validResult,
+        gameState: invalidGameState,
+      };
+
+      expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
+        new AtBatResultValidationError('gameState must have a valid gameId')
+      );
+    });
+  });
+
   describe('AtBatResultValidationError', () => {
     it('should create error with correct properties', () => {
       const error = new AtBatResultValidationError('Test error message');
