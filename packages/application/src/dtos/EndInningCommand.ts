@@ -45,13 +45,17 @@
 
 import { GameId } from '@twsoftball/domain';
 
+import { ValidationError } from '../errors/ValidationError';
+import { CommonValidators } from '../utils/CommonValidators';
+
 /**
  * Validation error for EndInningCommand
  */
-export class EndInningCommandValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'EndInningCommandValidationError';
+export class EndInningCommandValidationError extends ValidationError {
+  constructor(message: string, field?: string, value?: unknown) {
+    super(message, 'EndInningCommandValidationError', field, value);
+    // Ensure correct prototype chain for instanceof checks
+    Object.setPrototypeOf(this, EndInningCommandValidationError.prototype);
   }
 }
 
@@ -163,30 +167,38 @@ export const EndInningCommandValidator = {
    * Validates basic command fields
    */
   validateBasicFields(command: EndInningCommand): void {
-    if (!command.gameId) {
-      throw new EndInningCommandValidationError('gameId is required');
-    }
+    CommonValidators.validateGameId(
+      command.gameId,
+      (msg, field, value) => new EndInningCommandValidationError(msg, field, value)
+    );
 
-    if (!Number.isInteger(command.inning) || command.inning < 1) {
-      throw new EndInningCommandValidationError('inning must be a positive integer (1 or greater)');
-    }
-
-    if (command.inning > 20) {
-      throw new EndInningCommandValidationError('inning cannot exceed 20 for safety limits');
-    }
+    CommonValidators.validateInning(
+      command.inning,
+      (msg, field, value) => new EndInningCommandValidationError(msg, field, value)
+    );
 
     if (typeof command.isTopHalf !== 'boolean') {
-      throw new EndInningCommandValidationError('isTopHalf must be a boolean');
+      throw new EndInningCommandValidationError(
+        'isTopHalf must be a boolean',
+        'isTopHalf',
+        command.isTopHalf
+      );
     }
 
     if (!command.endingReason) {
-      throw new EndInningCommandValidationError('endingReason is required');
+      throw new EndInningCommandValidationError(
+        'endingReason is required',
+        'endingReason',
+        command.endingReason
+      );
     }
 
     const validReasons = ['THREE_OUTS', 'MERCY_RULE', 'TIME_LIMIT', 'FORFEIT', 'WALKOFF', 'MANUAL'];
     if (!validReasons.includes(command.endingReason)) {
       throw new EndInningCommandValidationError(
-        `endingReason must be one of: ${validReasons.join(', ')}`
+        `endingReason must be one of: ${validReasons.join(', ')}`,
+        'endingReason',
+        command.endingReason
       );
     }
   },
@@ -195,25 +207,35 @@ export const EndInningCommandValidator = {
    * Validates game state fields
    */
   validateGameState(command: EndInningCommand): void {
-    if (!Number.isInteger(command.finalOuts) || command.finalOuts < 0 || command.finalOuts > 3) {
-      throw new EndInningCommandValidationError('finalOuts must be an integer between 0 and 3');
-    }
+    CommonValidators.validateOuts(
+      command.finalOuts,
+      'finalOuts',
+      (msg, field, value) => new EndInningCommandValidationError(msg, field, value)
+    );
 
     if (command.gameEnding !== undefined && typeof command.gameEnding !== 'boolean') {
-      throw new EndInningCommandValidationError('gameEnding must be a boolean if provided');
+      throw new EndInningCommandValidationError(
+        'gameEnding must be a boolean if provided',
+        'gameEnding',
+        command.gameEnding
+      );
     }
 
     // Business rule: For regulation ending, finalOuts should be 3 (unless special circumstances)
     if (command.endingReason === 'THREE_OUTS' && command.finalOuts !== 3) {
       throw new EndInningCommandValidationError(
-        'finalOuts must be 3 when endingReason is THREE_OUTS'
+        'finalOuts must be 3 when endingReason is THREE_OUTS',
+        'finalOuts',
+        command.finalOuts
       );
     }
 
     // Business rule: For walkoff, game must be ending
     if (command.endingReason === 'WALKOFF' && !command.gameEnding) {
       throw new EndInningCommandValidationError(
-        'gameEnding must be true when endingReason is WALKOFF'
+        'gameEnding must be true when endingReason is WALKOFF',
+        'gameEnding',
+        command.gameEnding
       );
     }
   },
@@ -222,43 +244,20 @@ export const EndInningCommandValidator = {
    * Validates optional notes field
    */
   validateNotes(notes: string): void {
-    if (notes.length > 500) {
-      throw new EndInningCommandValidationError('notes cannot exceed 500 characters');
-    }
-
-    if (notes.trim().length === 0 && notes.length > 0) {
-      throw new EndInningCommandValidationError('notes cannot be only whitespace');
-    }
+    CommonValidators.validateNotes(
+      notes,
+      (msg, field, value) => new EndInningCommandValidationError(msg, field, value)
+    );
   },
 
   /**
    * Validates optional timestamp field
    */
   validateTimestamp(timestamp: Date): void {
-    if (!(timestamp instanceof Date)) {
-      throw new EndInningCommandValidationError('timestamp must be a valid Date object');
-    }
-
-    if (isNaN(timestamp.getTime())) {
-      throw new EndInningCommandValidationError('timestamp must be a valid Date');
-    }
-
-    // Business rule: timestamp cannot be too far in the future
-    const now = new Date();
-    const maxFutureMinutes = 60; // Allow up to 1 hour in future for time zone differences
-    const maxFutureTime = new Date(now.getTime() + maxFutureMinutes * 60 * 1000);
-
-    if (timestamp > maxFutureTime) {
-      throw new EndInningCommandValidationError(
-        'timestamp cannot be more than 1 hour in the future'
-      );
-    }
-
-    // Business rule: timestamp cannot be too far in the past (e.g., more than 1 year ago)
-    const minPastTime = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-    if (timestamp < minPastTime) {
-      throw new EndInningCommandValidationError('timestamp cannot be more than 1 year in the past');
-    }
+    CommonValidators.validateTimestamp(
+      timestamp,
+      (msg, field, value) => new EndInningCommandValidationError(msg, field, value)
+    );
   },
 };
 

@@ -52,15 +52,18 @@
  * ```
  */
 
+import { ValidationError } from '../errors/ValidationError';
+
 import { GameStateDTO } from './GameStateDTO';
 
 /**
  * Validation error for AtBatResult
  */
-export class AtBatResultValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'AtBatResultValidationError';
+export class AtBatResultValidationError extends ValidationError {
+  constructor(message: string, field?: string, value?: unknown) {
+    super(message, 'AtBatResultValidationError', field, value);
+    // Ensure correct prototype chain for instanceof checks
+    Object.setPrototypeOf(this, AtBatResultValidationError.prototype);
   }
 }
 
@@ -258,7 +261,11 @@ export const AtBatResultValidator = {
    */
   validateErrorStructure(errors: string[]): void {
     if (!Array.isArray(errors)) {
-      throw new AtBatResultValidationError('errors must be an array when provided');
+      throw new AtBatResultValidationError(
+        'errors must be an array when provided',
+        'errors',
+        errors
+      );
     }
 
     if (errors.length === 0) {
@@ -266,12 +273,16 @@ export const AtBatResultValidator = {
     }
 
     if (errors.length > 10) {
-      throw new AtBatResultValidationError('errors array cannot exceed 10 items');
+      throw new AtBatResultValidationError('errors array cannot exceed 10 items', 'errors', errors);
     }
 
     errors.forEach((error, index) => {
       if (typeof error !== 'string' || !error.trim()) {
-        throw new AtBatResultValidationError(`Error at index ${index} must be a non-empty string`);
+        throw new AtBatResultValidationError(
+          `Error at index ${index} must be a non-empty string`,
+          `errors[${index}]`,
+          error
+        );
       }
 
       if (error.length > 200) {

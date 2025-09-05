@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 import { AUTH_TEST_CONSTANTS, getTestBackupCodes } from '../../test-utils/auth-test-constants';
+import { SecureTestUtils } from '../../test-utils/secure-test-utils';
 
 import type {
   AuthService,
@@ -82,7 +83,7 @@ class MockAuthService implements AuthService {
       profile = existingUser.profile;
     } else {
       // Create new user
-      const timestamp = Date.now() + Math.random() * 1000;
+      const timestamp = SecureTestUtils.generateTestTimestamp();
       userId = `user-${Math.floor(timestamp)}`;
       profile = {
         id: userId,
@@ -97,7 +98,7 @@ class MockAuthService implements AuthService {
     }
 
     // Create session and tokens
-    const timestamp = Date.now() + Math.random() * 1000;
+    const timestamp = SecureTestUtils.generateTestTimestamp();
     const sessionId = `session-${timestamp}`;
     const accessToken = `token-${timestamp}`;
     const refreshToken = `refresh-${timestamp}`;

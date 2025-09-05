@@ -49,13 +49,17 @@
 
 import { GameId } from '@twsoftball/domain';
 
+import { ValidationError } from '../errors/ValidationError';
+import { CommonValidators } from '../utils/CommonValidators';
+
 /**
  * Validation error for RedoCommand
  */
-export class RedoCommandValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'RedoCommandValidationError';
+export class RedoCommandValidationError extends ValidationError {
+  constructor(message: string, field?: string, value?: unknown) {
+    super(message, 'RedoCommandValidationError', field, value);
+    // Ensure correct prototype chain for instanceof checks
+    Object.setPrototypeOf(this, RedoCommandValidationError.prototype);
   }
 }
 
@@ -225,43 +229,20 @@ export const RedoCommandValidator = {
    * Validates optional notes field
    */
   validateNotes(notes: string): void {
-    if (notes.length > 500) {
-      throw new RedoCommandValidationError('notes cannot exceed 500 characters');
-    }
-
-    // Allow empty string as valid (means no notes)
-    // But trim and check for meaningful content if provided
-    if (notes.trim().length === 0 && notes.length > 0) {
-      throw new RedoCommandValidationError('notes cannot be only whitespace');
-    }
+    CommonValidators.validateNotes(
+      notes,
+      (msg, field, value) => new RedoCommandValidationError(msg, field, value)
+    );
   },
 
   /**
    * Validates optional timestamp field
    */
   validateTimestamp(timestamp: Date): void {
-    if (!(timestamp instanceof Date)) {
-      throw new RedoCommandValidationError('timestamp must be a valid Date object');
-    }
-
-    if (isNaN(timestamp.getTime())) {
-      throw new RedoCommandValidationError('timestamp must be a valid Date');
-    }
-
-    // Business rule: timestamp cannot be too far in the future
-    const now = new Date();
-    const maxFutureMinutes = 60; // Allow up to 1 hour in future for time zone differences
-    const maxFutureTime = new Date(now.getTime() + maxFutureMinutes * 60 * 1000);
-
-    if (timestamp > maxFutureTime) {
-      throw new RedoCommandValidationError('timestamp cannot be more than 1 hour in the future');
-    }
-
-    // Business rule: timestamp cannot be too far in the past (e.g., more than 1 year ago)
-    const minPastTime = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-    if (timestamp < minPastTime) {
-      throw new RedoCommandValidationError('timestamp cannot be more than 1 year in the past');
-    }
+    CommonValidators.validateTimestamp(
+      timestamp,
+      (msg, field, value) => new RedoCommandValidationError(msg, field, value)
+    );
   },
 };
 

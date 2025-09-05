@@ -517,9 +517,10 @@ describe('AtBatResult', () => {
       it('should throw error for excessive runsScored', () => {
         const invalidResult = { ...validResult, runsScored: 5 };
         expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-          new AtBatResultValidationError(
-            'runsScored cannot exceed 4 (maximum possible in single at-bat)'
-          )
+          expect.objectContaining({
+            message: 'runsScored cannot exceed 4 (maximum possible in single at-bat)',
+            name: 'AtBatResultValidationError',
+          }) as Error
         );
       });
 
@@ -559,7 +560,10 @@ describe('AtBatResult', () => {
         const invalidGameState = { ...gameState, outs: 4 };
         const invalidResult = { ...validResult, gameState: invalidGameState };
         expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-          new AtBatResultValidationError('gameState outs must be between 0 and 3')
+          expect.objectContaining({
+            message: 'gameState outs must be between 0 and 3',
+            name: 'AtBatResultValidationError',
+          }) as Error
         );
       });
     });
@@ -581,7 +585,10 @@ describe('AtBatResult', () => {
           errors: [],
         };
         expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-          new AtBatResultValidationError('errors array cannot be empty if provided')
+          expect.objectContaining({
+            message: 'errors array cannot be empty if provided',
+            name: 'AtBatResultValidationError',
+          }) as Error
         );
       });
 
@@ -593,7 +600,11 @@ describe('AtBatResult', () => {
           errors: tooManyErrors,
         };
         expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-          new AtBatResultValidationError('errors array cannot exceed 10 items')
+          new AtBatResultValidationError(
+            'errors array cannot exceed 10 items',
+            'errors',
+            tooManyErrors
+          )
         );
       });
     });
@@ -688,14 +699,19 @@ describe('AtBatResult', () => {
 
   describe('Error Validation Edge Cases', () => {
     it('should validate error array with non-string elements', () => {
+      const invalidValue = 123;
       const invalidResult = {
         ...validResult,
         success: false,
-        errors: ['Valid error', 123, 'Another valid error'],
+        errors: ['Valid error', invalidValue, 'Another valid error'],
       } as AtBatResult;
 
       expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-        new AtBatResultValidationError('Error at index 1 must be a non-empty string')
+        new AtBatResultValidationError(
+          'Error at index 1 must be a non-empty string',
+          'errors[1]',
+          invalidValue
+        )
       );
     });
 
@@ -707,19 +723,31 @@ describe('AtBatResult', () => {
       };
 
       expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-        new AtBatResultValidationError('Error at index 1 must be a non-empty string')
+        new AtBatResultValidationError(
+          'Error at index 1 must be a non-empty string',
+          'errors[1]',
+          ''
+        )
       );
     });
 
     it('should validate error array with whitespace-only elements', () => {
+      const whitespaceValue = '   \t\n   ';
       const invalidResult: AtBatResult = {
         ...validResult,
         success: false,
-        errors: ['Valid error', '   \t\n   ', 'Another valid error'],
+        errors: ['Valid error', whitespaceValue, 'Another valid error'],
       };
 
       expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-        new AtBatResultValidationError('Error at index 1 must be a non-empty string')
+        expect.objectContaining({
+          message: 'Error at index 1 must be a non-empty string',
+          name: 'AtBatResultValidationError',
+          validationContext: expect.objectContaining({
+            field: 'errors[1]',
+            value: whitespaceValue,
+          }),
+        }) as Error
       );
     });
 
@@ -732,7 +760,10 @@ describe('AtBatResult', () => {
       };
 
       expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-        new AtBatResultValidationError('Error at index 1 cannot exceed 200 characters')
+        expect.objectContaining({
+          message: 'Error at index 1 cannot exceed 200 characters',
+          name: 'AtBatResultValidationError',
+        }) as Error
       );
     });
 
@@ -764,14 +795,19 @@ describe('AtBatResult', () => {
     });
 
     it('should validate errors parameter is an array', () => {
+      const invalidValue = 'not an array';
       const invalidResult = {
         ...validResult,
         success: false,
-        errors: 'not an array',
+        errors: invalidValue,
       } as unknown as AtBatResult;
 
       expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-        new AtBatResultValidationError('errors must be an array when provided')
+        new AtBatResultValidationError(
+          'errors must be an array when provided',
+          'errors',
+          invalidValue
+        )
       );
     });
   });
@@ -824,7 +860,10 @@ describe('AtBatResult', () => {
       };
 
       expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-        new AtBatResultValidationError('gameState must have a valid gameId')
+        expect.objectContaining({
+          message: 'gameState must have a valid gameId',
+          name: 'AtBatResultValidationError',
+        }) as Error
       );
     });
 
@@ -839,7 +878,10 @@ describe('AtBatResult', () => {
       };
 
       expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-        new AtBatResultValidationError('gameState must have a valid gameId')
+        expect.objectContaining({
+          message: 'gameState must have a valid gameId',
+          name: 'AtBatResultValidationError',
+        }) as Error
       );
     });
   });

@@ -47,6 +47,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 // Port imports
 import { EventStore, StoredEvent } from '../ports/out/EventStore';
 import { Logger } from '../ports/out/Logger';
+import { SecureTestUtils } from '../test-utils/secure-test-utils';
 
 import { EventSourcingService } from './EventSourcingService';
 
@@ -111,7 +112,7 @@ interface EventSourcingServicePrivate {
 // Helper function to create mock stored events
 function createMockStoredEvent(eventType: string, eventData: string = 'test data'): StoredEvent {
   return {
-    eventId: `event-${Date.now()}-${Math.random()}`,
+    eventId: SecureTestUtils.generateEventId(),
     streamId: 'test-stream-id',
     aggregateType: 'Game',
     eventType,

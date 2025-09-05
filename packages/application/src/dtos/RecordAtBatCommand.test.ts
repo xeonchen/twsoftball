@@ -492,7 +492,10 @@ describe('RecordAtBatCommand', () => {
       it('should throw error for missing gameId', () => {
         const invalidCommand = { ...validCommand, gameId: null } as unknown as RecordAtBatCommand;
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError('gameId is required')
+          expect.objectContaining({
+            message: 'gameId is required',
+            name: 'RecordAtBatCommandValidationError',
+          }) as Error
         );
       });
 
@@ -516,7 +519,10 @@ describe('RecordAtBatCommand', () => {
           result: 'INVALID_RESULT',
         } as unknown as RecordAtBatCommand;
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError('Invalid at-bat result: INVALID_RESULT')
+          expect.objectContaining({
+            message: 'Invalid at-bat result: INVALID_RESULT',
+            name: 'RecordAtBatCommandValidationError',
+          }) as Error
         );
       });
     });
@@ -585,7 +591,10 @@ describe('RecordAtBatCommand', () => {
         ];
         const invalidCommand = { ...validCommand, runnerAdvances: invalidAdvance };
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError('Runner advance at index 0: playerId is required')
+          expect.objectContaining({
+            message: 'Runner advance at index 0: playerId is required',
+            name: 'RecordAtBatCommandValidationError',
+          }) as Error
         );
       });
 
@@ -681,14 +690,26 @@ describe('RecordAtBatCommand', () => {
         const longNotes = 'a'.repeat(501);
         const invalidCommand = { ...validCommand, notes: longNotes };
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError('notes cannot exceed 500 characters')
+          expect.objectContaining({
+            message: 'notes cannot exceed 500 characters',
+            name: 'RecordAtBatCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'notes',
+            }),
+          }) as Error
         );
       });
 
       it('should throw error for whitespace-only notes', () => {
         const invalidCommand = { ...validCommand, notes: '   ' };
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError('notes cannot be only whitespace')
+          expect.objectContaining({
+            message: 'notes cannot be only whitespace',
+            name: 'RecordAtBatCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'notes',
+            }),
+          }) as Error
         );
       });
     });
@@ -700,19 +721,33 @@ describe('RecordAtBatCommand', () => {
       });
 
       it('should throw error for non-Date timestamp', () => {
+        const invalidValue = 'not-a-date';
         const invalidCommand = {
           ...validCommand,
-          timestamp: 'not-a-date',
+          timestamp: invalidValue,
         } as unknown as RecordAtBatCommand;
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError('timestamp must be a valid Date object')
+          expect.objectContaining({
+            message: 'timestamp must be a valid Date object',
+            name: 'RecordAtBatCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'timestamp',
+            }),
+          }) as Error
         );
       });
 
       it('should throw error for invalid Date', () => {
-        const invalidCommand = { ...validCommand, timestamp: new Date('invalid') };
+        const invalidDate = new Date('invalid');
+        const invalidCommand = { ...validCommand, timestamp: invalidDate };
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError('timestamp must be a valid Date')
+          expect.objectContaining({
+            message: 'timestamp must be a valid Date',
+            name: 'RecordAtBatCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'timestamp',
+            }),
+          }) as Error
         );
       });
 
@@ -721,8 +756,10 @@ describe('RecordAtBatCommand', () => {
         const invalidCommand = { ...validCommand, timestamp: futureDate };
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
           new RecordAtBatCommandValidationError(
-            'timestamp cannot be more than 1 hour in the future'
-          )
+            'timestamp cannot be more than 1 hour in the future',
+            'timestamp',
+            futureDate
+          ) as Error
         );
       });
 
@@ -730,7 +767,13 @@ describe('RecordAtBatCommand', () => {
         const pastDate = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000); // 400 days ago
         const invalidCommand = { ...validCommand, timestamp: pastDate };
         expect(() => RecordAtBatCommandValidator.validate(invalidCommand)).toThrow(
-          new RecordAtBatCommandValidationError('timestamp cannot be more than 1 year in the past')
+          expect.objectContaining({
+            message: 'timestamp cannot be more than 1 year in the past',
+            name: 'RecordAtBatCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'timestamp',
+            }),
+          }) as Error
         );
       });
     });

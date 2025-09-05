@@ -51,6 +51,7 @@ import { StartNewGameCommand } from '../dtos/StartNewGameCommand';
 import { AuthService } from '../ports/out/AuthService';
 import { Logger } from '../ports/out/Logger';
 import { NotificationService } from '../ports/out/NotificationService';
+import { SecureTestUtils } from '../test-utils/secure-test-utils';
 import { EndInning } from '../use-cases/EndInning';
 import { RecordAtBat } from '../use-cases/RecordAtBat';
 // Note: These imports available for potential future test expansion
@@ -58,7 +59,6 @@ import { RedoLastAction } from '../use-cases/RedoLastAction';
 import { StartNewGame } from '../use-cases/StartNewGame';
 import { SubstitutePlayer } from '../use-cases/SubstitutePlayer';
 import { UndoLastAction } from '../use-cases/UndoLastAction';
-
 // DTO imports
 
 // Port imports
@@ -2672,10 +2672,8 @@ describe('GameApplicationService', () => {
     describe('CompleteGameWorkflow Error Recovery (Lines 673-701)', () => {
       it('should handle unexpected system exception during workflow execution', async () => {
         // Test lines 673-701: catch block for completeGameWorkflow when an unexpected error occurs
-        const gameId = new GameId('test-game-advanced-' + Math.random().toString(36).substring(7));
-        const playerId = new PlayerId(
-          'test-player-advanced-' + Math.random().toString(36).substring(7)
-        );
+        const gameId = new GameId(SecureTestUtils.generateGameId('test-game-advanced'));
+        const playerId = new PlayerId(SecureTestUtils.generatePlayerId('test-player-advanced'));
         const command: CompleteGameWorkflowCommand = {
           startGameCommand: {
             gameId,
@@ -2747,10 +2745,8 @@ describe('GameApplicationService', () => {
 
       it('should handle non-Error exceptions in workflow catch block', async () => {
         // Test lines 698-699: error handling for non-Error objects
-        const gameId = new GameId('test-game-advanced-' + Math.random().toString(36).substring(7));
-        const playerId = new PlayerId(
-          'test-player-advanced-' + Math.random().toString(36).substring(7)
-        );
+        const gameId = new GameId(SecureTestUtils.generateGameId('test-game-advanced'));
+        const playerId = new PlayerId(SecureTestUtils.generatePlayerId('test-player-advanced'));
         const command: CompleteGameWorkflowCommand = {
           startGameCommand: {
             gameId,
@@ -2791,10 +2787,8 @@ describe('GameApplicationService', () => {
 
       it('should handle workflow failure with null gameStartResult fallback', async () => {
         // Test lines 682-686: gameStartResult fallback when undefined
-        const gameId = new GameId('test-game-advanced-' + Math.random().toString(36).substring(7));
-        const playerId = new PlayerId(
-          'test-player-advanced-' + Math.random().toString(36).substring(7)
-        );
+        const gameId = new GameId(SecureTestUtils.generateGameId('test-game-advanced'));
+        const playerId = new PlayerId(SecureTestUtils.generatePlayerId('test-player-advanced'));
         const command: CompleteGameWorkflowCommand = {
           startGameCommand: {
             gameId,
@@ -2836,10 +2830,8 @@ describe('GameApplicationService', () => {
     describe('Advanced Integration Boundary Conditions', () => {
       it('should handle resource exhaustion during complex workflow cascade', async () => {
         // Test advanced error recovery under resource pressure
-        const gameId = new GameId('test-game-advanced-' + Math.random().toString(36).substring(7));
-        const playerId = new PlayerId(
-          'test-player-advanced-' + Math.random().toString(36).substring(7)
-        );
+        const gameId = new GameId(SecureTestUtils.generateGameId('test-game-advanced'));
+        const playerId = new PlayerId(SecureTestUtils.generatePlayerId('test-player-advanced'));
         const command: CompleteGameWorkflowCommand = {
           startGameCommand: {
             gameId,
@@ -2896,10 +2888,8 @@ describe('GameApplicationService', () => {
 
       it('should handle permission boundary failure in multi-step workflow', async () => {
         // Test permission/authorization edge cases
-        const gameId = new GameId('test-game-advanced-' + Math.random().toString(36).substring(7));
-        const playerId = new PlayerId(
-          'test-player-advanced-' + Math.random().toString(36).substring(7)
-        );
+        const gameId = new GameId(SecureTestUtils.generateGameId('test-game-advanced'));
+        const playerId = new PlayerId(SecureTestUtils.generatePlayerId('test-player-advanced'));
         const command: CompleteGameWorkflowCommand = {
           startGameCommand: {
             gameId,
@@ -2956,10 +2946,8 @@ describe('GameApplicationService', () => {
 
       it('should handle timeout during external service integration', async () => {
         // Test integration timeout boundary conditions by causing timeout in startup
-        const gameId = new GameId('test-game-advanced-' + Math.random().toString(36).substring(7));
-        const playerId = new PlayerId(
-          'test-player-advanced-' + Math.random().toString(36).substring(7)
-        );
+        const gameId = new GameId(SecureTestUtils.generateGameId('test-game-advanced'));
+        const playerId = new PlayerId(SecureTestUtils.generatePlayerId('test-player-advanced'));
         const command: CompleteGameWorkflowCommand = {
           startGameCommand: {
             gameId,

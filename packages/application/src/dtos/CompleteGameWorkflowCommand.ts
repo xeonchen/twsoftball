@@ -58,6 +58,8 @@
  * ```
  */
 
+import { ValidationError } from '../errors/ValidationError';
+
 import { RecordAtBatCommand } from './RecordAtBatCommand';
 import { StartNewGameCommand } from './StartNewGameCommand';
 import { SubstitutePlayerCommand } from './SubstitutePlayerCommand';
@@ -65,10 +67,11 @@ import { SubstitutePlayerCommand } from './SubstitutePlayerCommand';
 /**
  * Validation error for CompleteGameWorkflowCommand
  */
-export class CompleteGameWorkflowCommandValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'CompleteGameWorkflowCommandValidationError';
+export class CompleteGameWorkflowCommandValidationError extends ValidationError {
+  constructor(message: string, field?: string, value?: unknown) {
+    super(message, 'CompleteGameWorkflowCommandValidationError', field, value);
+    // Ensure correct prototype chain for instanceof checks
+    Object.setPrototypeOf(this, CompleteGameWorkflowCommandValidationError.prototype);
   }
 }
 

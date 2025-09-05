@@ -595,7 +595,10 @@ describe('EndInningCommand', () => {
           };
 
           expect(() => EndInningCommandValidator.validate(command)).toThrow(
-            'finalOuts must be an integer between 0 and 3'
+            expect.objectContaining({
+              message: 'finalOuts must be an integer between 0 and 3',
+              name: 'EndInningCommandValidationError',
+            }) as Error
           );
         });
       });

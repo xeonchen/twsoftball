@@ -45,16 +45,19 @@
 
 import { GameId } from '@twsoftball/domain';
 
+import { ValidationError } from '../errors/ValidationError';
+
 import { RecordAtBatCommand } from './RecordAtBatCommand';
 import { SubstitutePlayerCommand } from './SubstitutePlayerCommand';
 
 /**
  * Validation error for CompleteAtBatSequenceCommand
  */
-export class CompleteAtBatSequenceCommandValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'CompleteAtBatSequenceCommandValidationError';
+export class CompleteAtBatSequenceCommandValidationError extends ValidationError {
+  constructor(message: string, field?: string, value?: unknown) {
+    super(message, 'CompleteAtBatSequenceCommandValidationError', field, value);
+    // Ensure correct prototype chain for instanceof checks
+    Object.setPrototypeOf(this, CompleteAtBatSequenceCommandValidationError.prototype);
   }
 }
 

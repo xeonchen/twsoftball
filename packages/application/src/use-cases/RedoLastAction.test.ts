@@ -18,6 +18,7 @@ import { RedoCommand } from '../dtos/RedoCommand';
 import { EventStore, StoredEvent } from '../ports/out/EventStore';
 import { GameRepository } from '../ports/out/GameRepository';
 import { Logger } from '../ports/out/Logger';
+import { SecureTestUtils } from '../test-utils/secure-test-utils';
 
 import { RedoLastAction } from './RedoLastAction';
 
@@ -277,7 +278,7 @@ function createMockEvent(
   eventData: Record<string, unknown> = {}
 ): DomainEvent {
   return {
-    eventId: `event-${Date.now()}-${Math.random()}`,
+    eventId: SecureTestUtils.generateEventId(),
     type: eventType,
     gameId: new GameId(gameId),
     version: 1,

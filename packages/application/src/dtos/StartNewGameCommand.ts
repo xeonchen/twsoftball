@@ -49,13 +49,16 @@
 
 import { GameId, PlayerId, JerseyNumber, FieldPosition } from '@twsoftball/domain';
 
+import { ValidationError } from '../errors/ValidationError';
+
 /**
  * Validation error for StartNewGameCommand
  */
-export class StartNewGameCommandValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'StartNewGameCommandValidationError';
+export class StartNewGameCommandValidationError extends ValidationError {
+  constructor(message: string, field?: string, value?: unknown) {
+    super(message, 'StartNewGameCommandValidationError', field, value);
+    // Ensure correct prototype chain for instanceof checks
+    Object.setPrototypeOf(this, StartNewGameCommandValidationError.prototype);
   }
 }
 
@@ -232,7 +235,9 @@ export const StartNewGameCommandValidator = {
   validateBasicFields(command: StartNewGameCommand): void {
     if (!command.homeTeamName?.trim()) {
       throw new StartNewGameCommandValidationError(
-        'Home team name is required and cannot be empty'
+        'Home team name is required and cannot be empty',
+        'homeTeamName',
+        command.homeTeamName
       );
     }
 
@@ -251,7 +256,11 @@ export const StartNewGameCommandValidator = {
     }
 
     if (!(command.gameDate instanceof Date) || isNaN(command.gameDate.getTime())) {
-      throw new StartNewGameCommandValidationError('Game date must be a valid Date object');
+      throw new StartNewGameCommandValidationError(
+        'Game date must be a valid Date object',
+        'gameDate',
+        command.gameDate
+      );
     }
 
     // Optional location validation - if provided, must not be empty
@@ -312,13 +321,17 @@ export const StartNewGameCommandValidator = {
 
     if (player.battingOrderPosition < 1 || player.battingOrderPosition > 20) {
       throw new StartNewGameCommandValidationError(
-        `Player at index ${index}: battingOrderPosition must be between 1 and 20`
+        `Player at index ${index}: battingOrderPosition must be between 1 and 20`,
+        `initialLineup[${index}].battingOrderPosition`,
+        player.battingOrderPosition
       );
     }
 
     if (!Object.values(FieldPosition).includes(player.fieldPosition)) {
       throw new StartNewGameCommandValidationError(
-        `Player at index ${index}: invalid fieldPosition`
+        `Player at index ${index}: invalid fieldPosition`,
+        `initialLineup[${index}].fieldPosition`,
+        player.fieldPosition
       );
     }
 
@@ -346,14 +359,22 @@ export const StartNewGameCommandValidator = {
     const playerIds = lineup.map(p => p.playerId.value);
     const uniquePlayerIds = new Set(playerIds);
     if (uniquePlayerIds.size !== playerIds.length) {
-      throw new StartNewGameCommandValidationError('All players must have unique player IDs');
+      throw new StartNewGameCommandValidationError(
+        'All players must have unique player IDs',
+        'initialLineup',
+        playerIds
+      );
     }
 
     // Check unique jersey numbers
     const jerseyNumbers = lineup.map(p => p.jerseyNumber.value);
     const uniqueJerseyNumbers = new Set(jerseyNumbers);
     if (uniqueJerseyNumbers.size !== jerseyNumbers.length) {
-      throw new StartNewGameCommandValidationError('All players must have unique jersey numbers');
+      throw new StartNewGameCommandValidationError(
+        'All players must have unique jersey numbers',
+        'initialLineup',
+        jerseyNumbers
+      );
     }
 
     // Check unique batting order positions
@@ -418,7 +439,11 @@ export const StartNewGameCommandValidator = {
     }
 
     if (rules.maxPlayersInLineup < 9 || rules.maxPlayersInLineup > 20) {
-      throw new StartNewGameCommandValidationError('maxPlayersInLineup must be between 9 and 20');
+      throw new StartNewGameCommandValidationError(
+        'maxPlayersInLineup must be between 9 and 20',
+        'maxPlayersInLineup',
+        rules.maxPlayersInLineup
+      );
     }
   },
 };

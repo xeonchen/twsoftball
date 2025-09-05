@@ -75,6 +75,7 @@ import {
 
 import { EventStore, StoredEvent } from '../ports/out/EventStore';
 import { Logger } from '../ports/out/Logger';
+import { SafeJsonParser } from '../utils/safe-json-parser';
 
 /**
  * Service interface for comprehensive event sourcing operations.
@@ -1130,13 +1131,12 @@ export class EventSourcingService {
         }
       }
 
-      // Check 3: Event data integrity (basic JSON parsing validation)
+      // Check 3: Event data integrity (secure JSON parsing validation)
       for (const event of events) {
-        try {
-          JSON.parse(event.eventData);
-        } catch (parseError) {
+        const parseResult = SafeJsonParser.parseEventData(event.eventData);
+        if (!parseResult.success) {
           consistencyIssues.push(
-            `Event data parsing failed for event ${event.eventId}: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`
+            `Event data parsing failed for event ${event.eventId}: ${parseResult.error}`
           );
         }
       }

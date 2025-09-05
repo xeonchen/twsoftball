@@ -58,13 +58,16 @@
 
 import { GameId } from '@twsoftball/domain';
 
+import { ValidationError } from '../errors/ValidationError';
+
 /**
  * Validation error for EndGameCommand
  */
-export class EndGameCommandValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'EndGameCommandValidationError';
+export class EndGameCommandValidationError extends ValidationError {
+  constructor(message: string, field?: string, value?: unknown) {
+    super(message, 'EndGameCommandValidationError', field, value);
+    // Ensure correct prototype chain for instanceof checks
+    Object.setPrototypeOf(this, EndGameCommandValidationError.prototype);
   }
 }
 
