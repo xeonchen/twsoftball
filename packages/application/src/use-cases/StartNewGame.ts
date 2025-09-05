@@ -87,7 +87,6 @@ import {
   InningStateId,
   FieldPosition,
   DomainEvent,
-  DomainError,
   SoftballRules,
 } from '@twsoftball/domain';
 
@@ -104,6 +103,7 @@ import { TeamLineupDTO, BattingSlotDTO } from '../dtos/TeamLineupDTO';
 import { EventStore } from '../ports/out/EventStore';
 import { GameRepository } from '../ports/out/GameRepository';
 import { Logger } from '../ports/out/Logger';
+// Note: Reverted to direct error handling to maintain architecture compliance
 
 /**
  * Use case for creating and initializing new softball games with complete setup.
@@ -943,26 +943,35 @@ export class StartNewGame {
    * @returns Failure result with appropriate error messages
    */
   private handleUnexpectedError(error: unknown, gameId: GameId): GameStartResult {
-    let errorMessage: string;
+    this.logger.error('An unexpected error occurred', error as Error, {
+      gameId: gameId.value,
+      operation: 'startNewGame',
+    });
 
-    if (error instanceof DomainError) {
-      // Domain validation errors - preserve user-friendly messages
-      errorMessage = error.message;
-    } else if (error instanceof Error) {
-      // Infrastructure or system errors - provide user-friendly translations
-      if (error.message.includes('save') || error.message.includes('repository')) {
-        errorMessage = 'Failed to save game state';
-      } else if (error.message.includes('store') || error.message.includes('event')) {
-        errorMessage = 'Failed to store game events';
-      } else {
-        errorMessage = 'An unexpected error occurred';
-      }
-    } else {
-      // Unknown error types
-      errorMessage = 'An unexpected error occurred';
-    }
-
+    const errorMessage = this.categorizeError(error);
     return this.createFailureResult(gameId, [errorMessage]);
+  }
+
+  /**
+   * Categorizes different types of errors for appropriate user messaging.
+   *
+   * @param error - The error to categorize
+   * @returns User-friendly error message
+   */
+  private categorizeError(error: unknown): string {
+    if (error instanceof Error) {
+      if (error.message.includes('Database') || error.message.includes('save')) {
+        return 'Failed to save game state';
+      }
+      if (error.message.includes('store')) {
+        return 'Failed to store game events';
+      }
+      if (error.message.includes('Domain validation failed') || error.name === 'DomainError') {
+        return 'Domain validation failed';
+      }
+      return 'An unexpected error occurred';
+    }
+    return 'An unexpected error occurred';
   }
 
   /**

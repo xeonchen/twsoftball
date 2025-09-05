@@ -950,7 +950,7 @@ export class EndInning {
         runnersInScoringPosition: [],
         basesLoaded: false,
       },
-      currentBatterSlot: transitionResult?.gameEnded ? 1 : 1, // Reset to leadoff
+      currentBatterSlot: 1, // Always reset to leadoff batter after inning ends
       homeLineup: this.buildEmptyTeamLineupDTO(game.id, 'HOME'),
       awayLineup: this.buildEmptyTeamLineupDTO(game.id, 'AWAY'),
       currentBatter: null,

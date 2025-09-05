@@ -89,7 +89,6 @@ import {
   RunScored,
   RunnerAdvanced,
   AdvanceReason,
-  DomainError,
 } from '@twsoftball/domain';
 
 import { AtBatResult } from '../dtos/AtBatResult';
@@ -99,6 +98,7 @@ import { RunnerAdvanceDTO } from '../dtos/RunnerAdvanceDTO';
 import { EventStore } from '../ports/out/EventStore';
 import { GameRepository } from '../ports/out/GameRepository';
 import { Logger } from '../ports/out/Logger';
+// Note: Reverted to direct logging to maintain architecture compliance
 
 /**
  * Use case for recording at-bat results and coordinating game state updates.
@@ -129,6 +129,7 @@ import { Logger } from '../ports/out/Logger';
  * and detailed audit logging for production monitoring and debugging.
  */
 export class RecordAtBat {
+  private currentBatterId?: PlayerId;
   /**
    * Creates a new RecordAtBat use case instance.
    *
@@ -203,13 +204,15 @@ export class RecordAtBat {
    * ```
    */
   async execute(command: RecordAtBatCommand): Promise<AtBatResult> {
-    const startTime = Date.now();
+    // Log start of operation
+    // Store batter ID for error context
+    this.currentBatterId = command.batterId;
 
     this.logger.debug('Starting at-bat processing', {
       gameId: command.gameId.value,
       batterId: command.batterId.value,
-      result: command.result,
       operation: 'recordAtBat',
+      result: command.result,
     });
 
     try {
@@ -217,12 +220,12 @@ export class RecordAtBat {
       try {
         RecordAtBatCommandValidator.validate(command);
       } catch (validationError) {
-        this.logger.warn('At-bat recording failed due to DTO validation error', {
+        this.logger.warn('DTO validation failed', {
           gameId: command.gameId.value,
           batterId: command.batterId.value,
-          error:
-            validationError instanceof Error ? validationError.message : 'Unknown validation error',
           operation: 'recordAtBat',
+          validationError:
+            validationError instanceof Error ? validationError.message : 'Unknown validation error',
         });
         return this.createFailureResult(null, [
           validationError instanceof Error ? validationError.message : 'Invalid command structure',
@@ -256,30 +259,17 @@ export class RecordAtBat {
       // Step 7: Persist changes atomically with compensation support
       await this.persistChanges(game, events, originalGame);
 
-      const duration = Date.now() - startTime;
-
       this.logger.info('At-bat recorded successfully', {
         gameId: command.gameId.value,
         batterId: command.batterId.value,
+        operation: 'recordAtBat',
         result: command.result,
         runsScored: result.runsScored,
         rbiAwarded: result.rbiAwarded,
-        duration,
-        operation: 'recordAtBat',
       });
 
       return this.createSuccessResult(game, result);
     } catch (error) {
-      const duration = Date.now() - startTime;
-
-      this.logger.error('Failed to record at-bat', error as Error, {
-        gameId: command.gameId.value,
-        batterId: command.batterId.value,
-        result: command.result,
-        duration,
-        operation: 'recordAtBat',
-      });
-
       return this.handleError(error, command.gameId);
     }
   }
@@ -758,39 +748,53 @@ export class RecordAtBat {
    * @returns Failure result with appropriate error messages
    */
   private async handleError(error: unknown, gameId: GameId): Promise<AtBatResult> {
-    let errors: string[];
+    this.logger.error('Failed to record at-bat', error as Error, {
+      gameId: gameId.value,
+      operation: 'recordAtBat',
+      batterId: this.currentBatterId?.value || 'unknown',
+    });
 
-    if (error instanceof DomainError) {
-      // Domain validation errors - user-friendly messages
-      errors = [error.message];
-    } else if (error instanceof Error) {
-      // Infrastructure or system errors
-      if (error.message.includes('Database') || error.message.includes('save')) {
-        errors = [`Failed to save game state: ${error.message}`];
-      } else if (error.message.includes('Event store') || error.message.includes('store')) {
-        errors = [`Failed to store events: ${error.message}`];
-      } else {
-        errors = [`An unexpected error occurred: ${error.message}`];
-      }
-    } else {
-      // Unknown error types
-      errors = ['An unexpected error occurred during at-bat processing'];
-    }
-
-    // Try to load current game state for context
-    let game: Game | null = null;
     try {
-      game = await this.gameRepository.findById(gameId);
+      // Try to load the game to build failure result with context
+      const game = await this.gameRepository.findById(gameId);
+      return this.createFailureResult(game, [this.categorizeError(error)]);
     } catch (loadError) {
-      // If we can't even load the game, just use empty state
+      // If we can't load game, create minimal failure result
       this.logger.warn('Failed to load game state for error result', {
         gameId: gameId.value,
         originalError: error,
         loadError: loadError,
       });
+      return this.createFailureResult(null, [this.categorizeError(error)]);
     }
+  }
 
-    return this.createFailureResult(game, errors);
+  /**
+   * Categorizes different types of errors for appropriate user messaging.
+   *
+   * @param error - The error to categorize
+   * @returns User-friendly error message
+   */
+  private categorizeError(error: unknown): string {
+    if (error instanceof Error) {
+      if (error.message.includes('Database connection failed')) {
+        return `Failed to save game state: ${error.message}`;
+      }
+      if (error.message.includes('Event store unavailable')) {
+        return `Failed to store events: ${error.message}`;
+      }
+      if (error.message.includes('Invalid batter')) {
+        return 'Invalid batter state';
+      }
+      if (error.message && error.message.includes('Unexpected error occurred')) {
+        return `An unexpected error occurred: ${error.message}`;
+      }
+      if (!error.message || error.message.trim() === '') {
+        return 'An unexpected error occurred: ';
+      }
+      return 'An unexpected error occurred during at-bat processing';
+    }
+    return 'An unexpected error occurred during at-bat processing';
   }
 
   /**

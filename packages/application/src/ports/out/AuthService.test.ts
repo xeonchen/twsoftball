@@ -10,6 +10,8 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 
+import { AUTH_TEST_CONSTANTS, getTestBackupCodes } from '../../test-utils/auth-test-constants';
+
 import type {
   AuthService,
   AuthMethod,
@@ -406,8 +408,8 @@ class MockAuthService implements AuthService {
     const result: { secret?: string; backupCodes?: string[] } = {};
 
     if (method === 'totp') {
-      result.secret = 'mock-totp-secret-123';
-      result.backupCodes = ['backup1', 'backup2', 'backup3'];
+      result.secret = AUTH_TEST_CONSTANTS.TEST_TOTP_SECRET;
+      result.backupCodes = getTestBackupCodes();
     }
 
     // Update user profile with 2FA status by creating new profile object
@@ -529,7 +531,7 @@ describe('AuthService Interface', () => {
     it('should authenticate user with local credentials successfully', async () => {
       const credentials: AuthCredentials = {
         username: 'testuser',
-        password: 'password123',
+        password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
       };
 
       const result = await authService.authenticate('local', credentials);
@@ -589,7 +591,7 @@ describe('AuthService Interface', () => {
     it('should handle two-factor authentication', async () => {
       const credentials: AuthCredentials = {
         username: 'testuser',
-        password: 'password123',
+        password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
         twoFactorCode: '123456',
       };
 
@@ -605,7 +607,7 @@ describe('AuthService Interface', () => {
       for (const method of methods) {
         const credentials: AuthCredentials = {
           username: `user-${method}`,
-          password: 'password123',
+          password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
         };
 
         const result = await authService.authenticate(method, credentials);
@@ -622,7 +624,7 @@ describe('AuthService Interface', () => {
     beforeEach(async () => {
       const result = await authService.authenticate('local', {
         username: 'testuser',
-        password: 'password123',
+        password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
       });
       sessionId = result.session!.sessionId;
     });
@@ -665,7 +667,7 @@ describe('AuthService Interface', () => {
       // Create another session for the same user
       await authService.authenticate('local', {
         username: 'testuser',
-        password: 'password123',
+        password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
       });
 
       const sessions = await authService.getUserSessions(userId);
@@ -687,7 +689,7 @@ describe('AuthService Interface', () => {
       // Create additional sessions
       await authService.authenticate('local', {
         username: 'testuser',
-        password: 'password123',
+        password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
       });
 
       await authService.terminateAllUserSessions(userId);
@@ -703,7 +705,7 @@ describe('AuthService Interface', () => {
     beforeEach(async () => {
       const result = await authService.authenticate('local', {
         username: 'testuser',
-        password: 'password123',
+        password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
       });
       tokens = result.tokens!;
     });
@@ -754,7 +756,7 @@ describe('AuthService Interface', () => {
     beforeEach(async () => {
       const result = await authService.authenticate('local', {
         username: 'testuser',
-        password: 'password123',
+        password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
       });
       userId = result.user!.id;
     });
@@ -801,7 +803,7 @@ describe('AuthService Interface', () => {
     beforeEach(async () => {
       const result = await authService.authenticate('local', {
         username: 'testuser',
-        password: 'password123',
+        password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
       });
       userId = result.user!.id;
     });
@@ -841,7 +843,7 @@ describe('AuthService Interface', () => {
     beforeEach(async () => {
       const result = await authService.authenticate('local', {
         username: 'testuser',
-        password: 'password123',
+        password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
       });
       userId = result.user!.id;
     });
@@ -930,13 +932,17 @@ describe('AuthService Interface', () => {
     beforeEach(async () => {
       const result = await authService.authenticate('local', {
         username: 'testuser',
-        password: 'password123',
+        password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
       });
       userId = result.user!.id;
     });
 
     it('should change user password', async () => {
-      await authService.changePassword(userId, 'password123', 'newpassword456');
+      await authService.changePassword(
+        userId,
+        AUTH_TEST_CONSTANTS.TEST_PASSWORD,
+        AUTH_TEST_CONSTANTS.TEST_NEW_PASSWORD
+      );
 
       const events = await authService.getSecurityEvents(userId, 'password_changed');
       expect(events).toHaveLength(1);
@@ -947,7 +953,11 @@ describe('AuthService Interface', () => {
       authService.setAuthResult(`password-${userId}`, false);
 
       await expect(
-        authService.changePassword(userId, 'wrongpassword', 'newpassword456')
+        authService.changePassword(
+          userId,
+          AUTH_TEST_CONSTANTS.TEST_WRONG_PASSWORD,
+          AUTH_TEST_CONSTANTS.TEST_NEW_PASSWORD
+        )
       ).rejects.toThrow('Current password is incorrect');
     });
 
@@ -964,7 +974,7 @@ describe('AuthService Interface', () => {
     beforeEach(async () => {
       const result = await authService.authenticate('local', {
         username: 'testuser',
-        password: 'password123',
+        password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
       });
       userId = result.user!.id;
     });
@@ -1034,7 +1044,7 @@ describe('AuthService Interface', () => {
     it('should handle concurrent authentication attempts', async () => {
       const credentials: AuthCredentials = {
         username: 'testuser',
-        password: 'password123',
+        password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
       };
 
       const promises = Array(5)
@@ -1107,7 +1117,7 @@ describe('AuthService Interface', () => {
     it('should handle all required AuthResult properties', async () => {
       const result = await authService.authenticate('local', {
         username: 'testuser',
-        password: 'password123',
+        password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
       });
 
       // Verify required properties exist
@@ -1130,7 +1140,7 @@ describe('AuthService Interface', () => {
     it('should handle all required UserProfile properties', async () => {
       const result = await authService.authenticate('local', {
         username: 'testuser',
-        password: 'password123',
+        password: AUTH_TEST_CONSTANTS.TEST_PASSWORD,
       });
 
       const profile = result.user!;
