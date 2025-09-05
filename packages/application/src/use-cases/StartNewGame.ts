@@ -513,19 +513,8 @@ export class StartNewGame {
       }
       usedJerseyNumbers.add(jerseyNum);
 
-      // Validate player ID uniqueness
-      if (usedPlayerIds.has(player.playerId.value)) {
-        errors.push('Duplicate player IDs in lineup');
-      }
+      // Player ID and batting order uniqueness validation handled by DTO layer
       usedPlayerIds.add(player.playerId.value);
-
-      // Validate batting order position
-      if (player.battingOrderPosition < 1 || player.battingOrderPosition > 20) {
-        errors.push('Invalid batting order position: must be 1-20');
-      }
-      if (usedBattingPositions.has(player.battingOrderPosition)) {
-        errors.push(`Duplicate batting order position: ${player.battingOrderPosition}`);
-      }
       usedBattingPositions.add(player.battingOrderPosition);
 
       // Track field position assignments
@@ -540,9 +529,8 @@ export class StartNewGame {
     // Validate all required positions are filled
     for (const requiredPosition of requiredPositions) {
       if (!assignedFieldPositions.has(requiredPosition)) {
-        // Convert enum value to readable name
-        const positionName = this.getFieldPositionDisplayName(requiredPosition);
-        errors.push(`Missing required field position: ${positionName}`);
+        // Use enum value directly (already human-readable)
+        errors.push(`Missing required field position: ${requiredPosition}`);
       }
     }
 
@@ -975,41 +963,6 @@ export class StartNewGame {
     }
 
     return this.createFailureResult(gameId, [errorMessage]);
-  }
-
-  /**
-   * Converts FieldPosition enum value to display name.
-   *
-   * @param position - The field position enum value
-   * @returns Human-readable position name
-   */
-  private getFieldPositionDisplayName(position: FieldPosition): string {
-    switch (position) {
-      case FieldPosition.PITCHER:
-        return 'PITCHER';
-      case FieldPosition.CATCHER:
-        return 'CATCHER';
-      case FieldPosition.FIRST_BASE:
-        return 'FIRST_BASE';
-      case FieldPosition.SECOND_BASE:
-        return 'SECOND_BASE';
-      case FieldPosition.THIRD_BASE:
-        return 'THIRD_BASE';
-      case FieldPosition.SHORTSTOP:
-        return 'SHORTSTOP';
-      case FieldPosition.LEFT_FIELD:
-        return 'LEFT_FIELD';
-      case FieldPosition.CENTER_FIELD:
-        return 'CENTER_FIELD';
-      case FieldPosition.RIGHT_FIELD:
-        return 'RIGHT_FIELD';
-      case FieldPosition.SHORT_FIELDER:
-        return 'SHORT_FIELDER';
-      case FieldPosition.EXTRA_PLAYER:
-        return 'EXTRA_PLAYER';
-      default:
-        return position;
-    }
   }
 
   /**

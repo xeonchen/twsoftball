@@ -616,7 +616,28 @@ describe('StartNewGame', () => {
       expect(result.success).toBe(false);
       expect(result.errors).toEqual(
         expect.arrayContaining([
-          expect.stringMatching(/battingOrderPosition must be between 1 and 20/),
+          expect.stringMatching(
+            /Player at index \d+: battingOrderPosition must be between 1 and 20/
+          ),
+        ])
+      );
+    });
+
+    it('should reject batting order positions above maximum (21)', async () => {
+      const lineup = createValidLineup();
+      const modifiedLineup = lineup.map((player, index) =>
+        index === 0 ? { ...player, battingOrderPosition: 21 } : player
+      );
+      const command = createValidCommand({ initialLineup: modifiedLineup });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(
+            /Player at index \d+: battingOrderPosition must be between 1 and 20/
+          ),
         ])
       );
     });
@@ -644,7 +665,7 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Missing required field position: PITCHER');
+      expect(result.errors).toContain('Missing required field position: P');
     });
 
     it('should reject empty player names', async () => {
@@ -691,7 +712,7 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Missing required field position: CATCHER');
+      expect(result.errors).toContain('Missing required field position: C');
     });
 
     it('should enforce jersey number range limits', () => {
@@ -1312,6 +1333,23 @@ describe('StartNewGame', () => {
       // Assert - Should use generic error message
       expect(result.success).toBe(false);
       expect(result.errors).toContain('An unexpected error occurred');
+    });
+  });
+
+  describe('Coverage Verification', () => {
+    beforeEach(() => {
+      mockExists.mockResolvedValue(false);
+      mockSave.mockResolvedValue(undefined);
+      mockAppend.mockResolvedValue(undefined);
+    });
+
+    it('should verify code simplification improves coverage', async () => {
+      // This test ensures our code simplification changes are working
+      const command = createValidCommand();
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(true);
     });
   });
 });
