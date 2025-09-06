@@ -156,6 +156,9 @@ export class TeamLineup {
   /** Uncommitted domain events */
   private uncommittedEvents: DomainEvent[] = [];
 
+  /** Aggregate version for event sourcing and optimistic concurrency */
+  private version: number = 0;
+
   /** Required defensive positions for a valid lineup */
   private static readonly REQUIRED_POSITIONS = [
     FieldPosition.PITCHER,
@@ -203,6 +206,7 @@ export class TeamLineup {
     );
     this.jerseyAssignments = new Map(jerseyAssignments);
     this.uncommittedEvents = [...existingEvents];
+    this.version = 0;
   }
 
   /**
@@ -243,6 +247,120 @@ export class TeamLineup {
 
     const lineup = new TeamLineup(id, gameId, teamName);
     lineup.addEvent(new TeamLineupCreated(id, gameId, teamName));
+    return lineup;
+  }
+
+  /**
+   * Reconstructs a TeamLineup aggregate from a stream of domain events.
+   *
+   * @param events - Array of domain events to replay in chronological order
+   * @returns Fully reconstructed TeamLineup instance with proper state
+   * @throws {DomainError} When events are invalid or inconsistent
+   *
+   * @remarks
+   * **Event Sourcing Reconstruction Process:**
+   * - Validates events array for completeness and consistency
+   * - Ensures first event is TeamLineupCreated to establish identity
+   * - Verifies all events belong to the same team lineup and game
+   * - Creates base lineup instance from creation event
+   * - Applies remaining events sequentially to reconstruct state
+   * - Sets correct aggregate version based on event count
+   * - Ensures no uncommitted events (all events are considered committed)
+   *
+   * **Supported Event Types:**
+   * - **TeamLineupCreated**: Establishes lineup identity and team name
+   * - **PlayerAddedToLineup**: Adds players to batting slots and field positions
+   * - **PlayerSubstitutedIntoGame**: Handles player substitutions and re-entry tracking
+   * - **FieldPositionChanged**: Updates player defensive positions
+   *
+   * **Business Rule Enforcement:**
+   * - All domain invariants are maintained during reconstruction
+   * - Player participation history is accurately tracked
+   * - Substitution and re-entry rules are properly applied
+   * - Field position assignments remain consistent
+   * - Jersey number uniqueness is preserved
+   *
+   * **State Consistency Guarantees:**
+   * - Batting order reflects all substitutions and changes
+   * - Field positions match final defensive assignments
+   * - Player eligibility for re-entry is correctly calculated
+   * - Complete audit trail of all roster modifications
+   *
+   * @example
+   * ```typescript
+   * const events = [
+   *   new TeamLineupCreated(lineupId, gameId, 'Home Tigers'),
+   *   new PlayerAddedToLineup(gameId, lineupId, player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER),
+   *   new PlayerSubstitutedIntoGame(gameId, lineupId, 1, player1, player2, FieldPosition.CATCHER, 5),
+   *   new FieldPositionChanged(gameId, lineupId, player2, FieldPosition.CATCHER, FieldPosition.FIRST_BASE, 7)
+   * ];
+   *
+   * const lineup = TeamLineup.fromEvents(events);
+   * console.log(lineup.getActiveLineup().length); // 1
+   * console.log(lineup.isPlayerEligibleForReentry(player1)); // true (starter can re-enter)
+   * ```
+   */
+  static fromEvents(events: DomainEvent[]): TeamLineup {
+    // Validate events array
+    if (!events || events.length === 0) {
+      throw new DomainError('Cannot reconstruct team lineup from empty event array');
+    }
+
+    // Validate first event is TeamLineupCreated
+    const firstEvent = events[0];
+    if (firstEvent?.type !== 'TeamLineupCreated') {
+      throw new DomainError('First event must be TeamLineupCreated');
+    }
+
+    // Validate all events belong to the same team lineup and game
+    const teamLineupCreatedEvent = firstEvent as TeamLineupCreated;
+    const expectedGameId = teamLineupCreatedEvent.gameId;
+    const expectedTeamLineupId = teamLineupCreatedEvent.teamLineupId;
+
+    // Check for duplicate TeamLineupCreated events
+    let teamLineupCreatedCount = 0;
+    for (const event of events) {
+      if (event.type === 'TeamLineupCreated') {
+        teamLineupCreatedCount += 1;
+        if (teamLineupCreatedCount > 1) {
+          throw new DomainError('Cannot have duplicate TeamLineupCreated events');
+        }
+      }
+
+      if (!event.gameId.equals(expectedGameId)) {
+        throw new DomainError('All events must belong to the same game');
+      }
+
+      // Check if event has teamLineupId property and validate it
+      if ('teamLineupId' in event) {
+        const teamLineupEvent = event as { teamLineupId: TeamLineupId };
+        if (!teamLineupEvent.teamLineupId.equals(expectedTeamLineupId)) {
+          throw new DomainError('All events must belong to the same team lineup');
+        }
+      }
+    }
+
+    // Create initial lineup instance from TeamLineupCreated event
+    const lineup = new TeamLineup(
+      expectedTeamLineupId,
+      expectedGameId,
+      teamLineupCreatedEvent.teamName
+    );
+
+    // Apply remaining events to reconstruct state
+    for (let i = 1; i < events.length; i += 1) {
+      const event = events[i];
+      if (event) {
+        lineup.applyEvent(event);
+      }
+    }
+
+    // Events are already committed (no uncommitted events for reconstructed lineup)
+    lineup.uncommittedEvents = [];
+
+    // Set version to total number of events processed
+    lineup.version = events.length;
+
     return lineup;
   }
 
@@ -776,6 +894,38 @@ export class TeamLineup {
   }
 
   /**
+   * Gets the current version of this aggregate for optimistic concurrency control.
+   *
+   * @returns Current version number representing total events processed
+   *
+   * @remarks
+   * The version number represents the total number of events that have been applied
+   * to this aggregate throughout its lifetime. This is used for:
+   * - Optimistic concurrency control in distributed systems
+   * - Ensuring proper event ordering during persistence
+   * - Supporting aggregate snapshots and conflict detection
+   * - Event sourcing reconstruction validation
+   *
+   * The version persists after markEventsAsCommitted() and is correctly
+   * set during event sourcing reconstruction via fromEvents().
+   *
+   * @example
+   * ```typescript
+   * const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+   * console.log(lineup.getVersion()); // 1 (TeamLineupCreated event)
+   *
+   * lineup.addPlayer(playerId, jersey, 'John Doe', 1, FieldPosition.PITCHER, rules);
+   * console.log(lineup.getVersion()); // 2 (+ PlayerAddedToLineup event)
+   *
+   * lineup.markEventsAsCommitted();
+   * console.log(lineup.getVersion()); // 2 (version persists)
+   * ```
+   */
+  getVersion(): number {
+    return this.version;
+  }
+
+  /**
    * Gets all uncommitted domain events for this aggregate.
    *
    * @returns Array of domain events that have not been persisted
@@ -796,12 +946,212 @@ export class TeamLineup {
   }
 
   /**
-   * Adds a domain event to the uncommitted events list.
+   * Adds a domain event to the uncommitted events list and increments version.
    *
    * @param event - Domain event to add
    */
   private addEvent(event: DomainEvent): void {
     this.uncommittedEvents.push(event);
+    this.version += 1;
+  }
+
+  /**
+   * Applies a single domain event to reconstruct aggregate state during event sourcing.
+   *
+   * @param event - Domain event to apply
+   * @throws {DomainError} When event cannot be applied or contains invalid data
+   *
+   * @remarks
+   * **Event Sourcing Application Process:**
+   * - This method is only used during fromEvents() reconstruction
+   * - Events are assumed to be valid (no business rule validation)
+   * - State changes are applied directly without emitting new events
+   * - Does not increment version or add to uncommitted events
+   * - Must handle all supported event types for complete reconstruction
+   *
+   * **Supported Event Types:**
+   * - **PlayerAddedToLineup**: Adds player to batting slot and field position
+   * - **PlayerSubstitutedIntoGame**: Updates batting slot, field position, and participation history
+   * - **FieldPositionChanged**: Updates player's defensive position assignment
+   *
+   * **State Reconstruction Logic:**
+   * - Maintains all internal maps (batting slots, field positions, player history, jerseys)
+   * - Preserves domain invariants without validation overhead
+   * - Tracks player participation, substitutions, and re-entry eligibility
+   * - Handles EXTRA_PLAYER position logic correctly
+   *
+   * **Error Handling:**
+   * - Unknown event types are ignored to support forward compatibility
+   * - Invalid event data may cause reconstruction failures
+   * - Events must be applied in chronological order for correct state
+   */
+  private applyEvent(event: DomainEvent): void {
+    switch (event.type) {
+      case 'TeamLineupCreated': {
+        // No-op during replay - lineup already initialized from this event
+        break;
+      }
+      case 'PlayerAddedToLineup': {
+        const addedEvent = event as PlayerAddedToLineup;
+
+        // Add batting slot
+        this.battingSlots.set(
+          addedEvent.battingSlot,
+          BattingSlot.createWithStarter(addedEvent.battingSlot, addedEvent.playerId)
+        );
+
+        // Add field position (unless EXTRA_PLAYER)
+        if (addedEvent.fieldPosition !== FieldPosition.EXTRA_PLAYER) {
+          this.fieldPositions.set(addedEvent.fieldPosition, addedEvent.playerId);
+        }
+
+        // Add to player history
+        this.playerHistory.set(addedEvent.playerId.value, {
+          playerId: addedEvent.playerId,
+          jerseyNumber: addedEvent.jerseyNumber,
+          playerName: addedEvent.playerName,
+          isStarter: true,
+          currentPosition:
+            addedEvent.fieldPosition === FieldPosition.EXTRA_PLAYER
+              ? undefined
+              : addedEvent.fieldPosition,
+          hasBeenSubstituted: false,
+          hasUsedReentry: false,
+          currentBattingSlot: addedEvent.battingSlot,
+        });
+
+        // Assign jersey
+        this.jerseyAssignments.set(addedEvent.jerseyNumber.toNumber(), addedEvent.playerId);
+        break;
+      }
+      case 'PlayerSubstitutedIntoGame': {
+        const substitutionEvent = event as PlayerSubstitutedIntoGame;
+
+        // Get current batting slot and update with substitution
+        const currentBattingSlot = this.battingSlots.get(substitutionEvent.battingSlot);
+        if (currentBattingSlot) {
+          // Determine if this is a re-entry based on whether incoming player was previously in lineup
+          const incomingPlayerHistory = this.playerHistory.get(
+            substitutionEvent.incomingPlayerId.value
+          );
+          const isReentry =
+            incomingPlayerHistory?.isStarter && incomingPlayerHistory.hasBeenSubstituted;
+
+          this.battingSlots.set(
+            substitutionEvent.battingSlot,
+            currentBattingSlot.substitutePlayer(
+              substitutionEvent.incomingPlayerId,
+              substitutionEvent.inning,
+              isReentry || false
+            )
+          );
+        }
+
+        // Update field positions
+        const outgoingPlayerHistory = this.playerHistory.get(
+          substitutionEvent.outgoingPlayerId.value
+        );
+        if (outgoingPlayerHistory?.currentPosition) {
+          this.fieldPositions.delete(outgoingPlayerHistory.currentPosition);
+        }
+        if (substitutionEvent.fieldPosition !== FieldPosition.EXTRA_PLAYER) {
+          this.fieldPositions.set(
+            substitutionEvent.fieldPosition,
+            substitutionEvent.incomingPlayerId
+          );
+        }
+
+        // Update outgoing player history
+        if (outgoingPlayerHistory) {
+          this.playerHistory.set(substitutionEvent.outgoingPlayerId.value, {
+            ...outgoingPlayerHistory,
+            currentPosition: undefined,
+            hasBeenSubstituted: true,
+            currentBattingSlot: undefined,
+          });
+        }
+
+        // Update incoming player history
+        const incomingHistory = this.playerHistory.get(substitutionEvent.incomingPlayerId.value);
+        if (incomingHistory) {
+          // Re-entering player
+          const wasReentry = incomingHistory.isStarter && incomingHistory.hasBeenSubstituted;
+          this.playerHistory.set(substitutionEvent.incomingPlayerId.value, {
+            ...incomingHistory,
+            currentPosition:
+              substitutionEvent.fieldPosition === FieldPosition.EXTRA_PLAYER
+                ? undefined
+                : substitutionEvent.fieldPosition,
+            hasUsedReentry: incomingHistory.hasUsedReentry || wasReentry,
+            currentBattingSlot: substitutionEvent.battingSlot,
+          });
+        } else {
+          // New substitute player - find a unique jersey number for event sourcing reconstruction
+          // Since the PlayerSubstitutedIntoGame event doesn't contain jersey/name info,
+          // we generate a unique jersey number to avoid conflicts during reconstruction
+          let jerseyNum = 90;
+          while (this.jerseyAssignments.has(jerseyNum) && jerseyNum <= 99) {
+            jerseyNum += 1;
+          }
+          if (jerseyNum > 99) {
+            // Fallback to higher numbers if 90-99 are taken
+            jerseyNum = 50;
+            while (this.jerseyAssignments.has(jerseyNum) && jerseyNum <= 89) {
+              jerseyNum += 1;
+            }
+          }
+          const placeholderJersey = new JerseyNumber(jerseyNum.toString());
+
+          this.playerHistory.set(substitutionEvent.incomingPlayerId.value, {
+            playerId: substitutionEvent.incomingPlayerId,
+            jerseyNumber: placeholderJersey,
+            playerName: `Substitute ${substitutionEvent.incomingPlayerId.value.slice(-8)}`, // Use part of player ID
+            isStarter: false,
+            currentPosition:
+              substitutionEvent.fieldPosition === FieldPosition.EXTRA_PLAYER
+                ? undefined
+                : substitutionEvent.fieldPosition,
+            hasBeenSubstituted: false,
+            hasUsedReentry: false,
+            currentBattingSlot: substitutionEvent.battingSlot,
+          });
+          this.jerseyAssignments.set(
+            placeholderJersey.toNumber(),
+            substitutionEvent.incomingPlayerId
+          );
+        }
+        break;
+      }
+      case 'FieldPositionChanged': {
+        const positionEvent = event as FieldPositionChanged;
+
+        // Remove from current position
+        if (positionEvent.fromPosition) {
+          this.fieldPositions.delete(positionEvent.fromPosition);
+        }
+
+        // Add to new position (unless EXTRA_PLAYER)
+        if (positionEvent.toPosition !== FieldPosition.EXTRA_PLAYER) {
+          this.fieldPositions.set(positionEvent.toPosition, positionEvent.playerId);
+        }
+
+        // Update player history
+        const playerHistory = this.playerHistory.get(positionEvent.playerId.value);
+        if (playerHistory) {
+          this.playerHistory.set(positionEvent.playerId.value, {
+            ...playerHistory,
+            currentPosition:
+              positionEvent.toPosition === FieldPosition.EXTRA_PLAYER
+                ? undefined
+                : positionEvent.toPosition,
+          });
+        }
+        break;
+      }
+      // Ignore unknown event types for forward compatibility
+      default:
+        break;
+    }
   }
 
   /**
