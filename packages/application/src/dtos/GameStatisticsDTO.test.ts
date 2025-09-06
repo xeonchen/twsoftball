@@ -248,7 +248,7 @@ describe('GameStatisticsDTO', () => {
         playerId: PlayerId.generate(),
         name: 'Mike Johnson',
         jerseyNumber: JerseyNumber.fromNumber(10),
-        primaryPosition: 'DH',
+        primaryPosition: 'EP',
         batting: {
           plateAppearances: 4,
           atBats: 3,
@@ -269,7 +269,7 @@ describe('GameStatisticsDTO', () => {
         achievements: ['contact_hitter'],
       };
 
-      expect(dhPerformance.primaryPosition).toBe('DH');
+      expect(dhPerformance.primaryPosition).toBe('EP');
       expect(dhPerformance.fielding).toBeNull();
       expect(dhPerformance.batting.strikeouts).toBe(0);
     });

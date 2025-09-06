@@ -308,6 +308,118 @@ describe('StartNewGameCommand', () => {
       ).toHaveLength(2);
     });
 
+    it('should handle 25-player lineup (large roster with flexible positions)', () => {
+      const twentyFivePlayerLineup: LineupPlayerDTO[] = [];
+
+      // Add 10 fielding players first (including SF)
+      for (let i = 1; i <= 10; i++) {
+        twentyFivePlayerLineup.push({
+          playerId: PlayerId.generate(),
+          name: `Player ${i}`,
+          jerseyNumber: JerseyNumber.fromNumber(i),
+          battingOrderPosition: i,
+          fieldPosition: [
+            FieldPosition.PITCHER,
+            FieldPosition.CATCHER,
+            FieldPosition.FIRST_BASE,
+            FieldPosition.SECOND_BASE,
+            FieldPosition.THIRD_BASE,
+            FieldPosition.SHORTSTOP,
+            FieldPosition.LEFT_FIELD,
+            FieldPosition.CENTER_FIELD,
+            FieldPosition.RIGHT_FIELD,
+            FieldPosition.SHORT_FIELDER,
+          ][i - 1]!,
+          preferredPositions: [],
+        });
+      }
+
+      // Add 15 extra players for flexible roster
+      for (let i = 11; i <= 25; i++) {
+        twentyFivePlayerLineup.push({
+          playerId: PlayerId.generate(),
+          name: `Roster Player ${i}`,
+          jerseyNumber: JerseyNumber.fromNumber(i),
+          battingOrderPosition: i,
+          fieldPosition: FieldPosition.EXTRA_PLAYER,
+          preferredPositions: [FieldPosition.LEFT_FIELD, FieldPosition.RIGHT_FIELD],
+        });
+      }
+
+      const command = {
+        ...validCommand,
+        initialLineup: twentyFivePlayerLineup,
+        gameRules: {
+          ...gameRules,
+          maxPlayersInLineup: 30, // Allow large roster
+        },
+      };
+
+      expect(command.initialLineup).toHaveLength(25);
+      expect(command.initialLineup.some(p => p.fieldPosition === FieldPosition.SHORT_FIELDER)).toBe(
+        true
+      );
+      expect(
+        command.initialLineup.filter(p => p.fieldPosition === FieldPosition.EXTRA_PLAYER)
+      ).toHaveLength(15);
+    });
+
+    it('should handle 30-player lineup (maximum allowed roster)', () => {
+      const thirtyPlayerLineup: LineupPlayerDTO[] = [];
+
+      // Add 10 fielding players first (including SF)
+      for (let i = 1; i <= 10; i++) {
+        thirtyPlayerLineup.push({
+          playerId: PlayerId.generate(),
+          name: `Player ${i}`,
+          jerseyNumber: JerseyNumber.fromNumber(i),
+          battingOrderPosition: i,
+          fieldPosition: [
+            FieldPosition.PITCHER,
+            FieldPosition.CATCHER,
+            FieldPosition.FIRST_BASE,
+            FieldPosition.SECOND_BASE,
+            FieldPosition.THIRD_BASE,
+            FieldPosition.SHORTSTOP,
+            FieldPosition.LEFT_FIELD,
+            FieldPosition.CENTER_FIELD,
+            FieldPosition.RIGHT_FIELD,
+            FieldPosition.SHORT_FIELDER,
+          ][i - 1]!,
+          preferredPositions: [],
+        });
+      }
+
+      // Add 20 extra players for maximum roster
+      for (let i = 11; i <= 30; i++) {
+        thirtyPlayerLineup.push({
+          playerId: PlayerId.generate(),
+          name: `Roster Player ${i}`,
+          jerseyNumber: JerseyNumber.fromNumber(i),
+          battingOrderPosition: i,
+          fieldPosition: FieldPosition.EXTRA_PLAYER,
+          preferredPositions: [FieldPosition.LEFT_FIELD, FieldPosition.RIGHT_FIELD],
+        });
+      }
+
+      const command = {
+        ...validCommand,
+        initialLineup: thirtyPlayerLineup,
+        gameRules: {
+          ...gameRules,
+          maxPlayersInLineup: 30, // Allow maximum roster
+        },
+      };
+
+      expect(command.initialLineup).toHaveLength(30);
+      expect(command.initialLineup.some(p => p.fieldPosition === FieldPosition.SHORT_FIELDER)).toBe(
+        true
+      );
+      expect(
+        command.initialLineup.filter(p => p.fieldPosition === FieldPosition.EXTRA_PLAYER)
+      ).toHaveLength(20);
+    });
+
     it('should handle lineup player properties correctly', () => {
       const command = validCommand;
       const firstPlayer = command.initialLineup[0];
@@ -406,6 +518,37 @@ describe('StartNewGameCommand', () => {
 
       expect(command.gameRules.maxPlayersInLineup).toBe(15);
       expect(command.gameRules.extraPlayerAllowed).toBe(true);
+    });
+
+    it('should handle large roster sizes (25+ players)', () => {
+      const largeRosterRules: GameRulesDTO = {
+        ...gameRules,
+        maxPlayersInLineup: 30,
+        extraPlayerAllowed: true,
+      };
+
+      const command = {
+        ...validCommand,
+        gameRules: largeRosterRules,
+      };
+
+      expect(command.gameRules.maxPlayersInLineup).toBe(30);
+      expect(command.gameRules.extraPlayerAllowed).toBe(true);
+    });
+
+    it('should allow maxPlayersInLineup of 25 (common flexible roster size)', () => {
+      const flexibleRosterRules: GameRulesDTO = {
+        ...gameRules,
+        maxPlayersInLineup: 25,
+        extraPlayerAllowed: true,
+      };
+
+      const command = {
+        ...validCommand,
+        gameRules: flexibleRosterRules,
+      };
+
+      expect(command.gameRules.maxPlayersInLineup).toBe(25);
     });
   });
 
@@ -596,8 +739,8 @@ describe('StartNewGameCommand', () => {
         );
       });
 
-      it('should throw error for lineup with more than 20 players', () => {
-        const longLineup = Array.from({ length: 21 }, (_, i) => ({
+      it('should throw error for lineup with more than 30 players', () => {
+        const longLineup = Array.from({ length: 31 }, (_, i) => ({
           playerId: PlayerId.generate(),
           name: `Player ${i + 1}`,
           jerseyNumber: JerseyNumber.fromNumber(i + 1),
@@ -608,7 +751,7 @@ describe('StartNewGameCommand', () => {
         const invalidCommand = { ...validCommand, initialLineup: longLineup };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
           expect.objectContaining({
-            message: 'Initial lineup cannot exceed 20 players',
+            message: 'Initial lineup cannot exceed 30 players',
             name: 'StartNewGameCommandValidationError',
           }) as Error
         );
@@ -658,21 +801,21 @@ describe('StartNewGameCommand', () => {
         invalidLineup[0] = { ...lineupPlayers[0]!, battingOrderPosition: 0 };
         const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrowError(
-          'Player at index 0: battingOrderPosition must be between 1 and 20'
+          'Player at index 0: battingOrderPosition must be between 1 and 30'
         );
       });
 
       it('should throw error for invalid batting order position (too high)', () => {
         const invalidLineup = [...lineupPlayers];
-        invalidLineup[0] = { ...lineupPlayers[0]!, battingOrderPosition: 21 };
+        invalidLineup[0] = { ...lineupPlayers[0]!, battingOrderPosition: 31 };
         const invalidCommand = { ...validCommand, initialLineup: invalidLineup };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
           expect.objectContaining({
-            message: 'Player at index 0: battingOrderPosition must be between 1 and 20',
+            message: 'Player at index 0: battingOrderPosition must be between 1 and 30',
             name: 'StartNewGameCommandValidationError',
             validationContext: expect.objectContaining({
               field: 'initialLineup[0].battingOrderPosition',
-              value: 21,
+              value: 31,
             }),
           }) as Error
         );
@@ -923,7 +1066,7 @@ describe('StartNewGameCommand', () => {
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
           expect.objectContaining({
             message:
-              'maxPlayersInLineup must be between 9 and 20 (10-player standard, 11-12 common)',
+              'maxPlayersInLineup must be between 9 and 30 (10-player standard, 11-12 common, 25+ for flexible rosters)',
             name: 'StartNewGameCommandValidationError',
             validationContext: expect.objectContaining({
               field: 'maxPlayersInLineup',
@@ -933,16 +1076,16 @@ describe('StartNewGameCommand', () => {
       });
 
       it('should throw error for invalid maxPlayersInLineup (too high)', () => {
-        const invalidRules = { ...gameRules, maxPlayersInLineup: 21 };
+        const invalidRules = { ...gameRules, maxPlayersInLineup: 31 };
         const invalidCommand = { ...validCommand, gameRules: invalidRules };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
           expect.objectContaining({
             message:
-              'maxPlayersInLineup must be between 9 and 20 (10-player standard, 11-12 common)',
+              'maxPlayersInLineup must be between 9 and 30 (10-player standard, 11-12 common, 25+ for flexible rosters)',
             name: 'StartNewGameCommandValidationError',
             validationContext: expect.objectContaining({
               field: 'maxPlayersInLineup',
-              value: 21,
+              value: 31,
             }),
           }) as Error
         );

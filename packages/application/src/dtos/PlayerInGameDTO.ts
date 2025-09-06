@@ -48,7 +48,7 @@ import { PlayerStatisticsDTO } from './PlayerStatisticsDTO';
  *
  * Batting order position rules:
  * - Positions 1-9: Required starting lineup positions
- * - Positions 10-20: Extra players/Designated Hitter positions (optional)
+ * - Positions 10-30: Extra player positions (optional)
  * - Position 0: Bench player (not in batting order)
  *
  * Field position assignments:
@@ -72,7 +72,7 @@ export interface PlayerInGameDTO {
   /**
    * Current position in batting order
    * 1-9: Starting lineup positions
-   * 10-20: Extra player/DH positions
+   * 10-30: Extra player positions
    * 0: Bench player (not in batting order)
    */
   readonly battingOrderPosition: number;

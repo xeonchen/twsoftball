@@ -11,7 +11,7 @@ import { SoftballRules } from '../rules/SoftballRules';
  *
  * **Domain Context:** Batting slots determine the order in which players bat.
  * Traditional softball uses positions 1-9 for the standard lineup, with positions
- * 10+ used for Extra Players (EP) and Designated Hitters (DH) depending on rules.
+ * 10+ used for Extra Players (EP) depending on rules.
  *
  * **Configurable Validation:** The maximum allowed batting slot is determined by
  * SoftballRules.maxPlayersPerTeam, allowing different leagues to have different
@@ -22,7 +22,7 @@ import { SoftballRules } from '../rules/SoftballRules';
  *
  * @example
  * ```typescript
- * const rules = new SoftballRules({ maxPlayersPerTeam: 20 });
+ * const rules = new SoftballRules({ maxPlayersPerTeam: 15 });
  *
  * // Valid batting slot
  * BattingSlotValidation.validateBattingSlot(5, rules);  //  Valid
@@ -45,12 +45,12 @@ export class BattingSlotValidation {
    * The valid range is always 1 to rules.maxPlayersPerTeam (inclusive), where:
    * - Position 1: Leadoff batter
    * - Positions 2-9: Traditional batting order positions
-   * - Positions 10+: Extra Players (EP) and Designated Hitters (DH) if allowed by rules
+   * - Positions 10+: Extra Players (EP) if allowed by rules
    *
    * **Business Rules:**
    * - Minimum batting slot is always 1 (no zero-based indexing in softball)
    * - Maximum is configurable via SoftballRules.maxPlayersPerTeam
-   * - Common configurations: 9 (traditional), 15-25 (with EP/DH), up to 50 (large leagues)
+   * - Common configurations: 9 (boundary case), 10 (standard), 15-25 (with EP), up to 50 (large leagues)
    *
    * **Usage Patterns:**
    * This validation is used across multiple domain contexts:
@@ -71,7 +71,7 @@ export class BattingSlotValidation {
    * BattingSlotValidation.validateBattingSlot(10, standardRules); //  Above limit
    *
    * // Extended lineup with Extra Players
-   * const extendedRules = new SoftballRules({ maxPlayersPerTeam: 20 });
+   * const extendedRules = new SoftballRules({ maxPlayersPerTeam: 15 });
    * BattingSlotValidation.validateBattingSlot(15, extendedRules); //  Valid EP slot
    * BattingSlotValidation.validateBattingSlot(25, extendedRules); //  Above limit
    *

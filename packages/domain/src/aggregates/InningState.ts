@@ -90,7 +90,7 @@ export interface InningGameSituation {
  * **Softball-Specific Business Rules:**
  * - **Inning Structure**: Each inning has top half (away team bats) and bottom half (home team bats)
  * - **Out Management**: Three outs end a half-inning, clearing bases and switching sides
- * - **Batting Order**: Supports 1-20 batting slots (9 starters + up to 11 Extra Players/DH)
+ * - **Batting Order**: Supports 1-20 batting slots (10 starters + up to 10 Extra Players)
  * - **Base Running**: Uses existing BasesState for force play logic and scoring position tracking
  * - **At-Bat Results**: Handles all standard results (hits, walks, outs, errors, etc.)
  *
@@ -247,7 +247,7 @@ export class InningState {
    * Gets the current batting slot position in the batting order.
    *
    * @remarks
-   * - Range: 1-20 (supports standard 9-player lineups plus Extra Players/DH)
+   * - Range: 1-20 (supports standard 10-player lineups plus Extra Players)
    * - Cycles: After slot 20 (or maximum slot), returns to slot 1
    * - Advances: Increments after each completed at-bat regardless of result
    */
@@ -684,7 +684,7 @@ export class InningState {
    * situations during testing.
    *
    * **Validation**: Ensures batting slot is within the valid softball range
-   * of 1-20 (supporting Extra Players and Designated Hitters).
+   * of 1-20 (supporting Extra Players).
    */
   withCurrentBattingSlot(battingSlot: number): InningState {
     InningState.validateBattingSlot(battingSlot);

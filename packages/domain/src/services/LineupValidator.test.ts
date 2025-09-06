@@ -69,32 +69,58 @@ describe('LineupValidator', () => {
     });
 
     describe('Maximum Players Limitation', () => {
-      it('should throw error for lineup with more than 20 players', () => {
-        // Create 21 players - but we can only test this conceptually since BattingSlot max is 20
-        // We'll test with an array that's too long conceptually
+      it('should throw error for lineup with more than 25 players (default limit)', () => {
+        // Create lineup at maximum size (25 players with default rules)
         const positions = Array.from({ length: 20 }, (_, i) => i + 1); // Max valid positions
-        const playerIds = Array.from({ length: 21 }, (_, i) => `p${i + 1}`); // More players than positions
-        const jerseyNums = Array.from({ length: 21 }, (_, i) => i + 1);
+        const playerIds = Array.from({ length: 25 }, (_, i) => `p${i + 1}`);
+        const jerseyNums = Array.from({ length: 25 }, (_, i) => i + 1);
 
-        // This simulates having more players than valid positions
-        // In practice, we test the validator's size check directly
-        expect(() => {
-          LineupValidator.validateLineupConfiguration([
-            ...createLineupData(positions, playerIds.slice(0, 20), jerseyNums.slice(0, 20)),
-            // Can't actually create a 21st slot due to BattingSlot constraints
-            // So we test the size validation logic directly in another test
-          ]);
-        }).not.toThrow(); // This should pass since we have exactly 20
-
-        // Test the size validation with custom rules that limit to 20 players
-        const rules = new SoftballRules({ maxPlayersPerTeam: 20 });
-        // Remove the duplicate slot and create a proper oversized array for testing
+        // Test with exactly 25 players (should pass with default rules)
         const validLineup = createLineupData(
-          Array.from({ length: 20 }, (_, i) => i + 1),
-          Array.from({ length: 20 }, (_, i) => `p${i + 1}`),
-          Array.from({ length: 20 }, (_, i) => i + 1)
+          positions,
+          playerIds.slice(0, 20),
+          jerseyNums.slice(0, 20)
         );
-        // Add one more entry to make it oversized (but manually since BattingSlot won't allow invalid slots)
+        expect(() => {
+          LineupValidator.validateLineupConfiguration(validLineup);
+        }).not.toThrow();
+
+        // Create an oversized lineup with 26 unique entries
+        // We can't use more than 20 batting slots, so we'll create a valid 20-slot lineup
+        // then add 6 more entries as "additional players" with the same batting slot positions
+        // but different player IDs and jersey numbers to simulate an oversized roster
+
+        // Create additional entries by duplicating some positions with different players
+        const additionalPlayers = Array.from({ length: 6 }, (_, i) => ({
+          battingSlot: BattingSlot.createWithStarter(i + 1, createPlayer(`extra-player-${i + 1}`)),
+          jerseyNumber: createJersey(i + 50), // Use valid jersey numbers to avoid conflicts
+          fieldPosition: FieldPosition.EXTRA_PLAYER,
+        }));
+
+        const oversizedLineup = [...validLineup, ...additionalPlayers];
+
+        expect(() => {
+          LineupValidator.validateLineupConfiguration(oversizedLineup);
+        }).toThrow(DomainError);
+        expect(() => {
+          LineupValidator.validateLineupConfiguration(oversizedLineup);
+        }).toThrow('up to 25 maximum');
+      });
+
+      it('should respect custom maxPlayersPerTeam rules', () => {
+        // Test with custom rules that limit to 15 players
+        const rules = new SoftballRules({ maxPlayersPerTeam: 15 });
+        const validLineup = createLineupData(
+          Array.from({ length: 15 }, (_, i) => i + 1),
+          Array.from({ length: 15 }, (_, i) => `p${i + 1}`),
+          Array.from({ length: 15 }, (_, i) => i + 1)
+        );
+
+        expect(() => {
+          LineupValidator.validateLineupConfiguration(validLineup, rules);
+        }).not.toThrow();
+
+        // Add one more entry to exceed the limit
         const oversizedManual = [
           ...validLineup,
           validLineup[0]!, // Duplicate first entry to make array longer
@@ -104,7 +130,7 @@ describe('LineupValidator', () => {
         }).toThrow(DomainError);
         expect(() => {
           LineupValidator.validateLineupConfiguration(oversizedManual, rules);
-        }).toThrow('up to 20 maximum');
+        }).toThrow('up to 15 maximum');
       });
 
       it('should accept lineup with exactly 20 players', () => {
@@ -136,7 +162,7 @@ describe('LineupValidator', () => {
         }).toThrow('Batting slots 1-9 must be filled before using slots 10+');
       });
 
-      it('should accept lineup with slots 1-9 filled and additional EP/DH slots', () => {
+      it('should accept lineup with slots 1-9 filled and additional EP slots', () => {
         const lineupData = createLineupData(
           [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], // Complete 1-9 plus EP slots
           ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10', 'p11', 'p12'],
@@ -148,7 +174,7 @@ describe('LineupValidator', () => {
         }).not.toThrow();
       });
 
-      it('should throw error for gaps in EP/DH slots (missing slot 10 but using 11)', () => {
+      it('should throw error for gaps in EP slots (missing slot 10 but using 11)', () => {
         const lineupData = createLineupData(
           [1, 2, 3, 4, 5, 6, 7, 8, 9, 11], // Missing slot 10, using slot 11
           ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p11'],
@@ -160,7 +186,7 @@ describe('LineupValidator', () => {
         }).toThrow(DomainError);
         expect(() => {
           LineupValidator.validateLineupConfiguration(lineupData);
-        }).toThrow('EP/DH slots must be used sequentially');
+        }).toThrow('EP slots must be used sequentially');
       });
     });
 
@@ -314,7 +340,7 @@ describe('LineupValidator', () => {
         }).not.toThrow();
       });
 
-      it('should allow EXTRA_PLAYER position for designated hitters', () => {
+      it('should allow EXTRA_PLAYER position for batting-only players', () => {
         const lineupData: LineupEntry[] = [
           ...createLineupData(
             [1, 2, 3, 4, 5, 6, 7, 8, 9],
@@ -324,7 +350,7 @@ describe('LineupValidator', () => {
           {
             battingSlot: BattingSlot.createWithStarter(10, createPlayer('p10')),
             jerseyNumber: createJersey(10),
-            fieldPosition: FieldPosition.EXTRA_PLAYER, // DH
+            fieldPosition: FieldPosition.EXTRA_PLAYER, // EP
           },
         ];
 
@@ -343,6 +369,37 @@ describe('LineupValidator', () => {
           const slotNumber = i + 1;
 
           // Get field position - use standard positions for first 9, then extras
+          const standardPositions = [
+            FieldPosition.PITCHER,
+            FieldPosition.CATCHER,
+            FieldPosition.FIRST_BASE,
+            FieldPosition.SECOND_BASE,
+            FieldPosition.THIRD_BASE,
+            FieldPosition.SHORTSTOP,
+            FieldPosition.LEFT_FIELD,
+            FieldPosition.CENTER_FIELD,
+            FieldPosition.RIGHT_FIELD,
+          ];
+          const fieldPosition = i < 9 ? standardPositions[i]! : FieldPosition.EXTRA_PLAYER;
+
+          return {
+            battingSlot: BattingSlot.createWithStarter(slotNumber, player.playerId),
+            jerseyNumber: player.jerseyNumber,
+            fieldPosition,
+          };
+        });
+
+        expect(() => {
+          LineupValidator.validateLineupConfiguration(lineupData);
+        }).not.toThrow();
+      });
+
+      it('should accept lineup with maximum allowed players (25 by default)', () => {
+        // Test with exactly the maximum allowed players but only 20 batting slots
+        const players = TestPlayerFactory.createPlayers(20);
+
+        const lineupData = players.map((player, i) => {
+          const slotNumber = i + 1;
           const standardPositions = [
             FieldPosition.PITCHER,
             FieldPosition.CATCHER,
@@ -453,10 +510,15 @@ describe('LineupValidator', () => {
     });
 
     it('should respect custom rules configuration', () => {
-      const rules = new SoftballRules({ maxPlayersPerTeam: 20 });
+      const rules = new SoftballRules({ maxPlayersPerTeam: 15 });
       expect(LineupValidator.isValidLineupSize(9, rules)).toBe(true);
-      expect(LineupValidator.isValidLineupSize(20, rules)).toBe(true);
-      expect(LineupValidator.isValidLineupSize(21, rules)).toBe(false);
+      expect(LineupValidator.isValidLineupSize(15, rules)).toBe(true);
+      expect(LineupValidator.isValidLineupSize(16, rules)).toBe(false);
+
+      const strictRules = new SoftballRules({ maxPlayersPerTeam: 20 });
+      expect(LineupValidator.isValidLineupSize(9, strictRules)).toBe(true);
+      expect(LineupValidator.isValidLineupSize(20, strictRules)).toBe(true);
+      expect(LineupValidator.isValidLineupSize(21, strictRules)).toBe(false);
     });
   });
 
@@ -488,7 +550,7 @@ describe('LineupValidator', () => {
       );
       expect(() => LineupValidator.validateLineupConfiguration(minimalLineup)).not.toThrow();
 
-      // 2. Maximum 20 batting slots (9 starters + 11 EP/DH)
+      // 2. Maximum 20 batting slots (10 starters + 10 EP), with up to 25 total players by default
       const maxLineup = createLineupData(
         Array.from({ length: 20 }, (_, i) => i + 1),
         Array.from({ length: 20 }, (_, i) => `p${i + 1}`),

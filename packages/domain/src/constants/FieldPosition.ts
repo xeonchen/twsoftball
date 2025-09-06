@@ -17,7 +17,7 @@
  *
  * **Softball-Specific Positions**:
  * - SHORT_FIELDER: 10th fielder positioned in shallow outfield (slow-pitch only)
- * - EXTRA_PLAYER: Designated hitter role, bats but doesn't play defense
+ * - EXTRA_PLAYER: Batting-only role, bats but doesn't play defense
  *
  * **Common Lineup Configurations**:
  * - 10-player standard: Uses all positions including SHORT_FIELDER (most common)
@@ -67,6 +67,6 @@ export enum FieldPosition {
 
   /** 10th fielder positioned in shallow outfield (slow-pitch softball specific) */
   SHORT_FIELDER = 'SF',
-  /** Designated hitter who bats but doesn't play defense */
+  /** Batting-only player who bats but doesn't play defense */
   EXTRA_PLAYER = 'EP',
 }

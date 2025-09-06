@@ -7,7 +7,7 @@
  * aggregate. It includes both the batting order configuration and current field
  * position assignments, along with historical information about substitutions.
  *
- * The batting slots represent the permanent batting order positions (1-20),
+ * The batting slots represent the permanent batting order positions (1-30),
  * while field positions show current defensive assignments. Players can be
  * substituted in and out of the game, but their batting slot number remains
  * constant throughout the game.
@@ -78,7 +78,7 @@ export interface TeamLineupDTO {
 
   /**
    * Batting order slots with current assignments and history
-   * Slots 1-9 are required starters, 10-20 are for extra players/DH
+   * Slots 1-9 are required starters, 10-30 are for extra players
    */
   readonly battingSlots: BattingSlotDTO[];
 
@@ -106,18 +106,18 @@ export interface TeamLineupDTO {
  *
  * @remarks
  * Each batting slot represents a permanent position in the batting order.
- * The slot number (1-20) never changes, but the player assigned to that
+ * The slot number (1-30) never changes, but the player assigned to that
  * slot can change through substitution. The history tracks all players
  * who have occupied this slot during the game.
  *
  * Batting slot rules:
  * - Slot numbers 1-9: Required starting positions
- * - Slot numbers 10-20: Extra players/Designated Hitters (optional)
+ * - Slot numbers 10-30: Extra players (optional)
  * - Players must bat in numerical slot order
  * - Substitutions maintain slot assignments
  */
 export interface BattingSlotDTO {
-  /** Permanent batting order position (1-20) */
+  /** Permanent batting order position (1-30) */
   readonly slotNumber: number;
 
   /**

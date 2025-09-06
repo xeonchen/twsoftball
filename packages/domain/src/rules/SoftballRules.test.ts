@@ -19,7 +19,7 @@ describe('SoftballRules', () => {
         { differential: 7, afterInning: 5 },
       ]);
       expect(rules.maxExtraInnings).toBe(0);
-      expect(rules.allowTieGames).toBe(false);
+      expect(rules.allowTieGames).toBe(true);
     });
 
     it('should create rules with custom values', () => {
@@ -196,7 +196,7 @@ describe('SoftballRules', () => {
     });
 
     it('should accept valid maxExtraInnings', () => {
-      const rules1 = new SoftballRules({ maxExtraInnings: null });
+      const rules1 = new SoftballRules({ maxExtraInnings: null, allowTieGames: false });
       expect(rules1.maxExtraInnings).toBe(null);
 
       const rules2 = new SoftballRules({ maxExtraInnings: 0 });
@@ -438,11 +438,15 @@ describe('SoftballRules', () => {
     it('should handle tie games at regulation', () => {
       const rules = new SoftballRules({ totalInnings: 7 });
 
-      expect(rules.isGameComplete(5, 5, 7)).toBe(false); // tied, continues
+      expect(rules.isGameComplete(5, 5, 7)).toBe(true); // tied, ends due to no extra innings and ties allowed
     });
 
     it('should handle extra innings', () => {
-      const rules = new SoftballRules({ totalInnings: 7 });
+      const rules = new SoftballRules({
+        totalInnings: 7,
+        maxExtraInnings: null,
+        allowTieGames: false,
+      });
 
       expect(rules.isGameComplete(5, 6, 8)).toBe(true); // winner in extra innings
       expect(rules.isGameComplete(5, 5, 12)).toBe(false); // still tied in extras
@@ -569,7 +573,7 @@ describe('SoftballRules', () => {
           { differential: 7, afterInning: 5 },
         ],
         maxExtraInnings: 0,
-        allowTieGames: false,
+        allowTieGames: true,
       }); // explicit defaults
 
       expect(rules1.equals(rules2)).toBe(true);
@@ -709,7 +713,7 @@ describe('SoftballRules', () => {
       expect(str).toContain('allowReEntry=true');
       expect(str).toContain('mercyRule=tiers: [10 runs at inning 4, 7 runs at inning 5]');
       expect(str).toContain('maxExtraInnings=unlimited');
-      expect(str).toContain('allowTieGames=not allowed');
+      expect(str).toContain('allowTieGames=allowed');
     });
 
     it('should show mercy rule tiers in string representation', () => {
@@ -756,15 +760,20 @@ describe('SoftballRules', () => {
       expect(rules.mercyRuleTiers).toEqual([{ differential: 10, afterInning: 4 }]);
     });
 
-    it('should create youth league rules', () => {
-      const rules = SoftballRules.youthLeague();
+    it('should create standard rules', () => {
+      const rules = SoftballRules.standard();
 
-      expect(rules.totalInnings).toBe(5);
-      expect(rules.maxPlayersPerTeam).toBe(15);
-      expect(rules.timeLimitMinutes).toBe(75);
+      expect(rules.totalInnings).toBe(7);
+      expect(rules.maxPlayersPerTeam).toBe(25);
+      expect(rules.timeLimitMinutes).toBe(60);
       expect(rules.allowReEntry).toBe(true);
       expect(rules.mercyRuleEnabled).toBe(true);
-      expect(rules.mercyRuleTiers).toEqual([{ differential: 12, afterInning: 2 }]);
+      expect(rules.mercyRuleTiers).toEqual([
+        { differential: 10, afterInning: 4 },
+        { differential: 7, afterInning: 5 },
+      ]);
+      expect(rules.maxExtraInnings).toBe(0);
+      expect(rules.allowTieGames).toBe(true);
     });
   });
 });

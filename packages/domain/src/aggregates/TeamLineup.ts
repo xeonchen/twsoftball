@@ -79,7 +79,7 @@ interface PlayerParticipationHistory {
  * - **Rule Validation**: Prevent invalid lineup configurations and rule violations
  *
  * **Softball-Specific Business Rules:**
- * - **Batting Slots**: Support configurable player limits (standard 9 + Extra Players/DH per SoftballRules.maxPlayersPerTeam)
+ * - **Batting Slots**: Support configurable player limits (standard 10 + Extra Players per SoftballRules.maxPlayersPerTeam)
  * - **Jersey Numbers**: Must be unique within team, typically 1-99 range
  * - **Re-entry Rule**: Original starters can re-enter the game once after substitution
  * - **Position Coverage**: Track defensive positions, multiple players can be EXTRA_PLAYER
@@ -269,7 +269,7 @@ export class TeamLineup {
    * **Player Classification:**
    * - Players added via this method are marked as "starters"
    * - Starters are eligible for re-entry after substitution
-   * - EXTRA_PLAYER position allows multiple players (designated hitters)
+   * - EXTRA_PLAYER position allows multiple players (batting-only players)
    *
    * **State Changes:**
    * - Creates batting slot with player as initial starter
@@ -301,7 +301,7 @@ export class TeamLineup {
       throw new DomainError('Player is already in the lineup');
     }
 
-    // EXTRA_PLAYER doesn't occupy field positions (they're designated hitters)
+    // EXTRA_PLAYER doesn't occupy field positions (they're batting-only players)
     if (fieldPosition !== FieldPosition.EXTRA_PLAYER) {
       if (this.fieldPositions.has(fieldPosition)) {
         throw new DomainError(`Field position ${fieldPosition} is already assigned`);
@@ -583,7 +583,7 @@ export class TeamLineup {
    * **Common Scenarios:**
    * - Pitcher moving to first base, first baseman taking mound
    * - Outfield rotations based on batter tendencies
-   * - Moving player to/from EXTRA_PLAYER (designated hitter) status
+   * - Moving player to/from EXTRA_PLAYER (batting-only player) status
    * - Strategic defensive positioning adjustments
    *
    * **State Changes:**

@@ -198,7 +198,7 @@ describe('TeamLineup', () => {
       ).toThrow(DomainError);
     });
 
-    it('allows EXTRA_PLAYER position for multiple players (designated hitters)', () => {
+    it('allows EXTRA_PLAYER position for multiple players (batting-only players)', () => {
       let updatedLineup = lineup.addPlayer(
         player1,
         jersey1,

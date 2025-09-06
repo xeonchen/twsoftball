@@ -13,8 +13,8 @@ import { DomainEvent } from './DomainEvent';
  * event sourcing reconstruction of game state.
  *
  * **Batting Order Mechanics:**
- * - Softball teams have 1-20 possible batting slots (9 starters + up to 11 EP/DH)
- * - Order advances sequentially: 1 → 2 → 3 → ... → 9 → 1 (or up to 20)
+ * - Softball teams have 1-20 possible batting slots (10 starters + up to 10 EP)
+ * - Order advances sequentially: 1 → 2 → 3 → ... → 10 → 1 (standard) or up to 20
  * - Advancement occurs after each at-bat completion (regardless of outcome)
  * - Order persists across half-innings but resets batting slot position
  * - Substitutions may change which player occupies a batting slot
@@ -125,7 +125,7 @@ export class CurrentBatterChanged extends DomainEvent {
    *
    * **Business Context:**
    * - 1-9: Standard starting lineup positions
-   * - 10-20: Extra Players (EP) and Designated Hitters (DH) in some leagues
+   * - 10-20: Extra Players (EP) in some leagues
    * - Slot changes typically sequential but may skip due to substitutions
    * - Validation ensures data integrity for batting order tracking
    */

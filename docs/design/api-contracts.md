@@ -138,7 +138,7 @@ interface SoftballRules {
   };
   lineup: {
     minimumPlayers: number; // Default: 10 (standard lineup)
-    maximumPlayers: number; // Default: 15 (reasonable upper bound)
+    maximumPlayers: number; // Default: 30 (supports large tournament rosters)
     allowExtraPlayer: boolean; // Default: true
   };
 }

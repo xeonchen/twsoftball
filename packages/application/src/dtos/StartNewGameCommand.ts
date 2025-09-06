@@ -41,7 +41,7 @@
  *     mercyRuleInning5: 10,
  *     timeLimitMinutes: 60,
  *     extraPlayerAllowed: true,
- *     maxPlayersInLineup: 12  // 10-player standard, 11-12 players common
+ *     maxPlayersInLineup: 12  // 10-player standard, 11-12 common, 25+ for flexible rosters
  *   }
  * };
  * ```
@@ -192,7 +192,7 @@ export interface GameRulesDTO {
    */
   readonly timeLimitMinutes?: number;
 
-  /** Whether extra player/designated hitter is allowed */
+  /** Whether extra player is allowed */
   readonly extraPlayerAllowed: boolean;
 
   /**
@@ -284,8 +284,8 @@ export const StartNewGameCommandValidator = {
       );
     }
 
-    if (lineup.length > 20) {
-      throw new StartNewGameCommandValidationError('Initial lineup cannot exceed 20 players');
+    if (lineup.length > 30) {
+      throw new StartNewGameCommandValidationError('Initial lineup cannot exceed 30 players');
     }
 
     // Validate each player
@@ -322,9 +322,9 @@ export const StartNewGameCommandValidator = {
       );
     }
 
-    if (player.battingOrderPosition < 1 || player.battingOrderPosition > 20) {
+    if (player.battingOrderPosition < 1 || player.battingOrderPosition > 30) {
       throw new StartNewGameCommandValidationError(
-        `Player at index ${index}: battingOrderPosition must be between 1 and 20`,
+        `Player at index ${index}: battingOrderPosition must be between 1 and 30`,
         `initialLineup[${index}].battingOrderPosition`,
         player.battingOrderPosition
       );
@@ -441,9 +441,9 @@ export const StartNewGameCommandValidator = {
       throw new StartNewGameCommandValidationError('extraPlayerAllowed must be a boolean');
     }
 
-    if (rules.maxPlayersInLineup < 9 || rules.maxPlayersInLineup > 20) {
+    if (rules.maxPlayersInLineup < 9 || rules.maxPlayersInLineup > 30) {
       throw new StartNewGameCommandValidationError(
-        'maxPlayersInLineup must be between 9 and 20 (10-player standard, 11-12 common)',
+        'maxPlayersInLineup must be between 9 and 30 (10-player standard, 11-12 common, 25+ for flexible rosters)',
         'maxPlayersInLineup',
         rules.maxPlayersInLineup
       );

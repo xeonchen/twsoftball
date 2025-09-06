@@ -379,8 +379,8 @@ describe('SubstitutionValidator', () => {
       expect(SubstitutionValidator.hasPlayerBeenSubstituted(slot, sub2Id)).toBe(false);
     });
 
-    it('should validate EP/DH substitution rules', () => {
-      // EP/DH players follow same substitution rules as regular players
+    it('should validate EP substitution rules', () => {
+      // EP players follow same substitution rules as regular players
       const epSlot = BattingSlot.createWithStarter(10, starterId); // EP slot
 
       // Standard substitution should work

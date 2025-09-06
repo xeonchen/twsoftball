@@ -35,7 +35,7 @@ export interface LineupEntry {
  * result in game delays, forfeits, or rule violations during play.
  *
  * **Core Validation Rules**:
- * 1. **Player Count**: Minimum 9 players (traditional positions), maximum per SoftballRules.maxPlayersPerTeam
+ * 1. **Player Count**: Minimum 9 players (boundary case), 10-player standard, maximum per SoftballRules.maxPlayersPerTeam
  * 2. **Sequential Slots**: Batting slots 1-9 must be filled before using slots 10+ (Extra Players)
  * 3. **Jersey Uniqueness**: Each jersey number must be unique within the team
  * 4. **Player Uniqueness**: Each player can only occupy one batting slot at a time
@@ -75,7 +75,7 @@ export interface LineupEntry {
  *   console.error('Lineup validation failed:', error.message);
  * }
  *
- * // Validate extended lineup with EP/DH players
+ * // Validate extended lineup with EP players
  * const extendedLineup = [...minimalLineup, {
  *   battingSlot: BattingSlot.createWithStarter(10, extraPlayerId), // Position 10+ for EP
  *   jerseyNumber: new JerseyNumber('99'),
@@ -94,14 +94,14 @@ export class LineupValidator {
    * a complete lineup configuration. It validates:
    *
    * **Player Count Requirements**:
-   * - Minimum 9 players (enough to fill all defensive positions)
+   * - Minimum 9 players (boundary case without SHORT_FIELDER)
    * - 10-player standard (most common configuration)
    * - 11-12 player common (standard + 1-2 Extra Players)
    * - Maximum per SoftballRules.maxPlayersPerTeam configuration
    *
    * **Sequential Batting Slot Rules**:
    * - Slots 1-9 must be completely filled before using slots 10+
-   * - No gaps allowed in EP/DH slots (must use 10, then 11, then 12, etc.)
+   * - No gaps allowed in EP slots (must use 10, then 11, then 12, etc.)
    *
    * **Uniqueness Constraints**:
    * - Each jersey number must be unique within the team
@@ -145,7 +145,7 @@ export class LineupValidator {
     // 1. Validate player count (9 to maxPlayersPerTeam players)
     if (!this.isValidLineupSize(lineup.length, rules)) {
       throw new DomainError(
-        `Lineup must have minimum 9 players (traditional), 10-player standard, or up to ${rules.maxPlayersPerTeam} maximum, got ${lineup.length}`
+        `Lineup must have minimum 9 players (boundary case), 10-player standard preferred, or up to ${rules.maxPlayersPerTeam} maximum, got ${lineup.length}`
       );
     }
 
@@ -178,7 +178,7 @@ export class LineupValidator {
    *
    * @remarks
    * **Softball Sequential Slot Rules**:
-   * - Positions 1-9: Must be completely filled before using any EP/DH slots
+   * - Positions 1-9: Must be completely filled before using any EP slots
    * - Positions 10+: Must be used sequentially (10, then 11, then 12, etc.) up to maxPlayersPerTeam
    * - No gaps allowed in either range
    *
@@ -231,7 +231,7 @@ export class LineupValidator {
       const expectedEP = Array.from({ length: sortedEP.length }, (_, i) => i + 10);
 
       if (!expectedEP.every((pos, i) => pos === sortedEP[i])) {
-        throw new DomainError('EP/DH slots must be used sequentially starting from position 10');
+        throw new DomainError('EP slots must be used sequentially starting from position 10');
       }
     }
   }
@@ -357,14 +357,17 @@ export class LineupValidator {
    *
    * @example
    * ```typescript
-   * const rules = new SoftballRules({ maxPlayersPerTeam: 20 });
+   * const rules = new SoftballRules({ maxPlayersPerTeam: 15 });
    * console.log(LineupValidator.isValidLineupSize(9, rules));  // true - minimum/boundary case
    * console.log(LineupValidator.isValidLineupSize(10, rules)); // true - standard
    * console.log(LineupValidator.isValidLineupSize(12, rules)); // true - common with 2 EPs
-   * console.log(LineupValidator.isValidLineupSize(15, rules)); // true - mid-range
-   * console.log(LineupValidator.isValidLineupSize(20, rules)); // true - maximum for these rules
+   * console.log(LineupValidator.isValidLineupSize(15, rules)); // true - maximum for these rules
    * console.log(LineupValidator.isValidLineupSize(8, rules));  // false - too few
-   * console.log(LineupValidator.isValidLineupSize(21, rules)); // false - too many for these rules
+   * console.log(LineupValidator.isValidLineupSize(16, rules)); // false - too many for these rules
+   *
+   * // Default rules allow up to 25 players
+   * console.log(LineupValidator.isValidLineupSize(25)); // true - default maximum
+   * console.log(LineupValidator.isValidLineupSize(26)); // false - exceeds default limit
    * ```
    */
   static isValidLineupSize(size: number, rules: SoftballRules = new SoftballRules()): boolean {

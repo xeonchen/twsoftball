@@ -531,7 +531,7 @@ describe('StartNewGame', () => {
     it('should reject lineup with too many players (exceeds maximum boundary)', async () => {
       const longLineup = [
         ...createValidLineup(),
-        ...Array.from({ length: 12 }, (_, i) => ({
+        ...Array.from({ length: 22 }, (_, i) => ({
           playerId: new PlayerId(`extra-player-${i + 11}`),
           name: `Extra Player ${i + 11}`,
           jerseyNumber: JerseyNumber.fromNumber(i + 11),
@@ -539,13 +539,13 @@ describe('StartNewGame', () => {
           fieldPosition: FieldPosition.RIGHT_FIELD,
           preferredPositions: [FieldPosition.RIGHT_FIELD],
         })),
-      ]; // 22 players total (exceeds DTO's 20 limit boundary)
+      ]; // 32 players total (exceeds DTO's 30 limit boundary)
       const command = createValidCommand({ initialLineup: longLineup });
 
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Initial lineup cannot exceed 20 players');
+      expect(result.errors).toContain('Initial lineup cannot exceed 30 players');
     });
 
     it('should respect custom game rules max players limit', async () => {
@@ -669,16 +669,16 @@ describe('StartNewGame', () => {
       expect(result.errors).toEqual(
         expect.arrayContaining([
           expect.stringMatching(
-            /Player at index \d+: battingOrderPosition must be between 1 and 20/
+            /Player at index \d+: battingOrderPosition must be between 1 and 30/
           ),
         ])
       );
     });
 
-    it('should reject batting order positions above maximum (21)', async () => {
+    it('should reject batting order positions above maximum (31)', async () => {
       const lineup = createValidLineup();
       const modifiedLineup = lineup.map((player, index) =>
-        index === 0 ? { ...player, battingOrderPosition: 21 } : player
+        index === 0 ? { ...player, battingOrderPosition: 31 } : player
       );
       const command = createValidCommand({ initialLineup: modifiedLineup });
 
@@ -688,7 +688,7 @@ describe('StartNewGame', () => {
       expect(result.errors).toEqual(
         expect.arrayContaining([
           expect.stringMatching(
-            /Player at index \d+: battingOrderPosition must be between 1 and 20/
+            /Player at index \d+: battingOrderPosition must be between 1 and 30/
           ),
         ])
       );
@@ -875,7 +875,7 @@ describe('StartNewGame', () => {
 
       expect(result.success).toBe(false);
       expect(result.errors).toContain(
-        'maxPlayersInLineup must be between 9 and 20 (10-player standard, 11-12 common)'
+        'maxPlayersInLineup must be between 9 and 30 (10-player standard, 11-12 common, 25+ for flexible rosters)'
       );
     });
 
@@ -1220,8 +1220,8 @@ describe('StartNewGame', () => {
           }
           usedPlayerIds.add(player.playerId.value);
 
-          if (player.battingOrderPosition < 1 || player.battingOrderPosition > 20) {
-            errors.push('Invalid batting order position: must be 1-20');
+          if (player.battingOrderPosition < 1 || player.battingOrderPosition > 30) {
+            errors.push('Invalid batting order position: must be 1-30');
           }
           if (usedBattingPositions.has(player.battingOrderPosition)) {
             errors.push(`Duplicate batting order position: ${player.battingOrderPosition}`);

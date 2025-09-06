@@ -379,7 +379,7 @@ class DetailedTeamStrategy implements TeamStrategy {
     return 10; // Standard 10-player lineup
   }
   getMaximumPlayers(): number {
-    return 15; // Reasonable upper bound for common play
+    return 30; // Supports large rosters
   }
 
   validateLineup(players: PlayerInGame[]): ValidationResult {
