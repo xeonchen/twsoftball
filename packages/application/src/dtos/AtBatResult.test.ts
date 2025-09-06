@@ -723,11 +723,14 @@ describe('AtBatResult', () => {
       } as AtBatResult;
 
       expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-        new AtBatResultValidationError(
-          'Error at index 1 must be a non-empty string',
-          'errors[1]',
-          invalidValue
-        )
+        expect.objectContaining({
+          message: 'Error at index 1 must be a non-empty string',
+          name: 'AtBatResultValidationError',
+          validationContext: expect.objectContaining({
+            field: 'errors[1]',
+            value: invalidValue,
+          }),
+        }) as Error
       );
     });
 

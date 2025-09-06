@@ -118,6 +118,7 @@ export default [
           devDependencies: [
             '**/*.test.ts',
             '**/*.spec.ts',
+            '**/test-factories/**',
             '**/vitest.config.ts',
             '**/vite.config.ts',
             'tools/**',
@@ -244,7 +245,13 @@ export default [
 
   // Test files overrides
   {
-    files: ['**/*.test.ts', '**/*.spec.ts', 'tests/**/*.ts'],
+    files: [
+      '**/*.test.ts',
+      '**/*.spec.ts',
+      'tests/**/*.ts',
+      '**/test-factories/**',
+      '**/test-utils/**',
+    ],
     languageOptions: {
       globals: {
         // Add console for test files
@@ -264,6 +271,7 @@ export default [
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/unbound-method': 'off',
       // Security rules are often false positives in test files
       'security/detect-object-injection': 'off',
       // Relax eslint-comments rules for test files

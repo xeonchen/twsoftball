@@ -56,82 +56,32 @@ import {
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from '../dtos/StartNewGameCommand';
-import { EventStore } from '../ports/out/EventStore';
-import { GameRepository } from '../ports/out/GameRepository';
-import { Logger } from '../ports/out/Logger';
+import { createGameApplicationServiceMocks } from '../test-factories';
 
 import { StartNewGame } from './StartNewGame';
 
 describe('StartNewGame', () => {
   let startNewGame: StartNewGame;
-  let mockGameRepository: GameRepository;
-  let mockEventStore: EventStore;
-  let mockLogger: Logger;
+  let mocks: ReturnType<typeof createGameApplicationServiceMocks>;
 
   // Test data constants
   const testGameId = new GameId('test-game-123');
-  const testHomeTeamName = 'Springfield Tigers';
-  const testAwayTeamName = 'Shelbyville Lions';
-  const testGameDate = new Date(Date.now() + 86400000); // Tomorrow
+  const testGameDate = new Date(Date.now() + 86400000);
   const testLocation = 'City Park Field 1';
-
-  // Individual mock functions
-  const mockFindById = vi.fn();
-  const mockSave = vi.fn();
-  const mockExists = vi.fn();
-  const mockFindByStatus = vi.fn();
-  const mockFindByDateRange = vi.fn();
-  const mockDelete = vi.fn();
-  const mockAppend = vi.fn();
-  const mockGetEvents = vi.fn();
-  const mockGetGameEvents = vi.fn();
-  const mockGetAllEvents = vi.fn();
-  const mockGetEventsByType = vi.fn();
-  const mockGetEventsByGameId = vi.fn();
-  const mockDebug = vi.fn();
-  const mockInfo = vi.fn();
-  const mockWarn = vi.fn();
-  const mockError = vi.fn();
-  const mockLog = vi.fn();
-  const mockIsLevelEnabled = vi.fn();
 
   beforeEach(() => {
     // Clear all mocks
     vi.clearAllMocks();
 
-    // Create mock implementations
-    mockGameRepository = {
-      findById: mockFindById,
-      save: mockSave,
-      exists: mockExists,
-      findByStatus: mockFindByStatus,
-      findByDateRange: mockFindByDateRange,
-      delete: mockDelete,
-    } as GameRepository;
-
-    mockEventStore = {
-      append: mockAppend,
-      getEvents: mockGetEvents,
-      getGameEvents: mockGetGameEvents,
-      getAllEvents: mockGetAllEvents,
-      getEventsByType: mockGetEventsByType,
-      getEventsByGameId: mockGetEventsByGameId,
-    } as EventStore;
-
-    // Reset logger mock behavior
-    mockIsLevelEnabled.mockReturnValue(true);
-
-    mockLogger = {
-      debug: mockDebug,
-      info: mockInfo,
-      warn: mockWarn,
-      error: mockError,
-      log: mockLog,
-      isLevelEnabled: mockIsLevelEnabled,
-    } as Logger;
+    // Create fresh mocks for each test
+    mocks = createGameApplicationServiceMocks();
 
     // Create use case instance with mocked dependencies
-    startNewGame = new StartNewGame(mockGameRepository, mockEventStore, mockLogger);
+    startNewGame = new StartNewGame(
+      mocks.mockGameRepository,
+      mocks.mockEventStore,
+      mocks.mockLogger
+    );
   });
 
   /**
@@ -276,8 +226,8 @@ describe('StartNewGame', () => {
   function createValidCommand(overrides: Partial<StartNewGameCommand> = {}): StartNewGameCommand {
     return {
       gameId: testGameId,
-      homeTeamName: testHomeTeamName,
-      awayTeamName: testAwayTeamName,
+      homeTeamName: 'Springfield Tigers',
+      awayTeamName: 'Shelbyville Lions',
       ourTeamSide: 'HOME',
       gameDate: testGameDate,
       location: testLocation,
@@ -290,9 +240,9 @@ describe('StartNewGame', () => {
   describe('Happy Path Scenarios', () => {
     beforeEach(() => {
       // Setup successful repository operations
-      mockExists.mockResolvedValue(false);
-      mockSave.mockResolvedValue(undefined);
-      mockAppend.mockResolvedValue(undefined);
+      mocks.functions.gameRepositoryExists.mockResolvedValue(false);
+      mocks.functions.gameRepositorySave.mockResolvedValue(undefined);
+      mocks.functions.eventStoreAppend.mockResolvedValue(undefined);
     });
 
     it('should create new game with complete lineup successfully', async () => {
@@ -324,8 +274,8 @@ describe('StartNewGame', () => {
       expect(result.initialState?.bases.basesLoaded).toBe(false);
 
       // Verify lineups are properly set
-      expect(result.initialState?.homeLineup.teamName).toBe(testHomeTeamName);
-      expect(result.initialState?.awayLineup.teamName).toBe(testAwayTeamName);
+      expect(result.initialState?.homeLineup.teamName).toBe('Springfield Tigers');
+      expect(result.initialState?.awayLineup.teamName).toBe('Shelbyville Lions');
       expect(result.initialState?.homeLineup.battingSlots).toHaveLength(10);
 
       // Verify current batter is first in away team (top of 1st)
@@ -660,9 +610,9 @@ describe('StartNewGame', () => {
       ];
 
       // Set up successful repository operations
-      mockExists.mockResolvedValue(false);
-      mockSave.mockResolvedValue(undefined);
-      mockAppend.mockResolvedValue(undefined);
+      mocks.functions.gameRepositoryExists.mockResolvedValue(false);
+      mocks.functions.gameRepositorySave.mockResolvedValue(undefined);
+      mocks.functions.eventStoreAppend.mockResolvedValue(undefined);
 
       const command = createValidCommand({
         initialLineup: extendedLineup,
@@ -934,9 +884,9 @@ describe('StartNewGame', () => {
       } as GameRulesDTO;
 
       // Set up successful repository operations
-      mockExists.mockResolvedValue(false);
-      mockSave.mockResolvedValue(undefined);
-      mockAppend.mockResolvedValue(undefined);
+      mocks.functions.gameRepositoryExists.mockResolvedValue(false);
+      mocks.functions.gameRepositorySave.mockResolvedValue(undefined);
+      mocks.functions.eventStoreAppend.mockResolvedValue(undefined);
 
       const command = createValidCommand({ gameRules: validRules });
 
@@ -948,7 +898,7 @@ describe('StartNewGame', () => {
 
   describe('Game Existence Scenarios', () => {
     it('should reject game ID that already exists', async () => {
-      mockExists.mockResolvedValue(true); // Game already exists
+      mocks.functions.gameRepositoryExists.mockResolvedValue(true); // Game already exists
       const command = createValidCommand();
 
       const result = await startNewGame.execute(command);
@@ -958,7 +908,9 @@ describe('StartNewGame', () => {
     });
 
     it('should handle repository existence check failure', async () => {
-      mockExists.mockRejectedValue(new Error('Database connection failed'));
+      mocks.functions.gameRepositoryExists.mockRejectedValue(
+        new Error('Database connection failed')
+      );
       const command = createValidCommand();
 
       const result = await startNewGame.execute(command);
@@ -971,11 +923,11 @@ describe('StartNewGame', () => {
   describe('Infrastructure Error Scenarios', () => {
     beforeEach(() => {
       // Setup successful existence check
-      mockExists.mockResolvedValue(false);
+      mocks.functions.gameRepositoryExists.mockResolvedValue(false);
     });
 
     it('should handle repository save failure', async () => {
-      mockSave.mockRejectedValue(new Error('Database write failed'));
+      mocks.functions.gameRepositorySave.mockRejectedValue(new Error('Database write failed'));
       const command = createValidCommand();
 
       const result = await startNewGame.execute(command);
@@ -985,8 +937,8 @@ describe('StartNewGame', () => {
     });
 
     it('should handle event store failure', async () => {
-      mockSave.mockResolvedValue(undefined);
-      mockAppend.mockRejectedValue(new Error('Event store unavailable'));
+      mocks.functions.gameRepositorySave.mockResolvedValue(undefined);
+      mocks.functions.eventStoreAppend.mockRejectedValue(new Error('Event store unavailable'));
       const command = createValidCommand();
 
       const result = await startNewGame.execute(command);
@@ -1009,7 +961,7 @@ describe('StartNewGame', () => {
     });
 
     it('should handle unexpected errors gracefully', async () => {
-      mockSave.mockRejectedValue(new TypeError('Unexpected error'));
+      mocks.functions.gameRepositorySave.mockRejectedValue(new TypeError('Unexpected error'));
       const command = createValidCommand();
 
       const result = await startNewGame.execute(command);
@@ -1021,9 +973,9 @@ describe('StartNewGame', () => {
 
   describe('Event Generation Scenarios', () => {
     beforeEach(() => {
-      mockExists.mockResolvedValue(false);
-      mockSave.mockResolvedValue(undefined);
-      mockAppend.mockResolvedValue(undefined);
+      mocks.functions.gameRepositoryExists.mockResolvedValue(false);
+      mocks.functions.gameRepositorySave.mockResolvedValue(undefined);
+      mocks.functions.eventStoreAppend.mockResolvedValue(undefined);
     });
 
     it('should generate appropriate domain events for game creation', async () => {
@@ -1034,13 +986,13 @@ describe('StartNewGame', () => {
       expect(result.success).toBe(true);
 
       // Verify Game aggregate was saved
-      expect(mockSave).toHaveBeenCalledTimes(1); // Game only (lineups/inning state would use separate repositories)
+      expect(mocks.functions.gameRepositorySave).toHaveBeenCalledTimes(1); // Game only (lineups/inning state would use separate repositories)
 
       // Verify events were stored
-      expect(mockAppend).toHaveBeenCalledTimes(4); // Game, HomeLineup, AwayLineup, InningState events
+      expect(mocks.functions.eventStoreAppend).toHaveBeenCalledTimes(4); // Game, HomeLineup, AwayLineup, InningState events
 
       // Check that event store was called with correct event types
-      const eventStoreCalls = mockAppend.mock.calls;
+      const eventStoreCalls = mocks.functions.eventStoreAppend.mock.calls;
       const allEvents = eventStoreCalls.flatMap((call: unknown[]) => call[2] as unknown[]); // Extract events from all calls
 
       expect(allEvents).toEqual(
@@ -1059,7 +1011,7 @@ describe('StartNewGame', () => {
       await startNewGame.execute(command);
 
       // Verify events have proper structure and metadata
-      const eventStoreCalls = mockAppend.mock.calls;
+      const eventStoreCalls = mocks.functions.eventStoreAppend.mock.calls;
       eventStoreCalls.forEach((call: unknown[]) => {
         const [aggregateId, aggregateType, events] = call;
         expect(aggregateId).toBeDefined();
@@ -1072,9 +1024,9 @@ describe('StartNewGame', () => {
 
   describe('Logging Scenarios', () => {
     beforeEach(() => {
-      mockExists.mockResolvedValue(false);
-      mockSave.mockResolvedValue(undefined);
-      mockAppend.mockResolvedValue(undefined);
+      mocks.functions.gameRepositoryExists.mockResolvedValue(false);
+      mocks.functions.gameRepositorySave.mockResolvedValue(undefined);
+      mocks.functions.eventStoreAppend.mockResolvedValue(undefined);
     });
 
     it('should log successful game creation', async () => {
@@ -1082,12 +1034,12 @@ describe('StartNewGame', () => {
 
       await startNewGame.execute(command);
 
-      expect(mockInfo).toHaveBeenCalledWith(
+      expect(mocks.mockLogger.info).toHaveBeenCalledWith(
         'Game created successfully',
         expect.objectContaining({
           gameId: testGameId.value,
-          homeTeamName: testHomeTeamName,
-          awayTeamName: testAwayTeamName,
+          homeTeamName: 'Springfield Tigers',
+          awayTeamName: 'Shelbyville Lions',
           lineupSize: 10,
           operation: 'startNewGame',
         })
@@ -1099,7 +1051,7 @@ describe('StartNewGame', () => {
 
       await startNewGame.execute(command);
 
-      expect(mockWarn).toHaveBeenCalledWith(
+      expect(mocks.mockLogger.warn).toHaveBeenCalledWith(
         'Game creation failed due to DTO validation error',
         expect.objectContaining({
           gameId: testGameId.value,
@@ -1110,12 +1062,12 @@ describe('StartNewGame', () => {
     });
 
     it('should log infrastructure errors', async () => {
-      mockSave.mockRejectedValue(new Error('Database error'));
+      mocks.functions.gameRepositorySave.mockRejectedValue(new Error('Database error'));
       const command = createValidCommand();
 
       await startNewGame.execute(command);
 
-      expect(mockError).toHaveBeenCalledWith(
+      expect(mocks.mockLogger.error).toHaveBeenCalledWith(
         'Failed to start new game',
         expect.any(Error),
         expect.objectContaining({
@@ -1130,7 +1082,7 @@ describe('StartNewGame', () => {
 
       await startNewGame.execute(command);
 
-      expect(mockDebug).toHaveBeenCalledWith(
+      expect(mocks.mockLogger.debug).toHaveBeenCalledWith(
         'Starting game creation process',
         expect.objectContaining({
           gameId: testGameId.value,
@@ -1138,12 +1090,12 @@ describe('StartNewGame', () => {
         })
       );
 
-      expect(mockDebug).toHaveBeenCalledWith(
+      expect(mocks.mockLogger.debug).toHaveBeenCalledWith(
         'Domain aggregates created successfully',
         expect.any(Object)
       );
 
-      expect(mockDebug).toHaveBeenCalledWith(
+      expect(mocks.mockLogger.debug).toHaveBeenCalledWith(
         'Domain events generated successfully',
         expect.any(Object)
       );
@@ -1152,9 +1104,9 @@ describe('StartNewGame', () => {
 
   describe('Cross-aggregate Coordination Scenarios', () => {
     beforeEach(() => {
-      mockExists.mockResolvedValue(false);
-      mockSave.mockResolvedValue(undefined);
-      mockAppend.mockResolvedValue(undefined);
+      mocks.functions.gameRepositoryExists.mockResolvedValue(false);
+      mocks.functions.gameRepositorySave.mockResolvedValue(undefined);
+      mocks.functions.eventStoreAppend.mockResolvedValue(undefined);
     });
 
     it('should create all required aggregates for game initialization', async () => {
@@ -1189,11 +1141,11 @@ describe('StartNewGame', () => {
 
       // Home team should have full lineup (managed team)
       expect(result.initialState?.homeLineup.battingSlots).toHaveLength(10);
-      expect(result.initialState?.homeLineup.teamName).toBe(testHomeTeamName);
+      expect(result.initialState?.homeLineup.teamName).toBe('Springfield Tigers');
 
       // Away team should have minimal setup (opponent team)
       expect(result.initialState?.awayLineup.battingSlots).toHaveLength(0);
-      expect(result.initialState?.awayLineup.teamName).toBe(testAwayTeamName);
+      expect(result.initialState?.awayLineup.teamName).toBe('Shelbyville Lions');
     });
 
     it('should set proper initial game state across all aggregates', async () => {
@@ -1223,9 +1175,9 @@ describe('StartNewGame', () => {
 
   describe('Edge Cases for Coverage', () => {
     beforeEach(() => {
-      mockExists.mockResolvedValue(false);
-      mockSave.mockResolvedValue(undefined);
-      mockAppend.mockResolvedValue(undefined);
+      mocks.functions.gameRepositoryExists.mockResolvedValue(false);
+      mocks.functions.gameRepositorySave.mockResolvedValue(undefined);
+      mocks.functions.eventStoreAppend.mockResolvedValue(undefined);
     });
 
     /**
@@ -1292,9 +1244,9 @@ describe('StartNewGame', () => {
 
     beforeEach(() => {
       testableStartNewGame = new TestableStartNewGame(
-        mockGameRepository,
-        mockEventStore,
-        mockLogger
+        mocks.mockGameRepository,
+        mocks.mockEventStore,
+        mocks.mockLogger
       );
     });
 
@@ -1473,8 +1425,10 @@ describe('StartNewGame', () => {
       const command = createValidCommand();
 
       // Mock successful repository save but failed event store with 'store' in message
-      mockSave.mockResolvedValue(undefined);
-      mockAppend.mockRejectedValue(new Error('Event store persistence failed'));
+      mocks.functions.gameRepositorySave.mockResolvedValue(undefined);
+      mocks.functions.eventStoreAppend.mockRejectedValue(
+        new Error('Event store persistence failed')
+      );
 
       // Act - Execute the command
       const result = await startNewGame.execute(command);
@@ -1484,8 +1438,8 @@ describe('StartNewGame', () => {
       expect(result.errors).toContain('Failed to store game events');
       expect(result.gameId).toBe(command.gameId);
 
-      expect(mockSave).toHaveBeenCalled();
-      expect(mockAppend).toHaveBeenCalled();
+      expect(mocks.functions.gameRepositorySave).toHaveBeenCalled();
+      expect(mocks.functions.eventStoreAppend).toHaveBeenCalled();
     });
 
     it('should handle DomainError in error translation (Line 962)', async () => {
@@ -1497,7 +1451,7 @@ describe('StartNewGame', () => {
       domainError.name = 'DomainError';
       Object.setPrototypeOf(domainError, DomainError.prototype);
 
-      mockSave.mockRejectedValue(domainError);
+      mocks.functions.gameRepositorySave.mockRejectedValue(domainError);
 
       // Act
       const result = await startNewGame.execute(command);
@@ -1512,7 +1466,7 @@ describe('StartNewGame', () => {
       const command = createValidCommand();
 
       // Mock non-Error object (e.g., string, null, undefined, custom object)
-      mockSave.mockRejectedValue('String error');
+      mocks.functions.gameRepositorySave.mockRejectedValue('String error');
 
       // Act
       const result = await startNewGame.execute(command);
@@ -1527,7 +1481,7 @@ describe('StartNewGame', () => {
       const command = createValidCommand();
 
       // Mock null error
-      mockSave.mockRejectedValue(null);
+      mocks.functions.gameRepositorySave.mockRejectedValue(null);
 
       // Act
       const result = await startNewGame.execute(command);
@@ -1542,7 +1496,7 @@ describe('StartNewGame', () => {
       const command = createValidCommand();
 
       // Mock undefined error
-      mockSave.mockRejectedValue(undefined);
+      mocks.functions.gameRepositorySave.mockRejectedValue(undefined);
 
       // Act
       const result = await startNewGame.execute(command);
@@ -1558,7 +1512,7 @@ describe('StartNewGame', () => {
 
       // Mock Database error (should trigger Database branch in categorizeError)
       const databaseError = new Error('Database connection timeout');
-      mockSave.mockRejectedValue(databaseError);
+      mocks.functions.gameRepositorySave.mockRejectedValue(databaseError);
 
       // Act
       const result = await startNewGame.execute(command);
@@ -1574,7 +1528,7 @@ describe('StartNewGame', () => {
 
       // Mock save error (should trigger save branch in categorizeError)
       const saveError = new Error('Failed to save entity');
-      mockSave.mockRejectedValue(saveError);
+      mocks.functions.gameRepositorySave.mockRejectedValue(saveError);
 
       // Act
       const result = await startNewGame.execute(command);
@@ -1589,9 +1543,9 @@ describe('StartNewGame', () => {
       const command = createValidCommand();
 
       // Mock successful save but failed event store (triggers store branch)
-      mockSave.mockResolvedValue(undefined);
+      mocks.functions.gameRepositorySave.mockResolvedValue(undefined);
       const storeError = new Error('Event store is down');
-      mockAppend.mockRejectedValue(storeError);
+      mocks.functions.eventStoreAppend.mockRejectedValue(storeError);
 
       // Act
       const result = await startNewGame.execute(command);
@@ -1607,7 +1561,7 @@ describe('StartNewGame', () => {
 
       // Mock generic error that doesn't match any specific categories
       const genericError = new Error('Some random error occurred');
-      mockSave.mockRejectedValue(genericError);
+      mocks.functions.gameRepositorySave.mockRejectedValue(genericError);
 
       // Act
       const result = await startNewGame.execute(command);
@@ -1620,9 +1574,9 @@ describe('StartNewGame', () => {
 
   describe('Coverage Verification', () => {
     beforeEach(() => {
-      mockExists.mockResolvedValue(false);
-      mockSave.mockResolvedValue(undefined);
-      mockAppend.mockResolvedValue(undefined);
+      mocks.functions.gameRepositoryExists.mockResolvedValue(false);
+      mocks.functions.gameRepositorySave.mockResolvedValue(undefined);
+      mocks.functions.eventStoreAppend.mockResolvedValue(undefined);
     });
 
     it('should verify code simplification improves coverage', async () => {

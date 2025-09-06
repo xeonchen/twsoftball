@@ -3,10 +3,9 @@
  * Use case for recording at-bat results and updating game state across all aggregates.
  *
  * @remarks
- * RecordAtBat is a core use case that orchestrates the complex process of recording
- * a plate appearance outcome in a softball game. This involves coordinating multiple
- * domain aggregates (Game, TeamLineup, InningState), calculating derived statistics
- * (RBI, runs scored), generating domain events, and ensuring data consistency.
+ * This use case orchestrates the recording of plate appearance outcomes in softball games,
+ * coordinating multiple domain aggregates, calculating statistics (RBI, runs scored),
+ * and ensuring data consistency through proper event sourcing.
  *
  * **Business Process Flow**:
  * 1. **Validation**: Verify game exists, is in progress, and batter is valid
@@ -26,17 +25,17 @@
  *
  * **Design Patterns**:
  * - **Hexagonal Architecture**: Uses ports for infrastructure dependencies
- * - **Domain-Driven Design**: Rich domain model coordination
- * - **Command-Query Separation**: Command input, result output
- * - **Event Sourcing**: All changes recorded as domain events
+ * - **Domain-Driven Design**: Rich domain model coordination with proper aggregates
+ * - **Command-Query Separation**: Command input, comprehensive result output
+ * - **Event Sourcing**: All state changes recorded as immutable domain events
  * - **Dependency Injection**: Testable with mocked dependencies
  *
  * **Error Handling Strategy**:
- * - Input validation with detailed error messages
- * - Domain rule violations caught and translated
+ * - Input validation with detailed field-level error messages
+ * - Domain rule violations caught and translated to user-friendly messages
  * - Infrastructure failures (database, event store) handled gracefully
- * - All errors logged with full context for debugging
- * - Failed operations leave system in consistent state
+ * - All errors logged with full context for debugging and monitoring
+ * - Failed operations leave system in consistent state (no partial updates)
  *
  * @example
  * ```typescript
@@ -53,25 +52,20 @@
  *   batterId: PlayerId.create('player-456'),
  *   result: AtBatResultType.HOME_RUN,
  *   runnerAdvances: [
- *     // Batter and all runners advance to HOME
  *     { playerId: batterId, fromBase: null, toBase: 'HOME', advanceReason: 'BATTED_BALL' },
  *     { playerId: runner1Id, fromBase: 'FIRST', toBase: 'HOME', advanceReason: 'BATTED_BALL' },
  *     { playerId: runner2Id, fromBase: 'SECOND', toBase: 'HOME', advanceReason: 'BATTED_BALL' },
  *     { playerId: runner3Id, fromBase: 'THIRD', toBase: 'HOME', advanceReason: 'BATTED_BALL' }
- *   ],
- *   notes: 'Grand slam over center field fence',
- *   timestamp: new Date()
+ *   ]
  * };
  *
  * const result = await recordAtBat.execute(command);
  *
  * if (result.success) {
  *   console.log(`Recorded ${result.runsScored} runs, ${result.rbiAwarded} RBI`);
- *   if (result.gameEnded) {
- *     console.log('Game completed!');
- *   }
+ *   if (result.gameEnded) console.log('Game completed!');
  * } else {
- *   console.error('At-bat recording failed:', result.errors);
+ *   console.error('Operation failed:', result.errors);
  * }
  * ```
  */

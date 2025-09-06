@@ -3,8 +3,6 @@
  * Comprehensive tests for the UseCaseLogger utility class.
  */
 
-/* eslint-disable @typescript-eslint/unbound-method*/
-
 import { GameId } from '@twsoftball/domain';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 

@@ -35,6 +35,7 @@ import {
   FieldPosition,
   JerseyNumber,
 } from '@twsoftball/domain';
+// Note: Using domain-established standard positions directly
 
 import { GameStateDTO } from '../dtos/GameStateDTO';
 import { PlayerInGameDTO } from '../dtos/PlayerInGameDTO';
@@ -227,8 +228,8 @@ export function createLineupPlayerDTO(options?: {
     name: options?.name || 'Test Player',
     jerseyNumber: options?.jerseyNumber || JerseyNumber.fromNumber(1),
     battingOrderPosition: options?.battingOrderPosition || 1,
-    fieldPosition: options?.fieldPosition || FieldPosition.RIGHT_FIELD,
-    preferredPositions: options?.preferredPositions || [FieldPosition.RIGHT_FIELD],
+    fieldPosition: options?.fieldPosition || FieldPosition.EXTRA_PLAYER,
+    preferredPositions: options?.preferredPositions || [FieldPosition.EXTRA_PLAYER],
   };
 }
 
@@ -240,43 +241,51 @@ export function createLineupPlayerDTO(options?: {
  * realistic batting orders and field positions. Useful for
  * testing game start scenarios and lineup management.
  *
- * @param count - Number of players to create (default: 9)
+ * @param count - Number of players to create (default: 10 for slow-pitch softball)
  * @param options - Optional customization for all players
  * @returns Array of LineupPlayerDTOs ready for testing
  *
  * @example
  * ```typescript
- * // Create standard 9-player lineup
+ * // Create standard 10-player slow-pitch lineup
  * const lineup = createFullLineup();
  *
- * // Create 12-player lineup for slow-pitch with extra players
+ * // Create 12-player lineup for extra players
  * const extendedLineup = createFullLineup(12);
  * ```
  */
 export function createFullLineup(
-  count: number = 9,
+  count: number = 10,
   options?: {
     namePrefix?: string;
     jerseyNumberStart?: number;
   }
 ): LineupPlayerDTO[] {
-  const defaultPositions: FieldPosition[] = [
-    FieldPosition.PITCHER,
-    FieldPosition.CATCHER,
-    FieldPosition.FIRST_BASE,
-    FieldPosition.SECOND_BASE,
-    FieldPosition.THIRD_BASE,
-    FieldPosition.SHORTSTOP,
-    FieldPosition.LEFT_FIELD,
-    FieldPosition.CENTER_FIELD,
-    FieldPosition.RIGHT_FIELD,
-    FieldPosition.SHORT_FIELDER, // For 10+ player games
-    FieldPosition.EXTRA_PLAYER,
-    FieldPosition.SHORT_FIELDER, // Duplicate for now, will be refined
+  // Standard slow-pitch softball positions (10 players)
+  // Matches domain TestLineupBuilder.STANDARD_POSITIONS pattern
+  const slowPitchStandardPositions: FieldPosition[] = [
+    FieldPosition.PITCHER, // Slot 1
+    FieldPosition.CATCHER, // Slot 2
+    FieldPosition.FIRST_BASE, // Slot 3
+    FieldPosition.SECOND_BASE, // Slot 4
+    FieldPosition.THIRD_BASE, // Slot 5
+    FieldPosition.SHORTSTOP, // Slot 6
+    FieldPosition.LEFT_FIELD, // Slot 7
+    FieldPosition.CENTER_FIELD, // Slot 8
+    FieldPosition.RIGHT_FIELD, // Slot 9
+    FieldPosition.SHORT_FIELDER, // Slot 10 - Standard in slow-pitch
   ];
 
+  // Extend with additional positions for larger lineups
+  const extendedPositions: FieldPosition[] = [
+    ...slowPitchStandardPositions,
+    FieldPosition.EXTRA_PLAYER, // Multiple EPs are valid
+  ];
+
+  const defaultPositions = extendedPositions;
+
   return Array.from({ length: count }, (_, index) => {
-    const position = defaultPositions[index] || FieldPosition.RIGHT_FIELD;
+    const position = defaultPositions[index] || FieldPosition.EXTRA_PLAYER;
     const jerseyNumber = (options?.jerseyNumberStart || 1) + index;
 
     return createLineupPlayerDTO({
@@ -318,7 +327,7 @@ export function createRealisticLineup(
     jerseyNumberStart?: number;
   }
 ): LineupPlayerDTO[] {
-  const playerCount = options?.playerCount || 9;
+  const playerCount = options?.playerCount || 10;
   const realisticNames = [
     'Mike Johnson',
     'Sarah Davis',
