@@ -3,11 +3,9 @@
  * Use case for substituting players in softball games with comprehensive rule validation.
  *
  * @remarks
- * SubstitutePlayer is a critical use case that handles the complex process of player
- * substitutions in softball games. This includes regular substitutions, starter re-entry
- * scenarios, field position changes, and all associated rule validation. The use case
- * coordinates multiple domain aggregates and ensures compliance with softball substitution
- * and re-entry rules.
+ * This use case handles complex player substitutions including regular substitutions,
+ * starter re-entry scenarios, and field position changes while ensuring compliance
+ * with all softball substitution and re-entry rules.
  *
  * **Business Process Flow**:
  * 1. **Validation**: Verify game exists, is in progress, and substitution is legal
@@ -28,9 +26,9 @@
  *
  * **Design Patterns**:
  * - **Hexagonal Architecture**: Uses ports for infrastructure dependencies
- * - **Domain-Driven Design**: Rich domain model coordination with complex rules
- * - **Command-Query Separation**: Command input, result output
- * - **Event Sourcing**: All substitution changes recorded as domain events
+ * - **Domain-Driven Design**: Rich domain model coordination with proper aggregates
+ * - **Command-Query Separation**: Command input, comprehensive result output
+ * - **Event Sourcing**: All state changes recorded as immutable domain events
  * - **Dependency Injection**: Testable with mocked dependencies
  *
  * **Softball Substitution Rules Enforced**:
@@ -44,11 +42,11 @@
  * - Position coverage: All required defensive positions must be filled
  *
  * **Error Handling Strategy**:
- * - Input validation with detailed error messages
- * - Softball rule violations caught and translated to user-friendly messages
+ * - Input validation with detailed field-level error messages
+ * - Domain rule violations caught and translated to user-friendly messages
  * - Infrastructure failures (database, event store) handled gracefully
- * - All errors logged with full context for debugging
- * - Failed operations leave system in consistent state
+ * - All errors logged with full context for debugging and monitoring
+ * - Failed operations leave system in consistent state (no partial updates)
  *
  * @example
  * ```typescript
@@ -60,7 +58,7 @@
  * );
  *
  * // Regular substitution - relief pitcher replaces starter
- * const regularSubstitution: SubstitutePlayerCommand = {
+ * const command: SubstitutePlayerCommand = {
  *   gameId: GameId.create('game-123'),
  *   teamLineupId: TeamLineupId.create('team-456'),
  *   battingSlot: 1,
@@ -70,40 +68,18 @@
  *   incomingJerseyNumber: JerseyNumber.fromNumber(99),
  *   newFieldPosition: FieldPosition.PITCHER,
  *   inning: 5,
- *   isReentry: false,
- *   notes: 'Starter reached pitch count limit'
+ *   isReentry: false
  * };
  *
- * const result = await substitutePlayer.execute(regularSubstitution);
+ * const result = await substitutePlayer.execute(command);
  *
  * if (result.success) {
  *   console.log(`Substituted ${result.substitutionDetails!.outgoingPlayerName} with ${result.substitutionDetails!.incomingPlayerName}`);
- *   if (result.positionChanged) {
- *     console.log('Position changed during substitution');
- *   }
- *   if (result.reentryUsed) {
- *     console.log('Starter used their re-entry opportunity');
- *   }
+ *   if (result.positionChanged) console.log('Position changed during substitution');
+ *   if (result.reentryUsed) console.log('Starter used their re-entry opportunity');
  * } else {
- *   console.error('Substitution failed:', result.errors);
+ *   console.error('Operation failed:', result.errors);
  * }
- *
- * // Starter re-entry - original pitcher returns at different position
- * const reentrySubstitution: SubstitutePlayerCommand = {
- *   gameId: GameId.create('game-123'),
- *   teamLineupId: TeamLineupId.create('team-456'),
- *   battingSlot: 1,
- *   outgoingPlayerId: PlayerId.create('relief-pitcher'),
- *   incomingPlayerId: PlayerId.create('starter-pitcher'), // Original starter
- *   incomingPlayerName: 'Original Johnson',
- *   incomingJerseyNumber: JerseyNumber.fromNumber(1),
- *   newFieldPosition: FieldPosition.FIRST_BASE, // Different position
- *   inning: 8,
- *   isReentry: true,
- *   notes: 'Starter returning for final innings at first base'
- * };
- *
- * const reentryResult = await substitutePlayer.execute(reentrySubstitution);
  * ```
  */
 

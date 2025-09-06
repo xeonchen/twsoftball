@@ -22,3 +22,18 @@ export type {
   ErrorContext as LogErrorContext,
   PerformanceMetrics,
 } from './UseCaseLogger';
+
+// Documentation utilities - architecture compliant
+export {
+  DESIGN_PATTERNS,
+  ERROR_HANDLING_STRATEGY,
+  CROSS_AGGREGATE_COORDINATION,
+  AUDIT_LOGGING,
+  EVENT_SOURCING_DESCRIPTION,
+  createBusinessProcessFlow,
+  createKeyResponsibilities,
+  createJSDocExample,
+  createServiceSetupExample,
+  createResultHandlingExample,
+  createUseCaseFileHeader,
+} from './documentation-constants';

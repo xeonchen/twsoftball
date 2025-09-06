@@ -131,13 +131,12 @@ describe('Test Scenarios', () => {
       it('should have properly configured mock functions', () => {
         const scenario = setupSuccessfulAtBatScenario();
 
-        // eslint-disable-next-line @typescript-eslint/unbound-method
         expect(vi.isMockFunction(scenario.mocks.gameRepository.findById)).toBe(true);
-        // eslint-disable-next-line @typescript-eslint/unbound-method
+
         expect(vi.isMockFunction(scenario.mocks.gameRepository.save)).toBe(true);
-        // eslint-disable-next-line @typescript-eslint/unbound-method
+
         expect(vi.isMockFunction(scenario.mocks.eventStore.append)).toBe(true);
-        // eslint-disable-next-line @typescript-eslint/unbound-method
+
         expect(vi.isMockFunction(scenario.mocks.logger.info)).toBe(true);
       });
 
@@ -146,7 +145,7 @@ describe('Test Scenarios', () => {
 
         // Override mock behavior
         const customError = new Error('Custom test error');
-        // eslint-disable-next-line @typescript-eslint/unbound-method
+
         vi.mocked(scenario.mocks.gameRepository.save).mockRejectedValue(customError);
 
         await expect(scenario.mocks.gameRepository.save(scenario.testData.game)).rejects.toThrow(
@@ -669,7 +668,7 @@ describe('Test Scenarios', () => {
       const scenario2 = setupSuccessfulAtBatScenario();
 
       // Reconfigure one scenario's mocks
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       vi.mocked(scenario1.mocks.gameRepository.findById).mockResolvedValue(null);
 
       // Should not affect the other scenario

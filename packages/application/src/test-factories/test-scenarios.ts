@@ -45,11 +45,9 @@
  */
 
 import { Game, GameId, GameStatus, DomainError, AtBatResultType } from '@twsoftball/domain';
-// eslint-disable-next-line import/no-extraneous-dependencies -- Required for test validation patterns
 import { vi } from 'vitest';
 
 // Disable unbound-method rule for this file as vi.mocked() is designed to work with unbound methods
-/* eslint-disable @typescript-eslint/unbound-method -- Required for test patterns */
 
 import { SecureTestUtils } from '../test-utils/secure-test-utils';
 
@@ -654,5 +652,3 @@ export function setupCustomScenario(config: {
     command,
   };
 }
-
-/* eslint-enable @typescript-eslint/unbound-method -- End of file scope */

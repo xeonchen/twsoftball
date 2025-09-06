@@ -3,10 +3,9 @@
  * Use case for ending innings and half-innings in a softball game with proper state transitions.
  *
  * @remarks
- * EndInning is a critical use case that orchestrates the complex process of transitioning
- * between innings or half-innings in a softball game. This involves coordinating multiple
- * domain aggregates (Game, InningState, TeamLineup), applying business rules for inning
- * progression, generating appropriate domain events, and ensuring consistent state management.
+ * This use case orchestrates inning transitions in softball games, coordinating multiple
+ * domain aggregates and applying business rules for proper game progression. Handles
+ * half-inning switches, full inning advances, and game completion scenarios.
  *
  * **Business Process Flow**:
  * 1. **Input Validation**: Verify command structure, inning numbers, and basic constraints
@@ -56,24 +55,21 @@
  * );
  *
  * // End top half of 5th inning (standard 3 outs)
- * const halfInningCommand: EndInningCommand = {
+ * const command: EndInningCommand = {
  *   gameId: GameId.create('game-123'),
  *   inning: 5,
  *   isTopHalf: true,
  *   endingReason: 'THREE_OUTS',
- *   finalOuts: 3,
- *   notes: 'Strikeout to end the top half',
+ *   finalOuts: 3
  * };
  *
- * const result = await endInning.execute(halfInningCommand);
+ * const result = await endInning.execute(command);
  *
  * if (result.success) {
  *   console.log(`Transitioned to ${result.newHalf?.isTopHalf ? 'top' : 'bottom'} of ${result.newHalf?.inning}`);
- *   if (result.gameEnded) {
- *     console.log(`Game completed: ${result.finalScore?.home}-${result.finalScore?.away}`);
- *   }
+ *   if (result.gameEnded) console.log(`Game completed: ${result.finalScore?.home}-${result.finalScore?.away}`);
  * } else {
- *   console.error('Inning ending failed:', result.errors);
+ *   console.error('Operation failed:', result.errors);
  * }
  * ```
  */

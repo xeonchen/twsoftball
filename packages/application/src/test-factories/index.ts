@@ -93,5 +93,26 @@ export {
   createRealisticLineup,
 } from './dto-factories';
 
+// Export command factories
+export {
+  createEndGameCommand,
+  createCompleteGameWorkflowCommand,
+  createCompleteAtBatSequenceCommand,
+  createStartNewGameCommand,
+  createRecordAtBatCommand,
+  createSubstitutePlayerCommand,
+  createEndInningCommand,
+} from './command-factories';
+
+// Export mock service factories
+export {
+  createMockUseCases,
+  createMockPorts,
+  createGameApplicationServiceMocks,
+  createUseCaseMocks,
+  type MockedUseCases,
+  type MockedPorts,
+} from './mock-service-factories';
+
 // Re-export secure test utils for convenience
 export { SecureTestUtils } from '../test-utils/secure-test-utils';

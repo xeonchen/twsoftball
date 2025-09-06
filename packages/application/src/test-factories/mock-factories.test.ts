@@ -65,17 +65,16 @@ describe('Mock Factories', () => {
     });
 
     it('should create repository with all methods as mocks', () => {
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(vi.isMockFunction(mockRepo.findById)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockRepo.save)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockRepo.findByStatus)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockRepo.findByDateRange)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockRepo.exists)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockRepo.delete)).toBe(true);
     });
 
@@ -197,7 +196,7 @@ describe('Mock Factories', () => {
         const customGame = createTestGame();
 
         // Override findById behavior
-        // eslint-disable-next-line @typescript-eslint/unbound-method
+
         vi.mocked(mockRepo.findById).mockResolvedValue(customGame);
 
         const result = await mockRepo.findById(new GameId('any-id'));
@@ -208,7 +207,7 @@ describe('Mock Factories', () => {
         const error = new Error('Database connection failed');
 
         // Configure save to throw error
-        // eslint-disable-next-line @typescript-eslint/unbound-method
+
         vi.mocked(mockRepo.save).mockRejectedValue(error);
 
         const game = createTestGame();
@@ -225,17 +224,16 @@ describe('Mock Factories', () => {
     });
 
     it('should create event store with all methods as mocks', () => {
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(vi.isMockFunction(mockEventStore.getGameEvents)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockEventStore.getEvents)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockEventStore.getAllEvents)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockEventStore.getEventsByType)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockEventStore.getEventsByGameId)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockEventStore.append)).toBe(true);
     });
 
@@ -451,17 +449,16 @@ describe('Mock Factories', () => {
     });
 
     it('should create logger with all methods as mocks', () => {
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(vi.isMockFunction(mockLogger.debug)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockLogger.info)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockLogger.warn)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockLogger.error)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockLogger.log)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockLogger.isLevelEnabled)).toBe(true);
     });
 
@@ -636,23 +633,22 @@ describe('Mock Factories', () => {
     });
 
     it('should create notification service with all methods as mocks', () => {
-      // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(vi.isMockFunction(mockNotificationService.sendUserNotification)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockNotificationService.sendSystemNotification)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockNotificationService.sendBatchNotifications)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockNotificationService.updateUserPreferences)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockNotificationService.getUserPreferences)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockNotificationService.isChannelAvailable)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockNotificationService.notifyGameStarted)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockNotificationService.notifyGameEnded)).toBe(true);
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockNotificationService.notifyScoreUpdate)).toBe(true);
     });
 
@@ -851,7 +847,7 @@ describe('Mock Factories', () => {
 
     it('should create properly typed mock instances', () => {
       // Verify repository methods
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockDependencies.gameRepository.findById)).toBe(true);
       expect(
         typeof (mockDependencies.gameRepository as unknown as { setMockGame: (game: Game) => void })
@@ -859,7 +855,7 @@ describe('Mock Factories', () => {
       ).toBe('function');
 
       // Verify event store methods
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockDependencies.eventStore.append)).toBe(true);
       expect(
         typeof (
@@ -873,7 +869,7 @@ describe('Mock Factories', () => {
       ).toBe('function');
 
       // Verify logger methods
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockDependencies.logger.info)).toBe(true);
       expect(
         typeof (
@@ -889,7 +885,7 @@ describe('Mock Factories', () => {
       ).toBe('function');
 
       // Verify notification service methods
-      // eslint-disable-next-line @typescript-eslint/unbound-method
+
       expect(vi.isMockFunction(mockDependencies.notificationService.sendUserNotification)).toBe(
         true
       );

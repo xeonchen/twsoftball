@@ -6,6 +6,8 @@
 import { GameId } from '@twsoftball/domain';
 import { describe, it, expect } from 'vitest';
 
+import { createEndGameCommand } from '../test-factories/command-factories';
+
 import {
   EndGameCommand,
   GameEndReason,
@@ -19,20 +21,7 @@ import {
 describe('EndGameCommand', () => {
   describe('EndGameCommand interface', () => {
     it('should represent mercy rule game ending correctly', () => {
-      const mercyRuleCommand: EndGameCommand = {
-        gameId: GameId.generate(),
-        reason: 'mercy_rule',
-        description: 'Home team leads by 15 runs after 5 complete innings',
-        endTime: new Date('2024-06-15T20:30:00Z'),
-        currentInning: 5,
-        currentHalf: 'bottom',
-        currentOuts: 1,
-        finalScore: { home: 18, away: 3 },
-        winner: 'home',
-        officialGame: true,
-        initiatedBy: 'umpire',
-        ruleReference: 'Rule 4.10(c) - Mercy Rule',
-      };
+      const mercyRuleCommand = createEndGameCommand.mercyRule();
 
       expect(mercyRuleCommand.gameId).toBeInstanceOf(GameId);
       expect(mercyRuleCommand.reason).toBe('mercy_rule');
@@ -45,18 +34,8 @@ describe('EndGameCommand', () => {
     });
 
     it('should represent weather cancellation correctly', () => {
-      const weatherCommand: EndGameCommand = {
-        gameId: GameId.generate(),
-        reason: 'weather',
-        description: 'Game suspended due to lightning in the area',
-        endTime: new Date('2024-06-15T19:45:00Z'),
-        currentInning: 3,
-        currentHalf: 'top',
-        currentOuts: 2,
+      const weatherCommand = createEndGameCommand.weather({
         finalScore: { home: 2, away: 4 },
-        winner: null,
-        officialGame: false,
-        initiatedBy: 'umpire',
         resumptionPossible: true,
         notes: 'Game will resume from current state when conditions improve',
         resumptionContact: 'league.coordinator@example.com',
@@ -68,7 +47,7 @@ describe('EndGameCommand', () => {
           expectedImprovement: true,
           estimatedClearance: 45,
         },
-      };
+      });
 
       expect(weatherCommand.reason).toBe('weather');
       expect(weatherCommand.winner).toBeNull();
@@ -80,53 +59,30 @@ describe('EndGameCommand', () => {
     });
 
     it('should represent forfeit scenarios correctly', () => {
-      const forfeitCommand: EndGameCommand = {
-        gameId: GameId.generate(),
-        reason: 'forfeit',
-        description: 'Away team forfeits due to insufficient players',
-        endTime: new Date('2024-06-15T20:00:00Z'),
-        currentInning: 4,
-        currentHalf: 'bottom',
-        currentOuts: 0,
+      const forfeitCommand = createEndGameCommand.forfeit({
         finalScore: { home: 5, away: 3 },
-        winner: 'home',
-        officialGame: true,
-        initiatedBy: 'head_umpire',
-        ruleReference: 'Rule 4.17 - Forfeit',
         forfeitDetails: {
           forfeitingTeam: 'away',
           forfeitReason: 'insufficient_players',
           details: 'Away team has only 7 players available after two injuries',
-          playersInvolved: ['Player #12', 'Player #8'],
-          appealPending: false,
-          official: 'Chief Umpire Johnson',
-        },
-      };
+        } as ForfeitDetailsDTO,
+      });
 
       expect(forfeitCommand.reason).toBe('forfeit');
       expect(forfeitCommand.winner).toBe('home');
       expect(forfeitCommand.forfeitDetails?.forfeitingTeam).toBe('away');
+      expect(forfeitCommand.forfeitDetails?.details).toContain(
+        'Away team has only 7 players available'
+      );
       expect(forfeitCommand.forfeitDetails?.forfeitReason).toBe('insufficient_players');
-      expect(forfeitCommand.forfeitDetails?.playersInvolved).toHaveLength(2);
-      expect(forfeitCommand.forfeitDetails?.appealPending).toBe(false);
     });
 
     it('should represent time limit endings correctly', () => {
-      const timeLimitCommand: EndGameCommand = {
-        gameId: GameId.generate(),
-        reason: 'time_limit',
-        description: 'Game reaches 2.5 hour time limit',
-        endTime: new Date('2024-06-15T21:30:00Z'),
-        currentInning: 7,
-        currentHalf: 'bottom',
-        currentOuts: 1,
+      const timeLimitCommand = createEndGameCommand.timeLimit({
         finalScore: { home: 6, away: 6 },
         winner: null,
-        officialGame: true,
-        initiatedBy: 'plate_umpire',
-        ruleReference: 'Rule 9.04 - Time Limits',
         notes: 'Game declared official tie due to time constraint',
-      };
+      });
 
       expect(timeLimitCommand.reason).toBe('time_limit');
       expect(timeLimitCommand.winner).toBeNull();
