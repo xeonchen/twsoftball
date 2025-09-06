@@ -86,6 +86,8 @@ export class Game {
 
   private uncommittedEvents: DomainEvent[] = [];
 
+  private version: number = 0;
+
   /**
    * Creates a Game instance with the specified state.
    *
@@ -426,6 +428,122 @@ export class Game {
   }
 
   /**
+   * Gets the current version of the aggregate (total number of events ever added).
+   *
+   * @returns Current aggregate version number
+   *
+   * @remarks
+   * The version represents the aggregate's position in the event stream.
+   * It starts at 0 for a newly created aggregate (before any events) and
+   * increments by 1 for each event added to the aggregate.
+   *
+   * Version tracking is critical for:
+   * - Optimistic concurrency control in event stores
+   * - Ensuring proper event ordering
+   * - Supporting aggregate snapshots
+   * - Detecting conflicts in distributed scenarios
+   *
+   * The version persists after markEventsAsCommitted() and is correctly
+   * set during event sourcing reconstruction via fromEvents().
+   *
+   * @example
+   * ```typescript
+   * const game = Game.createNew(gameId, 'Home', 'Away');
+   * console.log(game.getVersion()); // 1 (GameCreated event)
+   *
+   * game.startGame();
+   * console.log(game.getVersion()); // 2 (+ GameStarted event)
+   *
+   * game.markEventsAsCommitted();
+   * console.log(game.getVersion()); // 2 (version persists)
+   * ```
+   */
+  getVersion(): number {
+    return this.version;
+  }
+
+  /**
+   * Reconstructs a Game aggregate from a stream of domain events.
+   *
+   * @param events - Array of domain events to replay in chronological order
+   * @returns Game instance with state reconstructed from events
+   * @throws {DomainError} When event stream is invalid or empty
+   *
+   * @remarks
+   * **Event Sourcing Reconstruction:**
+   * - Validates event stream integrity (first event must be GameCreated)
+   * - Ensures all events belong to the same game aggregate
+   * - Replays events in order to rebuild current game state
+   * - Returns game with zero uncommitted events (all events are already committed)
+   *
+   * **Validation Rules:**
+   * - Events array cannot be null, undefined, or empty
+   * - First event must be GameCreated to establish game identity
+   * - All events must have the same gameId for consistency
+   * - Events are applied in the order provided (chronological)
+   *
+   * **State Reconstruction:**
+   * - Creates initial game instance from GameCreated event
+   * - Applies each subsequent event to update game state
+   * - Maintains all domain invariants throughout reconstruction
+   * - Preserves immutability of game core properties (id, team names)
+   *
+   * @example
+   * ```typescript
+   * const events = [
+   *   new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+   *   new GameStarted(gameId),
+   *   new ScoreUpdated(gameId, 'HOME', 2, { home: 2, away: 0 }),
+   *   new InningAdvanced(gameId, 1, false)
+   * ];
+   *
+   * const game = Game.fromEvents(events);
+   * console.log(game.status);        // IN_PROGRESS
+   * console.log(game.score.getHomeRuns()); // 2
+   * console.log(game.isTopHalf);     // false
+   * ```
+   */
+  static fromEvents(events: DomainEvent[]): Game {
+    // Validate events array
+    if (!events || events.length === 0) {
+      throw new DomainError('Cannot reconstruct game from empty event array');
+    }
+
+    // Validate first event is GameCreated
+    const firstEvent = events[0];
+    if (firstEvent?.type !== 'GameCreated') {
+      throw new DomainError('First event must be GameCreated');
+    }
+
+    // Validate all events belong to the same game
+    const gameId = firstEvent.gameId;
+    for (const event of events) {
+      if (!event.gameId.equals(gameId)) {
+        throw new DomainError('All events must belong to the same game');
+      }
+    }
+
+    // Create initial game instance from GameCreated event
+    const gameCreatedEvent = firstEvent as GameCreated;
+    const game = new Game(gameId, gameCreatedEvent.homeTeamName, gameCreatedEvent.awayTeamName);
+
+    // Apply remaining events to reconstruct state
+    for (let i = 1; i < events.length; i += 1) {
+      const event = events[i];
+      if (event) {
+        game.applyEvent(event);
+      }
+    }
+
+    // Events are already committed (no uncommitted events for reconstructed game)
+    game.uncommittedEvents = [];
+    // Set version to total number of events processed
+    game.version = events.length;
+
+    return game;
+  }
+
+  /**
    * Marks all uncommitted events as committed, clearing the event list.
    *
    * @remarks
@@ -437,12 +555,74 @@ export class Game {
   }
 
   /**
-   * Adds a domain event to the uncommitted events list.
+   * Adds a domain event to the uncommitted events list and increments version.
    *
    * @param event - Domain event to add
    */
   private addEvent(event: DomainEvent): void {
     this.uncommittedEvents.push(event);
+    this.version += 1;
+  }
+
+  /**
+   * Applies a domain event to update the game state during event sourcing reconstruction.
+   *
+   * @param event - Domain event to apply
+   * @throws {DomainError} When event type is not supported
+   *
+   * @remarks
+   * **Event Application Logic:**
+   * - GameStarted: Changes status from NOT_STARTED to IN_PROGRESS
+   * - ScoreUpdated: Updates game score with new totals
+   * - InningAdvanced: Updates current inning and half-inning state
+   * - GameCompleted: Changes status to COMPLETED
+   *
+   * **State Updates:**
+   * - All updates maintain domain invariants
+   * - Score updates create new immutable GameScore instances
+   * - Inning updates reset outs to 0 (as per softball rules)
+   * - Status changes follow valid state transitions
+   *
+   * **Important Notes:**
+   * - This method is only used during event sourcing reconstruction
+   * - Does not add events to uncommitted events list
+   * - Does not perform business rule validation (events are assumed valid)
+   * - Events must be applied in chronological order for correct state
+   */
+  private applyEvent(event: DomainEvent): void {
+    switch (event.type) {
+      case 'GameStarted':
+        this.gameStatus = GameStatus.IN_PROGRESS;
+        break;
+
+      case 'ScoreUpdated': {
+        const scoreEvent = event as ScoreUpdated;
+        this.gameScore = GameScore.fromRuns(scoreEvent.newScore.home, scoreEvent.newScore.away);
+        break;
+      }
+
+      case 'InningAdvanced': {
+        const inningEvent = event as InningAdvanced;
+        this.currentInningNumber = inningEvent.newInning;
+        this.topHalfOfInning = inningEvent.isTopHalf;
+        this.currentOuts = 0; // Outs reset when inning advances
+        break;
+      }
+
+      case 'GameCompleted': {
+        const completedEvent = event as GameCompleted;
+        this.gameStatus = GameStatus.COMPLETED;
+        // Update score to final score recorded in completion event
+        this.gameScore = GameScore.fromRuns(
+          completedEvent.finalScore.home,
+          completedEvent.finalScore.away
+        );
+        break;
+      }
+
+      default:
+        throw new DomainError(`Unsupported event type for reconstruction: ${event.type}`);
+    }
   }
 
   /**
