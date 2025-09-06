@@ -18,7 +18,6 @@ import {
   JerseyNumber,
   FieldPosition,
   GameStatus,
-  TeamLineupId,
 } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
@@ -29,30 +28,12 @@ import { InningEndResult } from '../../dtos/InningEndResult';
 import { RedoResult } from '../../dtos/RedoResult';
 import { StartNewGameCommand } from '../../dtos/StartNewGameCommand';
 import { SubstitutionResult } from '../../dtos/SubstitutionResult';
-import { TeamLineupDTO } from '../../dtos/TeamLineupDTO';
 import { UndoResult } from '../../dtos/UndoResult';
-import { CommandTestBuilder, SecureTestUtils } from '../../test-factories';
+import { CommandTestBuilder, SecureTestUtils, createLineupDTO } from '../../test-factories';
 
 import { GameCommandService } from './GameCommandService';
 
-// Helper function to create mock lineup DTOs
-function createMockLineupDTO(
-  gameId: GameId,
-  teamSide: 'HOME' | 'AWAY',
-  teamName: string
-): TeamLineupDTO {
-  return {
-    teamLineupId: TeamLineupId.generate(),
-    gameId,
-    teamSide,
-    teamName,
-    strategy: 'DETAILED',
-    battingSlots: [],
-    fieldPositions: {} as Record<FieldPosition, PlayerId | null>,
-    benchPlayers: [],
-    substitutionHistory: [],
-  };
-}
+// Use factory function instead of local helper
 
 // Mock implementation for testing the interface contract
 class MockGameCommandService implements GameCommandService {
@@ -77,8 +58,8 @@ class MockGameCommandService implements GameCommandService {
           basesLoaded: false,
         },
         currentBatterSlot: 1,
-        homeLineup: createMockLineupDTO(command.gameId, 'HOME', command.homeTeamName),
-        awayLineup: createMockLineupDTO(command.gameId, 'AWAY', command.awayTeamName),
+        homeLineup: createLineupDTO(command.gameId, 'HOME', command.homeTeamName),
+        awayLineup: createLineupDTO(command.gameId, 'AWAY', command.awayTeamName),
         currentBatter: null,
         lastUpdated: new Date(),
       },
@@ -106,8 +87,8 @@ class MockGameCommandService implements GameCommandService {
           basesLoaded: false,
         },
         currentBatterSlot: 1,
-        homeLineup: createMockLineupDTO(gameId, 'HOME', 'Home Team'),
-        awayLineup: createMockLineupDTO(gameId, 'AWAY', 'Away Team'),
+        homeLineup: createLineupDTO(gameId, 'HOME', 'Home Team'),
+        awayLineup: createLineupDTO(gameId, 'AWAY', 'Away Team'),
         currentBatter: null,
         lastUpdated: new Date(),
       },
@@ -344,8 +325,8 @@ describe('GameCommandService Interface', () => {
                 basesLoaded: false,
               },
               currentBatterSlot: 1,
-              homeLineup: createMockLineupDTO(gameId, 'HOME', 'Error Home Team'),
-              awayLineup: createMockLineupDTO(gameId, 'AWAY', 'Error Away Team'),
+              homeLineup: createLineupDTO(gameId, 'HOME', 'Error Home Team'),
+              awayLineup: createLineupDTO(gameId, 'AWAY', 'Error Away Team'),
               currentBatter: null,
               lastUpdated: new Date(),
             },

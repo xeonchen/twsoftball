@@ -21,10 +21,10 @@ import {
   createMockDependencies,
   GameTestBuilder,
   CommandTestBuilder,
-  SecureTestUtils,
   EnhancedMockGameRepository,
   EnhancedMockEventStore,
   EnhancedMockLogger,
+  createActionUndoneEvent,
 } from '../test-factories';
 
 import { RedoLastAction } from './RedoLastAction';
@@ -32,19 +32,6 @@ import { RedoLastAction } from './RedoLastAction';
 // Helper function to create mock games for specific test scenarios
 function createMockGame(gameId: string, status: GameStatus): Game {
   return GameTestBuilder.create().withId(gameId).withStatus(status).build();
-}
-
-// Helper function to create undo events for testing
-function createActionUndoneEvent(originalEventType: string, gameId: string): DomainEvent {
-  return {
-    eventId: SecureTestUtils.generateEventId(),
-    type: 'ActionUndone',
-    gameId: new GameId(gameId),
-    version: 1,
-    timestamp: new Date(),
-    originalEventType,
-    undoReason: 'Test undo',
-  } as DomainEvent;
 }
 
 describe('RedoLastAction', () => {

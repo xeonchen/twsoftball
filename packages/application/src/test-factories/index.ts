@@ -73,5 +73,25 @@ export {
   type TestScenario,
 } from './test-scenarios';
 
+// Export all event factories
+export {
+  createActionUndoneEvent,
+  createAtBatCompletedEvent,
+  createSubstitutionEvent,
+  createInningEndEvent,
+  createGameStartedEvent,
+  createGameCompletedEvent,
+  createEventSequence,
+} from './event-factories';
+
+// Export all DTO factories
+export {
+  createLineupDTO,
+  createGameStateDTO,
+  createLineupPlayerDTO,
+  createFullLineup,
+  createRealisticLineup,
+} from './dto-factories';
+
 // Re-export secure test utils for convenience
 export { SecureTestUtils } from '../test-utils/secure-test-utils';

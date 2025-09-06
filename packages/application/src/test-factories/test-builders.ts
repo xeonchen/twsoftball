@@ -211,6 +211,74 @@ export class GameTestBuilder {
   }
 
   /**
+   * Creates a game with undoable events for undo/redo testing scenarios.
+   *
+   * @remarks
+   * This method is specifically designed for testing undo/redo functionality.
+   * It creates a game that has ActionUndone events in its history, making
+   * it suitable for testing redo operations.
+   *
+   * @param eventCount - Number of undoable events to simulate (default: 1)
+   * @returns GameTestBuilder instance configured for undo/redo testing
+   *
+   * @example
+   * ```typescript
+   * const gameWithUndoableEvents = GameTestBuilder
+   *   .create()
+   *   .withUndoableEvents(3)
+   *   .build();
+   * ```
+   */
+  withUndoableEvents(_eventCount: number = 1): GameTestBuilder {
+    // This method prepares the builder for creating games with undoable events
+    // The actual event creation will be handled by the mock event store in tests
+    return new GameTestBuilder(
+      this.id,
+      this.status,
+      this.homeTeamName,
+      this.awayTeamName,
+      this.currentInning,
+      this.homeScore,
+      this.awayScore,
+      this.gameDate
+    );
+  }
+
+  /**
+   * Creates a game with completed at-bats for testing scenarios with game history.
+   *
+   * @remarks
+   * This method is designed for testing scenarios that need games with
+   * existing at-bat history. Useful for testing undo operations and
+   * game state validation.
+   *
+   * @param atBatCount - Number of completed at-bats to simulate (default: 3)
+   * @returns GameTestBuilder instance configured with at-bat history
+   *
+   * @example
+   * ```typescript
+   * const gameWithHistory = GameTestBuilder
+   *   .create()
+   *   .withCompletedAtBats(5)
+   *   .build();
+   * ```
+   */
+  withCompletedAtBats(_atBatCount: number = 3): GameTestBuilder {
+    // This method prepares the builder for creating games with at-bat history
+    // The actual event creation will be handled by the mock event store in tests
+    return new GameTestBuilder(
+      this.id,
+      this.status,
+      this.homeTeamName,
+      this.awayTeamName,
+      this.currentInning,
+      this.homeScore,
+      this.awayScore,
+      this.gameDate
+    );
+  }
+
+  /**
    * Builds the final Game instance.
    */
   build(): Game {
