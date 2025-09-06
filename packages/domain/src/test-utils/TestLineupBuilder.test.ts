@@ -7,7 +7,7 @@ import { TestPlayerFactory } from './TestPlayerFactory';
 
 describe('TestLineupBuilder', () => {
   describe('STANDARD_POSITIONS constant', () => {
-    it('should have exactly 10 positions for standard slow-pitch softball', () => {
+    it('should have exactly 10 positions for standard slow-pitch softball (10-player standard)', () => {
       expect(TestLineupBuilder.STANDARD_POSITIONS).toHaveLength(10);
     });
 
@@ -27,11 +27,11 @@ describe('TestLineupBuilder', () => {
   });
 
   describe('NINE_PLAYER_POSITIONS constant', () => {
-    it('should have exactly 9 positions for boundary testing', () => {
+    it('should have exactly 9 positions (9-player boundary case without SF)', () => {
       expect(TestLineupBuilder.NINE_PLAYER_POSITIONS).toHaveLength(9);
     });
 
-    it('should include all baseball positions without SHORT_FIELDER', () => {
+    it('should include all baseball positions without SHORT_FIELDER (valid but less frequent)', () => {
       const ninePlayer = TestLineupBuilder.NINE_PLAYER_POSITIONS;
       expect(ninePlayer).toContain(FieldPosition.PITCHER);
       expect(ninePlayer).toContain(FieldPosition.CATCHER);
@@ -47,7 +47,7 @@ describe('TestLineupBuilder', () => {
   });
 
   describe('createFullLineup', () => {
-    it('should create 10-player lineup with default players (standard)', () => {
+    it('should create 10-player lineup with default players (standard configuration)', () => {
       const lineup = TestLineupBuilder.createFullLineup();
 
       expect(lineup).toHaveLength(10);
@@ -89,7 +89,7 @@ describe('TestLineupBuilder', () => {
   });
 
   describe('createMinimalLineup', () => {
-    it('should create 9-player lineup by default', () => {
+    it('should create 9-player lineup by default (boundary case)', () => {
       const lineup = TestLineupBuilder.createMinimalLineup();
 
       expect(lineup).toHaveLength(9);
@@ -97,7 +97,7 @@ describe('TestLineupBuilder', () => {
       expect(lineup[8]!.slotNumber).toBe(9);
     });
 
-    it('should create lineup of specified size', () => {
+    it('should create lineup of specified size (flexible configuration)', () => {
       const lineup = TestLineupBuilder.createMinimalLineup(5);
 
       expect(lineup).toHaveLength(5);
@@ -170,7 +170,7 @@ describe('TestLineupBuilder', () => {
   });
 
   describe('createSlowPitchLineup', () => {
-    it('should create 10-player lineup with default players', () => {
+    it('should create 10-player lineup with default players (standard configuration)', () => {
       const lineup = TestLineupBuilder.createSlowPitchLineup();
 
       expect(lineup).toHaveLength(10);
@@ -181,7 +181,7 @@ describe('TestLineupBuilder', () => {
       });
     });
 
-    it('should create lineup with provided 10 players', () => {
+    it('should create lineup with provided 10 players (standard configuration)', () => {
       const players = TestPlayerFactory.createPlayers(10);
       const lineup = TestLineupBuilder.createSlowPitchLineup(players);
 
@@ -263,15 +263,15 @@ describe('TestLineupBuilder', () => {
       expect(lineup[1]!.slotNumber).toBe(2);
     });
 
-    it('should assign EXTRA_PLAYER position when more slots than standard positions', () => {
+    it('should assign EXTRA_PLAYER position when more slots than standard positions (13+ players boundary case)', () => {
       const slotNumbers = Array.from({ length: 13 }, (_, i) => i + 1); // Slots 1-13
       const lineup = TestLineupBuilder.createLineupWithSlots(slotNumbers);
 
       expect(lineup).toHaveLength(13);
-      // First 10 players get standard positions
+      // First 10 players get standard positions (10-player standard)
       expect(lineup[0]!.currentPosition).toBe(FieldPosition.PITCHER);
       expect(lineup[9]!.currentPosition).toBe(FieldPosition.SHORT_FIELDER);
-      // Players 11-13 are Extra Players (EP)
+      // Players 11-13 are Extra Players (EP) - valid but less frequent
       expect(lineup[10]!.currentPosition).toBe(FieldPosition.EXTRA_PLAYER); // Slot 11 -> EP
       expect(lineup[11]!.currentPosition).toBe(FieldPosition.EXTRA_PLAYER); // Slot 12 -> EP
       expect(lineup[12]!.currentPosition).toBe(FieldPosition.EXTRA_PLAYER); // Slot 13 -> EP

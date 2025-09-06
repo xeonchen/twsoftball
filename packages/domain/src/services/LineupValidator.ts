@@ -43,9 +43,10 @@ export interface LineupEntry {
  * 6. **Batting Order**: Slots must be in sequential order for gameplay
  *
  * **Softball-Specific Context**:
- * - **Extra Players (EP)**: Positions 10+ allow batting-only players (no defense, up to maxPlayersPerTeam)
- * - **Short Fielder**: 10th defensive position unique to slow-pitch softball
- * - **Designated Hitter**: Can bat but doesn't play defense
+ * - **10-player standard**: Most common lineup with all defensive positions including SHORT_FIELDER
+ * - **11-12 player common**: Standard defense plus 1-2 EXTRA_PLAYERs (batting-only roles)
+ * - **9-player boundary**: Traditional without SHORT_FIELDER (valid but less frequent)
+ * - **13+ players**: Multiple EPs allowed but less common in practice
  * - **Re-entry Rules**: Validated in conjunction with substitution patterns
  *
  * **Business Impact**:
@@ -94,6 +95,8 @@ export class LineupValidator {
    *
    * **Player Count Requirements**:
    * - Minimum 9 players (enough to fill all defensive positions)
+   * - 10-player standard (most common configuration)
+   * - 11-12 player common (standard + 1-2 Extra Players)
    * - Maximum per SoftballRules.maxPlayersPerTeam configuration
    *
    * **Sequential Batting Slot Rules**:
@@ -142,7 +145,7 @@ export class LineupValidator {
     // 1. Validate player count (9 to maxPlayersPerTeam players)
     if (!this.isValidLineupSize(lineup.length, rules)) {
       throw new DomainError(
-        `Lineup must have minimum 9 players and maximum ${rules.maxPlayersPerTeam} batting slots, got ${lineup.length}`
+        `Lineup must have minimum 9 players (traditional), 10-player standard, or up to ${rules.maxPlayersPerTeam} maximum, got ${lineup.length}`
       );
     }
 
@@ -338,6 +341,9 @@ export class LineupValidator {
    * **Softball Lineup Size Rules**:
    * - **Minimum 9**: Required to fill all traditional defensive positions
    *   (P, C, 1B, 2B, 3B, SS, LF, CF, RF)
+   * - **10-player standard**: Most common configuration adding SHORT_FIELDER
+   * - **11-12 player common**: Standard defense plus 1-2 EXTRA_PLAYERs for batting depth
+   * - **13+ players**: Valid but less frequent boundary cases
    * - **Maximum per SoftballRules**: Configurable based on league requirements
    * - **Strategic Flexibility**: Larger lineups provide more substitution options
    *   and enable specialized players for different game situations
@@ -352,7 +358,9 @@ export class LineupValidator {
    * @example
    * ```typescript
    * const rules = new SoftballRules({ maxPlayersPerTeam: 20 });
-   * console.log(LineupValidator.isValidLineupSize(9, rules));  // true - minimal
+   * console.log(LineupValidator.isValidLineupSize(9, rules));  // true - minimum/boundary case
+   * console.log(LineupValidator.isValidLineupSize(10, rules)); // true - standard
+   * console.log(LineupValidator.isValidLineupSize(12, rules)); // true - common with 2 EPs
    * console.log(LineupValidator.isValidLineupSize(15, rules)); // true - mid-range
    * console.log(LineupValidator.isValidLineupSize(20, rules)); // true - maximum for these rules
    * console.log(LineupValidator.isValidLineupSize(8, rules));  // false - too few

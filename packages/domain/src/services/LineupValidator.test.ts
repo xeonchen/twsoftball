@@ -104,7 +104,7 @@ describe('LineupValidator', () => {
         }).toThrow(DomainError);
         expect(() => {
           LineupValidator.validateLineupConfiguration(oversizedManual, rules);
-        }).toThrow('maximum 20 batting slots');
+        }).toThrow('up to 20 maximum');
       });
 
       it('should accept lineup with exactly 20 players', () => {

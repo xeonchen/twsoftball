@@ -240,7 +240,7 @@ export function createCompleteGameWorkflowCommand(
           name: 'Tiger Player 10',
           jerseyNumber: JerseyNumber.fromNumber(10),
           battingOrderPosition: 10,
-          fieldPosition: FieldPosition.SHORT_FIELDER,
+          fieldPosition: FieldPosition.SHORT_FIELDER, // 10-player standard slow-pitch position
           preferredPositions: [FieldPosition.SHORT_FIELDER],
         },
       ],
@@ -296,7 +296,7 @@ export function createCompleteAtBatSequenceCommand(
  */
 export const createStartNewGameCommand = {
   /**
-   * Creates a standard game command with default lineups.
+   * Creates a 10-player standard game command with default lineups.
    */
   standard: (overrides: Partial<StartNewGameCommand> = {}): StartNewGameCommand => ({
     gameId: GameId.generate(),
@@ -383,7 +383,7 @@ export const createStartNewGameCommand = {
         name: 'Tiger Player 10',
         jerseyNumber: JerseyNumber.fromNumber(10),
         battingOrderPosition: 10,
-        fieldPosition: FieldPosition.SHORT_FIELDER,
+        fieldPosition: FieldPosition.SHORT_FIELDER, // 10-player standard slow-pitch position
         preferredPositions: [FieldPosition.SHORT_FIELDER],
       },
     ],
@@ -478,7 +478,7 @@ export const createStartNewGameCommand = {
         name: 'Wildcat Player 10',
         jerseyNumber: JerseyNumber.fromNumber(10),
         battingOrderPosition: 10,
-        fieldPosition: FieldPosition.SHORT_FIELDER,
+        fieldPosition: FieldPosition.SHORT_FIELDER, // 10-player standard slow-pitch position
         preferredPositions: [FieldPosition.SHORT_FIELDER],
       },
     ],

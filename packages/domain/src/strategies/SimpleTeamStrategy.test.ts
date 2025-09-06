@@ -24,7 +24,7 @@ describe('SimpleTeamStrategy', () => {
   beforeEach(() => {
     strategy = new SimpleTeamStrategy();
 
-    // Create 10 players using test utilities - eliminates duplication
+    // Create 10 players using test utilities (standard configuration) - eliminates duplication
     players = TestPlayerFactory.createPlayers(10);
     [player1, player2, player3, player4, player5, player6, player7, player8, player9] = [
       players[0]!,
@@ -250,8 +250,8 @@ describe('SimpleTeamStrategy', () => {
       expect(strategy.isPlayerInLineup(player3.playerId)).toBe(true);
     });
 
-    it('should handle maximum lineup size (20 players)', () => {
-      // Use helper to set up full 20-player lineup
+    it('should handle maximum lineup size (20 players - boundary case)', () => {
+      // Use helper to set up full 20-player lineup (maximum allowed)
       const lineupPlayers = TeamStrategyTestHelper.setupFullLineup(strategy);
 
       expect(lineupPlayers).toHaveLength(20);
@@ -630,7 +630,7 @@ describe('SimpleTeamStrategy', () => {
       expect(strategy.isLineupValid()).toBe(false);
     });
 
-    it('should return false for lineup with less than 9 players', () => {
+    it('should return false for lineup with less than 9 players (below minimum)', () => {
       const lineupData: BattingSlotState[] = [
         {
           slotNumber: 1,
@@ -643,8 +643,8 @@ describe('SimpleTeamStrategy', () => {
       expect(strategy.isLineupValid()).toBe(false);
     });
 
-    it('should return true for valid 9-player lineup with required positions', () => {
-      // Use helper to set up valid 9-player lineup
+    it('should return true for valid 9-player lineup with required positions (boundary case)', () => {
+      // Use helper to set up valid 9-player lineup (minimum required)
       TeamStrategyTestHelper.setupBasicLineup(strategy, 9);
       TeamStrategyTestHelper.assertLineupValid(strategy);
     });
@@ -702,8 +702,8 @@ describe('SimpleTeamStrategy', () => {
       expect(strategy.isLineupValid()).toBe(false);
     });
 
-    it('should return true for lineup with more than 9 players including extra positions', () => {
-      // Use helper to set up 10-player lineup
+    it('should return true for lineup with more than 9 players including extra positions (10-player standard)', () => {
+      // Use helper to set up 10-player lineup (standard configuration)
       TeamStrategyTestHelper.setupBasicLineup(strategy, 10);
       TeamStrategyTestHelper.assertLineupValid(strategy);
     });

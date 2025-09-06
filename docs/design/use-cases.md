@@ -40,7 +40,9 @@ acceptance criteria, and implementation priority.
 - [ ] User can enter home team name and away team name
 - [ ] User can specify which team is "our team" (the one we're tracking in
       detail)
-- [ ] User can set up initial batting order for our team (9-20 players)
+- [ ] User can set up initial batting order for our team (10-12 players is
+      standard: 10-player baseline, 11-player with EP, 12-player with 2 EPs;
+      9-player and 13+ players are boundary cases)
 - [ ] User can assign jersey numbers to each player
 - [ ] User can assign field positions to each player
 - [ ] System validates that all required positions are filled

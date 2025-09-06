@@ -589,7 +589,8 @@ describe('StartNewGameCommand', () => {
         const invalidCommand = { ...validCommand, initialLineup: shortLineup };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
           expect.objectContaining({
-            message: 'Initial lineup must have at least 9 players',
+            message:
+              'Initial lineup must have at least 9 players (10-player standard lineup recommended)',
             name: 'StartNewGameCommandValidationError',
           }) as Error
         );
@@ -921,7 +922,8 @@ describe('StartNewGameCommand', () => {
         const invalidCommand = { ...validCommand, gameRules: invalidRules };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
           expect.objectContaining({
-            message: 'maxPlayersInLineup must be between 9 and 20',
+            message:
+              'maxPlayersInLineup must be between 9 and 20 (10-player standard, 11-12 common)',
             name: 'StartNewGameCommandValidationError',
             validationContext: expect.objectContaining({
               field: 'maxPlayersInLineup',
@@ -935,7 +937,8 @@ describe('StartNewGameCommand', () => {
         const invalidCommand = { ...validCommand, gameRules: invalidRules };
         expect(() => StartNewGameCommandValidator.validate(invalidCommand)).toThrow(
           expect.objectContaining({
-            message: 'maxPlayersInLineup must be between 9 and 20',
+            message:
+              'maxPlayersInLineup must be between 9 and 20 (10-player standard, 11-12 common)',
             name: 'StartNewGameCommandValidationError',
             validationContext: expect.objectContaining({
               field: 'maxPlayersInLineup',

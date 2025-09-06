@@ -8,17 +8,24 @@ import { TestPlayerFactory } from './TestPlayerFactory';
  *
  * @remarks
  * This utility eliminates duplicated lineup construction code across test files.
- * Provides methods for creating standard softball lineups with proper positioning
- * and slot assignments. Supports both minimal (9-player) and full lineups.
+ * Provides methods for creating softball lineups with proper positioning and slot
+ * assignments. Supports common lineup configurations:
+ *
+ * - 9-player: Minimum/boundary case without SHORT_FIELDER
+ * - 10-player standard: Most common configuration with SHORT_FIELDER
+ * - 11-12 player: Common setups with 1-2 EXTRA_PLAYERs
  *
  * @example
  * ```typescript
- * // Create standard 9-player lineup
- * const lineup = TestLineupBuilder.createFullLineup();
+ * // Create 10-player standard lineup
+ * const lineup = TestLineupBuilder.createStandardLineup();
+ *
+ * // Create 9-player boundary case
+ * const lineup = TestLineupBuilder.createNinePlayerLineup();
  *
  * // Create lineup with specific players
- * const players = TestPlayerFactory.createPlayers(9);
- * const lineup = TestLineupBuilder.createFullLineup(players);
+ * const players = TestPlayerFactory.createPlayers(10);
+ * const lineup = TestLineupBuilder.createStandardLineup(players);
  *
  * // Create custom lineup configuration
  * const lineup = TestLineupBuilder.createCustomLineup([
@@ -30,7 +37,7 @@ import { TestPlayerFactory } from './TestPlayerFactory';
 export class TestLineupBuilder {
   /**
    * Standard defensive position assignments for a 10-player slow-pitch softball lineup.
-   * Follows typical slow-pitch softball positioning strategy.
+   * This is the most common configuration in slow-pitch softball.
    */
   public static readonly STANDARD_POSITIONS: readonly FieldPosition[] = [
     FieldPosition.PITCHER, // Slot 1
@@ -46,8 +53,8 @@ export class TestLineupBuilder {
   ] as const;
 
   /**
-   * Nine-player defensive positions for boundary testing.
-   * Traditional baseball lineup without SHORT_FIELDER.
+   * Nine-player defensive positions for boundary case testing.
+   * Traditional lineup without SHORT_FIELDER (valid but less frequent).
    */
   public static readonly NINE_PLAYER_POSITIONS: readonly FieldPosition[] = [
     FieldPosition.PITCHER, // Slot 1
@@ -64,14 +71,17 @@ export class TestLineupBuilder {
   /**
    * Creates a complete 10-player lineup with standard slow-pitch positions.
    *
+   * This is the most common softball lineup configuration, including the
+   * SHORT_FIELDER position that distinguishes slow-pitch from traditional baseball.
+   *
    * @param players - Optional array of players to use (defaults to created players)
-   * @returns Array of BattingSlotState representing a standard lineup
+   * @returns Array of BattingSlotState representing the standard 10-player lineup
    *
    * @throws {Error} If players array length doesn't match expected lineup size
    *
    * @example
    * ```typescript
-   * // With default players
+   * // With default players - most common configuration
    * const lineup = TestLineupBuilder.createStandardLineup();
    * expect(lineup).toHaveLength(10);
    * expect(lineup[0].currentPosition).toBe(FieldPosition.PITCHER);
@@ -98,10 +108,13 @@ export class TestLineupBuilder {
   }
 
   /**
-   * Creates a 9-player lineup for boundary testing.
+   * Creates a 9-player lineup for boundary case testing.
+   *
+   * This configuration represents the minimum valid lineup size, using traditional
+   * positions without the SHORT_FIELDER. Valid but less frequent in slow-pitch softball.
    *
    * @param players - Optional array of players to use (defaults to created players)
-   * @returns Array of BattingSlotState representing a 9-player lineup
+   * @returns Array of BattingSlotState representing a 9-player boundary case lineup
    *
    * @throws {Error} If players array length doesn't match expected lineup size
    */
@@ -122,7 +135,7 @@ export class TestLineupBuilder {
   /**
    * Creates a complete lineup with standard positions (alias for createStandardLineup).
    *
-   * @deprecated Use createStandardLineup() for 10-player or createNinePlayerLineup() for 9-player lineups
+   * @deprecated Use createStandardLineup() for 10-player standard or createNinePlayerLineup() for 9-player boundary cases
    * @param players - Optional array of players to use
    * @returns Array of BattingSlotState representing a standard 10-player lineup
    */
@@ -196,8 +209,11 @@ export class TestLineupBuilder {
   /**
    * Creates a 10-player slow-pitch softball lineup with short fielder.
    *
+   * This method is an alias for createStandardLineup(), representing the most
+   * common slow-pitch softball configuration with SHORT_FIELDER.
+   *
    * @param players - Optional array of 10 players to use
-   * @returns Array of BattingSlotState for 10-player lineup
+   * @returns Array of BattingSlotState for standard 10-player lineup
    *
    * @throws {Error} If players array doesn't contain exactly 10 players
    *

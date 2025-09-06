@@ -134,6 +134,8 @@ export class SoftballRules {
    * @remarks
    * Different leagues have varying roster limits:
    * - Minimum 9 players (starting lineup requirement)
+   * - 10-player standard: Most common configuration with SHORT_FIELDER
+   * - 11-12 player common: Standard defense plus 1-2 EXTRA_PLAYERs
    * - Recreation leagues: often 20-25 to accommodate scheduling flexibility
    * - Tournament play: may limit to 15-20 for competitive balance
    * - Corporate leagues: may allow larger rosters for participation
@@ -235,7 +237,7 @@ export class SoftballRules {
    * @remarks
    * **Validation Rules**:
    * - totalInnings: 1-50 (reasonable range for any softball variant)
-   * - maxPlayersPerTeam: 9-50 (minimum starting lineup to reasonable maximum)
+   * - maxPlayersPerTeam: 9-50 (minimum 9-player to maximum, 10-player standard, 11-12 common)
    * - timeLimitMinutes: 1-720 minutes or null (1 minute to 12 hours max, defaults to 60)
    * - mercyRuleTiers: Valid tiers with increasing inning thresholds
    * - maxExtraInnings: 0-20 innings or null (0 = no extra innings, defaults to 0)
@@ -499,7 +501,9 @@ export class SoftballRules {
 
   private static validateMaxPlayersPerTeam(players: number): void {
     if (!Number.isInteger(players) || players < 9 || players > 50) {
-      throw new DomainError('Max players per team must be an integer between 9 and 50');
+      throw new DomainError(
+        'Max players per team must be an integer between 9 and 50 (9=minimum, 10=standard, 11-12=common)'
+      );
     }
   }
 

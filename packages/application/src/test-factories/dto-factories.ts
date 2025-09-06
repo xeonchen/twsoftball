@@ -241,16 +241,19 @@ export function createLineupPlayerDTO(options?: {
  * realistic batting orders and field positions. Useful for
  * testing game start scenarios and lineup management.
  *
- * @param count - Number of players to create (default: 10 for slow-pitch softball)
+ * @param count - Number of players to create (default: 10 for 10-player standard slow-pitch softball)
  * @param options - Optional customization for all players
  * @returns Array of LineupPlayerDTOs ready for testing
  *
  * @example
  * ```typescript
- * // Create standard 10-player slow-pitch lineup
+ * // Create 10-player standard slow-pitch lineup
  * const lineup = createFullLineup();
  *
- * // Create 12-player lineup for extra players
+ * // Create 11-player lineup (common with 1 EP)
+ * const elevenPlayerLineup = createFullLineup(11);
+ *
+ * // Create 12-player lineup (common with 2 EPs)
  * const extendedLineup = createFullLineup(12);
  * ```
  */
@@ -261,7 +264,7 @@ export function createFullLineup(
     jerseyNumberStart?: number;
   }
 ): LineupPlayerDTO[] {
-  // Standard slow-pitch softball positions (10 players)
+  // 10-player standard slow-pitch softball positions
   // Matches domain TestLineupBuilder.STANDARD_POSITIONS pattern
   const slowPitchStandardPositions: FieldPosition[] = [
     FieldPosition.PITCHER, // Slot 1
@@ -273,13 +276,14 @@ export function createFullLineup(
     FieldPosition.LEFT_FIELD, // Slot 7
     FieldPosition.CENTER_FIELD, // Slot 8
     FieldPosition.RIGHT_FIELD, // Slot 9
-    FieldPosition.SHORT_FIELDER, // Slot 10 - Standard in slow-pitch
+    FieldPosition.SHORT_FIELDER, // Slot 10 - Standard 10-player slow-pitch
   ];
 
-  // Extend with additional positions for larger lineups
+  // Extend with additional positions for 11-12 player lineups (common) and larger lineups
   const extendedPositions: FieldPosition[] = [
     ...slowPitchStandardPositions,
-    FieldPosition.EXTRA_PLAYER, // Multiple EPs are valid
+    FieldPosition.EXTRA_PLAYER, // 11th player (common)
+    FieldPosition.EXTRA_PLAYER, // 12th player (common) - Multiple EPs are valid
   ];
 
   const defaultPositions = extendedPositions;

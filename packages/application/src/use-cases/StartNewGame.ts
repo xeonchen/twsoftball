@@ -368,7 +368,7 @@ export class StartNewGame {
     }
 
     if (command.initialLineup && command.initialLineup.length < 9) {
-      errors.push('Lineup must have at least 9 players');
+      errors.push('Lineup must have at least 9 players (10-player standard lineup recommended)');
     }
 
     // Validate against game rules if provided

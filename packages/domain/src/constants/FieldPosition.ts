@@ -19,11 +19,19 @@
  * - SHORT_FIELDER: 10th fielder positioned in shallow outfield (slow-pitch only)
  * - EXTRA_PLAYER: Designated hitter role, bats but doesn't play defense
  *
+ * **Common Lineup Configurations**:
+ * - 10-player standard: Uses all positions including SHORT_FIELDER (most common)
+ * - 11-player (1 EP): Standard defense + 1 EXTRA_PLAYER (very common)
+ * - 12-player (2 EP): Standard defense + 2 EXTRA_PLAYERs (common)
+ * - 9-player: Traditional without SHORT_FIELDER (valid but less frequent)
+ * - 13+ players: Multiple EPs (valid but less common boundary cases)
+ *
  * @example
  * ```typescript
  * // Assigning positions in a lineup
  * const pitcher = FieldPosition.PITCHER;
- * const shortFielder = FieldPosition.SHORT_FIELDER; // Unique to softball
+ * const shortFielder = FieldPosition.SHORT_FIELDER; // Standard 10th position
+ * const extraPlayer = FieldPosition.EXTRA_PLAYER; // Common 11th+ positions
  *
  * // Checking if position is infield
  * const infield = [
