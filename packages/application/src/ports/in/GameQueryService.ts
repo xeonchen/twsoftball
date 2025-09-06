@@ -52,7 +52,10 @@
 
 import { GameId, PlayerId } from '@twsoftball/domain';
 
+import { GameHistoryDTO } from '../../dtos/GameHistoryDTO';
 import { GameStateDTO } from '../../dtos/GameStateDTO';
+import { GameStatisticsDTO } from '../../dtos/GameStatisticsDTO';
+import { PlayerStatisticsDTO } from '../../dtos/PlayerStatisticsDTO';
 
 /**
  * Primary inbound port for all game query operations.
@@ -119,7 +122,7 @@ export interface GameQueryService {
    * @returns Promise resolving to comprehensive game statistics
    * @throws Error when game is not found
    */
-  getGameStatistics(gameId: GameId): Promise<Record<string, unknown>>; // TODO: Define GameStatisticsDTO
+  getGameStatistics(gameId: GameId): Promise<GameStatisticsDTO>;
 
   /**
    * Retrieves statistics for a specific player.
@@ -137,7 +140,7 @@ export interface GameQueryService {
    * @returns Promise resolving to player statistics
    * @throws Error when player is not found
    */
-  getPlayerStatistics(playerId: PlayerId, gameId?: GameId): Promise<Record<string, unknown>>; // TODO: Define PlayerStatisticsDTO
+  getPlayerStatistics(playerId: PlayerId, gameId?: GameId): Promise<PlayerStatisticsDTO>;
 
   /**
    * Retrieves the complete event history for a game.
@@ -156,7 +159,7 @@ export interface GameQueryService {
    * @returns Promise resolving to complete game history
    * @throws Error when game is not found
    */
-  getGameHistory(gameId: GameId): Promise<Record<string, unknown>>; // TODO: Define GameHistoryDTO
+  getGameHistory(gameId: GameId): Promise<GameHistoryDTO>;
 
   /**
    * Checks if the last action in a game can be undone.

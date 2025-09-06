@@ -5,6 +5,8 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 
+import { AUTH_TEST_CONSTANTS } from '../../test-utils/auth-test-constants';
+
 import { Logger, LogLevel, LogContext, LogEntry } from './Logger';
 
 // Mock implementation for testing the interface contract
@@ -116,7 +118,7 @@ describe('Logger Interface', () => {
       gameId: 'game-123',
       operation: 'recordAtBat',
       userId: 'user-456',
-      sessionId: 'session-789',
+      sessionId: AUTH_TEST_CONSTANTS.TEST_SESSION_ID_ALT,
     };
     testError = new Error('Test error message');
     mockLogger.clearLogs();
@@ -693,7 +695,7 @@ describe('Logger Interface', () => {
       const requestContext = {
         requestId: 'req-789',
         userId: 'user-123',
-        sessionId: 'sess-456',
+        sessionId: AUTH_TEST_CONSTANTS.TEST_SESSION_ID_LOGGER,
       };
 
       logger.info('User action initiated', {

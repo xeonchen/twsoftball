@@ -4,6 +4,7 @@
  */
 
 import { PlayerId } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 import { RunnerAdvanceDTO } from './RunnerAdvanceDTO';
 

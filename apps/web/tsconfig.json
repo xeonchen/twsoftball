@@ -11,18 +11,8 @@
     "allowJs": true
   },
   "include": ["src/**/*"],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.test.ts",
-    "**/*.test.tsx",
-    "../../packages/*/src/**/*.test.ts",
-    "../../packages/*/src/**/*.test.tsx"
-  ],
+  "exclude": ["node_modules", "dist"],
   "references": [
-    {
-      "path": "../../packages/domain"
-    },
     {
       "path": "../../packages/application"
     },

@@ -4,35 +4,48 @@
 // Use Cases
 export * from './use-cases/RecordAtBat';
 export * from './use-cases/StartNewGame';
-// TODO: Implement remaining use cases in future phases
-// export * from './use-cases/SubstitutePlayer';
-// export * from './use-cases/EndInning';
-// export * from './use-cases/UndoLastAction';
-// export * from './use-cases/RedoLastAction';
+export * from './use-cases/SubstitutePlayer';
+export * from './use-cases/EndInning';
+export * from './use-cases/UndoLastAction';
+export * from './use-cases/RedoLastAction';
 
 // Ports - Input (Driving) Interfaces
-export * from './ports/in/GameCommandService';
-export * from './ports/in/GameQueryService';
+export type { GameCommandService } from './ports/in/GameCommandService';
+export type { GameQueryService } from './ports/in/GameQueryService';
 
 // Ports - Output (Driven) Interfaces
-export * from './ports/out/GameRepository';
-export * from './ports/out/EventStore';
-export * from './ports/out/Logger';
+export type { GameRepository } from './ports/out/GameRepository';
+export type { EventStore } from './ports/out/EventStore';
+export type { Logger } from './ports/out/Logger';
+export type { NotificationService } from './ports/out/NotificationService';
+export type { AuthService } from './ports/out/AuthService';
 
-// Application Services (TODO: Implement in next phase)
-// export * from './services/GameApplicationService';
-// export * from './services/EventSourcingService';
+// Application Services - High-level orchestration and event sourcing
+export * from './services/GameApplicationService';
+export * from './services/EventSourcingService';
 
 // DTOs - Data Transfer Objects
-export * from './dtos/AtBatResult';
-export * from './dtos/AtBatResultDTO';
-export * from './dtos/BasesStateDTO';
-export * from './dtos/GameScoreDTO';
-export * from './dtos/GameStartResult';
-export * from './dtos/GameStateDTO';
-export * from './dtos/PlayerInGameDTO';
-export * from './dtos/PlayerStatisticsDTO';
-export * from './dtos/RecordAtBatCommand';
-export * from './dtos/RunnerAdvanceDTO';
-export * from './dtos/StartNewGameCommand';
-export * from './dtos/TeamLineupDTO';
+export type { AtBatResult } from './dtos/AtBatResult';
+export type { AtBatResultDTO } from './dtos/AtBatResultDTO';
+export type { BasesStateDTO } from './dtos/BasesStateDTO';
+export type { EndInningCommand } from './dtos/EndInningCommand';
+export type { GameScoreDTO } from './dtos/GameScoreDTO';
+export type { GameStartResult } from './dtos/GameStartResult';
+export type { GameStateDTO } from './dtos/GameStateDTO';
+export type { InningEndResult } from './dtos/InningEndResult';
+export type { PlayerInGameDTO } from './dtos/PlayerInGameDTO';
+export type { PlayerStatisticsDTO } from './dtos/PlayerStatisticsDTO';
+export type { RecordAtBatCommand } from './dtos/RecordAtBatCommand';
+export type { RunnerAdvanceDTO } from './dtos/RunnerAdvanceDTO';
+export type { StartNewGameCommand } from './dtos/StartNewGameCommand';
+export type { SubstitutePlayerCommand } from './dtos/SubstitutePlayerCommand';
+export type { SubstitutionResult } from './dtos/SubstitutionResult';
+export type { TeamLineupDTO } from './dtos/TeamLineupDTO';
+export type { UndoCommand } from './dtos/UndoCommand';
+export type { UndoResult } from './dtos/UndoResult';
+export type { RedoCommand } from './dtos/RedoCommand';
+export type { RedoResult } from './dtos/RedoResult';
+export type { CompleteAtBatSequenceCommand } from './dtos/CompleteAtBatSequenceCommand';
+export type { CompleteAtBatSequenceResult } from './dtos/CompleteAtBatSequenceResult';
+export type { CompleteGameWorkflowCommand } from './dtos/CompleteGameWorkflowCommand';
+export type { CompleteGameWorkflowResult } from './dtos/CompleteGameWorkflowResult';

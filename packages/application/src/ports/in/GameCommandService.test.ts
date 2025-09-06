@@ -1,6 +1,14 @@
 /**
  * @file GameCommandService Tests
  * Tests for the primary inbound port interface for game recording commands.
+ *
+ * @remarks
+ * This test suite verifies the GameCommandService interface contract without
+ * testing actual implementation logic. It focuses on method signatures,
+ * parameter handling, and return type validation.
+ *
+ * Uses centralized test utilities to reduce code duplication and improve
+ * maintainability across the test suite.
  */
 
 import {
@@ -10,36 +18,22 @@ import {
   JerseyNumber,
   FieldPosition,
   GameStatus,
-  TeamLineupId,
 } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
 import { AtBatResult } from '../../dtos/AtBatResult';
+import { EndGameResult } from '../../dtos/EndGameResult';
 import { GameStartResult } from '../../dtos/GameStartResult';
-import { RecordAtBatCommand } from '../../dtos/RecordAtBatCommand';
+import { InningEndResult } from '../../dtos/InningEndResult';
+import { RedoResult } from '../../dtos/RedoResult';
 import { StartNewGameCommand } from '../../dtos/StartNewGameCommand';
-import { TeamLineupDTO } from '../../dtos/TeamLineupDTO';
+import { SubstitutionResult } from '../../dtos/SubstitutionResult';
+import { UndoResult } from '../../dtos/UndoResult';
+import { CommandTestBuilder, SecureTestUtils, createLineupDTO } from '../../test-factories';
 
 import { GameCommandService } from './GameCommandService';
 
-// Helper function to create mock lineup DTOs
-function createMockLineupDTO(
-  gameId: GameId,
-  teamSide: 'HOME' | 'AWAY',
-  teamName: string
-): TeamLineupDTO {
-  return {
-    teamLineupId: TeamLineupId.generate(),
-    gameId,
-    teamSide,
-    teamName,
-    strategy: 'DETAILED',
-    battingSlots: [],
-    fieldPositions: {} as Record<FieldPosition, PlayerId | null>,
-    benchPlayers: [],
-    substitutionHistory: [],
-  };
-}
+// Use factory function instead of local helper
 
 // Mock implementation for testing the interface contract
 class MockGameCommandService implements GameCommandService {
@@ -64,8 +58,8 @@ class MockGameCommandService implements GameCommandService {
           basesLoaded: false,
         },
         currentBatterSlot: 1,
-        homeLineup: createMockLineupDTO(command.gameId, 'HOME', command.homeTeamName),
-        awayLineup: createMockLineupDTO(command.gameId, 'AWAY', command.awayTeamName),
+        homeLineup: createLineupDTO(command.gameId, 'HOME', command.homeTeamName),
+        awayLineup: createLineupDTO(command.gameId, 'AWAY', command.awayTeamName),
         currentBatter: null,
         lastUpdated: new Date(),
       },
@@ -73,10 +67,11 @@ class MockGameCommandService implements GameCommandService {
   }
 
   recordAtBat(): Promise<AtBatResult> {
+    const gameId = new GameId(SecureTestUtils.generateGameId());
     return Promise.resolve({
       success: true,
       gameState: {
-        gameId: GameId.generate(),
+        gameId,
         status: GameStatus.IN_PROGRESS,
         score: { home: 0, away: 0, leader: 'TIE', difference: 0 },
         gameStartTime: new Date(),
@@ -92,8 +87,8 @@ class MockGameCommandService implements GameCommandService {
           basesLoaded: false,
         },
         currentBatterSlot: 1,
-        homeLineup: createMockLineupDTO(GameId.generate(), 'HOME', 'Home Team'),
-        awayLineup: createMockLineupDTO(GameId.generate(), 'AWAY', 'Away Team'),
+        homeLineup: createLineupDTO(gameId, 'HOME', 'Home Team'),
+        awayLineup: createLineupDTO(gameId, 'AWAY', 'Away Team'),
         currentBatter: null,
         lastUpdated: new Date(),
       },
@@ -104,24 +99,24 @@ class MockGameCommandService implements GameCommandService {
     });
   }
 
-  substitutePlayer(): Promise<Record<string, unknown>> {
-    return Promise.resolve({ success: true });
+  substitutePlayer(): Promise<SubstitutionResult> {
+    return Promise.reject(new Error('Substitution not supported'));
   }
 
-  endInning(): Promise<Record<string, unknown>> {
-    return Promise.resolve({ success: true });
+  endInning(): Promise<InningEndResult> {
+    return Promise.reject(new Error('End inning not supported'));
   }
 
-  endGame(): Promise<Record<string, unknown>> {
-    return Promise.resolve({ success: true });
+  endGame(): Promise<EndGameResult> {
+    return Promise.reject(new Error('End game not supported'));
   }
 
-  undoLastAction(): Promise<Record<string, unknown>> {
-    return Promise.resolve({ success: true });
+  undoLastAction(): Promise<UndoResult> {
+    return Promise.reject(new Error('Undo not supported'));
   }
 
-  redoLastAction(): Promise<Record<string, unknown>> {
-    return Promise.resolve({ success: true });
+  redoLastAction(): Promise<RedoResult> {
+    return Promise.reject(new Error('Redo not supported'));
   }
 }
 
@@ -144,14 +139,9 @@ describe('GameCommandService Interface', () => {
     });
 
     it('should return promises for all methods', () => {
-      const command: StartNewGameCommand = {
-        gameId: GameId.generate(),
-        homeTeamName: 'Home Team',
-        awayTeamName: 'Away Team',
-        ourTeamSide: 'HOME',
-        gameDate: new Date(),
-        initialLineup: [],
-      };
+      const command = CommandTestBuilder.startNewGame()
+        .withTeamNames('Home Team', 'Away Team')
+        .build();
 
       const result = service.startNewGame(command);
       expect(result).toBeInstanceOf(Promise);
@@ -160,32 +150,29 @@ describe('GameCommandService Interface', () => {
 
   describe('startNewGame Method', () => {
     it('should accept StartNewGameCommand and return GameStartResult', async () => {
-      const command: StartNewGameCommand = {
-        gameId: GameId.generate(),
-        homeTeamName: 'Eagles',
-        awayTeamName: 'Hawks',
-        ourTeamSide: 'HOME',
-        gameDate: new Date('2024-08-30T14:00:00Z'),
-        location: 'City Park',
-        initialLineup: [
+      const command = CommandTestBuilder.startNewGame()
+        .withTeamNames('Eagles', 'Hawks')
+        .withGameDate(new Date('2024-08-30T14:00:00Z'))
+        .withLocation('City Park')
+        .withInitialLineup([
           {
-            playerId: PlayerId.generate(),
+            playerId: new PlayerId(SecureTestUtils.generatePlayerId()),
             name: 'John Smith',
             jerseyNumber: JerseyNumber.fromNumber(1),
             battingOrderPosition: 1,
             fieldPosition: FieldPosition.PITCHER,
             preferredPositions: [FieldPosition.PITCHER],
           },
-        ],
-        gameRules: {
+        ])
+        .withGameRules({
           mercyRuleEnabled: true,
           mercyRuleInning4: 15,
           mercyRuleInning5: 10,
           timeLimitMinutes: 60,
           extraPlayerAllowed: true,
           maxPlayersInLineup: 12,
-        },
-      };
+        })
+        .build();
 
       const result = await service.startNewGame(command);
 
@@ -202,14 +189,10 @@ describe('GameCommandService Interface', () => {
     });
 
     it('should handle command with optional fields', async () => {
-      const minimalCommand: StartNewGameCommand = {
-        gameId: GameId.generate(),
-        homeTeamName: 'Home',
-        awayTeamName: 'Away',
-        ourTeamSide: 'AWAY',
-        gameDate: new Date(),
-        initialLineup: [],
-      };
+      const minimalCommand = CommandTestBuilder.startNewGame()
+        .withTeamNames('Home', 'Away')
+        .withOurTeamSide('AWAY')
+        .build();
 
       const result = await service.startNewGame(minimalCommand);
 
@@ -220,21 +203,19 @@ describe('GameCommandService Interface', () => {
 
   describe('recordAtBat Method', () => {
     it('should accept RecordAtBatCommand and return AtBatResult', async () => {
-      const command: RecordAtBatCommand = {
-        gameId: GameId.generate(),
-        batterId: PlayerId.generate(),
-        result: AtBatResultType.SINGLE,
-        runnerAdvances: [
+      const command = CommandTestBuilder.recordAtBat()
+        .withResult(AtBatResultType.SINGLE)
+        .withRunnerAdvances([
           {
-            playerId: PlayerId.generate(),
+            playerId: new PlayerId(SecureTestUtils.generatePlayerId()),
             fromBase: null,
             toBase: 'FIRST',
             advanceReason: 'HIT',
           },
-        ],
-        notes: 'Line drive to left field',
-        timestamp: new Date(),
-      };
+        ])
+        .withNotes('Line drive to left field')
+        .withTimestamp(new Date())
+        .build();
 
       const result = await service.recordAtBat(command);
 
@@ -252,12 +233,10 @@ describe('GameCommandService Interface', () => {
     });
 
     it('should handle command with minimal fields', async () => {
-      const minimalCommand: RecordAtBatCommand = {
-        gameId: GameId.generate(),
-        batterId: PlayerId.generate(),
-        result: AtBatResultType.STRIKEOUT,
-        runnerAdvances: [],
-      };
+      const minimalCommand = CommandTestBuilder.recordAtBat()
+        .withResult(AtBatResultType.STRIKEOUT)
+        .withRunnerAdvances([])
+        .build();
 
       const result = await service.recordAtBat(minimalCommand);
 
@@ -291,14 +270,9 @@ describe('GameCommandService Interface', () => {
 
   describe('Async Behavior', () => {
     it('should handle async operations properly', async () => {
-      const command: StartNewGameCommand = {
-        gameId: GameId.generate(),
-        homeTeamName: 'Test Home',
-        awayTeamName: 'Test Away',
-        ourTeamSide: 'HOME',
-        gameDate: new Date(),
-        initialLineup: [],
-      };
+      const command = CommandTestBuilder.startNewGame()
+        .withTeamNames('Test Home', 'Test Away')
+        .build();
 
       // Should not throw and should resolve to proper result
       const result = await service.startNewGame(command);
@@ -306,14 +280,9 @@ describe('GameCommandService Interface', () => {
     });
 
     it('should support promise chaining', () => {
-      const command: StartNewGameCommand = {
-        gameId: GameId.generate(),
-        homeTeamName: 'Chain Home',
-        awayTeamName: 'Chain Away',
-        ourTeamSide: 'HOME',
-        gameDate: new Date(),
-        initialLineup: [],
-      };
+      const command = CommandTestBuilder.startNewGame()
+        .withTeamNames('Chain Home', 'Chain Away')
+        .build();
 
       return service.startNewGame(command).then(result => {
         expect(result).toBeDefined();
@@ -330,16 +299,17 @@ describe('GameCommandService Interface', () => {
         startNewGame(_command: StartNewGameCommand): Promise<GameStartResult> {
           return Promise.resolve({
             success: false,
-            gameId: GameId.generate(),
+            gameId: new GameId(SecureTestUtils.generateGameId()),
             errors: ['Mock validation error'],
           });
         }
 
         recordAtBat(): Promise<AtBatResult> {
+          const gameId = new GameId(SecureTestUtils.generateGameId());
           return Promise.resolve({
             success: false,
             gameState: {
-              gameId: GameId.generate(),
+              gameId,
               status: GameStatus.IN_PROGRESS,
               score: { home: 0, away: 0, leader: 'TIE', difference: 0 },
               gameStartTime: new Date(),
@@ -355,8 +325,8 @@ describe('GameCommandService Interface', () => {
                 basesLoaded: false,
               },
               currentBatterSlot: 1,
-              homeLineup: createMockLineupDTO(GameId.generate(), 'HOME', 'Error Home Team'),
-              awayLineup: createMockLineupDTO(GameId.generate(), 'AWAY', 'Error Away Team'),
+              homeLineup: createLineupDTO(gameId, 'HOME', 'Error Home Team'),
+              awayLineup: createLineupDTO(gameId, 'AWAY', 'Error Away Team'),
               currentBatter: null,
               lastUpdated: new Date(),
             },
@@ -369,32 +339,27 @@ describe('GameCommandService Interface', () => {
         }
 
         // Other methods...
-        substitutePlayer(): Promise<Record<string, unknown>> {
-          return Promise.resolve({ success: false });
+        substitutePlayer(): Promise<SubstitutionResult> {
+          return Promise.reject(new Error('Substitution failed'));
         }
-        endInning(): Promise<Record<string, unknown>> {
-          return Promise.resolve({ success: false });
+        endInning(): Promise<InningEndResult> {
+          return Promise.reject(new Error('End inning failed'));
         }
-        endGame(): Promise<Record<string, unknown>> {
-          return Promise.resolve({ success: false });
+        endGame(): Promise<EndGameResult> {
+          return Promise.reject(new Error('End game failed'));
         }
-        undoLastAction(): Promise<Record<string, unknown>> {
-          return Promise.resolve({ success: false });
+        undoLastAction(): Promise<UndoResult> {
+          return Promise.reject(new Error('Undo failed'));
         }
-        redoLastAction(): Promise<Record<string, unknown>> {
-          return Promise.resolve({ success: false });
+        redoLastAction(): Promise<RedoResult> {
+          return Promise.reject(new Error('Redo failed'));
         }
       }
 
       const errorService = new ErrorMockService();
-      const command: StartNewGameCommand = {
-        gameId: GameId.generate(),
-        homeTeamName: 'Error Test',
-        awayTeamName: 'Error Test',
-        ourTeamSide: 'HOME',
-        gameDate: new Date(),
-        initialLineup: [],
-      };
+      const command = CommandTestBuilder.startNewGame()
+        .withTeamNames('Error Test', 'Error Test')
+        .build();
 
       const result = await errorService.startNewGame(command);
       expect(result.success).toBe(false);

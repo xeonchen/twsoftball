@@ -28,6 +28,8 @@ export default defineConfig({
         '**/*.test.ts',
         '**/*.spec.ts',
         'src/index.ts',
+        'src/test-utils/**',
+        'src/test-factories/**',
       ],
       // Application layer thresholds (slightly lower than domain)
       thresholds: {

@@ -87,18 +87,23 @@ import {
   InningStateId,
   FieldPosition,
   DomainEvent,
-  DomainError,
   SoftballRules,
 } from '@twsoftball/domain';
 
 import { GameStartResult } from '../dtos/GameStartResult';
 import { GameStateDTO } from '../dtos/GameStateDTO';
 import { PlayerStatisticsDTO, FieldingStatisticsDTO } from '../dtos/PlayerStatisticsDTO';
-import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from '../dtos/StartNewGameCommand';
+import {
+  StartNewGameCommand,
+  LineupPlayerDTO,
+  GameRulesDTO,
+  StartNewGameCommandValidator,
+} from '../dtos/StartNewGameCommand';
 import { TeamLineupDTO, BattingSlotDTO } from '../dtos/TeamLineupDTO';
 import { EventStore } from '../ports/out/EventStore';
 import { GameRepository } from '../ports/out/GameRepository';
 import { Logger } from '../ports/out/Logger';
+// Note: Reverted to direct error handling to maintain architecture compliance
 
 /**
  * Use case for creating and initializing new softball games with complete setup.
@@ -220,6 +225,21 @@ export class StartNewGame {
     });
 
     try {
+      // Step 0: Fail-fast DTO validation
+      try {
+        StartNewGameCommandValidator.validate(command);
+      } catch (validationError) {
+        this.logger.warn('Game creation failed due to DTO validation error', {
+          gameId: command.gameId.value,
+          error:
+            validationError instanceof Error ? validationError.message : 'Unknown validation error',
+          operation: 'startNewGame',
+        });
+        return this.createFailureResult(command.gameId, [
+          validationError instanceof Error ? validationError.message : 'Invalid command structure',
+        ]);
+      }
+
       // Step 1: Validate command input
       const inputValidation = this.validateCommandInput(command);
       if (!inputValidation.valid) {
@@ -493,19 +513,8 @@ export class StartNewGame {
       }
       usedJerseyNumbers.add(jerseyNum);
 
-      // Validate player ID uniqueness
-      if (usedPlayerIds.has(player.playerId.value)) {
-        errors.push('Duplicate player IDs in lineup');
-      }
+      // Player ID and batting order uniqueness validation handled by DTO layer
       usedPlayerIds.add(player.playerId.value);
-
-      // Validate batting order position
-      if (player.battingOrderPosition < 1 || player.battingOrderPosition > 20) {
-        errors.push('Invalid batting order position: must be 1-20');
-      }
-      if (usedBattingPositions.has(player.battingOrderPosition)) {
-        errors.push(`Duplicate batting order position: ${player.battingOrderPosition}`);
-      }
       usedBattingPositions.add(player.battingOrderPosition);
 
       // Track field position assignments
@@ -520,9 +529,8 @@ export class StartNewGame {
     // Validate all required positions are filled
     for (const requiredPosition of requiredPositions) {
       if (!assignedFieldPositions.has(requiredPosition)) {
-        // Convert enum value to readable name
-        const positionName = this.getFieldPositionDisplayName(requiredPosition);
-        errors.push(`Missing required field position: ${positionName}`);
+        // Use enum value directly (already human-readable)
+        errors.push(`Missing required field position: ${requiredPosition}`);
       }
     }
 
@@ -796,7 +804,9 @@ export class StartNewGame {
     const awayLineupDTO = this.buildTeamLineupDTO(aggregates.awayLineup, 'AWAY');
 
     // Determine current batter (first in away team for top of 1st)
-    const currentBatter = null; // TODO: Implement proper current batter mapping
+    // Since away team bats first, get the first batting slot from away team
+    const firstBattingSlot = awayLineupDTO.battingSlots.find(slot => slot.slotNumber === 1);
+    const currentBatter = firstBattingSlot?.currentPlayer || null;
 
     return {
       gameId: aggregates.game.id,
@@ -933,61 +943,35 @@ export class StartNewGame {
    * @returns Failure result with appropriate error messages
    */
   private handleUnexpectedError(error: unknown, gameId: GameId): GameStartResult {
-    let errorMessage: string;
+    this.logger.error('An unexpected error occurred', error as Error, {
+      gameId: gameId.value,
+      operation: 'startNewGame',
+    });
 
-    if (error instanceof DomainError) {
-      // Domain validation errors - preserve user-friendly messages
-      errorMessage = error.message;
-    } else if (error instanceof Error) {
-      // Infrastructure or system errors - provide user-friendly translations
-      if (error.message.includes('save') || error.message.includes('repository')) {
-        errorMessage = 'Failed to save game state';
-      } else if (error.message.includes('store') || error.message.includes('event')) {
-        errorMessage = 'Failed to store game events';
-      } else {
-        errorMessage = 'An unexpected error occurred';
-      }
-    } else {
-      // Unknown error types
-      errorMessage = 'An unexpected error occurred';
-    }
-
+    const errorMessage = this.categorizeError(error);
     return this.createFailureResult(gameId, [errorMessage]);
   }
 
   /**
-   * Converts FieldPosition enum value to display name.
+   * Categorizes different types of errors for appropriate user messaging.
    *
-   * @param position - The field position enum value
-   * @returns Human-readable position name
+   * @param error - The error to categorize
+   * @returns User-friendly error message
    */
-  private getFieldPositionDisplayName(position: FieldPosition): string {
-    switch (position) {
-      case FieldPosition.PITCHER:
-        return 'PITCHER';
-      case FieldPosition.CATCHER:
-        return 'CATCHER';
-      case FieldPosition.FIRST_BASE:
-        return 'FIRST_BASE';
-      case FieldPosition.SECOND_BASE:
-        return 'SECOND_BASE';
-      case FieldPosition.THIRD_BASE:
-        return 'THIRD_BASE';
-      case FieldPosition.SHORTSTOP:
-        return 'SHORTSTOP';
-      case FieldPosition.LEFT_FIELD:
-        return 'LEFT_FIELD';
-      case FieldPosition.CENTER_FIELD:
-        return 'CENTER_FIELD';
-      case FieldPosition.RIGHT_FIELD:
-        return 'RIGHT_FIELD';
-      case FieldPosition.SHORT_FIELDER:
-        return 'SHORT_FIELDER';
-      case FieldPosition.EXTRA_PLAYER:
-        return 'EXTRA_PLAYER';
-      default:
-        return position;
+  private categorizeError(error: unknown): string {
+    if (error instanceof Error) {
+      if (error.message.includes('Database') || error.message.includes('save')) {
+        return 'Failed to save game state';
+      }
+      if (error.message.includes('store')) {
+        return 'Failed to store game events';
+      }
+      if (error.message.includes('Domain validation failed') || error.name === 'DomainError') {
+        return 'Domain validation failed';
+      }
+      return 'An unexpected error occurred';
     }
+    return 'An unexpected error occurred';
   }
 
   /**

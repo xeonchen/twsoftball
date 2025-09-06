@@ -3,10 +3,20 @@
  * Tests for the primary inbound port interface for game state queries.
  */
 
-import { GameId, PlayerId, GameStatus, TeamLineupId, FieldPosition } from '@twsoftball/domain';
-import { describe, it, expect } from 'vitest';
+import {
+  GameId,
+  PlayerId,
+  GameStatus,
+  TeamLineupId,
+  FieldPosition,
+  JerseyNumber,
+} from '@twsoftball/domain';
+import { describe, it, expect, beforeEach } from 'vitest';
 
+import { GameHistoryDTO } from '../../dtos/GameHistoryDTO';
 import { GameStateDTO } from '../../dtos/GameStateDTO';
+import { GameStatisticsDTO } from '../../dtos/GameStatisticsDTO';
+import { PlayerStatisticsDTO } from '../../dtos/PlayerStatisticsDTO';
 import { TeamLineupDTO } from '../../dtos/TeamLineupDTO';
 
 import { GameQueryService } from './GameQueryService';
@@ -57,28 +67,119 @@ class MockGameQueryService implements GameQueryService {
     });
   }
 
-  getGameStatistics(): Promise<Record<string, unknown>> {
+  getGameStatistics(gameId: GameId): Promise<GameStatisticsDTO> {
     return Promise.resolve({
-      gameId: GameId.generate(),
-      teamStatistics: {},
-      playerStatistics: [],
-      gameEvents: [],
+      gameId,
+      gameStatus: GameStatus.IN_PROGRESS,
+      finalScore: { home: 3, away: 2 },
+      completedAt: null,
+      durationMinutes: null,
+      teams: { home: 'Home Eagles', away: 'Away Hawks' },
+      teamStatistics: {
+        home: {
+          runs: 3,
+          hits: 5,
+          errors: 0,
+          leftOnBase: 3,
+          battingAverage: 0.333,
+          onBasePercentage: 0.4,
+          sluggingPercentage: 0.467,
+          strikeouts: 2,
+          walks: 2,
+          extraBaseHits: 2,
+          rbis: 3,
+          twoOutRbis: 1,
+          rispBattingAverage: 0.25,
+        },
+        away: {
+          runs: 2,
+          hits: 4,
+          errors: 1,
+          leftOnBase: 2,
+          battingAverage: 0.267,
+          onBasePercentage: 0.333,
+          sluggingPercentage: 0.333,
+          strikeouts: 3,
+          walks: 1,
+          extraBaseHits: 1,
+          rbis: 2,
+          twoOutRbis: 0,
+          rispBattingAverage: 0.2,
+        },
+      },
+      playerPerformances: [],
+      inningScores: [],
+      significantEvents: [],
+      gameMetrics: {
+        totalRuns: 5,
+        totalHits: 9,
+        totalErrors: 1,
+        largestLead: 2,
+        leadChanges: 2,
+        ties: 1,
+        extraInnings: false,
+        competitivenessRating: 7.5,
+        runsPerInning: 1.0,
+        averageInningDuration: 12.5,
+      },
+      calculatedAt: new Date(),
     });
   }
 
-  getPlayerStatistics(): Promise<Record<string, unknown>> {
+  getPlayerStatistics(playerId: PlayerId, _gameId?: GameId): Promise<PlayerStatisticsDTO> {
     return Promise.resolve({
-      playerId: PlayerId.generate(),
-      name: 'Test Player',
-      statistics: {},
+      playerId,
+      name: 'John Smith',
+      jerseyNumber: new JerseyNumber('15'),
+      plateAppearances: 4,
+      atBats: 3,
+      hits: 2,
+      singles: 1,
+      doubles: 1,
+      triples: 0,
+      homeRuns: 0,
+      walks: 1,
+      strikeouts: 1,
+      rbi: 1,
+      runs: 1,
+      battingAverage: 0.667,
+      onBasePercentage: 0.75,
+      sluggingPercentage: 1.0,
+      fielding: {
+        positions: [FieldPosition.FIRST_BASE],
+        putouts: 5,
+        assists: 2,
+        errors: 0,
+        fieldingPercentage: 1.0,
+      },
     });
   }
 
-  getGameHistory(): Promise<Record<string, unknown>> {
+  getGameHistory(gameId: GameId): Promise<GameHistoryDTO> {
     return Promise.resolve({
-      gameId: GameId.generate(),
+      gameId,
+      gameStartTime: new Date(),
+      gameEndTime: null,
       events: [],
-      timeline: [],
+      scoringPlays: [],
+      substitutions: [],
+      inningBreakdown: [],
+      administrativeActions: [],
+      gameOutcome: {
+        finalScore: { home: 3, away: 2 },
+        winner: 'home' as const,
+        endReason: 'regulation' as const,
+        totalInnings: 7,
+        durationMinutes: 90,
+        keyStats: {
+          totalRuns: 5,
+          totalHits: 9,
+          totalErrors: 1,
+          largestLead: 2,
+          leadChanges: 2,
+        },
+      },
+      generatedAt: new Date(),
     });
   }
 
@@ -171,8 +272,8 @@ describe('GameQueryService Interface', () => {
       expect(result).toBeDefined();
       expect(result['gameId']).toBeDefined();
       expect(result['teamStatistics']).toBeDefined();
-      expect(Array.isArray(result['playerStatistics'])).toBe(true);
-      expect(Array.isArray(result['gameEvents'])).toBe(true);
+      expect(Array.isArray(result.playerPerformances)).toBe(true);
+      expect(Array.isArray(result.significantEvents)).toBe(true);
     });
   });
 
@@ -186,7 +287,7 @@ describe('GameQueryService Interface', () => {
       expect(result).toBeDefined();
       expect(result['playerId']).toBeDefined();
       expect(result['name']).toBeDefined();
-      expect(result['statistics']).toBeDefined();
+      expect(result.battingAverage).toBeDefined();
     });
 
     it('should handle optional gameId parameter', async () => {
@@ -208,7 +309,7 @@ describe('GameQueryService Interface', () => {
       expect(result).toBeDefined();
       expect(result['gameId']).toBeDefined();
       expect(Array.isArray(result['events'])).toBe(true);
-      expect(Array.isArray(result['timeline'])).toBe(true);
+      expect(Array.isArray(result.events)).toBe(true);
     });
   });
 
@@ -291,15 +392,15 @@ describe('GameQueryService Interface', () => {
           return Promise.reject(new Error(`Game not found: ${gameId.value}`));
         }
 
-        getGameStatistics(): Promise<Record<string, unknown>> {
+        getGameStatistics(): Promise<GameStatisticsDTO> {
           return Promise.reject(new Error('Statistics not available'));
         }
 
-        getPlayerStatistics(): Promise<Record<string, unknown>> {
+        getPlayerStatistics(): Promise<PlayerStatisticsDTO> {
           return Promise.reject(new Error('Player not found'));
         }
 
-        getGameHistory(): Promise<Record<string, unknown>> {
+        getGameHistory(): Promise<GameHistoryDTO> {
           return Promise.reject(new Error('History not available'));
         }
 
@@ -326,23 +427,40 @@ describe('GameQueryService Interface', () => {
           return Promise.reject(new Error('Game not found'));
         }
 
-        getGameStatistics(_gameId: GameId): Promise<Record<string, unknown>> {
-          return Promise.resolve({});
+        getGameStatistics(_gameId: GameId): Promise<GameStatisticsDTO> {
+          return Promise.resolve({} as GameStatisticsDTO);
         }
 
-        getPlayerStatistics(
-          _playerId: PlayerId,
-          _gameId?: GameId
-        ): Promise<Record<string, unknown>> {
-          return Promise.resolve({});
+        getPlayerStatistics(_playerId: PlayerId, _gameId?: GameId): Promise<PlayerStatisticsDTO> {
+          return Promise.resolve({} as PlayerStatisticsDTO);
         }
 
-        getGameHistory(_gameId: GameId): Promise<Record<string, unknown>> {
+        getGameHistory(_gameId: GameId): Promise<GameHistoryDTO> {
           return Promise.resolve({
             gameId: GameId.generate(),
+            gameStartTime: new Date(),
+            gameEndTime: null,
             events: [],
-            timeline: [],
-          });
+            scoringPlays: [],
+            substitutions: [],
+            inningBreakdown: [],
+            administrativeActions: [],
+            gameOutcome: {
+              finalScore: { home: 0, away: 0 },
+              winner: 'tie' as const,
+              endReason: 'regulation' as const,
+              totalInnings: 0,
+              durationMinutes: 0,
+              keyStats: {
+                totalRuns: 0,
+                totalHits: 0,
+                totalErrors: 0,
+                largestLead: 0,
+                leadChanges: 0,
+              },
+            },
+            generatedAt: new Date(),
+          } as GameHistoryDTO);
         }
 
         canUndo(): Promise<boolean> {
@@ -366,8 +484,7 @@ describe('GameQueryService Interface', () => {
 
       // Empty arrays should be handled
       const history = await emptyService.getGameHistory(gameId);
-      expect(history['events']).toHaveLength(0);
-      expect(history['timeline']).toHaveLength(0);
+      expect(history.events).toHaveLength(0);
     });
   });
 });

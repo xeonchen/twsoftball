@@ -3,6 +3,7 @@ import tseslint from '@typescript-eslint/eslint-plugin';
 import tseslintParser from '@typescript-eslint/parser';
 import prettier from 'eslint-config-prettier';
 import boundaries from 'eslint-plugin-boundaries';
+import eslintComments from 'eslint-plugin-eslint-comments';
 import importPlugin from 'eslint-plugin-import';
 import security from 'eslint-plugin-security';
 
@@ -10,9 +11,51 @@ export default [
   // Base configs
   js.configs.recommended,
 
+  // Vitest setup files override (special handling) - MUST come before main TS config
+  {
+    files: ['**/vitest.setup.ts'],
+    languageOptions: {
+      parser: tseslintParser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        // Don't use projectService for these files
+      },
+      globals: {
+        console: 'readonly',
+        globalThis: 'readonly',
+        vi: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        Crypto: 'readonly',
+        crypto: 'readonly',
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tseslint,
+    },
+    rules: {
+      // Only basic TypeScript rules that don't require project service
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
+      '@typescript-eslint/no-explicit-any': 'error',
+      'no-console': 'off',
+      'prefer-const': 'error',
+      'no-var': 'error',
+    },
+  },
+
   // TypeScript and Airbnb configurations for TypeScript files
   {
     files: ['**/*.{ts,tsx}'],
+    ignores: ['**/vitest.setup.ts'], // Exclude vitest.setup.ts from this config
     languageOptions: {
       parser: tseslintParser,
       parserOptions: {
@@ -40,6 +83,7 @@ export default [
     plugins: {
       '@typescript-eslint': tseslint,
       boundaries,
+      'eslint-comments': eslintComments,
       import: importPlugin,
       security,
     },
@@ -121,6 +165,27 @@ export default [
       'security/detect-possible-timing-attacks': 'warn',
       'security/detect-eval-with-expression': 'error',
 
+      // ESLint comments rules - control eslint-disable usage
+      'eslint-comments/disable-enable-pair': 'error',
+      'eslint-comments/no-aggregating-enable': 'error',
+      'eslint-comments/no-duplicate-disable': 'error',
+      'eslint-comments/no-unlimited-disable': 'error',
+      'eslint-comments/no-unused-disable': 'error',
+      'eslint-comments/no-unused-enable': 'error',
+      'eslint-comments/require-description': 'error',
+      'eslint-comments/no-restricted-disable': [
+        'error',
+        // Critical security rules that should never be disabled
+        'security/detect-eval-with-expression',
+        'security/detect-non-literal-fs-filename',
+        '@typescript-eslint/no-explicit-any',
+        '@typescript-eslint/no-unsafe-assignment',
+        '@typescript-eslint/no-unsafe-member-access',
+        '@typescript-eslint/no-unsafe-call',
+        '@typescript-eslint/no-unsafe-return',
+        'boundaries/element-types',
+      ],
+
       // Architecture boundaries
       'boundaries/element-types': [
         'error',
@@ -179,13 +244,32 @@ export default [
 
   // Test files overrides
   {
-    files: ['**/*.test.ts', '**/*.spec.ts'],
+    files: ['**/*.test.ts', '**/*.spec.ts', 'tests/**/*.ts'],
+    languageOptions: {
+      globals: {
+        // Add console for test files
+        console: 'readonly',
+        // Re-add globals that might be needed in test files
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        vi: 'readonly',
+      },
+    },
     rules: {
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
       // Security rules are often false positives in test files
       'security/detect-object-injection': 'off',
+      // Relax eslint-comments rules for test files
+      'eslint-comments/no-restricted-disable': 'off',
+      'eslint-comments/require-description': 'off',
+      'eslint-comments/disable-enable-pair': 'off',
     },
   },
 

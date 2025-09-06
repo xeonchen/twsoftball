@@ -8,7 +8,6 @@ const __dirname = dirname(__filename);
 
 export default defineConfig({
   test: {
-    globals: true,
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
     include: ['packages/**/*.{test,spec}.ts', 'apps/**/*.{test,spec}.ts'],
