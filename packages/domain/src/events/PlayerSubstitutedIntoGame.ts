@@ -68,7 +68,7 @@ export class PlayerSubstitutedIntoGame extends DomainEvent {
    *
    * @remarks
    * Softball allows up to 20 players in the batting order to accommodate
-   * Extra Players (EP/DH) and flexible substitution strategies. Standard
+   * Extra Players (EP) and flexible substitution strategies. Standard
    * games typically use 10-12 players, but tournament play can use more.
    */
   private static validateBattingSlot(battingSlot: number): void {

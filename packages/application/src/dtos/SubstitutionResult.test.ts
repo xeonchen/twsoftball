@@ -261,7 +261,7 @@ describe('SubstitutionResult', () => {
 
   describe('Substitution Details', () => {
     it('should include all batting slot positions', () => {
-      for (let slot = 1; slot <= 20; slot++) {
+      for (let slot = 1; slot <= 30; slot++) {
         const details = createSubstitutionDetails({ battingSlot: slot });
         expect(details.battingSlot).toBe(slot);
       }

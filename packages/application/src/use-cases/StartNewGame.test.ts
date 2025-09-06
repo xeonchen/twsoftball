@@ -89,7 +89,7 @@ describe('StartNewGame', () => {
    *
    * @remarks
    * Creates a complete 10-player lineup with all standard field positions
-   * and proper batting order. This represents the standard starting lineup
+   * and proper batting order. This represents the standard (most common) starting lineup
    * for slow-pitch softball including the SHORT_FIELDER position.
    *
    * @returns Complete lineup with 10 players in standard slow-pitch positions
@@ -184,10 +184,10 @@ describe('StartNewGame', () => {
    *
    * @remarks
    * Creates a 9-player lineup without SHORT_FIELDER for testing scenarios
-   * where teams play with the minimum required players. This is still valid
-   * but less common than the standard 10-player configuration.
+   * where teams play with the minimum required players. This is a valid
+   * boundary case but less frequent than the 10-player standard configuration.
    *
-   * @returns Complete lineup with 9 players (without SHORT_FIELDER)
+   * @returns Complete lineup with 9 players (boundary case without SHORT_FIELDER)
    */
   function createNinePlayerLineup(): LineupPlayerDTO[] {
     return createValidLineup().slice(0, 9);
@@ -312,7 +312,7 @@ describe('StartNewGame', () => {
       expect(result.initialState).toBeDefined();
     });
 
-    it('should create game with extra players (11-player lineup)', async () => {
+    it('should create game with extra players (11-player common configuration)', async () => {
       const extendedLineup = [
         ...createValidLineup(),
         {
@@ -331,17 +331,17 @@ describe('StartNewGame', () => {
       // If test fails, error details will be shown by test framework
 
       expect(result.success).toBe(true);
-      expect(result.initialState?.homeLineup.battingSlots).toHaveLength(11);
+      expect(result.initialState?.homeLineup.battingSlots).toHaveLength(11); // Common 11-player configuration
     });
 
-    it('should create game with 9-player lineup (boundary case)', async () => {
+    it('should create game with 9-player lineup (boundary case - valid but less frequent)', async () => {
       const ninePlayerLineup = createNinePlayerLineup();
       const command = createValidCommand({ initialLineup: ninePlayerLineup });
 
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(true);
-      expect(result.initialState?.homeLineup.battingSlots).toHaveLength(9);
+      expect(result.initialState?.homeLineup.battingSlots).toHaveLength(9); // Boundary case configuration
     });
 
     it('should create game without location (optional field)', async () => {
@@ -511,23 +511,27 @@ describe('StartNewGame', () => {
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Initial lineup must have at least 9 players');
+      expect(result.errors).toContain(
+        'Initial lineup must have at least 9 players (10-player standard lineup recommended)'
+      );
     });
 
-    it('should reject lineup with too few players', async () => {
-      const shortLineup = createValidLineup().slice(0, 8); // Only 8 players
+    it('should reject lineup with too few players (below 9-player minimum)', async () => {
+      const shortLineup = createValidLineup().slice(0, 8); // Only 8 players (below minimum)
       const command = createValidCommand({ initialLineup: shortLineup });
 
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Initial lineup must have at least 9 players');
+      expect(result.errors).toContain(
+        'Initial lineup must have at least 9 players (10-player standard lineup recommended)'
+      );
     });
 
-    it('should reject lineup with too many players', async () => {
+    it('should reject lineup with too many players (exceeds maximum boundary)', async () => {
       const longLineup = [
         ...createValidLineup(),
-        ...Array.from({ length: 12 }, (_, i) => ({
+        ...Array.from({ length: 22 }, (_, i) => ({
           playerId: new PlayerId(`extra-player-${i + 11}`),
           name: `Extra Player ${i + 11}`,
           jerseyNumber: JerseyNumber.fromNumber(i + 11),
@@ -535,13 +539,13 @@ describe('StartNewGame', () => {
           fieldPosition: FieldPosition.RIGHT_FIELD,
           preferredPositions: [FieldPosition.RIGHT_FIELD],
         })),
-      ]; // 22 players total (exceeds DTO's 20 limit)
+      ]; // 32 players total (exceeds DTO's 30 limit boundary)
       const command = createValidCommand({ initialLineup: longLineup });
 
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Initial lineup cannot exceed 20 players');
+      expect(result.errors).toContain('Initial lineup cannot exceed 30 players');
     });
 
     it('should respect custom game rules max players limit', async () => {
@@ -596,7 +600,7 @@ describe('StartNewGame', () => {
         maxPlayersInLineup: 11, // Custom limit allows 11 players
       };
 
-      // Create lineup with exactly 11 players
+      // Create lineup with exactly 11 players (common configuration)
       const extendedLineup = [
         ...createValidLineup(),
         {
@@ -665,16 +669,16 @@ describe('StartNewGame', () => {
       expect(result.errors).toEqual(
         expect.arrayContaining([
           expect.stringMatching(
-            /Player at index \d+: battingOrderPosition must be between 1 and 20/
+            /Player at index \d+: battingOrderPosition must be between 1 and 30/
           ),
         ])
       );
     });
 
-    it('should reject batting order positions above maximum (21)', async () => {
+    it('should reject batting order positions above maximum (31)', async () => {
       const lineup = createValidLineup();
       const modifiedLineup = lineup.map((player, index) =>
-        index === 0 ? { ...player, battingOrderPosition: 21 } : player
+        index === 0 ? { ...player, battingOrderPosition: 31 } : player
       );
       const command = createValidCommand({ initialLineup: modifiedLineup });
 
@@ -684,7 +688,7 @@ describe('StartNewGame', () => {
       expect(result.errors).toEqual(
         expect.arrayContaining([
           expect.stringMatching(
-            /Player at index \d+: battingOrderPosition must be between 1 and 20/
+            /Player at index \d+: battingOrderPosition must be between 1 and 30/
           ),
         ])
       );
@@ -856,21 +860,23 @@ describe('StartNewGame', () => {
       expect(result.errors).toContain('timeLimitMinutes must be between 1 and 300');
     });
 
-    it('should reject too few max players in lineup', async () => {
+    it('should reject too few max players in lineup (below 9-player minimum)', async () => {
       const invalidRules: GameRulesDTO = {
         mercyRuleEnabled: true,
         mercyRuleInning4: 15,
         mercyRuleInning5: 10,
         timeLimitMinutes: 60,
         extraPlayerAllowed: true,
-        maxPlayersInLineup: 8, // Less than required 9 players
+        maxPlayersInLineup: 8, // Less than required 9 players (below minimum)
       };
       const command = createValidCommand({ gameRules: invalidRules });
 
       const result = await startNewGame.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('maxPlayersInLineup must be between 9 and 20');
+      expect(result.errors).toContain(
+        'maxPlayersInLineup must be between 9 and 30 (10-player standard, 11-12 common, 25+ for flexible rosters)'
+      );
     });
 
     it('should allow undefined time limit (no time constraint)', async () => {
@@ -1139,7 +1145,7 @@ describe('StartNewGame', () => {
 
       expect(result.success).toBe(true);
 
-      // Home team should have full lineup (managed team)
+      // Home team should have full lineup (managed team - standard 10-player configuration)
       expect(result.initialState?.homeLineup.battingSlots).toHaveLength(10);
       expect(result.initialState?.homeLineup.teamName).toBe('Springfield Tigers');
 
@@ -1214,8 +1220,8 @@ describe('StartNewGame', () => {
           }
           usedPlayerIds.add(player.playerId.value);
 
-          if (player.battingOrderPosition < 1 || player.battingOrderPosition > 20) {
-            errors.push('Invalid batting order position: must be 1-20');
+          if (player.battingOrderPosition < 1 || player.battingOrderPosition > 30) {
+            errors.push('Invalid batting order position: must be 1-30');
           }
           if (usedBattingPositions.has(player.battingOrderPosition)) {
             errors.push(`Duplicate batting order position: ${player.battingOrderPosition}`);

@@ -67,8 +67,8 @@ describe('SubstitutePlayerCommand', () => {
   });
 
   describe('Batting Slot Scenarios', () => {
-    it('should support all valid batting slot positions (1-20)', () => {
-      for (let slot = 1; slot <= 20; slot++) {
+    it('should support all valid batting slot positions (1-30)', () => {
+      for (let slot = 1; slot <= 30; slot++) {
         const command = createValidCommand({ battingSlot: slot });
         expect(command.battingSlot).toBe(slot);
       }
@@ -95,7 +95,7 @@ describe('SubstitutePlayerCommand', () => {
       expect(cleanupHitter.incomingPlayerName).toBe('Power Davis');
     });
 
-    it('should handle extra player positions (10-20)', () => {
+    it('should handle extra player positions (10-30)', () => {
       const extraPlayerCommand = createValidCommand({
         battingSlot: 12,
         newFieldPosition: FieldPosition.EXTRA_PLAYER,
@@ -417,13 +417,13 @@ describe('SubstitutePlayerCommand', () => {
         );
       });
 
-      it('should validate batting slot range (1-20)', () => {
-        const invalidSlots = [0, 21, -1, 1.5];
+      it('should validate batting slot range (1-30)', () => {
+        const invalidSlots = [0, 31, -1, 1.5];
 
         invalidSlots.forEach(slot => {
           const command = createValidCommand({ battingSlot: slot });
           expect(() => SubstitutePlayerCommandValidator.validate(command)).toThrow(
-            'battingSlot must be an integer between 1 and 20'
+            'battingSlot must be an integer between 1 and 30'
           );
         });
       });
@@ -703,11 +703,11 @@ describe('SubstitutePlayerCommand', () => {
   describe('Edge Cases', () => {
     it('should handle maximum batting slot position', () => {
       const maxSlotCommand = createValidCommand({
-        battingSlot: 20,
+        battingSlot: 30,
         incomingPlayerName: 'Max Position Player',
       });
 
-      expect(maxSlotCommand.battingSlot).toBe(20);
+      expect(maxSlotCommand.battingSlot).toBe(30);
     });
 
     it('should handle minimum inning value', () => {

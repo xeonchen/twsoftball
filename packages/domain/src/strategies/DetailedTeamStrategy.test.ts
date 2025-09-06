@@ -21,7 +21,7 @@ describe('DetailedTeamStrategy', () => {
   beforeEach(() => {
     strategy = new DetailedTeamStrategy();
 
-    // Create 10 players using test utilities - eliminates duplication
+    // Create 10 players using test utilities (standard configuration) - eliminates duplication
     players = TestPlayerFactory.createPlayers(10);
     [player1, player2, player3, player4] = [players[0]!, players[1]!, players[2]!, players[3]!];
   });
@@ -394,15 +394,15 @@ describe('DetailedTeamStrategy', () => {
       expect(strategy.isLineupValid()).toBe(false);
     });
 
-    it('should return false for lineup with less than 9 players', () => {
+    it('should return false for lineup with less than 9 players (below minimum)', () => {
       strategy.addPlayer(player1, 1, FieldPosition.PITCHER);
       strategy.addPlayer(player2, 2, FieldPosition.CATCHER);
 
       expect(strategy.isLineupValid()).toBe(false);
     });
 
-    it('should return true for lineup with exactly 9 players', () => {
-      // Add 9 players with all required positions using test utilities
+    it('should return true for lineup with exactly 9 players (boundary case)', () => {
+      // Add 9 players with all required positions (minimum required configuration)
       const positions = [
         FieldPosition.PITCHER,
         FieldPosition.CATCHER,
@@ -422,8 +422,8 @@ describe('DetailedTeamStrategy', () => {
       TeamStrategyTestHelper.assertLineupValid(strategy);
     });
 
-    it('should return true for lineup with 10 players (including short fielder)', () => {
-      // Add 10 players including short fielder using test utilities
+    it('should return true for lineup with 10 players (standard configuration including short fielder)', () => {
+      // Add 10 players including short fielder (standard slow-pitch configuration)
       const positions = [
         FieldPosition.PITCHER,
         FieldPosition.CATCHER,
@@ -618,10 +618,10 @@ describe('DetailedTeamStrategy', () => {
     });
 
     it('should maintain data integrity across complex operations', () => {
-      // Add full roster using TestPlayerFactory
+      // Add full roster using TestPlayerFactory (12-player common configuration)
       const rosterPlayers = TestPlayerFactory.createPlayers(12);
 
-      // Add first 9 players with standard positions
+      // Add first 9 players with standard positions (minimum required)
       const positions = [
         FieldPosition.PITCHER,
         FieldPosition.CATCHER,
@@ -639,7 +639,7 @@ describe('DetailedTeamStrategy', () => {
       }
 
       TeamStrategyTestHelper.assertLineupValid(strategy);
-      expect(strategy.getActivePlayerCount()).toBe(9);
+      expect(strategy.getActivePlayerCount()).toBe(9); // Minimum configuration
 
       // Perform multiple operations with helper data
       const player0 = rosterPlayers[0]!;
@@ -654,12 +654,12 @@ describe('DetailedTeamStrategy', () => {
       // Verify integrity
       expect(strategy.getActivePlayerCount()).toBe(9);
       expect(strategy.isLineupValid()).toBe(false); // Missing first base coverage
-      expect(strategy.getAllPlayers()).toHaveLength(11); // All players tracked (9 starters + 2 substitutes)
+      expect(strategy.getAllPlayers()).toHaveLength(11); // All players tracked (9 minimum starters + 2 substitutes)
     });
   });
 
   describe('Edge cases and error conditions', () => {
-    it('should handle maximum batting slots correctly with custom rules', () => {
+    it('should handle maximum batting slots correctly with custom rules (20-player boundary case)', () => {
       const rules = new SoftballRules({ maxPlayersPerTeam: 20 });
 
       for (let i = 1; i <= 20; i += 1) {
@@ -685,8 +685,8 @@ describe('DetailedTeamStrategy', () => {
       );
     });
 
-    it('should handle maximum batting slots correctly with default rules', () => {
-      // Default rules allow up to 25 players
+    it('should handle maximum batting slots correctly with default rules (25-player maximum boundary case)', () => {
+      // Default rules allow up to 25 players (maximum possible)
       for (let i = 1; i <= 25; i += 1) {
         const player = {
           playerId: new PlayerId(`player-${i}`),

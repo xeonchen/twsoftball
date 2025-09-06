@@ -304,13 +304,13 @@ describe('SubstitutePlayer Use Case', () => {
 
     it('should fail for invalid batting slot', async () => {
       const command = createValidCommand({
-        battingSlot: 25, // Invalid - outside 1-20 range
+        battingSlot: 35, // Invalid - outside 1-30 range
       });
 
       const result = await substitutePlayer.execute(command);
 
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('battingSlot must be an integer between 1 and 20');
+      expect(result.errors).toContain('battingSlot must be an integer between 1 and 30');
     });
 
     it('should fail for invalid inning', async () => {

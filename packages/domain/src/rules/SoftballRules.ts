@@ -133,7 +133,9 @@ export class SoftballRules {
    *
    * @remarks
    * Different leagues have varying roster limits:
-   * - Minimum 9 players (starting lineup requirement)
+   * - Minimum 9 players (boundary case without SHORT_FIELDER)
+   * - 10-player standard: Most common configuration with SHORT_FIELDER
+   * - 11-12 player common: Standard defense plus 1-2 EXTRA_PLAYERs
    * - Recreation leagues: often 20-25 to accommodate scheduling flexibility
    * - Tournament play: may limit to 15-20 for competitive balance
    * - Corporate leagues: may allow larger rosters for participation
@@ -235,7 +237,7 @@ export class SoftballRules {
    * @remarks
    * **Validation Rules**:
    * - totalInnings: 1-50 (reasonable range for any softball variant)
-   * - maxPlayersPerTeam: 9-50 (minimum starting lineup to reasonable maximum)
+   * - maxPlayersPerTeam: 9-50 (minimum 9-player to maximum, 10-player standard, 11-12 common)
    * - timeLimitMinutes: 1-720 minutes or null (1 minute to 12 hours max, defaults to 60)
    * - mercyRuleTiers: Valid tiers with increasing inning thresholds
    * - maxExtraInnings: 0-20 innings or null (0 = no extra innings, defaults to 0)
@@ -251,7 +253,7 @@ export class SoftballRules {
     this.allowReEntry = config.allowReEntry ?? true;
     this.mercyRuleEnabled = config.mercyRuleEnabled ?? true;
     this.maxExtraInnings = 'maxExtraInnings' in config ? config.maxExtraInnings : 0;
-    this.allowTieGames = config.allowTieGames ?? false;
+    this.allowTieGames = config.allowTieGames ?? true;
 
     // Set mercy rule tiers or use default two-tier system
     if (config.mercyRuleTiers !== undefined) {
@@ -499,7 +501,9 @@ export class SoftballRules {
 
   private static validateMaxPlayersPerTeam(players: number): void {
     if (!Number.isInteger(players) || players < 9 || players > 50) {
-      throw new DomainError('Max players per team must be an integer between 9 and 50');
+      throw new DomainError(
+        'Max players per team must be an integer between 9 and 50 (9=minimum, 10=standard, 11-12=common)'
+      );
     }
   }
 
@@ -602,6 +606,28 @@ export class SoftballRules {
   // These provide backward compatibility and simpler API access
 
   /**
+   * Creates standard softball rules with balanced settings.
+   *
+   * @returns SoftballRules configured with standard balanced settings
+   * @remarks Convenience alias for RuleVariants.standard()
+   */
+  static standard(): SoftballRules {
+    return new SoftballRules({
+      totalInnings: 7,
+      maxPlayersPerTeam: 25,
+      timeLimitMinutes: 60,
+      allowReEntry: true,
+      mercyRuleEnabled: true,
+      mercyRuleTiers: [
+        { differential: 10, afterInning: 4 },
+        { differential: 7, afterInning: 5 },
+      ],
+      maxExtraInnings: 0,
+      allowTieGames: true,
+    });
+  }
+
+  /**
    * Creates standard recreation league rules.
    *
    * @returns SoftballRules configured for recreation leagues
@@ -632,23 +658,6 @@ export class SoftballRules {
       allowReEntry: false,
       mercyRuleEnabled: true,
       mercyRuleTiers: [{ differential: 10, afterInning: 4 }],
-    });
-  }
-
-  /**
-   * Creates standard youth league rules.
-   *
-   * @returns SoftballRules configured for youth leagues
-   * @remarks Convenience alias for RuleVariants.youthLeague()
-   */
-  static youthLeague(): SoftballRules {
-    return new SoftballRules({
-      totalInnings: 5,
-      maxPlayersPerTeam: 15,
-      timeLimitMinutes: 75,
-      allowReEntry: true,
-      mercyRuleEnabled: true,
-      mercyRuleTiers: [{ differential: 12, afterInning: 2 }],
     });
   }
 }

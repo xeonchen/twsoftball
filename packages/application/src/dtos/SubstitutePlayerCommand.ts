@@ -211,10 +211,10 @@ export const SubstitutePlayerCommandValidator = {
     if (
       !Number.isInteger(command.battingSlot) ||
       command.battingSlot < 1 ||
-      command.battingSlot > 20
+      command.battingSlot > 30
     ) {
       throw new SubstitutePlayerCommandValidationError(
-        'battingSlot must be an integer between 1 and 20'
+        'battingSlot must be an integer between 1 and 30'
       );
     }
 

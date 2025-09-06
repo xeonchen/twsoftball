@@ -368,16 +368,16 @@ export class StartNewGame {
     }
 
     if (command.initialLineup && command.initialLineup.length < 9) {
-      errors.push('Lineup must have at least 9 players');
+      errors.push('Lineup must have at least 9 players (10-player standard lineup recommended)');
     }
 
     // Validate against game rules if provided
     if (command.gameRules && command.initialLineup) {
-      const maxPlayers = command.gameRules.maxPlayersInLineup || 20;
+      const maxPlayers = command.gameRules.maxPlayersInLineup || 30;
       if (command.initialLineup.length > maxPlayers) {
         errors.push('Lineup cannot exceed maximum players allowed');
       }
-    } else if (command.initialLineup && command.initialLineup.length > 20) {
+    } else if (command.initialLineup && command.initialLineup.length > 30) {
       // Default max without custom rules
       errors.push('Lineup cannot exceed maximum players allowed');
     }

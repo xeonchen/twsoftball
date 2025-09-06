@@ -140,7 +140,7 @@ export class SlotHistory {
  * all players who have occupied that position throughout the game. In softball:
  *
  * - Positions 1-9: Traditional batting order
- * - Positions 10-20: Extra Players (EP) and Designated Hitters (DH)
+ * - Positions 10-20: Extra Players (EP)
  * - Players can be substituted at any time between innings
  * - Original starters can re-enter the game (re-entry rule)
  * - Non-starters cannot re-enter once substituted out
@@ -177,7 +177,7 @@ export class BattingSlot {
    *
    * @remarks
    * Position range 1-20 supports both traditional 9-player lineups and
-   * extended lineups with Extra Players (EP) and Designated Hitters (DH).
+   * extended lineups with Extra Players (EP).
    * The history must contain at least one entry, and the currentPlayer must
    * have an active (non-exited) entry in that history.
    */

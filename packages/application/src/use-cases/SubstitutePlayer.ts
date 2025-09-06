@@ -394,8 +394,8 @@ export class SubstitutePlayer {
     const errors: string[] = [];
 
     // Validate batting slot range
-    if (command.battingSlot < 1 || command.battingSlot > 20) {
-      errors.push('Batting slot must be between 1 and 20');
+    if (command.battingSlot < 1 || command.battingSlot > 30) {
+      errors.push('Batting slot must be between 1 and 30');
     }
 
     // Validate inning

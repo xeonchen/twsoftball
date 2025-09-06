@@ -376,10 +376,10 @@ class DetailedTeamStrategy implements TeamStrategy {
     return true;
   }
   getMinimumPlayers(): number {
-    return 9;
+    return 10; // Standard 10-player lineup
   }
   getMaximumPlayers(): number {
-    return 20;
+    return 30; // Supports large rosters
   }
 
   validateLineup(players: PlayerInGame[]): ValidationResult {
@@ -546,9 +546,11 @@ interface EventStore {
 
 1. **Mercy Rule**: 10 runs after 4th inning, 7 runs after 5th inning
 2. **Time Limit**: 60 minutes default
-3. **Lineup**: 9-20 players (can be less with agreement), no duplicates
-4. **Field Positions**: 9-10 fielders + extra players (EP) who bat but don't
-   field
+3. **Lineup**: 10-12 players is standard (10-player is the standard version,
+   11-player with EP and 12-player with 2 EPs are common). 9-player (without SF)
+   and 13+ players are valid but less frequent boundary cases
+4. **Field Positions**: 10 fielders for standard play (including Short Field),
+   with extra players (EP) who bat but don't field in 11+ player games
 5. **Substitution**: Players can change field positions anytime
 6. **Re-entry**: Starters can re-enter once to their original batting slot
 7. **Batting Order**: Fixed slots at game start, players flow through slots via

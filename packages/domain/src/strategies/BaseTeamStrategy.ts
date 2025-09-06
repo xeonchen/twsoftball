@@ -266,7 +266,7 @@ export abstract class BaseTeamStrategy implements TeamStrategy {
    * **Softball Rules Compliance**:
    * - Minimum batting slot is always 1 (no zero-based indexing in softball)
    * - Maximum per SoftballRules.maxPlayersPerTeam configuration
-   * - Supports traditional 9-player lineups through extended EP/DH configurations
+   * - Supports 9-player boundary case through extended EP configurations
    */
   protected static validateBattingSlot(battingSlot: number, rules: SoftballRules): void {
     BattingSlotValidation.validateBattingSlot(battingSlot, rules);

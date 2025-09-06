@@ -137,8 +137,8 @@ interface SoftballRules {
     timeLimitMinutes: number | null; // Default: 60
   };
   lineup: {
-    minimumPlayers: number; // Default: 9
-    maximumPlayers: number; // Default: 20
+    minimumPlayers: number; // Default: 10 (standard lineup)
+    maximumPlayers: number; // Default: 30 (supports large tournament rosters)
     allowExtraPlayer: boolean; // Default: true
   };
 }

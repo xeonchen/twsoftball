@@ -277,7 +277,7 @@ describe('TeamStrategy Interface Contracts', () => {
         expect(smallStrategy.isLineupValid()).toBe(false);
       });
 
-      it('should return true when lineup has 9-20 players', () => {
+      it('should return true when lineup has 9-20 players (9-player boundary, 10-player standard, 11-12 common)', () => {
         const players = Array.from({ length: 10 }, (_, i) =>
           createTestPlayer(`player-${i}`, i + 1, `Player ${i}`)
         );

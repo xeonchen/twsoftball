@@ -319,7 +319,7 @@ describe('CurrentBatterChanged', () => {
       const scenarios = [
         { prev: 1, new: 2, inning: 1, isTop: true }, // Normal progression
         { prev: 9, new: 1, inning: 3, isTop: false }, // Order cycles back to 1
-        { prev: 5, new: 10, inning: 7, isTop: true }, // Jump to EP/DH slots
+        { prev: 5, new: 10, inning: 7, isTop: true }, // Jump to EP slots
         { prev: 20, new: 1, inning: 12, isTop: false }, // Max slot back to 1
         { prev: 3, new: 7, inning: 2, isTop: true }, // Non-sequential (substitution)
       ];

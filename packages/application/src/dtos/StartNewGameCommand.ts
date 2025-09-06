@@ -41,7 +41,7 @@
  *     mercyRuleInning5: 10,
  *     timeLimitMinutes: 60,
  *     extraPlayerAllowed: true,
- *     maxPlayersInLineup: 12
+ *     maxPlayersInLineup: 12  // 10-player standard, 11-12 common, 25+ for flexible rosters
  *   }
  * };
  * ```
@@ -125,8 +125,9 @@ export interface StartNewGameCommand {
  * including identity, batting order, defensive assignment, and position
  * preferences for strategic substitution planning.
  *
- * Batting order positions typically range 1-9 for starters, with positions
- * 10-20 available for extra players/designated hitters in some league formats.
+ * Batting order positions typically range 1-10 for the 10-player standard lineup,
+ * with positions 11-12 commonly used for extra players (EP) in 11-12 player games,
+ * and up to 20 available for larger lineups in some league formats.
  *
  * Preferred positions help coaches make informed substitution decisions
  * while maintaining defensive effectiveness.
@@ -191,12 +192,12 @@ export interface GameRulesDTO {
    */
   readonly timeLimitMinutes?: number;
 
-  /** Whether extra player/designated hitter is allowed */
+  /** Whether extra player is allowed */
   readonly extraPlayerAllowed: boolean;
 
   /**
    * Maximum number of players that can be in the lineup
-   * Typically 9 (standard) to 20 (with extra players)
+   * 10 players (standard), 11-12 players (common with EPs), up to 20 (extended lineups)
    */
   readonly maxPlayersInLineup: number;
 }
@@ -278,11 +279,13 @@ export const StartNewGameCommandValidator = {
     }
 
     if (lineup.length < 9) {
-      throw new StartNewGameCommandValidationError('Initial lineup must have at least 9 players');
+      throw new StartNewGameCommandValidationError(
+        'Initial lineup must have at least 9 players (10-player standard lineup recommended)'
+      );
     }
 
-    if (lineup.length > 20) {
-      throw new StartNewGameCommandValidationError('Initial lineup cannot exceed 20 players');
+    if (lineup.length > 30) {
+      throw new StartNewGameCommandValidationError('Initial lineup cannot exceed 30 players');
     }
 
     // Validate each player
@@ -319,9 +322,9 @@ export const StartNewGameCommandValidator = {
       );
     }
 
-    if (player.battingOrderPosition < 1 || player.battingOrderPosition > 20) {
+    if (player.battingOrderPosition < 1 || player.battingOrderPosition > 30) {
       throw new StartNewGameCommandValidationError(
-        `Player at index ${index}: battingOrderPosition must be between 1 and 20`,
+        `Player at index ${index}: battingOrderPosition must be between 1 and 30`,
         `initialLineup[${index}].battingOrderPosition`,
         player.battingOrderPosition
       );
@@ -438,9 +441,9 @@ export const StartNewGameCommandValidator = {
       throw new StartNewGameCommandValidationError('extraPlayerAllowed must be a boolean');
     }
 
-    if (rules.maxPlayersInLineup < 9 || rules.maxPlayersInLineup > 20) {
+    if (rules.maxPlayersInLineup < 9 || rules.maxPlayersInLineup > 30) {
       throw new StartNewGameCommandValidationError(
-        'maxPlayersInLineup must be between 9 and 20',
+        'maxPlayersInLineup must be between 9 and 30 (10-player standard, 11-12 common, 25+ for flexible rosters)',
         'maxPlayersInLineup',
         rules.maxPlayersInLineup
       );
@@ -480,7 +483,7 @@ export const StartNewGameCommandFactory = {
   },
 
   /**
-   * Gets default game rules for standard league play
+   * Gets default game rules for 10-player standard league play
    */
   getDefaultGameRules(): GameRulesDTO {
     return {
@@ -493,7 +496,7 @@ export const StartNewGameCommandFactory = {
   },
 
   /**
-   * Creates game rules for tournament play (stricter mercy rules)
+   * Creates game rules for 9-player tournament play (stricter mercy rules, less common format)
    */
   getTournamentGameRules(): GameRulesDTO {
     return {

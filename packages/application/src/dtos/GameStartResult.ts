@@ -97,7 +97,7 @@ export interface GameStartResult {
    * Common error types:
    * - 'Duplicate jersey numbers: #X assigned to multiple players'
    * - 'Missing required field position: POSITION_NAME'
-   * - 'Invalid lineup size: Must have 9-20 players'
+   * - 'Invalid lineup size: Must have 9-30 players'
    * - 'Team name cannot be empty'
    * - 'Game date cannot be in the past'
    */

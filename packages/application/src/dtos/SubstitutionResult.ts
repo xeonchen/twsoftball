@@ -188,7 +188,7 @@ export interface SubstitutionResult {
  */
 export interface SubstitutionDetailsDTO {
   /**
-   * Batting order position where substitution occurred (1-20)
+   * Batting order position where substitution occurred (1-30)
    * Indicates which slot in the lineup was affected
    */
   readonly battingSlot: number;
