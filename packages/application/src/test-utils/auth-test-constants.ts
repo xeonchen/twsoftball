@@ -22,7 +22,7 @@
  * ```
  */
 
-/* eslint-env node, browser */
+/* eslint-env node, browser -- Required for cross-platform environment detection */
 
 // Type declaration to avoid eslint no-undef errors
 declare const process: { env?: Record<string, string> } | undefined;

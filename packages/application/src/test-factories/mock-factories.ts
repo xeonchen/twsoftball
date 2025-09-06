@@ -47,7 +47,7 @@ import {
   TeamLineupId,
   InningStateId,
 } from '@twsoftball/domain';
-// eslint-disable-next-line import/no-extraneous-dependencies
+// eslint-disable-next-line import/no-extraneous-dependencies -- Required for test validation patterns
 import { vi } from 'vitest';
 
 import { EventStore, StoredEvent } from '../ports/out/EventStore';

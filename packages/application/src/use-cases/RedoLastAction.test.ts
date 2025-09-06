@@ -12,7 +12,7 @@ import { GameId, Game, GameStatus, DomainEvent, DomainError } from '@twsoftball/
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Disable unbound-method rule for this file as vi.mocked() is designed to work with unbound methods
-/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/unbound-method*/
 
 import { RedoCommand } from '../dtos/RedoCommand';
 import { EventStore, StoredEvent } from '../ports/out/EventStore';

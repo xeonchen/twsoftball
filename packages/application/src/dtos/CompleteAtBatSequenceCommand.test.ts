@@ -166,7 +166,7 @@ describe('CompleteAtBatSequenceCommand', () => {
       it('should reject command without gameId', () => {
         const invalidCommand = {
           ...validCommand,
-          gameId: undefined as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+          gameId: undefined as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- Required for testing validation with invalid input types
         };
 
         expect(() => {

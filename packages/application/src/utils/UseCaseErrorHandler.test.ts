@@ -3,7 +3,7 @@
  * Comprehensive tests for the UseCaseErrorHandler utility class.
  */
 
-/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/unbound-method*/
 
 import { GameId, Game, DomainError } from '@twsoftball/domain';
 import { describe, it, expect, vi, beforeEach } from 'vitest';

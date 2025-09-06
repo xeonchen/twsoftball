@@ -23,7 +23,7 @@ import { GameId, PlayerId, AtBatResultType, Game, GameStatus } from '@twsoftball
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Disable unbound-method rule for this file as vi.mocked() is designed to work with unbound methods
-/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/unbound-method*/
 
 import {
   createMockDependencies,

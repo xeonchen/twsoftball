@@ -3,9 +3,9 @@
  * Comprehensive tests for the EndInning use case following TDD approach.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/require-await */
-/* eslint-disable @typescript-eslint/explicit-function-return-type */
+/* eslint-disable @typescript-eslint/no-explicit-any*/
+/* eslint-disable @typescript-eslint/require-await*/
+/* eslint-disable @typescript-eslint/explicit-function-return-type*/
 
 import { Game, GameId, GameStatus, DomainError } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
