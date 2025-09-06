@@ -104,6 +104,15 @@ export class GameScore {
   }
 
   /**
+   * Determines if both teams have zero runs (0-0 score).
+   *
+   * @returns True if both teams have zero runs, false otherwise
+   */
+  isZero(): boolean {
+    return this.homeScore.runs === 0 && this.awayScore.runs === 0;
+  }
+
+  /**
    * Calculates the run differential from the home team's perspective.
    *
    * @returns Positive number if home team is winning, negative if away team is winning, zero if tied
