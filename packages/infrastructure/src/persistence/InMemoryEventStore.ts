@@ -190,67 +190,193 @@ export class InMemoryEventStore implements EventStore {
    * Retrieves all events related to a specific game across all aggregates.
    *
    * @remarks
-   * Phase 2 implementation placeholder. Currently returns empty array.
-   * Full cross-aggregate query implementation will be added in Phase 2.
+   * Phase 2 implementation that queries across all aggregates (Game, TeamLineup, InningState)
+   * to find events related to the specified game. Events are returned in chronological order
+   * by their timestamp to provide a complete game timeline.
+   *
+   * Implementation details:
+   * - Searches all streams for events containing the gameId
+   * - Extracts gameId from serialized event data
+   * - Maintains chronological ordering across aggregates
+   * - Supports cross-aggregate game reconstruction
    *
    * @param gameId - Unique identifier for the game
-   * @returns Promise resolving to empty array (Phase 1 placeholder)
+   * @returns Promise resolving to chronologically ordered events for the game
    */
-  async getGameEvents(_gameId: GameId): Promise<StoredEvent[]> {
-    // Phase 2 implementation placeholder
-    return Promise.resolve([]);
+  async getGameEvents(gameId: GameId): Promise<StoredEvent[]> {
+    return new Promise(resolve => {
+      const gameEvents: StoredEvent[] = [];
+      const targetGameIdValue = gameId.value;
+
+      // Search all streams for events related to this game
+      for (const events of this.streams.values()) {
+        for (const event of events) {
+          try {
+            const eventData = JSON.parse(event.eventData) as { gameId?: { value: string } };
+            // Check if event has gameId property that matches target
+            if (eventData.gameId && eventData.gameId.value === targetGameIdValue) {
+              gameEvents.push(event);
+            }
+          } catch (_error) {
+            // Skip events with invalid JSON (defensive programming)
+            continue;
+          }
+        }
+      }
+
+      // Sort by timestamp to maintain chronological ordering across aggregates
+      gameEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+      resolve(gameEvents);
+    });
   }
 
   /**
    * Retrieves all events across all streams.
    *
    * @remarks
-   * Phase 2 implementation placeholder. Currently returns empty array.
-   * Full system-wide query implementation will be added in Phase 2.
+   * Phase 2 implementation that returns all events from all streams in the event store.
+   * Events are ordered chronologically by their timestamp to provide a system-wide timeline.
+   * Supports optional timestamp filtering for incremental queries.
+   *
+   * Implementation details:
+   * - Collects events from all streams in storage
+   * - Applies optional timestamp filtering
+   * - Maintains chronological ordering across all aggregates
+   * - Efficient for system-wide analytics and monitoring
    *
    * @param fromTimestamp - Optional timestamp filter for incremental queries
-   * @returns Promise resolving to empty array (Phase 1 placeholder)
+   * @returns Promise resolving to all events (filtered by timestamp if provided)
    */
-  async getAllEvents(_fromTimestamp?: Date): Promise<StoredEvent[]> {
-    // Phase 2 implementation placeholder
-    return Promise.resolve([]);
+  async getAllEvents(fromTimestamp?: Date): Promise<StoredEvent[]> {
+    return new Promise(resolve => {
+      const allEvents: StoredEvent[] = [];
+
+      // Collect events from all streams
+      for (const events of this.streams.values()) {
+        allEvents.push(...events);
+      }
+
+      // Apply timestamp filtering if provided
+      const filteredEvents = fromTimestamp
+        ? allEvents.filter(event => event.timestamp.getTime() >= fromTimestamp.getTime())
+        : allEvents;
+
+      // Sort by timestamp to maintain chronological ordering
+      filteredEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+      resolve(filteredEvents);
+    });
   }
 
   /**
    * Retrieves events of a specific type across all streams.
    *
    * @remarks
-   * Phase 2 implementation placeholder. Currently returns empty array.
-   * Full event type filtering implementation will be added in Phase 2.
+   * Phase 2 implementation that filters events by their domain event type across all streams.
+   * Events are returned in chronological order by timestamp. Supports optional timestamp
+   * filtering for time-based analysis and incremental queries.
+   *
+   * Implementation details:
+   * - Searches all streams for events matching the specified type
+   * - Applies case-sensitive event type matching
+   * - Supports optional timestamp filtering
+   * - Maintains chronological ordering in results
    *
    * @param eventType - Domain event type to filter by
    * @param fromTimestamp - Optional timestamp filter for time-based analysis
-   * @returns Promise resolving to empty array (Phase 1 placeholder)
+   * @returns Promise resolving to events of the specified type
    */
-  async getEventsByType(_eventType: string, _fromTimestamp?: Date): Promise<StoredEvent[]> {
-    // Phase 2 implementation placeholder
-    return Promise.resolve([]);
+  async getEventsByType(eventType: string, fromTimestamp?: Date): Promise<StoredEvent[]> {
+    return new Promise(resolve => {
+      const matchingEvents: StoredEvent[] = [];
+
+      // Search all streams for events of the specified type
+      for (const events of this.streams.values()) {
+        for (const event of events) {
+          // Apply event type filter
+          if (event.eventType === eventType) {
+            // Apply timestamp filter if provided
+            if (!fromTimestamp || event.timestamp.getTime() >= fromTimestamp.getTime()) {
+              matchingEvents.push(event);
+            }
+          }
+        }
+      }
+
+      // Sort by timestamp to maintain chronological ordering
+      matchingEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+      resolve(matchingEvents);
+    });
   }
 
   /**
    * Retrieves events for a game with optional filtering by aggregate type and time.
    *
    * @remarks
-   * Phase 2 implementation placeholder. Currently returns empty array.
-   * Full filtered cross-aggregate query implementation will be added in Phase 2.
+   * Phase 2 implementation that provides flexible cross-aggregate querying for a specific game
+   * with optional filtering by aggregate types and timestamp. This method combines the
+   * game-level scope of getGameEvents with additional filtering capabilities.
+   *
+   * Implementation details:
+   * - Searches all streams for events related to the specified game
+   * - Applies aggregate type filtering if provided
+   * - Applies timestamp filtering if provided
+   * - Maintains chronological ordering in results
+   * - Returns empty array if no aggregate types provided in filter
    *
    * @param gameId - Unique identifier for the game
    * @param aggregateTypes - Optional aggregate types to include
    * @param fromTimestamp - Optional timestamp filter
-   * @returns Promise resolving to empty array (Phase 1 placeholder)
+   * @returns Promise resolving to filtered events for the game
    */
   async getEventsByGameId(
-    _gameId: GameId,
-    _aggregateTypes?: ('Game' | 'TeamLineup' | 'InningState')[],
-    _fromTimestamp?: Date
+    gameId: GameId,
+    aggregateTypes?: ('Game' | 'TeamLineup' | 'InningState')[],
+    fromTimestamp?: Date
   ): Promise<StoredEvent[]> {
-    // Phase 2 implementation placeholder
-    return Promise.resolve([]);
+    return new Promise(resolve => {
+      // Handle empty aggregate types array
+      if (aggregateTypes && aggregateTypes.length === 0) {
+        resolve([]);
+        return;
+      }
+
+      const gameEvents: StoredEvent[] = [];
+      const targetGameIdValue = gameId.value;
+
+      // Search all streams for events related to this game
+      for (const events of this.streams.values()) {
+        for (const event of events) {
+          try {
+            const eventData = JSON.parse(event.eventData) as { gameId?: { value: string } };
+            // Check if event has gameId property that matches target
+            if (eventData.gameId && eventData.gameId.value === targetGameIdValue) {
+              // Apply aggregate type filter if provided
+              if (aggregateTypes && !aggregateTypes.includes(event.aggregateType)) {
+                continue;
+              }
+
+              // Apply timestamp filter if provided
+              if (fromTimestamp && event.timestamp.getTime() < fromTimestamp.getTime()) {
+                continue;
+              }
+
+              gameEvents.push(event);
+            }
+          } catch (_error) {
+            // Skip events with invalid JSON (defensive programming)
+            continue;
+          }
+        }
+      }
+
+      // Sort by timestamp to maintain chronological ordering
+      gameEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+      resolve(gameEvents);
+    });
   }
 
   /**
