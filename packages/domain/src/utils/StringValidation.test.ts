@@ -48,11 +48,21 @@ describe('StringValidation', () => {
     it('should reject null and undefined values', () => {
       expect(() =>
         StringValidation.validateNonEmptyString(null as unknown as string, 'NullId')
-      ).toThrow(new DomainError('NullId cannot be empty or whitespace'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'NullId cannot be empty or whitespace',
+          name: 'DomainError',
+        }) as Error
+      );
 
       expect(() =>
         StringValidation.validateNonEmptyString(undefined as unknown as string, 'UndefinedId')
-      ).toThrow(new DomainError('UndefinedId cannot be empty or whitespace'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'UndefinedId cannot be empty or whitespace',
+          name: 'DomainError',
+        }) as Error
+      );
     });
 
     it('should include field name in error message', () => {
@@ -91,25 +101,50 @@ describe('StringValidation', () => {
     it('should reject whitespace-only strings (inherits from validateNonEmptyString)', () => {
       expect(() =>
         StringValidation.validateNonEmptyStringWithLength('   ', 50, 'PlayerId')
-      ).toThrow(new DomainError('PlayerId cannot be empty or whitespace'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'PlayerId cannot be empty or whitespace',
+          name: 'DomainError',
+        }) as Error
+      );
 
       expect(() =>
         StringValidation.validateNonEmptyStringWithLength('\t\n ', 50, 'WhitespaceId')
-      ).toThrow(new DomainError('WhitespaceId cannot be empty or whitespace'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'WhitespaceId cannot be empty or whitespace',
+          name: 'DomainError',
+        }) as Error
+      );
     });
 
     it('should reject strings exceeding maximum length', () => {
       expect(() =>
         StringValidation.validateNonEmptyStringWithLength('toolong', 5, 'ShortId')
-      ).toThrow(new DomainError('ShortId cannot exceed 5 characters'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'ShortId cannot exceed 5 characters',
+          name: 'DomainError',
+        }) as Error
+      );
 
       expect(() =>
         StringValidation.validateNonEmptyStringWithLength('a'.repeat(51), 50, 'GameId')
-      ).toThrow(new DomainError('GameId cannot exceed 50 characters'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'GameId cannot exceed 50 characters',
+          name: 'DomainError',
+        }) as Error
+      );
 
       expect(() =>
         StringValidation.validateNonEmptyStringWithLength('exactly11chars!', 10, 'TenCharMax')
-      ).toThrow(new DomainError('TenCharMax cannot exceed 10 characters'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'TenCharMax cannot exceed 10 characters',
+          name: 'DomainError',
+        }) as Error
+      );
     });
 
     it('should accept strings exactly at maximum length', () => {
@@ -127,11 +162,21 @@ describe('StringValidation', () => {
     it('should include field name and limit in error messages', () => {
       expect(() =>
         StringValidation.validateNonEmptyStringWithLength('', 25, 'player identifier')
-      ).toThrow(new DomainError('player identifier cannot be empty or whitespace'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'player identifier cannot be empty or whitespace',
+          name: 'DomainError',
+        }) as Error
+      );
 
       expect(() =>
         StringValidation.validateNonEmptyStringWithLength('way too long string', 10, 'short field')
-      ).toThrow(new DomainError('short field cannot exceed 10 characters'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'short field cannot exceed 10 characters',
+          name: 'DomainError',
+        }) as Error
+      );
     });
 
     it('should handle unicode characters correctly', () => {
@@ -149,7 +194,12 @@ describe('StringValidation', () => {
       ).not.toThrow();
       expect(() =>
         StringValidation.validateNonEmptyStringWithLength('αβγ', 2, 'TooManyGreek')
-      ).toThrow(new DomainError('TooManyGreek cannot exceed 2 characters'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'TooManyGreek cannot exceed 2 characters',
+          name: 'DomainError',
+        }) as Error
+      );
     });
 
     it('should work with various maximum length values', () => {
@@ -219,7 +269,12 @@ describe('StringValidation', () => {
       ).not.toThrow();
       expect(() =>
         StringValidation.validateNonEmptyStringWithLength(veryLongString, 999, 'TooLong')
-      ).toThrow(new DomainError('TooLong cannot exceed 999 characters'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'TooLong cannot exceed 999 characters',
+          name: 'DomainError',
+        }) as Error
+      );
     });
 
     it('should handle special characters and content types', () => {

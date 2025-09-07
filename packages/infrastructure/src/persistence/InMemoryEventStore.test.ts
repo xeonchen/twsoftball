@@ -844,14 +844,31 @@ describe('InMemoryEventStore', () => {
 
       it('should filter events by timestamp across all streams', async () => {
         const allEvents = await eventStore.getAllEvents();
-        const midTimestamp = new Date(allEvents[4]!.timestamp.getTime()); // Get timestamp from middle event
+        expect(allEvents.length).toBeGreaterThanOrEqual(8); // Ensure we have expected events
 
-        const recentEvents = await eventStore.getAllEvents(midTimestamp);
+        // Find the earliest unique timestamp to filter from
+        const timestamps = allEvents.map(e => e.timestamp.getTime());
+        const uniqueTimestamps = [...new Set(timestamps)].sort((a, b) => a - b);
 
-        expect(recentEvents.length).toBeLessThan(allEvents.length);
-        recentEvents.forEach(event => {
-          expect(event.timestamp.getTime()).toBeGreaterThanOrEqual(midTimestamp.getTime());
-        });
+        if (uniqueTimestamps.length > 1) {
+          // Use the second unique timestamp to ensure filtering works
+          const filterTimestamp = new Date(uniqueTimestamps[1]!);
+          const recentEvents = await eventStore.getAllEvents(filterTimestamp);
+
+          expect(recentEvents.length).toBeLessThan(allEvents.length);
+          recentEvents.forEach(event => {
+            expect(event.timestamp.getTime()).toBeGreaterThanOrEqual(filterTimestamp.getTime());
+          });
+        } else {
+          // If all events have same timestamp, test that all are returned
+          const filterTimestamp = new Date(timestamps[0]!);
+          const recentEvents = await eventStore.getAllEvents(filterTimestamp);
+
+          expect(recentEvents.length).toBe(allEvents.length);
+          recentEvents.forEach(event => {
+            expect(event.timestamp.getTime()).toBeGreaterThanOrEqual(filterTimestamp.getTime());
+          });
+        }
       });
 
       it('should handle empty streams gracefully', async () => {

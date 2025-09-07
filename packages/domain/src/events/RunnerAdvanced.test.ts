@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 
-import { DomainError } from '../errors/DomainError';
 import { TestPlayerFactory, EventTestHelper } from '../test-utils';
 import { Base } from '../value-objects/BasesState';
 import { GameId } from '../value-objects/GameId';
@@ -220,29 +219,59 @@ describe('RunnerAdvanced', () => {
     it('should reject advancement from base to same base', () => {
       expect(
         () => new RunnerAdvanced(gameId, runnerId, 'FIRST', 'FIRST', AdvanceReason.HIT)
-      ).toThrow(new DomainError('Runner cannot advance from and to the same base'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Runner cannot advance from and to the same base',
+          name: 'DomainError',
+        }) as Error
+      );
 
       expect(
         () => new RunnerAdvanced(gameId, runnerId, 'SECOND', 'SECOND', AdvanceReason.WALK)
-      ).toThrow(new DomainError('Runner cannot advance from and to the same base'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Runner cannot advance from and to the same base',
+          name: 'DomainError',
+        }) as Error
+      );
 
       expect(
         () => new RunnerAdvanced(gameId, runnerId, 'THIRD', 'THIRD', AdvanceReason.SACRIFICE)
-      ).toThrow(new DomainError('Runner cannot advance from and to the same base'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Runner cannot advance from and to the same base',
+          name: 'DomainError',
+        }) as Error
+      );
     });
 
     it('should reject backward advancement', () => {
       expect(
         () => new RunnerAdvanced(gameId, runnerId, 'SECOND', 'FIRST', AdvanceReason.HIT)
-      ).toThrow(new DomainError('Runner cannot advance backward from SECOND to FIRST'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Runner cannot advance backward from SECOND to FIRST',
+          name: 'DomainError',
+        }) as Error
+      );
 
       expect(
         () => new RunnerAdvanced(gameId, runnerId, 'THIRD', 'FIRST', AdvanceReason.WALK)
-      ).toThrow(new DomainError('Runner cannot advance backward from THIRD to FIRST'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Runner cannot advance backward from THIRD to FIRST',
+          name: 'DomainError',
+        }) as Error
+      );
 
       expect(
         () => new RunnerAdvanced(gameId, runnerId, 'THIRD', 'SECOND', AdvanceReason.SACRIFICE)
-      ).toThrow(new DomainError('Runner cannot advance backward from THIRD to SECOND'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Runner cannot advance backward from THIRD to SECOND',
+          name: 'DomainError',
+        }) as Error
+      );
     });
 
     // Note: Tests for 'HOME' and 'OUT' as 'from' values removed since
@@ -325,8 +354,7 @@ describe('RunnerAdvanced', () => {
       expect(parsed.from).toBe('SECOND');
       expect(parsed.to).toBe('HOME');
       expect(parsed.reason).toBe(AdvanceReason.HIT);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-      expect(new Date(parsed.timestamp)).toEqual(event.timestamp);
+      expect(new Date(parsed.timestamp as string)).toEqual(event.timestamp);
     });
 
     it('should handle null from value in serialization', () => {
