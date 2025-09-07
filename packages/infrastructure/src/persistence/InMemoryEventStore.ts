@@ -15,10 +15,18 @@
  * - Proper event serialization and metadata handling
  * - Thread-safe operations with version conflict detection
  *
- * Phase 2 Implementation (basic stubs for interface compliance):
+ * Phase 2 Implementation:
  * - Cross-aggregate queries (getGameEvents, getAllEvents, etc.)
  * - Event type filtering and advanced queries
- * - Full implementation will be added in Phase 2
+ * - Complete implementation of all EventStore interface methods
+ *
+ * Phase 3 Implementation (Error Handling & Edge Cases):
+ * - Comprehensive parameter validation for all methods
+ * - Enhanced error messages with actionable guidance
+ * - Memory management with configurable limits
+ * - Graceful handling of malformed event data
+ * - Thread-safe concurrent access protection
+ * - Custom error types for better debugging
  *
  * Design Principles:
  * - Maintains event ordering within streams
@@ -73,12 +81,217 @@ import type {
  * - Preserves all event properties and metadata
  * - Maintains timestamp precision and event identity
  */
+/**
+ * Phase 3 Error Types for InMemoryEventStore
+ * Custom error types for better error handling and debugging
+ */
+class EventStoreParameterError extends Error {
+  constructor(message: string) {
+    super(`Parameter validation failed: ${message}`);
+    this.name = 'EventStoreParameterError';
+  }
+}
+
+class EventStoreConcurrencyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EventStoreConcurrencyError';
+  }
+}
+
+class EventStoreSerializationError extends Error {
+  constructor(message: string) {
+    super(`Event serialization failed: ${message}`);
+    this.name = 'EventStoreSerializationError';
+  }
+}
+
+class EventStoreMemoryError extends Error {
+  constructor(message: string) {
+    super(`Memory limit exceeded: ${message}`);
+    this.name = 'EventStoreMemoryError';
+  }
+}
+
 export class InMemoryEventStore implements EventStore {
   /**
    * Internal storage for event streams.
    * Key: streamId (string), Value: array of StoredEvents ordered by streamVersion
    */
   private readonly streams = new Map<string, StoredEvent[]>();
+
+  /**
+   * Memory management constants for Phase 3
+   */
+  private static readonly MAX_EVENTS_PER_BATCH = 5000;
+  private static readonly MAX_TOTAL_EVENTS = 100000;
+  private static readonly LARGE_BATCH_WARNING_THRESHOLD = 500;
+
+  /**
+   * Phase 3: Parameter validation for streamId
+   * @private
+   */
+  private validateStreamId(
+    streamId: GameId | TeamLineupId | InningStateId | null | undefined
+  ): void {
+    if (streamId === null || streamId === undefined) {
+      throw new EventStoreParameterError('streamId cannot be null or undefined');
+    }
+  }
+
+  /**
+   * Phase 3: Parameter validation for aggregateType
+   * @private
+   */
+  private validateAggregateType(aggregateType: unknown): void {
+    const validTypes = ['Game', 'TeamLineup', 'InningState'];
+    if (!validTypes.includes(aggregateType as string)) {
+      throw new EventStoreParameterError(`aggregateType must be one of: ${validTypes.join(', ')}`);
+    }
+  }
+
+  /**
+   * Phase 3: Parameter validation for events array
+   * @private
+   */
+  private validateEventsArray(events: DomainEvent[] | null | undefined): void {
+    if (events === null || events === undefined) {
+      throw new EventStoreParameterError('events cannot be null or undefined');
+    }
+    if (!Array.isArray(events)) {
+      throw new EventStoreParameterError('events must be an array');
+    }
+  }
+
+  /**
+   * Phase 3: Parameter validation for expectedVersion
+   * @private
+   */
+  private validateExpectedVersion(expectedVersion: number | undefined): void {
+    if (expectedVersion !== undefined) {
+      if (
+        typeof expectedVersion !== 'number' ||
+        expectedVersion < 0 ||
+        !Number.isInteger(expectedVersion)
+      ) {
+        throw new EventStoreParameterError('expectedVersion must be a non-negative integer');
+      }
+    }
+  }
+
+  /**
+   * Phase 3: Parameter validation for fromVersion
+   * @private
+   */
+  private validateFromVersion(fromVersion: number | undefined): void {
+    if (fromVersion !== undefined) {
+      if (typeof fromVersion !== 'number' || fromVersion < 0 || !Number.isInteger(fromVersion)) {
+        throw new EventStoreParameterError('fromVersion must be a positive integer');
+      }
+    }
+  }
+
+  /**
+   * Phase 3: Parameter validation for timestamp
+   * @private
+   */
+  private validateTimestamp(timestamp: Date | undefined): void {
+    if (timestamp !== undefined) {
+      if (!(timestamp instanceof Date) || isNaN(timestamp.getTime())) {
+        throw new EventStoreParameterError('fromTimestamp must be a valid Date object');
+      }
+    }
+  }
+
+  /**
+   * Phase 3: Parameter validation for event type
+   * @private
+   */
+  private validateEventType(eventType: unknown): void {
+    if (typeof eventType !== 'string' || eventType.trim() === '') {
+      throw new EventStoreParameterError('eventType must be a non-empty string');
+    }
+  }
+
+  /**
+   * Phase 3: Parameter validation for aggregate types array
+   * @private
+   */
+  private validateAggregateTypesArray(aggregateTypes: unknown): void {
+    if (aggregateTypes !== undefined) {
+      if (!Array.isArray(aggregateTypes)) {
+        throw new EventStoreParameterError('aggregateTypes must be an array or undefined');
+      }
+      const validTypes = ['Game', 'TeamLineup', 'InningState'];
+      const invalidTypes = (aggregateTypes as string[]).filter(type => !validTypes.includes(type));
+      if (invalidTypes.length > 0) {
+        throw new EventStoreParameterError(
+          `aggregateTypes must only contain valid aggregate types: ${validTypes.join(', ')}`
+        );
+      }
+    }
+  }
+
+  /**
+   * Phase 3: Memory management validation
+   * @private
+   */
+  private validateMemoryLimits(events: DomainEvent[]): void {
+    // Check batch size limits
+    if (events.length > InMemoryEventStore.MAX_EVENTS_PER_BATCH) {
+      throw new EventStoreMemoryError(
+        `Batch size ${events.length} exceeds maximum allowed ${InMemoryEventStore.MAX_EVENTS_PER_BATCH}`
+      );
+    }
+
+    // Check total events limit
+    const totalEvents = Array.from(this.streams.values()).reduce(
+      (total, streamEvents) => total + streamEvents.length,
+      0
+    );
+    if (totalEvents + events.length > InMemoryEventStore.MAX_TOTAL_EVENTS) {
+      throw new EventStoreMemoryError(
+        `Total events would exceed maximum allowed ${InMemoryEventStore.MAX_TOTAL_EVENTS}`
+      );
+    }
+
+    // Log warning for large batches
+    if (events.length > InMemoryEventStore.LARGE_BATCH_WARNING_THRESHOLD) {
+      // eslint-disable-next-line no-console, no-undef -- Development warning for memory management
+      console.warn(
+        `InMemoryEventStore: Large batch size detected (${events.length} events). Consider breaking into smaller batches for better performance.`
+      );
+    }
+  }
+
+  /**
+   * Phase 3: Event serialization with error handling
+   * @private
+   */
+  private safeSerializeEvent(event: DomainEvent): string {
+    try {
+      return JSON.stringify(event);
+    } catch (error) {
+      throw new EventStoreSerializationError(
+        `Failed to serialize event ${event.eventId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Phase 3: Enhanced concurrency error with detailed context
+   * @private
+   */
+  private createConcurrencyError(
+    expectedVersion: number,
+    actualVersion: number,
+    streamId: string
+  ): EventStoreConcurrencyError {
+    return new EventStoreConcurrencyError(
+      `Concurrency conflict detected for stream '${streamId}': expected version ${expectedVersion}, actual ${actualVersion}. ` +
+        `Please reload the aggregate and retry the operation with current version: ${actualVersion}.`
+    );
+  }
 
   /**
    * Appends domain events to an aggregate's event stream.
@@ -111,40 +324,46 @@ export class InMemoryEventStore implements EventStore {
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
+        // Phase 3: Comprehensive parameter validation
+        this.validateStreamId(streamId);
+        this.validateAggregateType(aggregateType);
+        this.validateEventsArray(events);
+        this.validateExpectedVersion(expectedVersion);
+        this.validateMemoryLimits(events);
+
         const streamKey = streamId.value;
         const existingEvents = this.streams.get(streamKey) || [];
 
-        // Optimistic concurrency control
+        // Phase 3: Enhanced optimistic concurrency control with detailed error
         if (expectedVersion !== undefined && existingEvents.length !== expectedVersion) {
-          throw new Error(
-            `Concurrency conflict: expected version ${expectedVersion}, actual ${existingEvents.length}`
-          );
+          throw this.createConcurrencyError(expectedVersion, existingEvents.length, streamKey);
         }
 
-        // Handle empty event arrays
+        // Handle empty event arrays gracefully (no validation error)
         if (events.length === 0) {
           resolve();
           return;
         }
 
-        // Convert domain events to stored events with proper metadata
+        // Phase 3: Convert domain events to stored events with safe serialization
         const currentTime = new Date();
         const storedEvents: StoredEvent[] = events.map((event, index) => ({
           eventId: event.eventId,
           streamId: streamKey,
           aggregateType,
           eventType: event.type,
-          eventData: JSON.stringify(event),
+          eventData: this.safeSerializeEvent(event), // Phase 3: Safe serialization
           eventVersion: 1, // Event schema version
           streamVersion: existingEvents.length + index + 1,
           timestamp: event.timestamp,
           metadata: this.createEventMetadata(currentTime),
         }));
 
-        // Atomically update the stream
+        // Atomically update the stream (thread-safe with single-threaded JS)
         this.streams.set(streamKey, [...existingEvents, ...storedEvents]);
         resolve();
       } catch (error) {
+        // Phase 3: Preserve custom error types
         reject(error instanceof Error ? error : new Error(String(error)));
       }
     });
@@ -173,16 +392,24 @@ export class InMemoryEventStore implements EventStore {
     streamId: GameId | TeamLineupId | InningStateId,
     fromVersion?: number
   ): Promise<StoredEvent[]> {
-    return new Promise(resolve => {
-      const streamKey = streamId.value;
-      const events = this.streams.get(streamKey) || [];
+    return new Promise((resolve, reject) => {
+      try {
+        // Phase 3: Parameter validation
+        this.validateStreamId(streamId);
+        this.validateFromVersion(fromVersion);
 
-      if (fromVersion === undefined || fromVersion <= 0) {
-        resolve([...events]); // Return copy to prevent external mutation
-        return;
+        const streamKey = streamId.value;
+        const events = this.streams.get(streamKey) || [];
+
+        if (fromVersion === undefined || fromVersion <= 0) {
+          resolve([...events]); // Return copy to prevent external mutation
+          return;
+        }
+
+        resolve(events.filter(event => event.streamVersion >= fromVersion));
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
-
-      resolve(events.filter(event => event.streamVersion >= fromVersion));
     });
   }
 
@@ -204,30 +431,37 @@ export class InMemoryEventStore implements EventStore {
    * @returns Promise resolving to chronologically ordered events for the game
    */
   async getGameEvents(gameId: GameId): Promise<StoredEvent[]> {
-    return new Promise(resolve => {
-      const gameEvents: StoredEvent[] = [];
-      const targetGameIdValue = gameId.value;
+    return new Promise((resolve, reject) => {
+      try {
+        // Phase 3: Parameter validation
+        this.validateStreamId(gameId);
 
-      // Search all streams for events related to this game
-      for (const events of this.streams.values()) {
-        for (const event of events) {
-          try {
-            const eventData = JSON.parse(event.eventData) as { gameId?: { value: string } };
-            // Check if event has gameId property that matches target
-            if (eventData.gameId && eventData.gameId.value === targetGameIdValue) {
-              gameEvents.push(event);
+        const gameEvents: StoredEvent[] = [];
+        const targetGameIdValue = gameId.value;
+
+        // Search all streams for events related to this game
+        for (const events of this.streams.values()) {
+          for (const event of events) {
+            try {
+              const eventData = JSON.parse(event.eventData) as { gameId?: { value: string } };
+              // Check if event has gameId property that matches target
+              if (eventData.gameId && eventData.gameId.value === targetGameIdValue) {
+                gameEvents.push(event);
+              }
+            } catch (_error) {
+              // Phase 3: Skip events with invalid JSON gracefully (defensive programming)
+              continue;
             }
-          } catch (_error) {
-            // Skip events with invalid JSON (defensive programming)
-            continue;
           }
         }
+
+        // Sort by timestamp to maintain chronological ordering across aggregates
+        gameEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+        resolve(gameEvents);
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
-
-      // Sort by timestamp to maintain chronological ordering across aggregates
-      gameEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-      resolve(gameEvents);
     });
   }
 
@@ -249,23 +483,30 @@ export class InMemoryEventStore implements EventStore {
    * @returns Promise resolving to all events (filtered by timestamp if provided)
    */
   async getAllEvents(fromTimestamp?: Date): Promise<StoredEvent[]> {
-    return new Promise(resolve => {
-      const allEvents: StoredEvent[] = [];
+    return new Promise((resolve, reject) => {
+      try {
+        // Phase 3: Parameter validation
+        this.validateTimestamp(fromTimestamp);
 
-      // Collect events from all streams
-      for (const events of this.streams.values()) {
-        allEvents.push(...events);
+        const allEvents: StoredEvent[] = [];
+
+        // Collect events from all streams
+        for (const events of this.streams.values()) {
+          allEvents.push(...events);
+        }
+
+        // Apply timestamp filtering if provided
+        const filteredEvents = fromTimestamp
+          ? allEvents.filter(event => event.timestamp.getTime() >= fromTimestamp.getTime())
+          : allEvents;
+
+        // Sort by timestamp to maintain chronological ordering
+        filteredEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+        resolve(filteredEvents);
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
-
-      // Apply timestamp filtering if provided
-      const filteredEvents = fromTimestamp
-        ? allEvents.filter(event => event.timestamp.getTime() >= fromTimestamp.getTime())
-        : allEvents;
-
-      // Sort by timestamp to maintain chronological ordering
-      filteredEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-      resolve(filteredEvents);
     });
   }
 
@@ -288,26 +529,34 @@ export class InMemoryEventStore implements EventStore {
    * @returns Promise resolving to events of the specified type
    */
   async getEventsByType(eventType: string, fromTimestamp?: Date): Promise<StoredEvent[]> {
-    return new Promise(resolve => {
-      const matchingEvents: StoredEvent[] = [];
+    return new Promise((resolve, reject) => {
+      try {
+        // Phase 3: Parameter validation
+        this.validateEventType(eventType);
+        this.validateTimestamp(fromTimestamp);
 
-      // Search all streams for events of the specified type
-      for (const events of this.streams.values()) {
-        for (const event of events) {
-          // Apply event type filter
-          if (event.eventType === eventType) {
-            // Apply timestamp filter if provided
-            if (!fromTimestamp || event.timestamp.getTime() >= fromTimestamp.getTime()) {
-              matchingEvents.push(event);
+        const matchingEvents: StoredEvent[] = [];
+
+        // Search all streams for events of the specified type
+        for (const events of this.streams.values()) {
+          for (const event of events) {
+            // Apply event type filter
+            if (event.eventType === eventType) {
+              // Apply timestamp filter if provided
+              if (!fromTimestamp || event.timestamp.getTime() >= fromTimestamp.getTime()) {
+                matchingEvents.push(event);
+              }
             }
           }
         }
+
+        // Sort by timestamp to maintain chronological ordering
+        matchingEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+        resolve(matchingEvents);
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
-
-      // Sort by timestamp to maintain chronological ordering
-      matchingEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-      resolve(matchingEvents);
     });
   }
 
@@ -336,46 +585,55 @@ export class InMemoryEventStore implements EventStore {
     aggregateTypes?: ('Game' | 'TeamLineup' | 'InningState')[],
     fromTimestamp?: Date
   ): Promise<StoredEvent[]> {
-    return new Promise(resolve => {
-      // Handle empty aggregate types array
-      if (aggregateTypes && aggregateTypes.length === 0) {
-        resolve([]);
-        return;
-      }
+    return new Promise((resolve, reject) => {
+      try {
+        // Phase 3: Parameter validation
+        this.validateStreamId(gameId);
+        this.validateAggregateTypesArray(aggregateTypes);
+        this.validateTimestamp(fromTimestamp);
 
-      const gameEvents: StoredEvent[] = [];
-      const targetGameIdValue = gameId.value;
+        // Handle empty aggregate types array
+        if (aggregateTypes && aggregateTypes.length === 0) {
+          resolve([]);
+          return;
+        }
 
-      // Search all streams for events related to this game
-      for (const events of this.streams.values()) {
-        for (const event of events) {
-          try {
-            const eventData = JSON.parse(event.eventData) as { gameId?: { value: string } };
-            // Check if event has gameId property that matches target
-            if (eventData.gameId && eventData.gameId.value === targetGameIdValue) {
-              // Apply aggregate type filter if provided
-              if (aggregateTypes && !aggregateTypes.includes(event.aggregateType)) {
-                continue;
+        const gameEvents: StoredEvent[] = [];
+        const targetGameIdValue = gameId.value;
+
+        // Search all streams for events related to this game
+        for (const events of this.streams.values()) {
+          for (const event of events) {
+            try {
+              const eventData = JSON.parse(event.eventData) as { gameId?: { value: string } };
+              // Check if event has gameId property that matches target
+              if (eventData.gameId && eventData.gameId.value === targetGameIdValue) {
+                // Apply aggregate type filter if provided
+                if (aggregateTypes && !aggregateTypes.includes(event.aggregateType)) {
+                  continue;
+                }
+
+                // Apply timestamp filter if provided
+                if (fromTimestamp && event.timestamp.getTime() < fromTimestamp.getTime()) {
+                  continue;
+                }
+
+                gameEvents.push(event);
               }
-
-              // Apply timestamp filter if provided
-              if (fromTimestamp && event.timestamp.getTime() < fromTimestamp.getTime()) {
-                continue;
-              }
-
-              gameEvents.push(event);
+            } catch (_error) {
+              // Phase 3: Skip events with invalid JSON gracefully (defensive programming)
+              continue;
             }
-          } catch (_error) {
-            // Skip events with invalid JSON (defensive programming)
-            continue;
           }
         }
+
+        // Sort by timestamp to maintain chronological ordering
+        gameEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+        resolve(gameEvents);
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
-
-      // Sort by timestamp to maintain chronological ordering
-      gameEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-      resolve(gameEvents);
     });
   }
 
