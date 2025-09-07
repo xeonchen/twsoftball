@@ -405,6 +405,326 @@ describe('InMemoryEventStore', () => {
     });
   });
 
+  // Phase 3: Comprehensive Error Handling Tests
+  describe('Phase 3: Parameter Validation and Error Handling', () => {
+    it('should handle version conflicts gracefully with detailed error context', async () => {
+      // Set up initial state
+      await eventStore.append(gameId, 'Game', [mockEvents[0]!]);
+
+      // Attempt conflicting version - should provide actionable error
+      try {
+        await eventStore.append(gameId, 'Game', [mockEvents[1]!], 0);
+        expect.fail('Expected concurrency error');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        const errorMessage = (error as Error).message;
+        expect(errorMessage).toContain('Concurrency conflict');
+        expect(errorMessage).toContain('expected version 0');
+        expect(errorMessage).toContain('actual 1');
+        expect(errorMessage).toContain(gameId.value);
+        expect(errorMessage).toContain('Please reload the aggregate');
+      }
+    });
+
+    it('should validate invalid parameters with specific error messages', async () => {
+      // Test null streamId
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        (eventStore as any).append(null, 'Game', mockEvents)
+      ).rejects.toThrow('Parameter validation failed: streamId cannot be null or undefined');
+
+      // Test undefined streamId
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        (eventStore as any).append(undefined, 'Game', mockEvents)
+      ).rejects.toThrow('Parameter validation failed: streamId cannot be null or undefined');
+
+      // Test invalid aggregateType
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        (eventStore as any).append(gameId, 'InvalidType', mockEvents)
+      ).rejects.toThrow(
+        'Parameter validation failed: aggregateType must be one of: Game, TeamLineup, InningState'
+      );
+
+      // Test null events array
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        (eventStore as any).append(gameId, 'Game', null)
+      ).rejects.toThrow('Parameter validation failed: events cannot be null or undefined');
+
+      // Test invalid expectedVersion
+      await expect(eventStore.append(gameId, 'Game', mockEvents, -1)).rejects.toThrow(
+        'Parameter validation failed: expectedVersion must be a non-negative integer'
+      );
+    });
+
+    it('should handle null/undefined inputs appropriately in getEvents', async () => {
+      // Test null streamId
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        (eventStore as any).getEvents(null)
+      ).rejects.toThrow('Parameter validation failed: streamId cannot be null or undefined');
+
+      // Test undefined streamId
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        (eventStore as any).getEvents(undefined)
+      ).rejects.toThrow('Parameter validation failed: streamId cannot be null or undefined');
+
+      // Test invalid fromVersion
+      await expect(eventStore.getEvents(gameId, -1)).rejects.toThrow(
+        'Parameter validation failed: fromVersion must be a positive integer'
+      );
+    });
+
+    it('should manage concurrent access safely under high load', async () => {
+      const concurrentOperations = 50;
+      const results: Promise<void>[] = [];
+
+      // Create multiple concurrent append operations
+      for (let i = 0; i < concurrentOperations; i++) {
+        const testGameId = GameId.generate();
+        const event = createMockGameCreatedEvent(testGameId);
+        results.push(eventStore.append(testGameId, 'Game', [event]));
+      }
+
+      // All operations should complete successfully
+      await expect(Promise.all(results)).resolves.not.toThrow();
+
+      // Verify data integrity
+      const allEvents = await eventStore.getAllEvents();
+      expect(allEvents.length).toBeGreaterThanOrEqual(concurrentOperations);
+    });
+
+    it('should enforce aggregate type validation with clear guidance', async () => {
+      const gameEvent = createMockGameCreatedEvent(gameId);
+
+      // Test mismatched aggregate type for Game event
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        await (eventStore as any).append(gameId, 'InvalidAggregate', [gameEvent]);
+        expect.fail('Expected aggregate type validation error');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        const errorMessage = (error as Error).message;
+        expect(errorMessage).toContain('Parameter validation failed');
+        expect(errorMessage).toContain(
+          'aggregateType must be one of: Game, TeamLineup, InningState'
+        );
+      }
+    });
+
+    it('should handle large event batches efficiently with memory management', async () => {
+      const largeEventBatch = Array.from({ length: 1000 }, () =>
+        createMockGameCreatedEvent(gameId)
+      );
+
+      // Should succeed but warn about large batch sizes
+      await expect(eventStore.append(gameId, 'Game', largeEventBatch)).resolves.not.toThrow();
+
+      const storedEvents = await eventStore.getEvents(gameId);
+      expect(storedEvents).toHaveLength(1000);
+
+      // Verify sequential version numbers
+      storedEvents.forEach((event, index) => {
+        expect(event.streamVersion).toBe(index + 1);
+      });
+    });
+
+    it('should maintain consistency under memory pressure scenarios', async () => {
+      // Create multiple streams with large datasets
+      const streamCount = 10;
+      const eventsPerStream = 500;
+      const testGameIds = Array.from({ length: streamCount }, () => GameId.generate());
+
+      for (const testGameId of testGameIds) {
+        const events = Array.from({ length: eventsPerStream }, () =>
+          createMockGameCreatedEvent(testGameId)
+        );
+        await eventStore.append(testGameId, 'Game', events);
+      }
+
+      // Verify all streams are accessible and consistent
+      for (const testGameId of testGameIds) {
+        const events = await eventStore.getEvents(testGameId);
+        expect(events).toHaveLength(eventsPerStream);
+        expect(events[0]?.streamVersion).toBe(1);
+        expect(events[eventsPerStream - 1]?.streamVersion).toBe(eventsPerStream);
+      }
+    });
+
+    it('should recover from malformed event data gracefully', async () => {
+      // Create a mock event with malformed JSON in cross-aggregate queries
+      const mockMalformedEvent = {
+        eventId: 'malformed-event-id',
+        streamId: gameId.value,
+        aggregateType: 'Game' as const,
+        eventType: 'TestEvent',
+        eventData: '{"malformed": json}', // Invalid JSON
+        eventVersion: 1,
+        streamVersion: 1,
+        timestamp: new Date(),
+        metadata: {
+          source: 'test',
+          createdAt: new Date(),
+        },
+      };
+
+      // Inject malformed event directly into internal storage
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Accessing internal storage for testing
+      (eventStore as any).streams.set(gameId.value, [mockMalformedEvent]);
+
+      // Cross-aggregate queries should handle malformed JSON gracefully
+      const gameEvents = await eventStore.getGameEvents(gameId);
+      expect(Array.isArray(gameEvents)).toBe(true);
+      // Malformed events should be skipped, not cause failures
+
+      const gameEventsById = await eventStore.getEventsByGameId(gameId);
+      expect(Array.isArray(gameEventsById)).toBe(true);
+    });
+
+    it('should handle excessive memory usage scenarios with proper limits', async () => {
+      // Test memory limit enforcement (simulate with very large event batches)
+      const excessiveEventBatch = Array.from({ length: 10000 }, () =>
+        createMockGameCreatedEvent(gameId)
+      );
+
+      // Should either succeed with warning or fail with clear memory message
+      try {
+        await eventStore.append(gameId, 'Game', excessiveEventBatch);
+
+        // If successful, verify the events are stored
+        const storedEvents = await eventStore.getEvents(gameId);
+        expect(storedEvents).toHaveLength(10000);
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        const errorMessage = (error as Error).message;
+        expect(errorMessage).toContain('Memory limit');
+      }
+    });
+
+    it('should validate event data serialization failures', async () => {
+      // Create a mock event that will fail JSON serialization
+      const problematicEvent = {
+        ...createMockGameCreatedEvent(gameId),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Creating circular reference for serialization test
+        circularRef: {} as any,
+      };
+      problematicEvent.circularRef.self = problematicEvent;
+
+      // Should handle serialization failure gracefully
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument -- Testing serialization failure
+        await eventStore.append(gameId, 'Game', [problematicEvent as any]);
+        expect.fail('Expected serialization error');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        const errorMessage = (error as Error).message;
+        expect(errorMessage).toContain('Event serialization failed');
+      }
+    });
+
+    it('should handle stream isolation under concurrent modifications', async () => {
+      const gameId1 = GameId.generate();
+      const gameId2 = GameId.generate();
+
+      // Create concurrent modifications to different streams
+      const operations = [
+        ...Array.from({ length: 25 }, () =>
+          eventStore.append(gameId1, 'Game', [createMockGameCreatedEvent(gameId1)])
+        ),
+        ...Array.from({ length: 25 }, () =>
+          eventStore.append(gameId2, 'Game', [createMockAtBatEvent(gameId2)])
+        ),
+      ];
+
+      await Promise.all(operations);
+
+      // Verify stream isolation
+      const events1 = await eventStore.getEvents(gameId1);
+      const events2 = await eventStore.getEvents(gameId2);
+
+      expect(events1).toHaveLength(25);
+      expect(events2).toHaveLength(25);
+      expect(events1.every(e => e.eventType === 'GameCreated')).toBe(true);
+      expect(events2.every(e => e.eventType === 'AtBatCompleted')).toBe(true);
+    });
+
+    it('should provide clear error messages for timestamp boundary issues', async () => {
+      // Test invalid timestamp filtering
+      const invalidDate = new Date('invalid-date-string');
+
+      await expect(eventStore.getAllEvents(invalidDate)).rejects.toThrow(
+        'Parameter validation failed: fromTimestamp must be a valid Date object'
+      );
+
+      await expect(eventStore.getEventsByType('GameCreated', invalidDate)).rejects.toThrow(
+        'Parameter validation failed: fromTimestamp must be a valid Date object'
+      );
+    });
+
+    it('should handle aggregate type array validation in getEventsByGameId', async () => {
+      // Test invalid aggregate type in array
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        (eventStore as any).getEventsByGameId(gameId, ['Game', 'InvalidType'])
+      ).rejects.toThrow(
+        'Parameter validation failed: aggregateTypes must only contain valid aggregate types: Game, TeamLineup, InningState'
+      );
+
+      // Test non-array aggregateTypes
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        (eventStore as any).getEventsByGameId(gameId, 'Game')
+      ).rejects.toThrow(
+        'Parameter validation failed: aggregateTypes must be an array or undefined'
+      );
+    });
+
+    it('should enforce event type string validation', async () => {
+      // Test non-string event type
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        (eventStore as any).getEventsByType(null)
+      ).rejects.toThrow('Parameter validation failed: eventType must be a non-empty string');
+
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        (eventStore as any).getEventsByType('')
+      ).rejects.toThrow('Parameter validation failed: eventType must be a non-empty string');
+
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        (eventStore as any).getEventsByType(123)
+      ).rejects.toThrow('Parameter validation failed: eventType must be a non-empty string');
+    });
+
+    it('should handle version conflicts with retry guidance', async () => {
+      // Set up initial state
+      await eventStore.append(gameId, 'Game', [mockEvents[0]!]);
+
+      // Simulate high-frequency version conflicts
+      const event1 = createMockAtBatEvent(gameId);
+      const event2 = createMockAtBatEvent(gameId);
+
+      // First append should succeed
+      await eventStore.append(gameId, 'Game', [event1], 1);
+
+      // Second append should fail with retry guidance
+      try {
+        await eventStore.append(gameId, 'Game', [event2], 1);
+        expect.fail('Expected concurrency error');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        const errorMessage = (error as Error).message;
+        expect(errorMessage).toContain('Please reload the aggregate');
+        expect(errorMessage).toContain('retry the operation');
+        expect(errorMessage).toContain('current version: 2');
+      }
+    });
+  });
+
   describe('Phase 2 Advanced Query Methods - Full Implementation', () => {
     let gameId1: GameId;
     let gameId2: GameId;
