@@ -1159,6 +1159,32 @@ describe('Game Event Sourcing', () => {
 
 ### Integration Testing
 
+Event sourcing integration tests validate cross-aggregate consistency and
+complete state reconstruction capabilities. The domain layer includes
+comprehensive integration tests in
+`packages/domain/src/integration/event-sourcing.test.ts`.
+
+#### Cross-Aggregate Integration Tests
+
+```typescript
+describe('Event Sourcing Cross-Aggregate Integration', () => {
+  it('should reconstruct full game state from mixed events', async () => {
+    // Tests complete state reconstruction across all three aggregates
+    // using event filtering patterns for aggregate-specific reconstruction
+  });
+
+  it('should maintain consistency across all three aggregates', async () => {
+    // Validates cross-aggregate consistency during event sourcing
+  });
+
+  it('should handle complex event sequences correctly', async () => {
+    // Tests event ordering and complex game scenarios
+  });
+});
+```
+
+#### Event Store Integration Tests (Future Phase 4.2)
+
 ```typescript
 describe('Event Store Integration', () => {
   let eventStore: IndexedDBEventStore;
@@ -1169,42 +1195,11 @@ describe('Event Store Integration', () => {
   });
 
   it('should persist and retrieve events correctly', async () => {
-    const gameId = new GameId('integration-test');
-    const events = [
-      new GameStarted(gameId, 'Home', 'Away', TeamSide.HOME),
-      new AtBatRecorded(
-        gameId,
-        new PlayerId('player1'),
-        AtBatResultType.SINGLE,
-        [],
-        0 /* ... */
-      ),
-    ];
-
-    // Persist events
-    await eventStore.append(gameId, events);
-
-    // Retrieve events
-    const storedEvents = await eventStore.getEvents(gameId);
-
-    expect(storedEvents).toHaveLength(2);
-    expect(storedEvents[0].eventType).toBe('GameStarted');
-    expect(storedEvents[1].eventType).toBe('AtBatRecorded');
+    // Event store persistence validation tests
   });
 
   it('should handle optimistic concurrency correctly', async () => {
-    const gameId = new GameId('concurrency-test');
-    const event1 = new GameStarted(gameId, 'Home', 'Away', TeamSide.HOME);
-
-    // First write
-    await eventStore.append(gameId, [event1], 0);
-
-    // Concurrent write with wrong expected version
-    const event2 = new AtBatRecorded(gameId /* ... */);
-
-    await expect(
-      eventStore.append(gameId, [event2], 0) // Wrong expected version
-    ).rejects.toThrow(OptimisticConcurrencyError);
+    // Concurrency conflict resolution tests
   });
 });
 ```
