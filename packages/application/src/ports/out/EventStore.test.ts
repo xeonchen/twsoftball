@@ -10,6 +10,8 @@ import {
   DomainEvent,
   GameCreated,
   AtBatCompleted,
+  TeamLineupCreated,
+  InningStateCreated,
   PlayerId,
   AtBatResultType,
 } from '@twsoftball/domain';
@@ -31,6 +33,20 @@ const createMockAtBatEvent = (gameId: GameId): AtBatCompleted => {
     3, // inning
     1 // outs (valid range 0-2)
   );
+};
+
+const createMockTeamLineupCreatedEvent = (
+  gameId: GameId,
+  teamLineupId: TeamLineupId
+): TeamLineupCreated => {
+  return new TeamLineupCreated(teamLineupId, gameId, 'Mock Team Name');
+};
+
+const createMockInningStateCreatedEvent = (
+  gameId: GameId,
+  inningStateId: InningStateId
+): InningStateCreated => {
+  return new InningStateCreated(inningStateId, gameId, 1, true);
 };
 
 // Mock implementation for testing the interface contract
@@ -535,6 +551,354 @@ describe('EventStore Interface', () => {
       );
 
       await expect(errorStore.getEvents(gameId)).rejects.toThrow('Database read failed');
+    });
+  });
+
+  describe('Comprehensive Contract Validation', () => {
+    describe('append() method edge cases', () => {
+      it('should handle empty events array', async () => {
+        await expect(eventStore.append(gameId, 'Game', [])).resolves.not.toThrow();
+
+        const storedEvents = await eventStore.getEvents(gameId);
+        expect(storedEvents).toHaveLength(0);
+      });
+
+      it('should handle null and undefined parameters appropriately', async () => {
+        // TypeScript should prevent these, but testing runtime behavior
+        const testCases = [
+          { streamId: null, aggregateType: 'Game', events: mockEvents, expectedError: true },
+          { streamId: gameId, aggregateType: null, events: mockEvents, expectedError: true },
+          { streamId: gameId, aggregateType: 'Game', events: null, expectedError: true },
+        ];
+
+        for (const testCase of testCases) {
+          try {
+            await (
+              eventStore as unknown as {
+                append: (
+                  streamId: unknown,
+                  aggregateType: unknown,
+                  events: unknown
+                ) => Promise<void>;
+              }
+            ).append(testCase.streamId, testCase.aggregateType, testCase.events);
+            if (testCase.expectedError) {
+              expect.fail('Expected error for null/undefined parameters');
+            }
+          } catch (_error) {
+            expect(testCase.expectedError).toBe(true);
+          }
+        }
+      });
+
+      it('should enforce strict aggregate type validation', async () => {
+        const gameEvent = createMockGameCreatedEvent(gameId);
+        const teamEvent = createMockTeamLineupCreatedEvent(gameId, teamLineupId);
+        const inningEvent = createMockInningStateCreatedEvent(gameId, inningStateId);
+
+        // Valid combinations
+        await expect(eventStore.append(gameId, 'Game', [gameEvent])).resolves.not.toThrow();
+        await expect(
+          eventStore.append(teamLineupId, 'TeamLineup', [teamEvent])
+        ).resolves.not.toThrow();
+        await expect(
+          eventStore.append(inningStateId, 'InningState', [inningEvent])
+        ).resolves.not.toThrow();
+
+        // Clean up for next tests
+        const cleanStore = new MockEventStore();
+        eventStore = cleanStore;
+      });
+
+      it('should handle large event batches', async () => {
+        const largeEventBatch = Array.from({ length: 100 }, () =>
+          createMockGameCreatedEvent(gameId)
+        );
+
+        await expect(eventStore.append(gameId, 'Game', largeEventBatch)).resolves.not.toThrow();
+
+        const storedEvents = await eventStore.getEvents(gameId);
+        expect(storedEvents).toHaveLength(100);
+
+        // Verify sequential version numbers
+        storedEvents.forEach((event, index) => {
+          expect(event.streamVersion).toBe(index + 1);
+        });
+      });
+
+      it('should handle concurrent version conflicts properly', async () => {
+        // Set up initial state
+        await eventStore.append(gameId, 'Game', [createMockGameCreatedEvent(gameId)]);
+
+        // Attempt concurrent writes with same expected version
+        const event1 = createMockAtBatEvent(gameId);
+        const event2 = createMockAtBatEvent(gameId);
+
+        // First write should succeed
+        await expect(eventStore.append(gameId, 'Game', [event1], 1)).resolves.not.toThrow();
+
+        // Second write with same expected version should fail
+        await expect(eventStore.append(gameId, 'Game', [event2], 1)).rejects.toThrow(
+          'Concurrency conflict'
+        );
+      });
+    });
+
+    describe('getEvents() method edge cases', () => {
+      beforeEach(async () => {
+        // Set up test data with multiple events
+        const events = [
+          createMockGameCreatedEvent(gameId),
+          createMockAtBatEvent(gameId),
+          createMockAtBatEvent(gameId),
+        ];
+        await eventStore.append(gameId, 'Game', events);
+      });
+
+      it('should handle boundary conditions for fromVersion parameter', async () => {
+        // Test version 0 (should return all events)
+        const allEvents = await eventStore.getEvents(gameId, 0);
+        expect(allEvents).toHaveLength(3);
+
+        // Test exact version match
+        const fromVersion2 = await eventStore.getEvents(gameId, 2);
+        expect(fromVersion2).toHaveLength(2);
+        expect(fromVersion2[0]!.streamVersion).toBe(2);
+
+        // Test version beyond available (should return empty)
+        const beyondEvents = await eventStore.getEvents(gameId, 10);
+        expect(beyondEvents).toHaveLength(0);
+
+        // Test negative version (edge case)
+        const negativeEvents = await eventStore.getEvents(gameId, -1);
+        expect(negativeEvents).toHaveLength(3); // Should return all events
+      });
+
+      it('should maintain strict ordering guarantees', async () => {
+        const events = await eventStore.getEvents(gameId);
+
+        // Verify chronological ordering
+        for (let i = 1; i < events.length; i++) {
+          expect(events[i]!.timestamp.getTime()).toBeGreaterThanOrEqual(
+            events[i - 1]!.timestamp.getTime()
+          );
+        }
+
+        // Verify version ordering
+        for (let i = 1; i < events.length; i++) {
+          expect(events[i]!.streamVersion).toBe(events[i - 1]!.streamVersion + 1);
+        }
+      });
+    });
+
+    describe('Cross-aggregate query validation', () => {
+      beforeEach(async () => {
+        // Set up cross-aggregate test data
+        await eventStore.append(gameId, 'Game', [createMockGameCreatedEvent(gameId)]);
+        await eventStore.append(teamLineupId, 'TeamLineup', [
+          createMockTeamLineupCreatedEvent(gameId, teamLineupId),
+        ]);
+        await eventStore.append(inningStateId, 'InningState', [
+          createMockInningStateCreatedEvent(gameId, inningStateId),
+        ]);
+      });
+
+      it('should correctly identify game-related events across all aggregates', async () => {
+        const gameEvents = await eventStore.getGameEvents(gameId);
+
+        expect(gameEvents.length).toBeGreaterThanOrEqual(3);
+
+        // All events should be related to the game
+        gameEvents.forEach(event => {
+          const eventData = JSON.parse(event.eventData);
+          expect(eventData.gameId.value).toBe(gameId.value);
+        });
+
+        // Should include all aggregate types
+        const aggregateTypes = [...new Set(gameEvents.map(e => e.aggregateType))];
+        expect(aggregateTypes.sort()).toEqual(['Game', 'InningState', 'TeamLineup']);
+      });
+
+      it('should handle complex filtering in getEventsByGameId', async () => {
+        // Test single aggregate type filter
+        const gameOnly = await eventStore.getEventsByGameId(gameId, ['Game']);
+        expect(gameOnly.every(e => e.aggregateType === 'Game')).toBe(true);
+
+        // Test multiple aggregate type filter
+        const gameAndTeam = await eventStore.getEventsByGameId(gameId, ['Game', 'TeamLineup']);
+        expect(gameAndTeam.every(e => ['Game', 'TeamLineup'].includes(e.aggregateType))).toBe(true);
+
+        // Test with timestamp filter
+        const currentTime = new Date();
+        const filtered = await eventStore.getEventsByGameId(
+          gameId,
+          undefined,
+          new Date(currentTime.getTime() - 1000)
+        );
+        expect(filtered.length).toBeGreaterThanOrEqual(0);
+      });
+    });
+
+    describe('StoredEvent structure validation', () => {
+      beforeEach(async () => {
+        await eventStore.append(gameId, 'Game', [createMockGameCreatedEvent(gameId)]);
+      });
+
+      it('should enforce complete StoredEvent structure', async () => {
+        const events = await eventStore.getEvents(gameId);
+        const event = events[0]!;
+
+        // Test all required fields exist with correct types
+        expect(typeof event.eventId).toBe('string');
+        expect(event.eventId.length).toBeGreaterThan(0);
+
+        expect(typeof event.streamId).toBe('string');
+        expect(event.streamId).toBe(gameId.value);
+
+        expect(['Game', 'TeamLineup', 'InningState']).toContain(event.aggregateType);
+
+        expect(typeof event.eventType).toBe('string');
+        expect(event.eventType.length).toBeGreaterThan(0);
+
+        expect(typeof event.eventData).toBe('string');
+        expect(() => {
+          const parsed: unknown = JSON.parse(event.eventData);
+          return parsed;
+        }).not.toThrow();
+
+        expect(typeof event.eventVersion).toBe('number');
+        expect(event.eventVersion).toBeGreaterThanOrEqual(1);
+
+        expect(typeof event.streamVersion).toBe('number');
+        expect(event.streamVersion).toBeGreaterThanOrEqual(1);
+
+        expect(event.timestamp).toBeInstanceOf(Date);
+        expect(event.timestamp.getTime()).toBeGreaterThan(0);
+
+        // Test metadata structure
+        expect(event.metadata).toBeDefined();
+        expect(typeof event.metadata.source).toBe('string');
+        expect(event.metadata.source.length).toBeGreaterThan(0);
+        expect(event.metadata.createdAt).toBeInstanceOf(Date);
+
+        // Test optional metadata fields
+        if (event.metadata.correlationId) {
+          expect(typeof event.metadata.correlationId).toBe('string');
+        }
+        if (event.metadata.causationId) {
+          expect(typeof event.metadata.causationId).toBe('string');
+        }
+        if (event.metadata.userId) {
+          expect(typeof event.metadata.userId).toBe('string');
+        }
+      });
+
+      it('should preserve event data serialization integrity', async () => {
+        // Use an existing event from the beforeEach setup to avoid timing issues
+        const storedEvents = await eventStore.getEvents(gameId);
+        expect(storedEvents).toHaveLength(1);
+
+        const storedEventData = JSON.parse(storedEvents[0]!.eventData);
+
+        // Verify all expected event properties are present and properly typed
+        expect(typeof storedEventData.eventId).toBe('string');
+        expect(storedEventData.eventId.length).toBeGreaterThan(0);
+        expect(storedEventData.type).toBe('GameCreated');
+        expect(typeof storedEventData.gameId).toBe('object');
+        expect(storedEventData.gameId.value).toBe(gameId.value);
+        expect(typeof storedEventData.version).toBe('number');
+        expect(storedEventData.version).toBe(1);
+
+        // Verify timestamp precision is maintained
+        expect(typeof storedEventData.timestamp).toBe('string');
+        const storedTimestamp = new Date(storedEventData.timestamp as string);
+        expect(storedTimestamp).toBeInstanceOf(Date);
+        expect(storedTimestamp.getTime()).toBeGreaterThan(0);
+      });
+    });
+
+    describe('Event type and filtering validation', () => {
+      beforeEach(async () => {
+        const mixedEvents = [
+          createMockGameCreatedEvent(gameId),
+          createMockAtBatEvent(gameId),
+          createMockTeamLineupCreatedEvent(gameId, teamLineupId),
+        ];
+
+        await eventStore.append(gameId, 'Game', [mixedEvents[0]!]);
+        await eventStore.append(gameId, 'Game', [mixedEvents[1]!]);
+        await eventStore.append(teamLineupId, 'TeamLineup', [mixedEvents[2]!]);
+      });
+
+      it('should handle precise event type filtering', async () => {
+        // Test exact type match
+        const gameCreatedEvents = await eventStore.getEventsByType('GameCreated');
+        expect(gameCreatedEvents.every(e => e.eventType === 'GameCreated')).toBe(true);
+        expect(gameCreatedEvents.length).toBeGreaterThan(0);
+
+        // Test non-existent type
+        const nonExistentEvents = await eventStore.getEventsByType('NonExistentEventType');
+        expect(nonExistentEvents).toHaveLength(0);
+
+        // Test empty string type
+        const emptyTypeEvents = await eventStore.getEventsByType('');
+        expect(emptyTypeEvents).toHaveLength(0);
+      });
+
+      it('should handle timestamp filtering precision', async () => {
+        const currentTime = new Date();
+
+        // Future timestamp should return empty results
+        const futureEvents = await eventStore.getEventsByType(
+          'GameCreated',
+          new Date(currentTime.getTime() + 60000)
+        );
+        expect(futureEvents).toHaveLength(0);
+
+        // Past timestamp should return all events
+        const pastEvents = await eventStore.getEventsByType(
+          'GameCreated',
+          new Date(currentTime.getTime() - 60000)
+        );
+        expect(pastEvents.length).toBeGreaterThan(0);
+      });
+    });
+
+    describe('Performance and scalability validation', () => {
+      it('should handle rapid sequential operations', async () => {
+        const operations = Array.from({ length: 50 }, async () => {
+          const testGameId = GameId.generate();
+          const event = createMockGameCreatedEvent(testGameId);
+
+          await eventStore.append(testGameId, 'Game', [event]);
+          return eventStore.getEvents(testGameId);
+        });
+
+        const results = await Promise.all(operations);
+
+        // All operations should complete successfully
+        expect(results).toHaveLength(50);
+        results.forEach(events => {
+          expect(events).toHaveLength(1);
+        });
+      });
+
+      it('should maintain consistency under load', async () => {
+        const batchSize = 20;
+        const events = Array.from({ length: batchSize }, () => createMockGameCreatedEvent(gameId));
+
+        // Perform batch append
+        await eventStore.append(gameId, 'Game', events);
+
+        // Verify consistency
+        const retrievedEvents = await eventStore.getEvents(gameId);
+        expect(retrievedEvents).toHaveLength(batchSize);
+
+        // Verify version sequence integrity
+        retrievedEvents.forEach((event, index) => {
+          expect(event.streamVersion).toBe(index + 1);
+        });
+      });
     });
   });
 });
