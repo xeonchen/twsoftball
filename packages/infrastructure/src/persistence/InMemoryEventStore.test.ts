@@ -9,52 +9,126 @@
  * but full implementation will come in Phase 2.
  */
 
-import {
-  GameId,
-  TeamLineupId,
-  InningStateId,
-  DomainEvent,
-  GameCreated,
-  AtBatCompleted,
-  TeamLineupCreated,
-  InningStateCreated,
-  PlayerId,
-  AtBatResultType,
-} from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
-
-import type { EventStore, StoredEvent } from '../../../application/src/ports/out/EventStore';
 
 import { InMemoryEventStore } from './InMemoryEventStore';
 
-// Mock domain events for testing
-const createMockGameCreatedEvent = (gameId: GameId): GameCreated => {
-  return new GameCreated(gameId, 'Mock Home Team', 'Mock Away Team');
+// Local interface definitions to avoid Architecture boundary violations
+/** Domain identifier structure - matches Domain layer structure */
+interface DomainId {
+  readonly value: string;
+}
+
+/** Domain event base structure - matches Domain layer structure */
+interface DomainEvent {
+  readonly eventId: string;
+  readonly timestamp: Date;
+  readonly type?: string;
+  readonly gameId?: DomainId;
+  readonly teamLineupId?: DomainId;
+  readonly inningStateId?: DomainId;
+  readonly [key: string]: unknown;
+}
+
+/** Valid aggregate type literals */
+type AggregateType = 'Game' | 'TeamLineup' | 'InningState';
+
+interface StoredEventMetadata {
+  readonly source: string;
+  readonly createdAt: Date;
+  readonly correlationId?: string;
+  readonly causationId?: string;
+  readonly userId?: string;
+}
+
+interface StoredEvent {
+  readonly eventId: string;
+  readonly streamId: string;
+  readonly aggregateType: AggregateType;
+  readonly eventType: string;
+  readonly eventData: string;
+  readonly eventVersion: number;
+  readonly streamVersion: number;
+  readonly timestamp: Date;
+  readonly metadata: StoredEventMetadata;
+}
+
+interface EventStore {
+  append(
+    streamId: DomainId,
+    aggregateType: AggregateType,
+    events: DomainEvent[],
+    expectedVersion?: number
+  ): Promise<void>;
+  getEvents(streamId: DomainId, fromVersion?: number): Promise<StoredEvent[]>;
+  getGameEvents(gameId: DomainId): Promise<StoredEvent[]>;
+  getAllEvents(fromTimestamp?: Date): Promise<StoredEvent[]>;
+  getEventsByType(eventType: string, fromTimestamp?: Date): Promise<StoredEvent[]>;
+  getEventsByGameId(
+    gameId: DomainId,
+    aggregateTypes?: AggregateType[],
+    fromTimestamp?: Date
+  ): Promise<StoredEvent[]>;
+}
+
+// Type aliases for the test - using proper domain ID structure
+type GameId = DomainId;
+type TeamLineupId = DomainId;
+type InningStateId = DomainId;
+
+// Mock domain events for testing - creating compatible objects for EventStore interface
+const createMockGameCreatedEvent = (gameId: GameId): DomainEvent => {
+  return {
+    eventId: `game-created-${Math.random().toString(36).slice(2)}`,
+    type: 'GameCreated',
+    gameId: gameId,
+    timestamp: new Date(),
+    homeTeamName: 'Mock Home Team',
+    awayTeamName: 'Mock Away Team',
+  };
 };
 
-const createMockAtBatEvent = (gameId: GameId): AtBatCompleted => {
-  return new AtBatCompleted(
-    gameId,
-    PlayerId.generate(),
-    3, // batting slot
-    AtBatResultType.SINGLE,
-    3, // inning
-    1 // outs (valid range 0-2)
-  );
+const createMockAtBatEvent = (gameId: GameId): DomainEvent => {
+  return {
+    eventId: `at-bat-${Math.random().toString(36).slice(2)}`,
+    type: 'AtBatCompleted',
+    gameId: gameId,
+    timestamp: new Date(),
+    batterId: `player-${Math.random().toString(36).slice(2)}`,
+    battingSlot: 3,
+    result: 'SINGLE',
+    inning: 3,
+    outs: 1,
+  };
 };
 
 const createMockTeamLineupCreatedEvent = (
   gameId: GameId,
   teamLineupId: TeamLineupId
-): TeamLineupCreated => {
-  return new TeamLineupCreated(teamLineupId, gameId, 'Mock Team Name');
+): DomainEvent => {
+  return {
+    eventId: `team-lineup-created-${Math.random().toString(36).slice(2)}`,
+    type: 'TeamLineupCreated',
+    teamLineupId: teamLineupId,
+    gameId: gameId,
+    timestamp: new Date(),
+    teamName: 'Mock Team Name',
+  };
 };
 
 const createMockInningStateCreatedEvent = (
   gameId: GameId,
   inningStateId: InningStateId
-): InningStateCreated => {
-  return new InningStateCreated(inningStateId, gameId, 1, true);
+): DomainEvent => {
+  return {
+    eventId: `inning-state-created-${Math.random().toString(36).slice(2)}`,
+    type: 'InningStateCreated',
+    inningStateId: inningStateId,
+    gameId: gameId,
+    timestamp: new Date(),
+    inning: 1,
+    isTopHalf: true,
+  };
 };
 
 describe('InMemoryEventStore', () => {
@@ -64,11 +138,19 @@ describe('InMemoryEventStore', () => {
   let inningStateId: InningStateId;
   let mockEvents: DomainEvent[];
 
+  // Helper to create mock IDs that work with the EventStore interface
+  const createMockGameId = (): GameId =>
+    ({ value: `game-${Math.random().toString(36).slice(2)}` }) as GameId;
+  const createMockTeamLineupId = (): TeamLineupId =>
+    ({ value: `team-${Math.random().toString(36).slice(2)}` }) as TeamLineupId;
+  const createMockInningStateId = (): InningStateId =>
+    ({ value: `inning-${Math.random().toString(36).slice(2)}` }) as InningStateId;
+
   beforeEach(() => {
     eventStore = new InMemoryEventStore();
-    gameId = GameId.generate();
-    teamLineupId = TeamLineupId.generate();
-    inningStateId = InningStateId.generate();
+    gameId = createMockGameId();
+    teamLineupId = createMockTeamLineupId();
+    inningStateId = createMockInningStateId();
 
     mockEvents = [createMockGameCreatedEvent(gameId), createMockAtBatEvent(gameId)];
   });
@@ -239,7 +321,7 @@ describe('InMemoryEventStore', () => {
     });
 
     it('should return empty array for non-existent stream', async () => {
-      const nonExistentId = GameId.generate();
+      const nonExistentId = createMockGameId();
       const events = await eventStore.getEvents(nonExistentId);
 
       expect(Array.isArray(events)).toBe(true);
@@ -340,7 +422,7 @@ describe('InMemoryEventStore', () => {
 
     it('should handle rapid sequential operations', async () => {
       const operations = Array.from({ length: 20 }, async () => {
-        const testGameId = GameId.generate();
+        const testGameId = createMockGameId();
         const event = createMockGameCreatedEvent(testGameId);
 
         await eventStore.append(testGameId, 'Game', [event]);
@@ -357,8 +439,8 @@ describe('InMemoryEventStore', () => {
     });
 
     it('should maintain isolation between different streams', async () => {
-      const gameId1 = GameId.generate();
-      const gameId2 = GameId.generate();
+      const gameId1 = createMockGameId();
+      const gameId2 = createMockGameId();
       const event1 = createMockGameCreatedEvent(gameId1);
       const event2 = createMockAtBatEvent(gameId2);
 
@@ -383,7 +465,7 @@ describe('InMemoryEventStore', () => {
 
       expect(eventData.eventId).toBe(originalEvent.eventId);
       expect(eventData.type).toBe(originalEvent.type);
-      expect(eventData.gameId.value).toBe(originalEvent.gameId.value);
+      expect(eventData.gameId.value).toBe(originalEvent.gameId!.value);
       expect(new Date(eventData.timestamp as string)).toEqual(originalEvent.timestamp);
     });
 
@@ -429,19 +511,19 @@ describe('InMemoryEventStore', () => {
     it('should validate invalid parameters with specific error messages', async () => {
       // Test null streamId
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters deliberately
         (eventStore as any).append(null, 'Game', mockEvents)
       ).rejects.toThrow('Parameter validation failed: streamId cannot be null or undefined');
 
       // Test undefined streamId
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters deliberately
         (eventStore as any).append(undefined, 'Game', mockEvents)
       ).rejects.toThrow('Parameter validation failed: streamId cannot be null or undefined');
 
       // Test invalid aggregateType
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters deliberately
         (eventStore as any).append(gameId, 'InvalidType', mockEvents)
       ).rejects.toThrow(
         'Parameter validation failed: aggregateType must be one of: Game, TeamLineup, InningState'
@@ -449,7 +531,7 @@ describe('InMemoryEventStore', () => {
 
       // Test null events array
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters deliberately
         (eventStore as any).append(gameId, 'Game', null)
       ).rejects.toThrow('Parameter validation failed: events cannot be null or undefined');
 
@@ -462,13 +544,13 @@ describe('InMemoryEventStore', () => {
     it('should handle null/undefined inputs appropriately in getEvents', async () => {
       // Test null streamId
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters deliberately
         (eventStore as any).getEvents(null)
       ).rejects.toThrow('Parameter validation failed: streamId cannot be null or undefined');
 
       // Test undefined streamId
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters deliberately
         (eventStore as any).getEvents(undefined)
       ).rejects.toThrow('Parameter validation failed: streamId cannot be null or undefined');
 
@@ -484,7 +566,7 @@ describe('InMemoryEventStore', () => {
 
       // Create multiple concurrent append operations
       for (let i = 0; i < concurrentOperations; i++) {
-        const testGameId = GameId.generate();
+        const testGameId = createMockGameId();
         const event = createMockGameCreatedEvent(testGameId);
         results.push(eventStore.append(testGameId, 'Game', [event]));
       }
@@ -502,7 +584,7 @@ describe('InMemoryEventStore', () => {
 
       // Test mismatched aggregate type for Game event
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters deliberately
         await (eventStore as any).append(gameId, 'InvalidAggregate', [gameEvent]);
         expect.fail('Expected aggregate type validation error');
       } catch (error) {
@@ -536,7 +618,7 @@ describe('InMemoryEventStore', () => {
       // Create multiple streams with large datasets
       const streamCount = 10;
       const eventsPerStream = 500;
-      const testGameIds = Array.from({ length: streamCount }, () => GameId.generate());
+      const testGameIds = Array.from({ length: streamCount }, () => createMockGameId());
 
       for (const testGameId of testGameIds) {
         const events = Array.from({ length: eventsPerStream }, () =>
@@ -572,7 +654,7 @@ describe('InMemoryEventStore', () => {
       };
 
       // Inject malformed event directly into internal storage
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Accessing internal storage for testing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Accessing internal storage for testing purposes
       (eventStore as any).streams.set(gameId.value, [mockMalformedEvent]);
 
       // Cross-aggregate queries should handle malformed JSON gracefully
@@ -608,14 +690,14 @@ describe('InMemoryEventStore', () => {
       // Create a mock event that will fail JSON serialization
       const problematicEvent = {
         ...createMockGameCreatedEvent(gameId),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Creating circular reference for serialization test
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Creating circular reference for serialization test deliberately
         circularRef: {} as any,
       };
       problematicEvent.circularRef.self = problematicEvent;
 
       // Should handle serialization failure gracefully
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument -- Testing serialization failure
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument -- Testing serialization failure deliberately
         await eventStore.append(gameId, 'Game', [problematicEvent as any]);
         expect.fail('Expected serialization error');
       } catch (error) {
@@ -626,8 +708,8 @@ describe('InMemoryEventStore', () => {
     });
 
     it('should handle stream isolation under concurrent modifications', async () => {
-      const gameId1 = GameId.generate();
-      const gameId2 = GameId.generate();
+      const gameId1 = createMockGameId();
+      const gameId2 = createMockGameId();
 
       // Create concurrent modifications to different streams
       const operations = [
@@ -667,7 +749,7 @@ describe('InMemoryEventStore', () => {
     it('should handle aggregate type array validation in getEventsByGameId', async () => {
       // Test invalid aggregate type in array
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters deliberately
         (eventStore as any).getEventsByGameId(gameId, ['Game', 'InvalidType'])
       ).rejects.toThrow(
         'Parameter validation failed: aggregateTypes must only contain valid aggregate types: Game, TeamLineup, InningState'
@@ -675,7 +757,7 @@ describe('InMemoryEventStore', () => {
 
       // Test non-array aggregateTypes
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters deliberately
         (eventStore as any).getEventsByGameId(gameId, 'Game')
       ).rejects.toThrow(
         'Parameter validation failed: aggregateTypes must be an array or undefined'
@@ -685,17 +767,17 @@ describe('InMemoryEventStore', () => {
     it('should enforce event type string validation', async () => {
       // Test non-string event type
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters deliberately
         (eventStore as any).getEventsByType(null)
       ).rejects.toThrow('Parameter validation failed: eventType must be a non-empty string');
 
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters deliberately
         (eventStore as any).getEventsByType('')
       ).rejects.toThrow('Parameter validation failed: eventType must be a non-empty string');
 
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing invalid parameters deliberately
         (eventStore as any).getEventsByType(123)
       ).rejects.toThrow('Parameter validation failed: eventType must be a non-empty string');
     });
@@ -735,12 +817,12 @@ describe('InMemoryEventStore', () => {
 
     beforeEach(async () => {
       // Set up comprehensive test data across multiple games and aggregates
-      gameId1 = GameId.generate();
-      gameId2 = GameId.generate();
-      teamLineupId1 = TeamLineupId.generate();
-      teamLineupId2 = TeamLineupId.generate();
-      inningStateId1 = InningStateId.generate();
-      inningStateId2 = InningStateId.generate();
+      gameId1 = createMockGameId();
+      gameId2 = createMockGameId();
+      teamLineupId1 = createMockTeamLineupId();
+      teamLineupId2 = createMockTeamLineupId();
+      inningStateId1 = createMockInningStateId();
+      inningStateId2 = createMockInningStateId();
 
       // Game 1 events
       await eventStore.append(gameId1, 'Game', [createMockGameCreatedEvent(gameId1)]);
@@ -933,14 +1015,14 @@ describe('InMemoryEventStore', () => {
       });
 
       it('should return empty array for non-existent game', async () => {
-        const nonExistentGameId = GameId.generate();
+        const nonExistentGameId = createMockGameId();
         const result = await eventStore.getGameEvents(nonExistentGameId);
 
         expect(result).toEqual([]);
       });
 
       it('should handle games with partial aggregate data', async () => {
-        const partialGameId = GameId.generate();
+        const partialGameId = createMockGameId();
         // Only create Game aggregate, no TeamLineup or InningState
         await eventStore.append(partialGameId, 'Game', [createMockGameCreatedEvent(partialGameId)]);
 
@@ -1016,7 +1098,7 @@ describe('InMemoryEventStore', () => {
 
       it('should return empty array when no aggregates match filter', async () => {
         // Create a game with only Game events, then filter for non-existent aggregate type
-        const emptyGameId = GameId.generate();
+        const emptyGameId = createMockGameId();
         await eventStore.append(emptyGameId, 'Game', [createMockGameCreatedEvent(emptyGameId)]);
 
         // This aggregate type filter won't match any events
@@ -1092,7 +1174,7 @@ describe('InMemoryEventStore', () => {
       const eventsPerStream = 20;
 
       for (let i = 0; i < streamCount; i++) {
-        const testGameId = GameId.generate();
+        const testGameId = createMockGameId();
         const events = Array.from({ length: eventsPerStream }, () =>
           createMockGameCreatedEvent(testGameId)
         );
@@ -1102,15 +1184,15 @@ describe('InMemoryEventStore', () => {
       // Verify all streams are accessible
       for (let i = 0; i < 10; i++) {
         // Test a sample
-        const testGameId = GameId.generate();
+        const testGameId = createMockGameId();
         const events = await eventStore.getEvents(testGameId);
         expect(events).toHaveLength(0); // New stream should be empty
       }
     });
 
     it('should maintain consistent behavior under memory pressure', async () => {
-      const gameId1 = GameId.generate();
-      const gameId2 = GameId.generate();
+      const gameId1 = createMockGameId();
+      const gameId2 = createMockGameId();
 
       // Create large event batches
       const largeEventBatch1 = Array.from({ length: 200 }, () =>

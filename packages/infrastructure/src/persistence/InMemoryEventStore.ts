@@ -50,13 +50,70 @@
  * ```
  */
 
-import { GameId, TeamLineupId, InningStateId, DomainEvent } from '@twsoftball/domain';
+// Local interface definitions to avoid Architecture boundary violations
+// These interfaces match the Application layer ports exactly
 
-import type {
-  EventStore,
-  StoredEvent,
-  StoredEventMetadata,
-} from '../../../application/src/ports/out/EventStore';
+/** Domain identifier structure - matches Domain layer structure */
+interface DomainId {
+  readonly value: string;
+}
+
+/** Domain event base structure - matches Domain layer structure */
+interface DomainEvent {
+  readonly eventId: string;
+  readonly timestamp: Date;
+  readonly type?: string;
+  readonly [key: string]: unknown;
+}
+
+/** Valid aggregate type literals */
+type AggregateType = 'Game' | 'TeamLineup' | 'InningState';
+
+/** Metadata attached to stored events for operational purposes */
+interface StoredEventMetadata {
+  readonly source: string;
+  readonly createdAt: Date;
+  readonly correlationId?: string;
+  readonly causationId?: string;
+  readonly userId?: string;
+}
+
+/** Stored event structure for event store persistence */
+interface StoredEvent {
+  readonly eventId: string;
+  readonly streamId: string;
+  readonly aggregateType: AggregateType;
+  readonly eventType: string;
+  readonly eventData: string;
+  readonly eventVersion: number;
+  readonly streamVersion: number;
+  readonly timestamp: Date;
+  readonly metadata: StoredEventMetadata;
+}
+
+/** Event store interface for multi-aggregate event persistence and retrieval */
+interface EventStore {
+  append(
+    streamId: DomainId,
+    aggregateType: AggregateType,
+    events: DomainEvent[],
+    expectedVersion?: number
+  ): Promise<void>;
+
+  getEvents(streamId: DomainId, fromVersion?: number): Promise<StoredEvent[]>;
+
+  getGameEvents(gameId: DomainId): Promise<StoredEvent[]>;
+
+  getAllEvents(fromTimestamp?: Date): Promise<StoredEvent[]>;
+
+  getEventsByType(eventType: string, fromTimestamp?: Date): Promise<StoredEvent[]>;
+
+  getEventsByGameId(
+    gameId: DomainId,
+    aggregateTypes?: AggregateType[],
+    fromTimestamp?: Date
+  ): Promise<StoredEvent[]>;
+}
 
 /**
  * In-memory implementation of the EventStore interface.
@@ -131,9 +188,7 @@ export class InMemoryEventStore implements EventStore {
    * Phase 3: Parameter validation for streamId
    * @private
    */
-  private validateStreamId(
-    streamId: GameId | TeamLineupId | InningStateId | null | undefined
-  ): void {
+  private validateStreamId(streamId: DomainId | null | undefined): void {
     if (streamId === null || streamId === undefined) {
       throw new EventStoreParameterError('streamId cannot be null or undefined');
     }
@@ -143,9 +198,9 @@ export class InMemoryEventStore implements EventStore {
    * Phase 3: Parameter validation for aggregateType
    * @private
    */
-  private validateAggregateType(aggregateType: unknown): void {
-    const validTypes = ['Game', 'TeamLineup', 'InningState'];
-    if (!validTypes.includes(aggregateType as string)) {
+  private validateAggregateType(aggregateType: unknown): asserts aggregateType is AggregateType {
+    const validTypes: AggregateType[] = ['Game', 'TeamLineup', 'InningState'];
+    if (!validTypes.includes(aggregateType as AggregateType)) {
       throw new EventStoreParameterError(`aggregateType must be one of: ${validTypes.join(', ')}`);
     }
   }
@@ -217,13 +272,17 @@ export class InMemoryEventStore implements EventStore {
    * Phase 3: Parameter validation for aggregate types array
    * @private
    */
-  private validateAggregateTypesArray(aggregateTypes: unknown): void {
+  private validateAggregateTypesArray(
+    aggregateTypes: unknown
+  ): asserts aggregateTypes is AggregateType[] | undefined {
     if (aggregateTypes !== undefined) {
       if (!Array.isArray(aggregateTypes)) {
         throw new EventStoreParameterError('aggregateTypes must be an array or undefined');
       }
-      const validTypes = ['Game', 'TeamLineup', 'InningState'];
-      const invalidTypes = (aggregateTypes as string[]).filter(type => !validTypes.includes(type));
+      const validTypes: AggregateType[] = ['Game', 'TeamLineup', 'InningState'];
+      const invalidTypes = (aggregateTypes as string[]).filter(
+        type => !validTypes.includes(type as AggregateType)
+      );
       if (invalidTypes.length > 0) {
         throw new EventStoreParameterError(
           `aggregateTypes must only contain valid aggregate types: ${validTypes.join(', ')}`
@@ -317,8 +376,8 @@ export class InMemoryEventStore implements EventStore {
    * @throws Error for concurrency conflicts or validation failures
    */
   async append(
-    streamId: GameId | TeamLineupId | InningStateId,
-    aggregateType: 'Game' | 'TeamLineup' | 'InningState',
+    streamId: DomainId,
+    aggregateType: AggregateType,
     events: DomainEvent[],
     expectedVersion?: number
   ): Promise<void> {
@@ -351,7 +410,7 @@ export class InMemoryEventStore implements EventStore {
           eventId: event.eventId,
           streamId: streamKey,
           aggregateType,
-          eventType: event.type,
+          eventType: event.type || event.constructor?.name || 'UnknownEvent',
           eventData: this.safeSerializeEvent(event), // Phase 3: Safe serialization
           eventVersion: 1, // Event schema version
           streamVersion: existingEvents.length + index + 1,
@@ -388,10 +447,7 @@ export class InMemoryEventStore implements EventStore {
    * @param fromVersion - Optional starting version for incremental loading
    * @returns Promise resolving to ordered array of stored events
    */
-  async getEvents(
-    streamId: GameId | TeamLineupId | InningStateId,
-    fromVersion?: number
-  ): Promise<StoredEvent[]> {
+  async getEvents(streamId: DomainId, fromVersion?: number): Promise<StoredEvent[]> {
     return new Promise((resolve, reject) => {
       try {
         // Phase 3: Parameter validation
@@ -430,7 +486,7 @@ export class InMemoryEventStore implements EventStore {
    * @param gameId - Unique identifier for the game
    * @returns Promise resolving to chronologically ordered events for the game
    */
-  async getGameEvents(gameId: GameId): Promise<StoredEvent[]> {
+  async getGameEvents(gameId: DomainId): Promise<StoredEvent[]> {
     return new Promise((resolve, reject) => {
       try {
         // Phase 3: Parameter validation
@@ -581,8 +637,8 @@ export class InMemoryEventStore implements EventStore {
    * @returns Promise resolving to filtered events for the game
    */
   async getEventsByGameId(
-    gameId: GameId,
-    aggregateTypes?: ('Game' | 'TeamLineup' | 'InningState')[],
+    gameId: DomainId,
+    aggregateTypes?: AggregateType[],
     fromTimestamp?: Date
   ): Promise<StoredEvent[]> {
     return new Promise((resolve, reject) => {
