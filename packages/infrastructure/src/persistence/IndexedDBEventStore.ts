@@ -41,24 +41,12 @@
  * ```
  */
 
-// Local interface definitions to avoid Architecture boundary violations
-// These interfaces match the Application layer ports exactly
+// Direct domain imports to resolve type conflicts
+// This ensures we're using the exact same types as the domain layer
+import type { GameId, TeamLineupId, InningStateId, DomainEvent } from '@twsoftball/domain';
 
-/** Domain identifier structure - matches Domain layer structure */
-interface DomainId {
-  readonly value: string;
-}
-
-/** Domain event base structure - matches Domain layer structure */
-interface DomainEvent {
-  readonly eventId: string;
-  readonly timestamp: Date;
-  readonly type?: string;
-  readonly [key: string]: unknown;
-}
-
-/** Valid aggregate type literals */
-type AggregateType = 'Game' | 'TeamLineup' | 'InningState';
+// Import test interfaces for EventStore only
+import type { EventStore, AggregateType } from '../test-utils/event-store';
 
 /** Metadata attached to stored events for operational purposes */
 interface StoredEventMetadata {
@@ -82,29 +70,7 @@ interface StoredEvent {
   readonly metadata: StoredEventMetadata;
 }
 
-/** Event store interface for multi-aggregate event persistence and retrieval */
-interface EventStore {
-  append(
-    streamId: DomainId,
-    aggregateType: AggregateType,
-    events: DomainEvent[],
-    expectedVersion?: number
-  ): Promise<void>;
-
-  getEvents(streamId: DomainId, fromVersion?: number): Promise<StoredEvent[]>;
-
-  getGameEvents(gameId: DomainId): Promise<StoredEvent[]>;
-
-  getAllEvents(fromTimestamp?: Date): Promise<StoredEvent[]>;
-
-  getEventsByType(eventType: string, fromTimestamp?: Date): Promise<StoredEvent[]>;
-
-  getEventsByGameId(
-    gameId: DomainId,
-    aggregateTypes?: AggregateType[],
-    fromTimestamp?: Date
-  ): Promise<StoredEvent[]>;
-}
+// EventStore interface now imported from shared test utilities
 
 /**
  * Extended metadata for IndexedDB storage including gameId for cross-aggregate queries
@@ -380,7 +346,9 @@ export class IndexedDBEventStore implements EventStore {
    * Parameter validation for streamId
    * @private
    */
-  private validateStreamId(streamId: DomainId | null | undefined): void {
+  private validateStreamId(
+    streamId: GameId | TeamLineupId | InningStateId | null | undefined
+  ): void {
     if (streamId === null || streamId === undefined) {
       throw new EventStoreParameterError('streamId cannot be null or undefined');
     }
@@ -488,7 +456,9 @@ export class IndexedDBEventStore implements EventStore {
    * Gets current stream version by counting existing events
    * @private
    */
-  private async getCurrentStreamVersion(streamId: DomainId): Promise<number> {
+  private async getCurrentStreamVersion(
+    streamId: GameId | TeamLineupId | InningStateId
+  ): Promise<number> {
     const db = await this.ensureConnection();
     const transaction = db.transaction([EVENTS_STORE_NAME], 'readonly');
     const store = transaction.objectStore(EVENTS_STORE_NAME);
@@ -603,7 +573,7 @@ export class IndexedDBEventStore implements EventStore {
    * Appends domain events to an aggregate's event stream.
    */
   async append(
-    streamId: DomainId,
+    streamId: GameId | TeamLineupId | InningStateId,
     aggregateType: AggregateType,
     events: DomainEvent[],
     expectedVersion?: number
@@ -741,7 +711,10 @@ export class IndexedDBEventStore implements EventStore {
   /**
    * Retrieves events from a specific aggregate's stream.
    */
-  async getEvents(streamId: DomainId, fromVersion?: number): Promise<StoredEvent[]> {
+  async getEvents(
+    streamId: GameId | TeamLineupId | InningStateId,
+    fromVersion?: number
+  ): Promise<StoredEvent[]> {
     this.validateStreamId(streamId);
 
     if (fromVersion !== undefined) {
@@ -842,7 +815,7 @@ export class IndexedDBEventStore implements EventStore {
   /**
    * Retrieves all events related to a specific game across all aggregates.
    */
-  async getGameEvents(gameId: DomainId): Promise<StoredEvent[]> {
+  async getGameEvents(gameId: GameId): Promise<StoredEvent[]> {
     this.validateStreamId(gameId);
 
     try {
@@ -1128,7 +1101,7 @@ export class IndexedDBEventStore implements EventStore {
    * Retrieves events for a game with optional filtering by aggregate type and time.
    */
   async getEventsByGameId(
-    gameId: DomainId,
+    gameId: GameId,
     aggregateTypes?: AggregateType[],
     fromTimestamp?: Date
   ): Promise<StoredEvent[]> {

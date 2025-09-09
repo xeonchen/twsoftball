@@ -17,14 +17,22 @@ import {
 } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
+import {
+  createMockGameId,
+  createMockTeamLineupId,
+  createMockInningStateId,
+} from '../../test-utils/event-store';
+
 import { EventStore, StoredEvent } from './EventStore';
 
-// Mock domain events for testing
+// Import shared test utilities
+
+// Keep domain-specific mock creators since they use real domain classes
 const createMockGameCreatedEvent = (gameId: GameId): GameCreated => {
   return new GameCreated(gameId, 'Mock Home Team', 'Mock Away Team');
 };
 
-const createMockAtBatEvent = (gameId: GameId): AtBatCompleted => {
+const createMockAtBatCompletedEvent = (gameId: GameId): AtBatCompleted => {
   return new AtBatCompleted(
     gameId,
     PlayerId.generate(),
@@ -159,11 +167,11 @@ describe('EventStore Interface', () => {
   beforeEach(() => {
     mockStore = new MockEventStore();
     eventStore = mockStore;
-    gameId = GameId.generate();
-    teamLineupId = TeamLineupId.generate();
-    inningStateId = InningStateId.generate();
+    gameId = createMockGameId();
+    teamLineupId = createMockTeamLineupId();
+    inningStateId = createMockInningStateId();
 
-    mockEvents = [createMockGameCreatedEvent(gameId), createMockAtBatEvent(gameId)];
+    mockEvents = [createMockGameCreatedEvent(gameId), createMockAtBatCompletedEvent(gameId)];
   });
 
   describe('Interface Contract', () => {
@@ -280,7 +288,7 @@ describe('EventStore Interface', () => {
     });
 
     it('should return empty array for non-existent stream', async () => {
-      const nonExistentId = GameId.generate();
+      const nonExistentId = createMockGameId();
       const events = await eventStore.getEvents(nonExistentId);
 
       expect(Array.isArray(events)).toBe(true);
@@ -336,7 +344,7 @@ describe('EventStore Interface', () => {
     });
 
     it('should return empty array for game with no events', async () => {
-      const emptyGameId = GameId.generate();
+      const emptyGameId = createMockGameId();
       const events = await eventStore.getGameEvents(emptyGameId);
 
       expect(Array.isArray(events)).toBe(true);
@@ -489,7 +497,7 @@ describe('EventStore Interface', () => {
     it('should handle all aggregate ID types', async () => {
       const gameEvent = createMockGameCreatedEvent(gameId);
       const teamEvent = createMockGameCreatedEvent(gameId);
-      const inningEvent = createMockAtBatEvent(gameId);
+      const inningEvent = createMockAtBatCompletedEvent(gameId);
 
       await eventStore.append(gameId, 'Game', [gameEvent]);
       await eventStore.append(teamLineupId, 'TeamLineup', [teamEvent]);
@@ -631,8 +639,8 @@ describe('EventStore Interface', () => {
         await eventStore.append(gameId, 'Game', [createMockGameCreatedEvent(gameId)]);
 
         // Attempt concurrent writes with same expected version
-        const event1 = createMockAtBatEvent(gameId);
-        const event2 = createMockAtBatEvent(gameId);
+        const event1 = createMockAtBatCompletedEvent(gameId);
+        const event2 = createMockAtBatCompletedEvent(gameId);
 
         // First write should succeed
         await expect(eventStore.append(gameId, 'Game', [event1], 1)).resolves.not.toThrow();
@@ -649,8 +657,8 @@ describe('EventStore Interface', () => {
         // Set up test data with multiple events
         const events = [
           createMockGameCreatedEvent(gameId),
-          createMockAtBatEvent(gameId),
-          createMockAtBatEvent(gameId),
+          createMockAtBatCompletedEvent(gameId),
+          createMockAtBatCompletedEvent(gameId),
         ];
         await eventStore.append(gameId, 'Game', events);
       });
@@ -821,7 +829,7 @@ describe('EventStore Interface', () => {
       beforeEach(async () => {
         const mixedEvents = [
           createMockGameCreatedEvent(gameId),
-          createMockAtBatEvent(gameId),
+          createMockAtBatCompletedEvent(gameId),
           createMockTeamLineupCreatedEvent(gameId, teamLineupId),
         ];
 

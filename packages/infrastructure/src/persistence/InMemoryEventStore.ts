@@ -53,21 +53,12 @@
 // Local interface definitions to avoid Architecture boundary violations
 // These interfaces match the Application layer ports exactly
 
-/** Domain identifier structure - matches Domain layer structure */
-interface DomainId {
-  readonly value: string;
-}
+// Direct domain imports to resolve type conflicts
+// This ensures we're using the exact same types as the domain layer
+import type { GameId, TeamLineupId, InningStateId, DomainEvent } from '@twsoftball/domain';
 
-/** Domain event base structure - matches Domain layer structure */
-interface DomainEvent {
-  readonly eventId: string;
-  readonly timestamp: Date;
-  readonly type?: string;
-  readonly [key: string]: unknown;
-}
-
-/** Valid aggregate type literals */
-type AggregateType = 'Game' | 'TeamLineup' | 'InningState';
+// Import test interfaces for EventStore only
+import type { EventStore, AggregateType } from '../test-utils/event-store';
 
 /** Metadata attached to stored events for operational purposes */
 interface StoredEventMetadata {
@@ -91,29 +82,7 @@ interface StoredEvent {
   readonly metadata: StoredEventMetadata;
 }
 
-/** Event store interface for multi-aggregate event persistence and retrieval */
-interface EventStore {
-  append(
-    streamId: DomainId,
-    aggregateType: AggregateType,
-    events: DomainEvent[],
-    expectedVersion?: number
-  ): Promise<void>;
-
-  getEvents(streamId: DomainId, fromVersion?: number): Promise<StoredEvent[]>;
-
-  getGameEvents(gameId: DomainId): Promise<StoredEvent[]>;
-
-  getAllEvents(fromTimestamp?: Date): Promise<StoredEvent[]>;
-
-  getEventsByType(eventType: string, fromTimestamp?: Date): Promise<StoredEvent[]>;
-
-  getEventsByGameId(
-    gameId: DomainId,
-    aggregateTypes?: AggregateType[],
-    fromTimestamp?: Date
-  ): Promise<StoredEvent[]>;
-}
+// EventStore interface now imported from shared test utilities
 
 /**
  * In-memory implementation of the EventStore interface.
@@ -188,7 +157,9 @@ export class InMemoryEventStore implements EventStore {
    * Phase 3: Parameter validation for streamId
    * @private
    */
-  private validateStreamId(streamId: DomainId | null | undefined): void {
+  private validateStreamId(
+    streamId: GameId | TeamLineupId | InningStateId | null | undefined
+  ): void {
     if (streamId === null || streamId === undefined) {
       throw new EventStoreParameterError('streamId cannot be null or undefined');
     }
@@ -376,7 +347,7 @@ export class InMemoryEventStore implements EventStore {
    * @throws Error for concurrency conflicts or validation failures
    */
   async append(
-    streamId: DomainId,
+    streamId: GameId | TeamLineupId | InningStateId,
     aggregateType: AggregateType,
     events: DomainEvent[],
     expectedVersion?: number
@@ -447,7 +418,10 @@ export class InMemoryEventStore implements EventStore {
    * @param fromVersion - Optional starting version for incremental loading
    * @returns Promise resolving to ordered array of stored events
    */
-  async getEvents(streamId: DomainId, fromVersion?: number): Promise<StoredEvent[]> {
+  async getEvents(
+    streamId: GameId | TeamLineupId | InningStateId,
+    fromVersion?: number
+  ): Promise<StoredEvent[]> {
     return new Promise((resolve, reject) => {
       try {
         // Phase 3: Parameter validation
@@ -486,7 +460,7 @@ export class InMemoryEventStore implements EventStore {
    * @param gameId - Unique identifier for the game
    * @returns Promise resolving to chronologically ordered events for the game
    */
-  async getGameEvents(gameId: DomainId): Promise<StoredEvent[]> {
+  async getGameEvents(gameId: GameId): Promise<StoredEvent[]> {
     return new Promise((resolve, reject) => {
       try {
         // Phase 3: Parameter validation
@@ -637,7 +611,7 @@ export class InMemoryEventStore implements EventStore {
    * @returns Promise resolving to filtered events for the game
    */
   async getEventsByGameId(
-    gameId: DomainId,
+    gameId: GameId,
     aggregateTypes?: AggregateType[],
     fromTimestamp?: Date
   ): Promise<StoredEvent[]> {

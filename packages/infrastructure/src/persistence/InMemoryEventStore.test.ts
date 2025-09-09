@@ -11,125 +11,26 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 
+import {
+  EventStore,
+  StoredEvent,
+  DomainEvent,
+  DomainId,
+  GameId,
+  TeamLineupId,
+  InningStateId,
+  createMockGameCreatedEvent,
+  createMockAtBatCompletedEvent,
+  createMockTeamLineupCreatedEvent,
+  createMockInningStateCreatedEvent,
+  createMockGameId,
+  createMockTeamLineupId,
+  createMockInningStateId,
+} from '../test-utils/event-store';
+
 import { InMemoryEventStore } from './InMemoryEventStore';
 
-// Local interface definitions to avoid Architecture boundary violations
-/** Domain identifier structure - matches Domain layer structure */
-interface DomainId {
-  readonly value: string;
-}
-
-/** Domain event base structure - matches Domain layer structure */
-interface DomainEvent {
-  readonly eventId: string;
-  readonly timestamp: Date;
-  readonly type?: string;
-  readonly gameId?: DomainId;
-  readonly teamLineupId?: DomainId;
-  readonly inningStateId?: DomainId;
-  readonly [key: string]: unknown;
-}
-
-/** Valid aggregate type literals */
-type AggregateType = 'Game' | 'TeamLineup' | 'InningState';
-
-interface StoredEventMetadata {
-  readonly source: string;
-  readonly createdAt: Date;
-  readonly correlationId?: string;
-  readonly causationId?: string;
-  readonly userId?: string;
-}
-
-interface StoredEvent {
-  readonly eventId: string;
-  readonly streamId: string;
-  readonly aggregateType: AggregateType;
-  readonly eventType: string;
-  readonly eventData: string;
-  readonly eventVersion: number;
-  readonly streamVersion: number;
-  readonly timestamp: Date;
-  readonly metadata: StoredEventMetadata;
-}
-
-interface EventStore {
-  append(
-    streamId: DomainId,
-    aggregateType: AggregateType,
-    events: DomainEvent[],
-    expectedVersion?: number
-  ): Promise<void>;
-  getEvents(streamId: DomainId, fromVersion?: number): Promise<StoredEvent[]>;
-  getGameEvents(gameId: DomainId): Promise<StoredEvent[]>;
-  getAllEvents(fromTimestamp?: Date): Promise<StoredEvent[]>;
-  getEventsByType(eventType: string, fromTimestamp?: Date): Promise<StoredEvent[]>;
-  getEventsByGameId(
-    gameId: DomainId,
-    aggregateTypes?: AggregateType[],
-    fromTimestamp?: Date
-  ): Promise<StoredEvent[]>;
-}
-
-// Type aliases for the test - using proper domain ID structure
-type GameId = DomainId;
-type TeamLineupId = DomainId;
-type InningStateId = DomainId;
-
-// Mock domain events for testing - creating compatible objects for EventStore interface
-const createMockGameCreatedEvent = (gameId: GameId): DomainEvent => {
-  return {
-    eventId: `game-created-${Math.random().toString(36).slice(2)}`,
-    type: 'GameCreated',
-    gameId: gameId,
-    timestamp: new Date(),
-    homeTeamName: 'Mock Home Team',
-    awayTeamName: 'Mock Away Team',
-  };
-};
-
-const createMockAtBatEvent = (gameId: GameId): DomainEvent => {
-  return {
-    eventId: `at-bat-${Math.random().toString(36).slice(2)}`,
-    type: 'AtBatCompleted',
-    gameId: gameId,
-    timestamp: new Date(),
-    batterId: `player-${Math.random().toString(36).slice(2)}`,
-    battingSlot: 3,
-    result: 'SINGLE',
-    inning: 3,
-    outs: 1,
-  };
-};
-
-const createMockTeamLineupCreatedEvent = (
-  gameId: GameId,
-  teamLineupId: TeamLineupId
-): DomainEvent => {
-  return {
-    eventId: `team-lineup-created-${Math.random().toString(36).slice(2)}`,
-    type: 'TeamLineupCreated',
-    teamLineupId: teamLineupId,
-    gameId: gameId,
-    timestamp: new Date(),
-    teamName: 'Mock Team Name',
-  };
-};
-
-const createMockInningStateCreatedEvent = (
-  gameId: GameId,
-  inningStateId: InningStateId
-): DomainEvent => {
-  return {
-    eventId: `inning-state-created-${Math.random().toString(36).slice(2)}`,
-    type: 'InningStateCreated',
-    inningStateId: inningStateId,
-    gameId: gameId,
-    timestamp: new Date(),
-    inning: 1,
-    isTopHalf: true,
-  };
-};
+// Import shared test utilities to eliminate duplication
 
 describe('InMemoryEventStore', () => {
   let eventStore: EventStore;
@@ -138,21 +39,13 @@ describe('InMemoryEventStore', () => {
   let inningStateId: InningStateId;
   let mockEvents: DomainEvent[];
 
-  // Helper to create mock IDs that work with the EventStore interface
-  const createMockGameId = (): GameId =>
-    ({ value: `game-${Math.random().toString(36).slice(2)}` }) as GameId;
-  const createMockTeamLineupId = (): TeamLineupId =>
-    ({ value: `team-${Math.random().toString(36).slice(2)}` }) as TeamLineupId;
-  const createMockInningStateId = (): InningStateId =>
-    ({ value: `inning-${Math.random().toString(36).slice(2)}` }) as InningStateId;
-
   beforeEach(() => {
     eventStore = new InMemoryEventStore();
     gameId = createMockGameId();
     teamLineupId = createMockTeamLineupId();
     inningStateId = createMockInningStateId();
 
-    mockEvents = [createMockGameCreatedEvent(gameId), createMockAtBatEvent(gameId)];
+    mockEvents = [createMockGameCreatedEvent(gameId), createMockAtBatCompletedEvent(gameId)];
   });
 
   describe('Core Implementation', () => {
@@ -357,7 +250,7 @@ describe('InMemoryEventStore', () => {
 
     it('should handle boundary conditions for fromVersion parameter', async () => {
       // Add more events for boundary testing
-      const additionalEvent = createMockAtBatEvent(gameId);
+      const additionalEvent = createMockAtBatCompletedEvent(gameId);
       await eventStore.append(gameId, 'Game', [additionalEvent]);
 
       // Test version 0 (should return all events)
@@ -442,7 +335,7 @@ describe('InMemoryEventStore', () => {
       const gameId1 = createMockGameId();
       const gameId2 = createMockGameId();
       const event1 = createMockGameCreatedEvent(gameId1);
-      const event2 = createMockAtBatEvent(gameId2);
+      const event2 = createMockAtBatCompletedEvent(gameId2);
 
       await eventStore.append(gameId1, 'Game', [event1]);
       await eventStore.append(gameId2, 'Game', [event2]);
@@ -465,7 +358,7 @@ describe('InMemoryEventStore', () => {
 
       expect(eventData.eventId).toBe(originalEvent.eventId);
       expect(eventData.type).toBe(originalEvent.type);
-      expect(eventData.gameId.value).toBe(originalEvent.gameId!.value);
+      expect(eventData.gameId.value).toBe(originalEvent.gameId.value);
       expect(new Date(eventData.timestamp as string)).toEqual(originalEvent.timestamp);
     });
 
@@ -474,8 +367,8 @@ describe('InMemoryEventStore', () => {
       await eventStore.append(gameId, 'Game', [createMockGameCreatedEvent(gameId)]);
 
       // Both appends try to append based on version 1, only one should succeed
-      const event1 = createMockAtBatEvent(gameId);
-      const event2 = createMockAtBatEvent(gameId);
+      const event1 = createMockAtBatCompletedEvent(gameId);
+      const event2 = createMockAtBatCompletedEvent(gameId);
 
       // First append should succeed
       await expect(eventStore.append(gameId, 'Game', [event1], 1)).resolves.not.toThrow();
@@ -717,7 +610,7 @@ describe('InMemoryEventStore', () => {
           eventStore.append(gameId1, 'Game', [createMockGameCreatedEvent(gameId1)])
         ),
         ...Array.from({ length: 25 }, () =>
-          eventStore.append(gameId2, 'Game', [createMockAtBatEvent(gameId2)])
+          eventStore.append(gameId2, 'Game', [createMockAtBatCompletedEvent(gameId2)])
         ),
       ];
 
@@ -787,8 +680,8 @@ describe('InMemoryEventStore', () => {
       await eventStore.append(gameId, 'Game', [mockEvents[0]!]);
 
       // Simulate high-frequency version conflicts
-      const event1 = createMockAtBatEvent(gameId);
-      const event2 = createMockAtBatEvent(gameId);
+      const event1 = createMockAtBatCompletedEvent(gameId);
+      const event2 = createMockAtBatCompletedEvent(gameId);
 
       // First append should succeed
       await eventStore.append(gameId, 'Game', [event1], 1);
@@ -846,8 +739,8 @@ describe('InMemoryEventStore', () => {
       ]);
 
       // Additional game events for testing
-      await eventStore.append(gameId1, 'Game', [createMockAtBatEvent(gameId1)]);
-      await eventStore.append(gameId2, 'Game', [createMockAtBatEvent(gameId2)]);
+      await eventStore.append(gameId1, 'Game', [createMockAtBatCompletedEvent(gameId1)]);
+      await eventStore.append(gameId2, 'Game', [createMockAtBatCompletedEvent(gameId2)]);
     });
 
     describe('getEventsByType Method', () => {
@@ -1198,7 +1091,9 @@ describe('InMemoryEventStore', () => {
       const largeEventBatch1 = Array.from({ length: 200 }, () =>
         createMockGameCreatedEvent(gameId1)
       );
-      const largeEventBatch2 = Array.from({ length: 200 }, () => createMockAtBatEvent(gameId2));
+      const largeEventBatch2 = Array.from({ length: 200 }, () =>
+        createMockAtBatCompletedEvent(gameId2)
+      );
 
       await eventStore.append(gameId1, 'Game', largeEventBatch1);
       await eventStore.append(gameId2, 'Game', largeEventBatch2);
@@ -1222,7 +1117,7 @@ describe('InMemoryEventStore', () => {
 
     describe('Memory Limit Enforcement', () => {
       it('should enforce MAX_TOTAL_EVENTS limit (lines 312-315)', async () => {
-        const gameId = { value: 'memory-limit-game-123' };
+        const gameId = createMockGameId();
 
         // Create a mock that will make the total events exceed MAX_TOTAL_EVENTS (100,000)
         // We need to simulate having many existing events in the store
@@ -1231,15 +1126,17 @@ describe('InMemoryEventStore', () => {
 
         // Add events in smaller batches to get close to the limit
         for (let i = 0; i < batchesNeeded - 1; i++) {
-          const batchGameId = { value: `batch-game-${i}` };
+          const batchGameId = createMockGameId();
           const eventBatch = Array.from({ length: batchSize }, () =>
-            createMockAtBatEvent(batchGameId)
+            createMockAtBatCompletedEvent(batchGameId)
           );
           await eventStore.append(batchGameId, 'Game', eventBatch);
         }
 
         // Now try to add one more batch that will exceed the limit
-        const finalBatch = Array.from({ length: batchSize }, () => createMockAtBatEvent(gameId));
+        const finalBatch = Array.from({ length: batchSize }, () =>
+          createMockAtBatCompletedEvent(gameId)
+        );
 
         await expect(eventStore.append(gameId, 'Game', finalBatch)).rejects.toThrow(
           'Total events would exceed maximum allowed 100000'
@@ -1257,7 +1154,7 @@ describe('InMemoryEventStore', () => {
       });
 
       it('should handle non-Error objects in getGameEvents catch block (lines 519-520)', async () => {
-        const gameId = { value: 'non-error-handling-game-123' };
+        const gameId = createMockGameId();
 
         // Create typed interface for the event store with private method access
         interface EventStoreWithValidateStreamId {

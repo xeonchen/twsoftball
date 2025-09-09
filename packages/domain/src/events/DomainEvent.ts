@@ -21,6 +21,7 @@ import { GameId } from '../value-objects/GameId';
  * - Subclasses must define readonly `type` property for event identification
  * - All events are immutable once created
  * - Events should contain all data needed to reconstruct state changes
+ * - Index signature allows for event serialization and arbitrary properties
  *
  * **Domain Context**: Events represent facts about what has happened in the game:
  * - AtBatCompleted, RunScored, RunnerAdvanced capture gameplay events
@@ -49,6 +50,8 @@ import { GameId } from '../value-objects/GameId';
  * ```
  */
 export abstract class DomainEvent {
+  /** Index signature for event serialization and arbitrary properties */
+  [key: string]: unknown;
   /** Unique identifier for this specific event instance */
   readonly eventId: string = crypto.randomUUID();
 

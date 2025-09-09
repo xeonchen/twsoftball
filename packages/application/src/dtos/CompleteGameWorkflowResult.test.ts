@@ -20,7 +20,7 @@ describe('CompleteGameWorkflowResult', () => {
   let mockPerformanceMetrics: WorkflowPerformanceMetrics;
 
   beforeEach(() => {
-    mockGameId = GameId.generate();
+    mockGameId = GameId.generate(); // Keep domain GameId.generate() for actual domain objects
 
     mockGameStartResult = {
       success: true,
