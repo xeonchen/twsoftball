@@ -1520,5 +1520,41 @@ describe('Game Aggregate Root', () => {
         expect(game.id).toEqual(gameId);
       });
     });
+
+    describe('Phase 3: Final Coverage Improvements', () => {
+      describe('Run Validation Coverage', () => {
+        it('should reject infinite values in addHomeRuns (lines 653-654)', () => {
+          const game = Game.createNew(gameId, 'Home Team', 'Away Team');
+          game.startGame();
+
+          expect(() => game.addHomeRuns(Infinity)).toThrow('Runs must be a finite number');
+          expect(() => game.addHomeRuns(-Infinity)).toThrow('Runs must be a finite number');
+        });
+
+        it('should reject non-integer values in addHomeRuns (lines 659-660)', () => {
+          const game = Game.createNew(gameId, 'Home Team', 'Away Team');
+          game.startGame();
+
+          expect(() => game.addHomeRuns(1.5)).toThrow('Runs must be an integer');
+          expect(() => game.addHomeRuns(3.14)).toThrow('Runs must be an integer');
+        });
+
+        it('should reject infinite values in addAwayRuns (lines 653-654)', () => {
+          const game = Game.createNew(gameId, 'Home Team', 'Away Team');
+          game.startGame();
+
+          expect(() => game.addAwayRuns(Infinity)).toThrow('Runs must be a finite number');
+          expect(() => game.addAwayRuns(-Infinity)).toThrow('Runs must be a finite number');
+        });
+
+        it('should reject non-integer values in addAwayRuns (lines 659-660)', () => {
+          const game = Game.createNew(gameId, 'Home Team', 'Away Team');
+          game.startGame();
+
+          expect(() => game.addAwayRuns(2.5)).toThrow('Runs must be an integer');
+          expect(() => game.addAwayRuns(4.99)).toThrow('Runs must be an integer');
+        });
+      });
+    });
   });
 });

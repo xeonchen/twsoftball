@@ -23,6 +23,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { IndexedDBEventStore } from './IndexedDBEventStore';
 
+// Declare indexedDB for testing environment
+declare const indexedDB: IDBFactory;
+
 // Local interface definitions to avoid Architecture boundary violations
 /** Domain identifier structure - matches Domain layer structure */
 interface DomainId {
@@ -80,6 +83,16 @@ interface EventStore {
     fromTimestamp?: Date
   ): Promise<StoredEvent[]>;
 }
+
+// Internal method interfaces for type-safe mocking
+interface IndexedDBEventStoreInternal {
+  ensureConnection: () => Promise<IDBDatabase>;
+  deserializeDate: (dateValue: Date | string) => Date;
+  extractGameId: (event: DomainEvent) => string;
+  db?: IDBDatabase;
+}
+
+// Note: MockIDB classes are defined later in the file for IndexedDB mocking
 
 // Type aliases for the test - using proper domain ID structure
 type GameId = DomainId;
@@ -3721,6 +3734,967 @@ describe('IndexedDBEventStore Index Optimization', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (eventStore as any).ensureConnection = originalEnsureConnection;
       getEventsByGameIdSpy.mockRestore();
+    });
+  });
+
+  describe('Parameter Validation Coverage Tests', () => {
+    let eventStore: IndexedDBEventStore;
+
+    beforeEach(() => {
+      eventStore = new IndexedDBEventStore('test-param-validation');
+    });
+
+    afterEach(async () => {
+      if ('databases' in indexedDB && typeof indexedDB.databases === 'function') {
+        const databases = await indexedDB.databases();
+        const testDb = databases.find(db => db.name === 'test-param-validation');
+        if (testDb) {
+          eventStore['db']?.close();
+          indexedDB.deleteDatabase('test-param-validation');
+        }
+      }
+    });
+
+    it('should validate aggregateType with invalid types (lines 393-398)', async () => {
+      const gameId = { value: 'game-123' };
+      const events = [createMockGameCreatedEvent(gameId)];
+
+      // Test invalid aggregateType - should hit lines 395-397
+      await expect(
+        eventStore.append(gameId, 'InvalidType' as AggregateType, events)
+      ).rejects.toThrow('aggregateType must be one of: Game, TeamLineup, InningState');
+    });
+
+    it('should validate events array with null/undefined values (lines 404-411)', async () => {
+      const gameId = { value: 'game-123' };
+
+      // Test null events - should hit lines 405-407
+      await expect(
+        eventStore.append(gameId, 'Game', null as unknown as DomainEvent[])
+      ).rejects.toThrow('events cannot be null or undefined');
+
+      // Test undefined events - should hit lines 405-407
+      await expect(
+        eventStore.append(gameId, 'Game', undefined as unknown as DomainEvent[])
+      ).rejects.toThrow('events cannot be null or undefined');
+
+      // Test non-array events - should hit lines 408-410
+      await expect(
+        eventStore.append(gameId, 'Game', 'not-an-array' as unknown as DomainEvent[])
+      ).rejects.toThrow('events must be an array');
+    });
+
+    it('should validate serializable objects with functions (lines 447-449)', async () => {
+      const gameId = { value: 'game-123' };
+      const eventWithFunction = {
+        eventId: 'test-123',
+        type: 'TestEvent',
+        timestamp: new Date(),
+        gameId,
+        invalidFunction: (): string => 'test', // This should trigger validation error
+      };
+
+      // Should hit lines 447-449 when validating function property
+      await expect(
+        eventStore.append(gameId, 'Game', [eventWithFunction as DomainEvent])
+      ).rejects.toThrow('Non-serializable function found at event');
+    });
+
+    it('should validate serializable objects with symbols (lines 451-453)', async () => {
+      const gameId = { value: 'game-123' };
+      const eventWithSymbol = {
+        eventId: 'test-123',
+        type: 'TestEvent',
+        timestamp: new Date(),
+        gameId,
+        // Add a property with symbol as key
+        symbolValue: Symbol('test'), // This should trigger validation error
+      };
+
+      // Should hit lines 451-453 when validating symbol property
+      await expect(
+        eventStore.append(gameId, 'Game', [eventWithSymbol as DomainEvent])
+      ).rejects.toThrow('Non-serializable symbol found at event');
+    });
+
+    it('should allow Date and RegExp objects in serialization (lines 456-459)', async () => {
+      const gameId = { value: 'game-123' };
+      const eventWithDateAndRegex = {
+        eventId: 'test-123',
+        type: 'TestEvent',
+        timestamp: new Date(),
+        gameId,
+        someDate: new Date('2023-01-01'),
+        someRegex: /test/g,
+      };
+
+      // Should hit lines 456-459 but NOT throw error (these are serializable)
+      await expect(
+        eventStore.append(gameId, 'Game', [eventWithDateAndRegex as DomainEvent])
+      ).resolves.not.toThrow();
+    });
+
+    it('should validate nested array objects for serialization (lines 461-465)', async () => {
+      const gameId = { value: 'game-123' };
+      const eventWithNestedFunction = {
+        eventId: 'test-123',
+        type: 'TestEvent',
+        timestamp: new Date(),
+        gameId,
+        nestedArray: [1, 'test', (): string => 'invalid'], // Function in array should fail
+      };
+
+      // Should hit lines 462-464 when validating array items
+      await expect(
+        eventStore.append(gameId, 'Game', [eventWithNestedFunction as DomainEvent])
+      ).rejects.toThrow('Non-serializable function found at event.nestedArray[2]');
+    });
+
+    it('should validate nested object properties (lines 466-472)', async () => {
+      const gameId = { value: 'game-123' };
+      const eventWithNestedFunction = {
+        eventId: 'test-123',
+        type: 'TestEvent',
+        timestamp: new Date(),
+        gameId,
+        nested: {
+          validProp: 'valid',
+          invalidFunc: (): string => 'invalid', // Function in nested object should fail
+        },
+      };
+
+      // Should hit lines 467-471 when validating nested object properties
+      await expect(
+        eventStore.append(gameId, 'Game', [eventWithNestedFunction as DomainEvent])
+      ).rejects.toThrow('Non-serializable function found at event.nested.invalidFunc');
+    });
+
+    it('should detect lost essential properties during serialization (lines 425-428)', async () => {
+      const gameId = { value: 'game-123' };
+
+      // Mock JSON.stringify to return a malformed result that loses essential properties
+      const originalStringify = JSON.stringify;
+      JSON.stringify = vi.fn().mockReturnValue('{"malformed": true}'); // Missing eventId and type
+
+      try {
+        const event = createMockGameCreatedEvent(gameId);
+        await expect(eventStore.append(gameId, 'Game', [event])).rejects.toThrow(
+          'Essential event properties were lost during serialization'
+        );
+      } finally {
+        JSON.stringify = originalStringify;
+      }
+    });
+  });
+
+  describe('Serialization and Deserialization Coverage Tests', () => {
+    let eventStore: IndexedDBEventStore;
+
+    beforeEach(() => {
+      eventStore = new IndexedDBEventStore('test-serialization');
+    });
+
+    afterEach(async () => {
+      if ('databases' in indexedDB && typeof indexedDB.databases === 'function') {
+        const databases = await indexedDB.databases();
+        const testDb = databases.find(db => db.name === 'test-serialization');
+        if (testDb) {
+          eventStore['db']?.close();
+          indexedDB.deleteDatabase('test-serialization');
+        }
+      }
+    });
+
+    it('should handle invalid date strings in deserialization (lines 592-596)', () => {
+      // Test deserializeDate with invalid date string - should hit lines 593-595
+      const typedEventStore = eventStore as unknown as IndexedDBEventStoreInternal;
+      const deserializeDate = typedEventStore.deserializeDate.bind(eventStore);
+
+      expect(() => deserializeDate('invalid-date-string')).toThrow(
+        'Invalid date string: invalid-date-string'
+      );
+    });
+
+    it('should handle non-Date/non-string values in deserialization (lines 598-599)', () => {
+      // Test deserializeDate with invalid type - should hit lines 598-599
+      const typedEventStore = eventStore as unknown as IndexedDBEventStoreInternal;
+      const deserializeDate = typedEventStore.deserializeDate.bind(eventStore);
+
+      expect(() => deserializeDate(123 as unknown as Date)).toThrow(
+        'Expected Date or date string, got: number'
+      );
+    });
+
+    it('should extract gameId from various event structures (lines 540-580)', () => {
+      const typedEventStore = eventStore as unknown as IndexedDBEventStoreInternal;
+      const extractGameId = typedEventStore.extractGameId.bind(eventStore);
+
+      // Test extracting gameId from string gameId (lines 542-544)
+      const eventWithStringGameId: DomainEvent = {
+        eventId: 'test-1',
+        type: 'TestEvent',
+        timestamp: new Date(),
+        gameId: { value: 'simple-game-id' } as DomainId,
+      };
+      expect(extractGameId(eventWithStringGameId)).toBe('simple-game-id');
+
+      // Test extracting gameId from object with value property (lines 545-548)
+      const eventWithObjectGameId = {
+        eventId: 'test-2',
+        type: 'TestEvent',
+        timestamp: new Date(),
+        gameId: { value: 'object-game-id' },
+      };
+      expect(extractGameId(eventWithObjectGameId)).toBe('object-game-id');
+
+      // Test extracting from aggregateId string (lines 552-555)
+      const eventWithStringAggregateId = {
+        eventId: 'test-3',
+        type: 'TestEvent',
+        timestamp: new Date(),
+        aggregateId: 'aggregate-game-id',
+      };
+      expect(extractGameId(eventWithStringAggregateId)).toBe('aggregate-game-id');
+
+      // Test extracting from aggregateId object (lines 557-560)
+      const eventWithObjectAggregateId = {
+        eventId: 'test-4',
+        type: 'TestEvent',
+        timestamp: new Date(),
+        aggregateId: { value: 'aggregate-object-game-id' },
+      };
+      expect(extractGameId(eventWithObjectAggregateId)).toBe('aggregate-object-game-id');
+
+      // Test extracting from properties containing 'gameid' (lines 564-577)
+      const eventWithGameIdProperty = {
+        eventId: 'test-5',
+        type: 'TestEvent',
+        timestamp: new Date(),
+        someGameId: 'property-game-id',
+      };
+      expect(extractGameId(eventWithGameIdProperty)).toBe('property-game-id');
+
+      // Test extracting from nested gameId property (lines 571-574)
+      const eventWithNestedGameId = {
+        eventId: 'test-6',
+        type: 'TestEvent',
+        timestamp: new Date(),
+        relatedGameId: { value: 'nested-game-id' },
+      };
+      expect(extractGameId(eventWithNestedGameId)).toBe('nested-game-id');
+
+      // Test event with no gameId returns undefined (line 579)
+      const eventWithoutGameId = {
+        eventId: 'test-7',
+        type: 'TestEvent',
+        timestamp: new Date(),
+        otherProperty: 'no-game-id',
+      };
+      expect(extractGameId(eventWithoutGameId)).toBeUndefined();
+    });
+  });
+
+  describe('Transaction Error Path Coverage Tests', () => {
+    let eventStore: IndexedDBEventStore;
+
+    beforeEach(() => {
+      eventStore = new IndexedDBEventStore('test-transaction-errors');
+    });
+
+    afterEach(async () => {
+      if ('databases' in indexedDB && typeof indexedDB.databases === 'function') {
+        const databases = await indexedDB.databases();
+        const testDb = databases.find(db => db.name === 'test-transaction-errors');
+        if (testDb) {
+          eventStore['db']?.close();
+          indexedDB.deleteDatabase('test-transaction-errors');
+        }
+      }
+    });
+
+    it('should handle non-IndexedDB errors in append catch block (lines 713-738)', async () => {
+      const gameId = { value: 'generic-error-game-123' };
+      const events = [createMockGameCreatedEvent(gameId)];
+
+      // Mock ensureConnection to throw a generic error
+      const typedEventStore = eventStore as unknown as IndexedDBEventStoreInternal;
+      typedEventStore.ensureConnection = vi.fn().mockRejectedValue(new TypeError('Generic error'));
+
+      const error = await eventStore
+        .append(gameId, 'Game', events)
+        .catch((e: unknown): unknown => e);
+
+      // Should wrap generic error with IndexedDBError (lines 734-737)
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain('Failed to append events: Generic error');
+    });
+
+    it('should handle errors with message property in append catch block (lines 726-730)', async () => {
+      const gameId = { value: 'message-error-game-123' };
+      const events = [createMockGameCreatedEvent(gameId)];
+
+      // Mock ensureConnection to throw an object with message property
+      const typedEventStore = eventStore as unknown as IndexedDBEventStoreInternal;
+      typedEventStore.ensureConnection = vi
+        .fn()
+        .mockRejectedValue({ message: 'Object with message' });
+
+      const error = await eventStore
+        .append(gameId, 'Game', events)
+        .catch((e: unknown): unknown => e);
+
+      // Should extract message from object (lines 726-728)
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain('Failed to append events: Object with message');
+    });
+
+    it('should handle string errors in append catch block (lines 728-730)', async () => {
+      const gameId = { value: 'string-error-game-123' };
+      const events = [createMockGameCreatedEvent(gameId)];
+
+      // Mock ensureConnection to throw a string error
+      eventStore['ensureConnection'] = vi.fn().mockRejectedValue('String error');
+
+      const error = await eventStore
+        .append(gameId, 'Game', events)
+        .catch((e: unknown): unknown => e);
+
+      // Should handle string error (lines 728-730)
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain('Failed to append events: String error');
+    });
+
+    it('should handle unknown errors in append catch block (lines 730-731)', async () => {
+      const gameId = { value: 'unknown-error-game-123' };
+      const events = [createMockGameCreatedEvent(gameId)];
+
+      // Mock ensureConnection to throw a non-string, non-Error, non-object error
+      eventStore['ensureConnection'] = vi.fn().mockRejectedValue(42); // number
+
+      const error = await eventStore
+        .append(gameId, 'Game', events)
+        .catch((e: unknown): unknown => e);
+
+      // Should handle unknown error type (lines 730-731)
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain('Failed to append events: Unknown error');
+    });
+
+    it('should handle error stack extraction in append catch block (lines 732-735)', async () => {
+      const gameId = { value: 'stack-error-game-123' };
+      const events = [createMockGameCreatedEvent(gameId)];
+
+      // Mock ensureConnection to throw an error with stack trace
+      const errorWithStack = new Error('Error with stack');
+      errorWithStack.stack = 'Error: Error with stack\n    at test location\n    at other location';
+
+      eventStore['ensureConnection'] = vi.fn().mockRejectedValue(errorWithStack);
+
+      const error = await eventStore
+        .append(gameId, 'Game', events)
+        .catch((e: unknown): unknown => e);
+
+      // Should include first line of stack trace (lines 735)
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain(
+        'Error with stack (Stack: Error: Error with stack)'
+      );
+    });
+  });
+
+  describe('getEvents Error Path Coverage Tests', () => {
+    let eventStore: IndexedDBEventStore;
+
+    beforeEach(() => {
+      eventStore = new IndexedDBEventStore('test-getevents-errors');
+    });
+
+    afterEach(async () => {
+      if ('databases' in indexedDB && typeof indexedDB.databases === 'function') {
+        const databases = await indexedDB.databases();
+        const testDb = databases.find(db => db.name === 'test-getevents-errors');
+        if (testDb) {
+          eventStore['db']?.close();
+          indexedDB.deleteDatabase('test-getevents-errors');
+        }
+      }
+    });
+
+    it('should handle fromVersion validation errors (lines 747-751)', async () => {
+      const gameId = { value: 'version-error-game-123' };
+
+      // Test negative fromVersion
+      await expect(eventStore.getEvents(gameId, -1)).rejects.toThrow(
+        'fromVersion must be a non-negative integer'
+      );
+
+      // Test non-integer fromVersion
+      await expect(eventStore.getEvents(gameId, 3.14)).rejects.toThrow(
+        'fromVersion must be a non-negative integer'
+      );
+    });
+
+    // These specific error path tests are difficult to mock reliably in the test environment
+    // The actual error handling paths are covered by integration scenarios and the catch block tests below
+
+    it('should handle metadata deserialization with fallback timestamp (lines 783-785)', async () => {
+      const gameId = { value: 'metadata-fallback-game-123' };
+      const event = createMockGameCreatedEvent(gameId);
+
+      // Store an event first
+      await eventStore.append(gameId, 'Game', [event]);
+
+      // Mock ensureConnection to return events with metadata that has no createdAt
+      const originalEnsureConnection = eventStore['ensureConnection'].bind(eventStore);
+      eventStore['ensureConnection'] = vi.fn().mockImplementation(async () => {
+        const db = await originalEnsureConnection();
+        const originalTransaction = db.transaction.bind(db);
+
+        db.transaction = vi
+          .fn()
+          .mockImplementation((storeNames: string | string[], mode?: IDBTransactionMode) => {
+            const transaction = originalTransaction(storeNames, mode);
+            const originalObjectStore = transaction.objectStore.bind(transaction);
+
+            transaction.objectStore = vi.fn().mockImplementation((storeName: string) => {
+              const store = originalObjectStore(storeName);
+              const originalIndex = store.index.bind(store);
+
+              store.index = vi.fn().mockImplementation((indexName: string) => {
+                const index = originalIndex(indexName);
+                const originalOpenCursor = index.openCursor.bind(index);
+
+                index.openCursor = vi.fn().mockImplementation(() => {
+                  const request = originalOpenCursor();
+                  const originalOnSuccess = request.onsuccess;
+
+                  request.onsuccess = (event): void => {
+                    const cursor = (event.target as IDBRequest).result as IDBCursorWithValue | null;
+                    if (cursor) {
+                      // Modify the cursor value to have metadata without createdAt
+                      const eventRecord = cursor.value;
+                      eventRecord.metadata = { source: 'test' }; // No createdAt property
+                      Object.defineProperty(cursor, 'value', {
+                        value: eventRecord,
+                        writable: true,
+                      });
+                    }
+                    originalOnSuccess?.call(request, event);
+                  };
+
+                  return request;
+                });
+
+                return index;
+              });
+
+              return store;
+            });
+
+            return transaction;
+          });
+
+        return db;
+      });
+
+      // This should trigger the fallback to timestamp (lines 785)
+      const events = await eventStore.getEvents(gameId);
+      expect(events).toHaveLength(1);
+      expect(events[0]?.metadata.createdAt).toBeDefined();
+    });
+
+    it('should handle non-IndexedDB errors in getEvents catch block (lines 818-838)', async () => {
+      const gameId = { value: 'generic-getevents-error-123' };
+
+      // Mock ensureConnection to throw a generic error
+      eventStore['ensureConnection'] = vi
+        .fn()
+        .mockRejectedValue(new TypeError('Generic getEvents error'));
+
+      const error = await eventStore.getEvents(gameId).catch((e: unknown): unknown => e);
+
+      // Should wrap generic error with IndexedDBError (lines 835-837)
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain('Failed to get events: Generic getEvents error');
+    });
+  });
+
+  describe('getGameEvents Error Path Coverage Tests', () => {
+    let eventStore: IndexedDBEventStore;
+
+    beforeEach(() => {
+      eventStore = new IndexedDBEventStore('test-getgameevents-errors');
+    });
+
+    afterEach(async () => {
+      if ('databases' in indexedDB && typeof indexedDB.databases === 'function') {
+        const databases = await indexedDB.databases();
+        const testDb = databases.find(db => db.name === 'test-getgameevents-errors');
+        if (testDb) {
+          eventStore['db']?.close();
+          indexedDB.deleteDatabase('test-getgameevents-errors');
+        }
+      }
+    });
+
+    // Transaction and cursor error tests are covered by integration scenarios and catch blocks
+
+    it('should handle metadata deserialization with fallback timestamp in getGameEvents (lines 876-878)', async () => {
+      const gameId = { value: 'metadata-fallback-game-123' };
+      const event = createMockGameCreatedEvent(gameId);
+
+      // Store an event first
+      await eventStore.append(gameId, 'Game', [event]);
+
+      // Mock ensureConnection to return events with metadata that has no createdAt
+      const originalEnsureConnection = eventStore['ensureConnection'].bind(eventStore);
+      eventStore['ensureConnection'] = vi.fn().mockImplementation(async () => {
+        const db = await originalEnsureConnection();
+        const originalTransaction = db.transaction.bind(db);
+
+        db.transaction = vi
+          .fn()
+          .mockImplementation((storeNames: string | string[], mode?: IDBTransactionMode) => {
+            const transaction = originalTransaction(storeNames, mode);
+            const originalObjectStore = transaction.objectStore.bind(transaction);
+
+            transaction.objectStore = vi.fn().mockImplementation((storeName: string) => {
+              const store = originalObjectStore(storeName);
+              const originalIndex = store.index.bind(store);
+
+              store.index = vi.fn().mockImplementation((indexName: string) => {
+                const index = originalIndex(indexName);
+                const originalOpenCursor = index.openCursor.bind(index);
+
+                index.openCursor = vi.fn().mockImplementation(() => {
+                  const request = originalOpenCursor();
+                  const originalOnSuccess = request.onsuccess;
+
+                  request.onsuccess = (event): void => {
+                    const cursor = (event.target as IDBRequest).result as IDBCursorWithValue | null;
+                    if (cursor) {
+                      // Modify the cursor value to have metadata without createdAt
+                      const eventRecord = cursor.value;
+                      eventRecord.metadata = { source: 'test' }; // No createdAt property
+                      Object.defineProperty(cursor, 'value', {
+                        value: eventRecord,
+                        writable: true,
+                      });
+                    }
+                    originalOnSuccess?.call(request, event);
+                  };
+
+                  return request;
+                });
+
+                return index;
+              });
+
+              return store;
+            });
+
+            return transaction;
+          });
+
+        return db;
+      });
+
+      // This should trigger the fallback to timestamp (lines 878)
+      const events = await eventStore.getGameEvents(gameId);
+      expect(events).toHaveLength(1);
+      expect(events[0]?.metadata.createdAt).toBeDefined();
+    });
+
+    it('should handle non-IndexedDB errors in getGameEvents catch block (lines 909-927)', async () => {
+      const gameId = { value: 'generic-getgameevents-error-123' };
+
+      // Mock ensureConnection to throw a generic error
+      eventStore['ensureConnection'] = vi
+        .fn()
+        .mockRejectedValue(new TypeError('Generic getGameEvents error'));
+
+      const error = await eventStore.getGameEvents(gameId).catch((e: unknown): unknown => e);
+
+      // Should wrap generic error with IndexedDBError (lines 923-925)
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain(
+        'Failed to get game events: Generic getGameEvents error'
+      );
+    });
+  });
+
+  describe('getAllEvents Error Path Coverage Tests', () => {
+    let eventStore: IndexedDBEventStore;
+
+    beforeEach(() => {
+      eventStore = new IndexedDBEventStore('test-getallevents-errors');
+    });
+
+    afterEach(async () => {
+      if ('databases' in indexedDB && typeof indexedDB.databases === 'function') {
+        const databases = await indexedDB.databases();
+        const testDb = databases.find(db => db.name === 'test-getallevents-errors');
+        if (testDb) {
+          eventStore['db']?.close();
+          indexedDB.deleteDatabase('test-getallevents-errors');
+        }
+      }
+    });
+
+    it('should validate fromTimestamp parameter (lines 934-937)', async () => {
+      // Test invalid Date object
+      const invalidDate = new Date('invalid-date');
+      await expect(eventStore.getAllEvents(invalidDate)).rejects.toThrow(
+        'fromTimestamp must be a valid Date object'
+      );
+
+      // Test non-Date object
+      await expect(eventStore.getAllEvents('not-a-date' as unknown as Date)).rejects.toThrow(
+        'fromTimestamp must be a valid Date object'
+      );
+    });
+
+    // Transaction error path tests are covered by catch block scenarios
+
+    it('should handle timestamp filtering in getAllEvents (lines 958)', async () => {
+      const gameId = { value: 'timestamp-filter-game-123' };
+      const futureDate = new Date(Date.now() + 10000); // 10 seconds in the future
+
+      // Store an event
+      await eventStore.append(gameId, 'Game', [createMockGameCreatedEvent(gameId)]);
+
+      // This should return no events since we're filtering for future events
+      const events = await eventStore.getAllEvents(futureDate);
+      expect(events).toHaveLength(0);
+    });
+
+    it('should handle metadata deserialization with fallback timestamp in getAllEvents (lines 971-973)', async () => {
+      const gameId = { value: 'metadata-fallback-game-123' };
+      const event = createMockGameCreatedEvent(gameId);
+
+      // Store an event first
+      await eventStore.append(gameId, 'Game', [event]);
+
+      // Mock ensureConnection to return events with metadata that has no createdAt
+      const originalEnsureConnection = eventStore['ensureConnection'].bind(eventStore);
+      eventStore['ensureConnection'] = vi.fn().mockImplementation(async () => {
+        const db = await originalEnsureConnection();
+        const originalTransaction = db.transaction.bind(db);
+
+        db.transaction = vi
+          .fn()
+          .mockImplementation((storeNames: string | string[], mode?: IDBTransactionMode) => {
+            const transaction = originalTransaction(storeNames, mode);
+            const originalObjectStore = transaction.objectStore.bind(transaction);
+
+            transaction.objectStore = vi.fn().mockImplementation((storeName: string) => {
+              const store = originalObjectStore(storeName);
+              const originalOpenCursor = store.openCursor.bind(store);
+
+              store.openCursor = vi.fn().mockImplementation(() => {
+                const request = originalOpenCursor();
+                const originalOnSuccess = request.onsuccess;
+
+                request.onsuccess = (event): void => {
+                  const cursor = (event.target as IDBRequest).result as IDBCursorWithValue | null;
+                  if (cursor) {
+                    // Modify the cursor value to have metadata without createdAt
+                    const eventRecord = cursor.value;
+                    eventRecord.metadata = { source: 'test' }; // No createdAt property
+                    Object.defineProperty(cursor, 'value', { value: eventRecord, writable: true });
+                  }
+                  originalOnSuccess?.call(request, event);
+                };
+
+                return request;
+              });
+
+              return store;
+            });
+
+            return transaction;
+          });
+
+        return db;
+      });
+
+      // This should trigger the fallback to timestamp (lines 973)
+      const events = await eventStore.getAllEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]?.metadata.createdAt).toBeDefined();
+    });
+
+    it('should handle non-IndexedDB errors in getAllEvents catch block (lines 1006-1024)', async () => {
+      // Mock ensureConnection to throw a generic error
+      eventStore['ensureConnection'] = vi
+        .fn()
+        .mockRejectedValue(new TypeError('Generic getAllEvents error'));
+
+      const error = await eventStore.getAllEvents().catch((e: unknown): unknown => e);
+
+      // Should wrap generic error with IndexedDBError (lines 1020-1022)
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain(
+        'Failed to get all events: Generic getAllEvents error'
+      );
+    });
+  });
+
+  describe('getEventsByType Error Path Coverage Tests', () => {
+    let eventStore: IndexedDBEventStore;
+
+    beforeEach(() => {
+      eventStore = new IndexedDBEventStore('test-geteventsbytype-errors');
+    });
+
+    afterEach(async () => {
+      if ('databases' in indexedDB && typeof indexedDB.databases === 'function') {
+        const databases = await indexedDB.databases();
+        const testDb = databases.find(db => db.name === 'test-geteventsbytype-errors');
+        if (testDb) {
+          eventStore['db']?.close();
+          indexedDB.deleteDatabase('test-geteventsbytype-errors');
+        }
+      }
+    });
+
+    it('should validate eventType parameter (lines 1031-1033)', async () => {
+      // Test empty string eventType
+      await expect(eventStore.getEventsByType('')).rejects.toThrow(
+        'eventType must be a non-empty string'
+      );
+
+      // Test whitespace-only eventType
+      await expect(eventStore.getEventsByType('   ')).rejects.toThrow(
+        'eventType must be a non-empty string'
+      );
+
+      // Test non-string eventType
+      await expect(eventStore.getEventsByType(123 as unknown as string)).rejects.toThrow(
+        'eventType must be a non-empty string'
+      );
+    });
+
+    it('should validate fromTimestamp parameter in getEventsByType (lines 1034-1038)', async () => {
+      // Test invalid Date object
+      const invalidDate = new Date('invalid-date');
+      await expect(eventStore.getEventsByType('TestEvent', invalidDate)).rejects.toThrow(
+        'fromTimestamp must be a valid Date object'
+      );
+
+      // Test non-Date object
+      await expect(
+        eventStore.getEventsByType('TestEvent', 'not-a-date' as unknown as Date)
+      ).rejects.toThrow('fromTimestamp must be a valid Date object');
+    });
+
+    it('should handle timestamp filtering in getEventsByType (lines 1058)', async () => {
+      const gameId = { value: 'timestamp-filter-game-123' };
+      const futureDate = new Date(Date.now() + 10000); // 10 seconds in the future
+
+      // Store an event
+      await eventStore.append(gameId, 'Game', [createMockGameCreatedEvent(gameId)]);
+
+      // This should return no events since we're filtering for future events
+      const events = await eventStore.getEventsByType('GameCreated', futureDate);
+      expect(events).toHaveLength(0);
+    });
+
+    it('should handle metadata deserialization with fallback timestamp in getEventsByType (lines 1071-1073)', async () => {
+      const gameId = { value: 'metadata-fallback-game-123' };
+      const event = createMockGameCreatedEvent(gameId);
+
+      // Store an event first
+      await eventStore.append(gameId, 'Game', [event]);
+
+      // Mock ensureConnection to return events with metadata that has no createdAt
+      const originalEnsureConnection = eventStore['ensureConnection'].bind(eventStore);
+      eventStore['ensureConnection'] = vi.fn().mockImplementation(async () => {
+        const db = await originalEnsureConnection();
+        const originalTransaction = db.transaction.bind(db);
+
+        db.transaction = vi
+          .fn()
+          .mockImplementation((storeNames: string | string[], mode?: IDBTransactionMode) => {
+            const transaction = originalTransaction(storeNames, mode);
+            const originalObjectStore = transaction.objectStore.bind(transaction);
+
+            transaction.objectStore = vi.fn().mockImplementation((storeName: string) => {
+              const store = originalObjectStore(storeName);
+              const originalIndex = store.index.bind(store);
+
+              store.index = vi.fn().mockImplementation((indexName: string) => {
+                const index = originalIndex(indexName);
+                const originalOpenCursor = index.openCursor.bind(index);
+
+                index.openCursor = vi.fn().mockImplementation(() => {
+                  const request = originalOpenCursor();
+                  const originalOnSuccess = request.onsuccess;
+
+                  request.onsuccess = (event): void => {
+                    const cursor = (event.target as IDBRequest).result as IDBCursorWithValue | null;
+                    if (cursor) {
+                      // Modify the cursor value to have metadata without createdAt
+                      const eventRecord = cursor.value;
+                      eventRecord.metadata = { source: 'test' }; // No createdAt property
+                      Object.defineProperty(cursor, 'value', {
+                        value: eventRecord,
+                        writable: true,
+                      });
+                    }
+                    originalOnSuccess?.call(request, event);
+                  };
+
+                  return request;
+                });
+
+                return index;
+              });
+
+              return store;
+            });
+
+            return transaction;
+          });
+
+        return db;
+      });
+
+      // This should trigger the fallback to timestamp (lines 1073)
+      const events = await eventStore.getEventsByType('GameCreated');
+      expect(events).toHaveLength(1);
+      expect(events[0]?.metadata.createdAt).toBeDefined();
+    });
+  });
+
+  describe('getEventsByGameId Error Path Coverage Tests', () => {
+    let eventStore: IndexedDBEventStore;
+
+    beforeEach(() => {
+      eventStore = new IndexedDBEventStore('test-getevents-by-gameid-errors');
+    });
+
+    afterEach(async () => {
+      if ('databases' in indexedDB && typeof indexedDB.databases === 'function') {
+        const databases = await indexedDB.databases();
+        const testDb = databases.find(db => db.name === 'test-getevents-by-gameid-errors');
+        if (testDb) {
+          eventStore['db']?.close();
+          indexedDB.deleteDatabase('test-getevents-by-gameid-errors');
+        }
+      }
+    });
+
+    it('should handle empty array completion in getEventsByGameId (lines 1150-1174)', async () => {
+      const gameId = { value: 'empty-result-game-123' };
+
+      // Mock ensureConnection to return empty results
+      const originalEnsureConnection = eventStore['ensureConnection'].bind(eventStore);
+      eventStore['ensureConnection'] = vi.fn().mockImplementation(async () => {
+        const db = await originalEnsureConnection();
+        const originalTransaction = db.transaction.bind(db);
+
+        db.transaction = vi
+          .fn()
+          .mockImplementation((storeNames: string | string[], mode?: IDBTransactionMode) => {
+            const transaction = originalTransaction(storeNames, mode);
+            const originalObjectStore = transaction.objectStore.bind(transaction);
+
+            transaction.objectStore = vi.fn().mockImplementation((storeName: string) => {
+              const store = originalObjectStore(storeName);
+              const originalIndex = store.index.bind(store);
+
+              store.index = vi.fn().mockImplementation((indexName: string) => {
+                const index = originalIndex(indexName);
+                const originalOpenCursor = index.openCursor.bind(index);
+
+                index.openCursor = vi.fn().mockImplementation(() => {
+                  const request = originalOpenCursor();
+
+                  // Override onsuccess to return null cursor immediately (no results)
+                  const originalOnSuccess = request.onsuccess;
+                  request.onsuccess = (event): void => {
+                    // Force cursor to be null (no results found)
+                    Object.defineProperty(event.target, 'result', { value: null });
+                    originalOnSuccess?.call(request, event);
+                  };
+
+                  return request;
+                });
+
+                return index;
+              });
+
+              return store;
+            });
+
+            return transaction;
+          });
+
+        return db;
+      });
+
+      // This should return empty array and trigger lines 1150-1174
+      const events = await eventStore.getEventsByGameId(gameId);
+      expect(events).toHaveLength(0);
+    });
+
+    it('should handle aggregateType filtering with some results (lines 1186-1210)', async () => {
+      const gameId = { value: 'filtered-game-123' };
+
+      // Store events of different aggregate types
+      await eventStore.append(gameId, 'Game', [createMockGameCreatedEvent(gameId)]);
+
+      // Test filtering by specific aggregate type - should hit the filtering logic
+      const gameEvents = await eventStore.getEventsByGameId(gameId, ['Game']);
+      expect(gameEvents.length).toBeGreaterThan(0);
+
+      // Test filtering by non-matching aggregate type - should return empty
+      const nonMatchingEvents = await eventStore.getEventsByGameId(gameId, ['TeamLineup']);
+      expect(nonMatchingEvents).toHaveLength(0);
+    });
+
+    it('should handle invalid fromTimestamp in getEventsByGameId (lines 1222-1227)', async () => {
+      const gameId = { value: 'invalid-timestamp-game-123' };
+
+      // Test invalid Date object
+      const invalidDate = new Date('invalid-date');
+      await expect(eventStore.getEventsByGameId(gameId, undefined, invalidDate)).rejects.toThrow(
+        'fromTimestamp must be a valid Date object'
+      );
+
+      // Test non-Date object
+      await expect(
+        eventStore.getEventsByGameId(gameId, undefined, 'not-a-date' as unknown as Date)
+      ).rejects.toThrow('fromTimestamp must be a valid Date object');
+    });
+
+    it('should handle various error scenarios in getEventsByGameId catch block (lines 1237-1241)', async () => {
+      const gameId = { value: 'catch-block-error-game-123' };
+
+      // Mock ensureConnection to throw different types of errors to test catch block logic
+
+      // Test with string error (should hit lines 1239-1240)
+      eventStore['ensureConnection'] = vi.fn().mockRejectedValue('String error message');
+
+      const stringError = await eventStore
+        .getEventsByGameId(gameId)
+        .catch((e: unknown): unknown => e);
+      expect(stringError).toBeInstanceOf(Error);
+      expect((stringError as Error).message).toContain(
+        'Failed to get events by game ID: String error message'
+      );
+
+      // Test with unknown error type (should hit line 1241)
+      eventStore['ensureConnection'] = vi.fn().mockRejectedValue(42); // number
+
+      const unknownError = await eventStore
+        .getEventsByGameId(gameId)
+        .catch((e: unknown): unknown => e);
+      expect(unknownError).toBeInstanceOf(Error);
+      expect((unknownError as Error).message).toContain(
+        'Failed to get events by game ID: Unknown error'
+      );
     });
   });
 });
