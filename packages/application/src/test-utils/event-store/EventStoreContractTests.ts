@@ -20,7 +20,47 @@ import {
 } from './MockEventCreators';
 
 /**
- * Abstract test suite that provides comprehensive EventStore contract tests
+ * Abstract test suite providing comprehensive contract tests for EventStore implementations.
+ *
+ * Defines a complete test specification that any EventStore implementation must pass
+ * to ensure compliance with the TW Softball application's persistence requirements.
+ * Eliminates test duplication while ensuring consistent behavior across all EventStore
+ * adapters (IndexedDB, SQLite, in-memory, etc.).
+ *
+ * @remarks
+ * **Test Coverage Areas:**
+ * - Interface compliance and method signatures
+ * - Event appending with proper serialization and versioning
+ * - Event retrieval across all query patterns
+ * - Cross-aggregate game event querying
+ * - Optimistic concurrency control and conflict detection
+ * - Error handling and edge case scenarios
+ * - Performance requirements and batch operations
+ *
+ * **Usage Pattern:**
+ * Concrete EventStore test classes extend this abstract class and implement
+ * the `createEventStore()` factory method. The contract tests are then executed
+ * via `runContractTests()` to ensure implementation compliance.
+ *
+ * **Event Sourcing Requirements:**
+ * Tests validate critical event sourcing patterns including:
+ * - Stream versioning and concurrency control
+ * - Event ordering and temporal consistency
+ * - Cross-aggregate querying for game state reconstruction
+ * - Serialization fidelity for domain events
+ *
+ * @example
+ * ```typescript
+ * class IndexedDBEventStoreContractTests extends EventStoreContractTests {
+ *   async createEventStore(): Promise<EventStore> {
+ *     const mockDB = createEventStoreMockDatabase();
+ *     return new IndexedDBEventStore(mockDB);
+ *   }
+ * }
+ *
+ * const contractTests = new IndexedDBEventStoreContractTests();
+ * contractTests.runContractTests('IndexedDB EventStore');
+ * ```
  */
 export abstract class EventStoreContractTests {
   protected eventStore!: EventStore;
@@ -30,19 +70,60 @@ export abstract class EventStoreContractTests {
   protected mockEvents!: DomainEvent[];
 
   /**
-   * Subclasses must implement this to provide a fresh EventStore instance
+   * Factory method that subclasses must implement to provide fresh EventStore instances.
+   *
+   * Each test requires a clean EventStore instance to ensure test isolation
+   * and prevent data pollution between test cases. Implementations should
+   * return a fully configured EventStore ready for testing.
+   *
+   * @returns Promise resolving to a fresh, empty EventStore instance
+   *
+   * @example
+   * ```typescript
+   * async createEventStore(): Promise<EventStore> {
+   *   // Setup clean database
+   *   const mockDB = createEventStoreMockDatabase();
+   *
+   *   // Return configured EventStore
+   *   return new IndexedDBEventStore(mockDB);
+   * }
+   * ```
    */
   abstract createEventStore(): Promise<EventStore>;
 
   /**
-   * Optional cleanup hook for subclasses
+   * Optional cleanup hook that subclasses can override for resource cleanup.
+   *
+   * Called after each test to clean up any resources, close connections,
+   * or reset state. Default implementation does nothing, but subclasses
+   * can override to provide specific cleanup logic.
+   *
+   * @example
+   * ```typescript
+   * async tearDown(): Promise<void> {
+   *   await this.eventStore.close();
+   *   await cleanupTestDatabase();
+   * }
+   * ```
    */
   async tearDown(): Promise<void> {
     // Default: no cleanup needed
   }
 
   /**
-   * Sets up common test data
+   * Initializes common test data and fixtures for all contract tests.
+   *
+   * Creates fresh EventStore instance and generates mock domain objects
+   * (GameId, TeamLineupId, InningStateId) and events used across all test cases.
+   * Ensures consistent test data setup for repeatable test execution.
+   *
+   * @remarks
+   * Test fixtures include:
+   * - Fresh EventStore instance via createEventStore()
+   * - Mock aggregate IDs for all three aggregate types
+   * - Sample domain events for testing serialization and storage
+   *
+   * Called automatically before each test via beforeEach hook.
    */
   async setUp(): Promise<void> {
     this.eventStore = await this.createEventStore();
@@ -56,7 +137,30 @@ export abstract class EventStoreContractTests {
   }
 
   /**
-   * Runs all contract tests for the EventStore implementation
+   * Executes the complete EventStore contract test suite.
+   *
+   * Runs all contract tests organized into logical test groups covering
+   * every aspect of EventStore behavior required by the TW Softball application.
+   * Ensures comprehensive validation of EventStore implementation compliance.
+   *
+   * @param suiteName - Descriptive name for the test suite (used in test output)
+   *
+   * @remarks
+   * Test groups executed:
+   * 1. Interface Contract - Method presence and return types
+   * 2. Append Operations - Event storage and versioning
+   * 3. Event Retrieval - Stream-based queries
+   * 4. Game Events - Cross-aggregate queries
+   * 5. Global Queries - All events and type-specific queries
+   * 6. Concurrency Control - Optimistic locking validation
+   * 7. Error Handling - Edge cases and failure scenarios
+   * 8. Performance - Batch operations and scalability
+   *
+   * @example
+   * ```typescript
+   * const contractTests = new MyEventStoreTests();
+   * contractTests.runContractTests('MyEventStore Implementation');
+   * ```
    */
   runContractTests(suiteName: string = 'EventStore Contract'): void {
     describe(suiteName, () => {
@@ -77,6 +181,13 @@ export abstract class EventStoreContractTests {
     });
   }
 
+  /**
+   * Validates EventStore interface compliance and method signatures.
+   *
+   * Ensures the EventStore implementation provides all required methods
+   * with correct signatures and return types. Critical for maintaining
+   * consistent API contracts across different persistence adapters.
+   */
   private defineInterfaceTests(): void {
     describe('Interface Contract', () => {
       it('should define all required methods', () => {
@@ -101,6 +212,13 @@ export abstract class EventStoreContractTests {
     });
   }
 
+  /**
+   * Tests event appending functionality across all aggregate types.
+   *
+   * Validates proper event storage, serialization, versioning, and ordering
+   * for Game, TeamLineup, and InningState aggregates. Ensures events are
+   * stored with correct metadata and can be retrieved accurately.
+   */
   private defineAppendTests(): void {
     describe('append Method', () => {
       it('should append events to Game aggregate stream', async () => {
@@ -161,6 +279,13 @@ export abstract class EventStoreContractTests {
     });
   }
 
+  /**
+   * Tests stream-based event retrieval functionality.
+   *
+   * Validates retrieval of events from specific aggregate streams,
+   * including version-based filtering and proper StoredEvent structure.
+   * Essential for aggregate reconstruction in event sourcing.
+   */
   private defineGetEventsTests(): void {
     describe('getEvents Method', () => {
       beforeEach(async () => {
@@ -212,6 +337,13 @@ export abstract class EventStoreContractTests {
     });
   }
 
+  /**
+   * Tests cross-aggregate game event querying functionality.
+   *
+   * Validates retrieval of all events related to a specific game across
+   * all aggregate types (Game, TeamLineup, InningState). Critical for
+   * complete game state reconstruction and consistency validation.
+   */
   private defineGameEventsTests(): void {
     describe('getGameEvents Method', () => {
       beforeEach(async () => {
@@ -253,6 +385,13 @@ export abstract class EventStoreContractTests {
     });
   }
 
+  /**
+   * Tests global event retrieval across all streams and aggregates.
+   *
+   * Validates retrieval of all events in the EventStore with optional
+   * timestamp filtering. Important for audit trails, debugging, and
+   * system-wide event processing scenarios.
+   */
   private defineGetAllEventsTests(): void {
     describe('getAllEvents Method', () => {
       beforeEach(async () => {
@@ -286,6 +425,13 @@ export abstract class EventStoreContractTests {
     });
   }
 
+  /**
+   * Tests event type-based filtering and retrieval functionality.
+   *
+   * Validates filtering of events by specific event types across all
+   * streams. Essential for event processing scenarios that need to
+   * handle specific event types (e.g., all GameCreated events).
+   */
   private defineGetEventsByTypeTests(): void {
     describe('getEventsByType Method', () => {
       beforeEach(async () => {
@@ -319,6 +465,13 @@ export abstract class EventStoreContractTests {
     });
   }
 
+  /**
+   * Tests game-specific event retrieval with aggregate type filtering.
+   *
+   * Validates retrieval of events for a specific game with optional
+   * filtering by aggregate types. Critical for focused game state
+   * queries and selective event processing.
+   */
   private defineGetEventsByGameIdTests(): void {
     describe('getEventsByGameId Method', () => {
       beforeEach(async () => {
@@ -362,6 +515,13 @@ export abstract class EventStoreContractTests {
     });
   }
 
+  /**
+   * Tests optimistic concurrency control and version conflict detection.
+   *
+   * Validates proper handling of concurrent modifications to the same
+   * event stream, ensuring data consistency and proper conflict resolution
+   * in multi-user softball game scenarios.
+   */
   private defineConcurrencyTests(): void {
     describe('Concurrency Control', () => {
       it('should handle expected version for optimistic concurrency', async () => {
@@ -386,6 +546,13 @@ export abstract class EventStoreContractTests {
     });
   }
 
+  /**
+   * Tests error handling and edge case scenarios.
+   *
+   * Validates proper behavior with large datasets, edge cases,
+   * and boundary conditions that could occur in production
+   * softball game event storage scenarios.
+   */
   private defineErrorHandlingTests(): void {
     describe('Error Handling', () => {
       it('should handle large event batches', async () => {
@@ -406,6 +573,13 @@ export abstract class EventStoreContractTests {
     });
   }
 
+  /**
+   * Tests performance requirements and sequential operation handling.
+   *
+   * Validates that the EventStore can handle multiple sequential
+   * operations correctly and maintains proper versioning under
+   * typical usage patterns in softball game management.
+   */
   private definePerformanceTests(): void {
     describe('Performance Requirements', () => {
       it('should handle multiple sequential appends correctly', async () => {

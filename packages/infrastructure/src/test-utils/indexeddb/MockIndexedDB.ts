@@ -1,22 +1,33 @@
-/**
- * @file MockIndexedDB
- * Complete mock implementation of IndexedDB API for testing
- * Extracted from IndexedDBEventStore.test.ts to eliminate duplication
- *
- * @remarks
- * FUTURE IMPROVEMENT: Consider replacing this 700+ line custom implementation
- * with the `fake-indexeddb` npm package for:
- * - Better standards compliance and reliability
- * - Reduced maintenance burden
- * - More accurate browser behavior simulation
- * - Community-tested edge case handling
- *
- * Current custom implementation is retained to avoid breaking existing tests
- * without proper validation of fake-indexeddb compatibility.
- */
-
 import { vi } from 'vitest';
 
+/**
+ * Mock implementation of IDBDatabase for comprehensive EventStore testing.
+ *
+ * Simulates a complete IndexedDB database with realistic behavior for all
+ * operations required by the TW Softball EventStore implementations. Provides
+ * object store management, transaction creation, and proper lifecycle handling.
+ *
+ * @remarks
+ * Key features:
+ * - Object store creation and management with proper naming
+ * - Transaction creation with mode and store validation
+ * - Realistic database lifecycle (open, close, upgrade scenarios)
+ * - Schema management with version control
+ * - Spy integration for transaction monitoring in tests
+ *
+ * This mock enables EventStore tests to run in Node.js environments while
+ * maintaining full compatibility with production IndexedDB usage patterns.
+ *
+ * @example
+ * ```typescript
+ * const database = new MockIDBDatabase('tw-softball-events', 1);
+ * const eventsStore = database.createObjectStore('events', { keyPath: 'eventId' });
+ *
+ * // Transaction usage (same as real IndexedDB)
+ * const transaction = database.transaction(['events'], 'readwrite');
+ * const store = transaction.objectStore('events');
+ * ```
+ */
 export class MockIDBDatabase {
   name: string;
   version: number;
@@ -25,6 +36,12 @@ export class MockIDBDatabase {
   private readonly _mockObjectStores: Map<string, MockIDBObjectStore> = new Map();
   public transaction: ReturnType<typeof vi.fn>;
 
+  /**
+   * Creates a new mock IndexedDB database with the specified name and version.
+   *
+   * @param name - Database name (typically 'tw-softball-events')
+   * @param version - Database version number for schema management
+   */
   constructor(name: string, version: number) {
     this.name = name;
     this.version = version;
@@ -47,6 +64,13 @@ export class MockIDBDatabase {
     });
   }
 
+  /**
+   * Creates a new object store in the mock database.
+   *
+   * @param name - Object store name
+   * @param options - IndexedDB object store configuration
+   * @returns Mock object store instance
+   */
   createObjectStore(name: string, options?: IDBObjectStoreParameters): MockIDBObjectStore {
     const objectStore = new MockIDBObjectStore(name, options);
     this._objectStores.set(name, objectStore);
@@ -68,6 +92,45 @@ export class MockIDBDatabase {
   }
 }
 
+/**
+ * Mock implementation of IDBObjectStore for realistic EventStore data operations.
+ *
+ * Provides complete object store functionality including CRUD operations,
+ * index management, cursor iteration, and realistic error simulation.
+ * Essential for testing all EventStore data persistence scenarios.
+ *
+ * @remarks
+ * **Data Operations:**
+ * - add(), put(), get(), getAll(), count() with proper error handling
+ * - Realistic key path extraction for domain value objects
+ * - Automatic index updating when data changes
+ * - Transaction state validation for operation safety
+ *
+ * **Index Management:**
+ * - createIndex(), deleteIndex() with proper configuration
+ * - Index data synchronization with store updates
+ * - Support for unique and multi-entry indexes
+ *
+ * **Cursor Support:**
+ * - openCursor() with range filtering and direction support
+ * - Proper cursor lifecycle and iteration patterns
+ * - Realistic async cursor behavior with continue() calls
+ *
+ * **Error Simulation:**
+ * - Configurable failure modes for testing error handling
+ * - Transaction state validation
+ * - Proper IndexedDB exception types
+ *
+ * @example
+ * ```typescript
+ * const store = new MockIDBObjectStore('events', { keyPath: 'eventId' });
+ * store.createIndex('gameId', 'metadata.gameId');
+ *
+ * // Test error scenarios
+ * store.mockAddThrowsError = true;
+ * const request = store.add(eventData); // Will trigger error
+ * ```
+ */
 export class MockIDBObjectStore {
   name: string;
   keyPath: string | string[] | null;
@@ -80,6 +143,12 @@ export class MockIDBObjectStore {
   public mockGetReturnsData = true;
   public mockTransactionState: 'active' | 'failed' | 'inactive' = 'active';
 
+  /**
+   * Creates a new mock object store with the specified configuration.
+   *
+   * @param name - Object store name
+   * @param options - IndexedDB object store parameters (keyPath, autoIncrement)
+   */
   constructor(name: string, options?: IDBObjectStoreParameters) {
     this.name = name;
     this.keyPath = options?.keyPath || null;
@@ -135,6 +204,12 @@ export class MockIDBObjectStore {
     this._data.clear();
   }
 
+  /**
+   * Adds a new record to the mock object store.
+   *
+   * @param value - Data to add to the store
+   * @returns Mock IDBRequest with operation result
+   */
   add(value: unknown): IDBRequest {
     if (this.mockAddThrowsError || this.mockTransactionState === 'failed') {
       return this.createMockRequest(
@@ -177,6 +252,11 @@ export class MockIDBObjectStore {
 
     if (typeof key === 'string') {
       this._data.set(key, value);
+
+      // Update all indexes with the new data
+      for (const index of this._mockIndexes.values()) {
+        index.setMockData(new Map(this._data));
+      }
     }
 
     return this.createMockRequest('done', key);
@@ -285,7 +365,7 @@ export class MockIDBObjectStore {
   index(name: string): MockIDBIndex {
     const index = this._indexes.get(name);
     if (!index) {
-      throw new DOMException(`Index '${name}' does not exist`, 'NotFoundError');
+      throw new DOMException("Index '" + name + "' does not exist", 'NotFoundError');
     }
     return index;
   }
@@ -323,6 +403,51 @@ export class MockIDBObjectStore {
   }
 }
 
+/**
+ * Mock implementation of IDBCursor for realistic record iteration in EventStore queries.
+ *
+ * Provides complete cursor functionality for traversing IndexedDB records,
+ * essential for EventStore operations that need to process multiple events
+ * such as game state reconstruction and event filtering.
+ *
+ * @remarks
+ * **Iteration Features:**
+ * - Proper cursor positioning with continue() and advance()
+ * - Key range filtering with complex comparison logic
+ * - Support for both object store and index cursors
+ * - Realistic async iteration behavior
+ *
+ * **Key Path Handling:**
+ * - Nested object property access (e.g., 'metadata.gameId')
+ * - Array key path support for compound keys
+ * - Value extraction for index-based cursors
+ *
+ * **Lifecycle Management:**
+ * - Proper cursor exhaustion detection
+ * - Bounds checking to prevent infinite loops
+ * - Safe state transitions during iteration
+ *
+ * **EventStore Integration:**
+ * - Supports game event traversal patterns
+ * - Handles timestamp-based filtering
+ * - Enables efficient event type queries
+ *
+ * @example
+ * ```typescript
+ * const cursor = new MockIDBCursor(
+ *   entriesArray,
+ *   IDBKeyRange.bound(startTime, endTime),
+ *   'next',
+ *   indexSource
+ * );
+ *
+ * // Cursor traversal
+ * while (cursor.value) {
+ *   processEvent(cursor.value);
+ *   cursor.continue();
+ * }
+ * ```
+ */
 export class MockIDBCursor {
   key: unknown;
   primaryKey: unknown;
@@ -332,6 +457,14 @@ export class MockIDBCursor {
   readonly entries: [string, unknown][];
   currentIndex = 0;
 
+  /**
+   * Creates a new mock cursor for iterating over data records.
+   *
+   * @param entries - Array of [key, value] pairs to iterate over
+   * @param range - Optional key range for filtering
+   * @param direction - Cursor direction ('next', 'prev', etc.)
+   * @param source - Source index or object store
+   */
   constructor(
     entries: [string, unknown][],
     range?: IDBKeyRange,
@@ -448,6 +581,48 @@ export class MockIDBCursor {
   }
 }
 
+/**
+ * Mock implementation of IDBIndex for secondary index querying in EventStore operations.
+ *
+ * Provides complete index functionality for efficient EventStore queries,
+ * enabling fast lookups by game ID, event type, timestamp, and other
+ * indexed fields critical for softball game state management.
+ *
+ * @remarks
+ * **Query Operations:**
+ * - get(), getAll() with key-based filtering
+ * - openCursor() for index-based iteration
+ * - Proper key path value extraction from stored records
+ *
+ * **Index Configuration:**
+ * - Support for unique and non-unique indexes
+ * - Multi-entry index handling for array values
+ * - Nested key path support (e.g., 'metadata.gameId')
+ *
+ * **Data Synchronization:**
+ * - Automatic updates when object store data changes
+ * - Proper index value extraction and maintenance
+ * - Consistent data view across store and index operations
+ *
+ * **EventStore Integration:**
+ * - Game ID index for cross-aggregate queries
+ * - Event type index for filtering operations
+ * - Timestamp index for chronological ordering
+ * - Stream ID index for aggregate reconstruction
+ *
+ * @example
+ * ```typescript
+ * const gameIdIndex = new MockIDBIndex('gameId', 'metadata.gameId', { unique: false });
+ *
+ * // Query by game ID
+ * const gameEvents = await promiseifyRequest(
+ *   gameIdIndex.getAll(gameId.value)
+ * );
+ *
+ * // Cursor iteration with filtering
+ * const cursor = gameIdIndex.openCursor(IDBKeyRange.only(gameId.value));
+ * ```
+ */
 export class MockIDBIndex {
   name: string;
   keyPath: string | string[];
@@ -456,6 +631,13 @@ export class MockIDBIndex {
   private mockData: Map<string, unknown> = new Map();
   public mockTransactionState: 'active' | 'failed' | 'inactive' = 'active';
 
+  /**
+   * Creates a new mock index for secondary key access.
+   *
+   * @param name - Index name
+   * @param keyPath - Field path to index (supports nested paths)
+   * @param options - Index configuration (unique, multiEntry)
+   */
   constructor(name: string, keyPath: string | string[], options?: IDBIndexParameters) {
     this.name = name;
     this.keyPath = keyPath;
@@ -607,6 +789,48 @@ export class MockIDBIndex {
   }
 }
 
+/**
+ * Mock implementation of IDBTransaction for realistic transaction lifecycle testing.
+ *
+ * Provides complete transaction functionality with proper state management,
+ * event handling, and error simulation essential for testing EventStore
+ * transaction scenarios and error recovery patterns.
+ *
+ * @remarks
+ * **Transaction Lifecycle:**
+ * - Proper state transitions (active → finished/aborted/failed)
+ * - Realistic event sequencing (oncomplete, onerror, onabort)
+ * - Automatic completion and error handling
+ *
+ * **State Management:**
+ * - Transaction mode validation (readonly vs readwrite)
+ * - Object store access control based on transaction state
+ * - Proper error propagation to associated object stores
+ *
+ * **Error Simulation:**
+ * - Configurable failure modes for testing error handling
+ * - Realistic IndexedDB exception types and timing
+ * - Transaction abort scenarios and cleanup
+ *
+ * **EventStore Integration:**
+ * - Multi-store transaction support for complex operations
+ * - Atomic event batch processing
+ * - Proper rollback behavior for failed operations
+ *
+ * @example
+ * ```typescript
+ * const transaction = new MockIDBTransaction(
+ *   ['events', 'metadata'],
+ *   'readwrite',
+ *   mockDatabase
+ * );
+ *
+ * // Test failure scenarios
+ * transaction.mockShouldFail = true;
+ * transaction.oncomplete = () => { // Should not be called };
+ * transaction.onerror = (event) => { // Handle expected error };
+ * ```
+ */
 export class MockIDBTransaction {
   objectStoreNames: DOMStringList;
   mode: IDBTransactionMode;
@@ -618,6 +842,13 @@ export class MockIDBTransaction {
   public onerror: ((event: Event) => void) | null = null;
   public onabort: ((event: Event) => void) | null = null;
 
+  /**
+   * Creates a new mock transaction with the specified stores and mode.
+   *
+   * @param storeNames - Object store name(s) to include in transaction
+   * @param mode - Transaction mode ('readonly', 'readwrite')
+   * @param db - Parent database instance
+   */
   constructor(
     storeNames: string | string[],
     mode: IDBTransactionMode = 'readonly',
@@ -675,7 +906,7 @@ export class MockIDBTransaction {
 
     const store = this.db.getMockObjectStore(name);
     if (!store) {
-      throw new DOMException(`Object store '${name}' not found`, 'NotFoundError');
+      throw new DOMException("Object store '" + name + "' not found", 'NotFoundError');
     }
 
     // Set transaction state on the object store
