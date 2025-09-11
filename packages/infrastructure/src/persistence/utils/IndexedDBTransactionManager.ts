@@ -161,14 +161,15 @@ export class IndexedDBTransactionManager {
     return new Promise(resolve => {
       let timeoutId: ReturnType<typeof globalThis.setTimeout> | undefined;
       let transactionCompleted = false;
+      let promiseResolved = false;
       let operationResult: T | undefined;
       let operationError: Error | undefined;
       let operationCompleted = false;
 
       // Helper function to safely resolve once
       const safeResolve = (result: TransactionResult<T>): void => {
-        if (!transactionCompleted) {
-          transactionCompleted = true;
+        if (!promiseResolved) {
+          promiseResolved = true;
           if (timeoutId) globalThis.clearTimeout(timeoutId);
           resolve(result);
         }
@@ -190,7 +191,7 @@ export class IndexedDBTransactionManager {
       // Set up timeout
       if (timeout > 0) {
         timeoutId = globalThis.setTimeout((): void => {
-          if (!transactionCompleted) {
+          if (!promiseResolved) {
             transaction.abort();
             safeResolve({
               success: false,
@@ -202,6 +203,8 @@ export class IndexedDBTransactionManager {
 
       // Set up transaction event handlers
       transaction.oncomplete = (): void => {
+        transactionCompleted = true;
+
         if (operationCompleted && !operationError) {
           if (operationResult !== undefined) {
             safeResolve({ success: true, data: operationResult });
@@ -213,17 +216,13 @@ export class IndexedDBTransactionManager {
             success: false,
             error: operationError,
           });
-        } else {
-          // Operation hasn't completed yet, wait for it
-          if (operationResult !== undefined) {
-            safeResolve({ success: true, data: operationResult });
-          } else {
-            safeResolve({ success: true });
-          }
         }
+        // If operation hasn't completed yet, wait for it
+        // The operation completion handler will resolve when it's done
       };
 
       transaction.onerror = (): void => {
+        transactionCompleted = true;
         safeResolve({
           success: false,
           error: new Error(
@@ -233,6 +232,7 @@ export class IndexedDBTransactionManager {
       };
 
       transaction.onabort = (): void => {
+        transactionCompleted = true;
         safeResolve({
           success: false,
           error: operationError || new Error('Transaction was aborted'),
@@ -249,13 +249,28 @@ export class IndexedDBTransactionManager {
             .then(data => {
               operationResult = data;
               operationCompleted = true;
-              // Transaction completion will be handled by oncomplete event
+
+              // If transaction has already completed, resolve now
+              if (transactionCompleted) {
+                if (operationResult !== undefined) {
+                  safeResolve({ success: true, data: operationResult });
+                } else {
+                  safeResolve({ success: true });
+                }
+              }
+              // Otherwise, transaction completion will be handled by oncomplete event
             })
             .catch(error => {
               operationError = error instanceof Error ? error : new Error(String(error));
               operationCompleted = true;
 
-              if (!transactionCompleted) {
+              if (transactionCompleted) {
+                // Transaction already completed, resolve with error now
+                safeResolve({
+                  success: false,
+                  error: operationError,
+                });
+              } else {
                 transaction.abort();
               }
             });

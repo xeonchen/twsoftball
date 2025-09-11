@@ -222,6 +222,44 @@ export const createMockIndexedDB = (): {
 });
 
 /**
+ * Creates a mock IndexedDB open request that will trigger the onblocked event
+ * @param name - Database name
+ * @param version - Database version
+ * @returns Mock request that triggers onblocked
+ */
+export const createBlockedMockIndexedDB = (_name: string, _version?: number): IDBOpenDBRequest => {
+  const request = {
+    readyState: 'pending',
+    result: null as MockIDBDatabase | null,
+    error: null,
+    source: null,
+    transaction: null,
+    onsuccess: null as ((event: Event) => void) | null,
+    onerror: null as ((event: Event) => void) | null,
+    onupgradeneeded: null as ((event: IDBVersionChangeEvent) => void) | null,
+    onblocked: null as ((event: Event) => void) | null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  };
+
+  // Simulate blocked database operation
+  setTimeout(() => {
+    if (request.onblocked) {
+      const blockedEvent = {
+        target: request,
+        type: 'blocked',
+        oldVersion: _version || 1,
+        newVersion: _version || 1,
+      } as unknown as Event;
+      request.onblocked(blockedEvent);
+    }
+  }, 0);
+
+  return request as unknown as IDBOpenDBRequest;
+};
+
+/**
  * Fluent builder for constructing mock IndexedDB databases with realistic EventStore schemas.
  *
  * Provides a chainable API for setting up complete mock database environments

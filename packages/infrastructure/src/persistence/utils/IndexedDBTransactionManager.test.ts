@@ -554,6 +554,45 @@ describe('IndexedDBTransactionManager', () => {
         expect(result.error?.message).toContain('IndexedDB transaction failed');
       });
 
+      // PHASE 2: Cover lines 218-223 - transaction completes before operation flags complete
+      it('should handle transaction complete before operation sets completion flag (lines 218-223)', async () => {
+        const operation = vi.fn().mockImplementation(async () => {
+          // Don't complete operation immediately
+          return new Promise(resolve => {
+            setTimeout(() => resolve('delayed-result'), 20);
+          });
+        });
+
+        // Make transaction complete BEFORE operation completes
+        setTimeout(() => {
+          mockTransaction.oncomplete?.(new Event('complete'));
+        }, 10);
+
+        const result = await manager.executeTransaction('events', operation);
+
+        expect(result.success).toBe(true);
+        expect(result.data).toBe('delayed-result');
+      });
+
+      it('should handle transaction complete with undefined result before operation completion (lines 218-223)', async () => {
+        const operation = vi.fn().mockImplementation(async () => {
+          // Return undefined result with delayed completion
+          return new Promise(resolve => {
+            setTimeout(() => resolve(undefined), 20);
+          });
+        });
+
+        // Make transaction complete BEFORE operation completes
+        setTimeout(() => {
+          mockTransaction.oncomplete?.(new Event('complete'));
+        }, 10);
+
+        const result = await manager.executeTransaction('events', operation);
+
+        expect(result.success).toBe(true);
+        expect(result.data).toBeUndefined();
+      });
+
       it('should handle operation error followed by transaction complete', async () => {
         const operationError = new Error('Operation failed');
         const operation = vi.fn().mockImplementation(async () => {
@@ -1110,6 +1149,30 @@ describe('IndexedDBTransactionManager', () => {
 
       expect(result.success).toBe(true);
       expect(result.data).toBe('immediate-result');
+    });
+
+    it('should handle operation error when transaction already completed', async () => {
+      const operation = vi.fn().mockImplementation(() => {
+        // Return a promise that will reject after transaction completes
+        return new Promise((_resolve, reject) => {
+          // First complete transaction immediately
+          setTimeout(() => {
+            mockTransaction.oncomplete?.(new Event('complete'));
+          }, 0);
+
+          // Then fail the operation after transaction is already completed
+          setTimeout(() => {
+            reject(new Error('Operation failed after transaction completed'));
+          }, 10);
+        });
+      });
+
+      const result = await manager.executeTransaction('events', operation);
+
+      // The operation error should be handled and returned
+      expect(result.success).toBe(false);
+      expect(result.error).toBeInstanceOf(Error);
+      expect(result.error?.message).toBe('Operation failed after transaction completed');
     });
   });
 });

@@ -36,6 +36,11 @@ export class MockIDBDatabase {
   private readonly _mockObjectStores: Map<string, MockIDBObjectStore> = new Map();
   public transaction: ReturnType<typeof vi.fn>;
 
+  // Database lifecycle event handlers
+  public onclose: ((event: Event) => void) | null = null;
+  public onerror: ((event: Event) => void) | null = null;
+  public onversionchange: ((event: IDBVersionChangeEvent) => void) | null = null;
+
   /**
    * Creates a new mock IndexedDB database with the specified name and version.
    *
@@ -88,7 +93,40 @@ export class MockIDBDatabase {
   }
 
   close(): void {
-    // Mock close
+    // Trigger onclose event if handler is set
+    if (this.onclose) {
+      const event = { target: this, type: 'close' } as unknown as Event;
+      this.onclose(event);
+    }
+  }
+
+  /**
+   * Testing utility: Triggers database error event
+   */
+  triggerDatabaseError(errorMessage = 'Database error'): void {
+    if (this.onerror) {
+      const event = {
+        target: this,
+        type: 'error',
+        error: new DOMException(errorMessage, 'DatabaseError'),
+      } as unknown as Event;
+      this.onerror(event);
+    }
+  }
+
+  /**
+   * Testing utility: Triggers version change event
+   */
+  triggerVersionChange(oldVersion: number = 1, newVersion: number = 2): void {
+    if (this.onversionchange) {
+      const event = {
+        target: this,
+        type: 'versionchange',
+        oldVersion,
+        newVersion,
+      } as unknown as IDBVersionChangeEvent;
+      this.onversionchange(event);
+    }
   }
 }
 
@@ -837,10 +875,45 @@ export class MockIDBTransaction {
   db: MockIDBDatabase;
   error: DOMException | null = null;
   public mockState: 'active' | 'finished' | 'aborted' | 'failed' = 'active';
-  public mockShouldFail = false;
+  private _mockShouldFail = false;
+  private _failureScheduled = false;
+
+  public get mockShouldFail(): boolean {
+    return this._mockShouldFail;
+  }
+
+  public set mockShouldFail(value: boolean) {
+    this._mockShouldFail = value;
+    if (value && this.mockState === 'active') {
+      this.setupFailure();
+    }
+  }
+
   public oncomplete: ((event: Event) => void) | null = null;
   public onerror: ((event: Event) => void) | null = null;
   public onabort: ((event: Event) => void) | null = null;
+
+  /**
+   * Sets up transaction failure with error and triggers error event
+   */
+  private setupFailure(): void {
+    this._failureScheduled = true;
+    this.error = new DOMException('Mock transaction failure', 'TransactionInactiveError');
+    this.mockState = 'failed';
+
+    // Update object stores to reflect failed state
+    setTimeout(() => {
+      const store = this.db.getMockObjectStore('events');
+      if (store) {
+        store.mockTransactionState = 'failed';
+      }
+
+      if (this.onerror) {
+        const errorEvent = { target: this } as unknown as Event;
+        this.onerror(errorEvent);
+      }
+    }, 0);
+  }
 
   /**
    * Creates a new mock transaction with the specified stores and mode.
@@ -868,28 +941,17 @@ export class MockIDBTransaction {
 
     // If this is a mock that should fail, set up the error
     if (this.mockShouldFail) {
-      this.error = new DOMException('Mock transaction failure', 'TransactionInactiveError');
-      this.mockState = 'failed';
-
-      // Update object stores to reflect failed state
-      setTimeout(() => {
-        const store = this.db.getMockObjectStore('events');
-        if (store) {
-          store.mockTransactionState = 'failed';
-        }
-
-        if (this.onerror) {
-          const errorEvent = { target: this } as unknown as Event;
-          this.onerror(errorEvent);
-        }
-      }, 0);
+      this.setupFailure();
     } else {
       // Complete transaction successfully
       setTimeout(() => {
-        this.mockState = 'finished';
-        if (this.oncomplete) {
-          const completeEvent = { target: this } as unknown as Event;
-          this.oncomplete(completeEvent);
+        // Don't complete if failure was scheduled
+        if (!this._failureScheduled) {
+          this.mockState = 'finished';
+          if (this.oncomplete) {
+            const completeEvent = { target: this } as unknown as Event;
+            this.oncomplete(completeEvent);
+          }
         }
       }, 0);
     }
