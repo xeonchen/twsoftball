@@ -52,11 +52,11 @@ module.exports = {
     },
     {
       name: 'shared-layer-isolation',
-      comment: 'Shared utilities must not depend on any business layer',
+      comment: 'Shared utilities must not depend on application or infrastructure layers',
       severity: 'error', 
       from: { path: '^packages/shared' },
       to: {
-        path: '^packages/(domain|application|infrastructure)'
+        path: '^packages/(application|infrastructure)'
       }
     },
     {
@@ -71,7 +71,7 @@ module.exports = {
     {
       name: 'ports-and-adapters-pattern',
       comment: 'Infrastructure must implement application ports, not create direct dependencies',
-      severity: 'warn',
+      severity: 'error',
       from: { path: '^packages/infrastructure' },
       to: {
         path: '^packages/application',

@@ -175,39 +175,6 @@ export const createMockInningStateCreatedEvent = (
 };
 
 /**
- * Creates a mock GameId using the actual domain value object generator.
- *
- * Maintains consistency with domain layer patterns by using the real
- * GameId.generate() method rather than creating fake IDs. Ensures test
- * scenarios use valid, properly formatted domain identifiers.
- *
- * @returns Properly generated GameId domain value object
- */
-export const createMockGameId = (): GameId => GameId.generate();
-
-/**
- * Creates a mock TeamLineupId using the actual domain value object generator.
- *
- * Maintains consistency with domain layer patterns by using the real
- * TeamLineupId.generate() method. Ensures multi-aggregate test scenarios
- * use valid, properly formatted domain identifiers.
- *
- * @returns Properly generated TeamLineupId domain value object
- */
-export const createMockTeamLineupId = (): TeamLineupId => TeamLineupId.generate();
-
-/**
- * Creates a mock InningStateId using the actual domain value object generator.
- *
- * Maintains consistency with domain layer patterns by using the real
- * InningStateId.generate() method. Ensures complete aggregate coverage
- * in test scenarios with valid domain identifiers.
- *
- * @returns Properly generated InningStateId domain value object
- */
-export const createMockInningStateId = (): InningStateId => InningStateId.generate();
-
-/**
  * Creates a large batch of mock domain events for testing scalability and performance.
  *
  * Generates a sequence of realistic domain events for stress testing EventStore
@@ -253,3 +220,36 @@ export const createMockEventBatch = (gameId: GameId, count: number): DomainEvent
     return createMockAtBatCompletedEvent(gameId);
   });
 };
+
+/**
+ * Creates a mock GameId using the actual domain value object generator.
+ *
+ * Maintains consistency with domain layer patterns by using the real
+ * GameId.generate() method rather than creating fake IDs. Ensures test
+ * scenarios use valid, properly formatted domain identifiers.
+ *
+ * @returns Properly generated GameId domain value object
+ */
+export const createMockGameId = (): GameId => GameId.generate();
+
+/**
+ * Creates a mock TeamLineupId using the actual domain value object generator.
+ *
+ * Maintains consistency with domain layer patterns by using the real
+ * TeamLineupId.generate() method. Ensures multi-aggregate test scenarios
+ * use valid, properly formatted domain identifiers.
+ *
+ * @returns Properly generated TeamLineupId domain value object
+ */
+export const createMockTeamLineupId = (): TeamLineupId => TeamLineupId.generate();
+
+/**
+ * Creates a mock InningStateId using the actual domain value object generator.
+ *
+ * Maintains consistency with domain layer patterns by using the real
+ * InningStateId.generate() method. Ensures complete aggregate coverage
+ * in test scenarios with valid domain identifiers.
+ *
+ * @returns Properly generated InningStateId domain value object
+ */
+export const createMockInningStateId = (): InningStateId => InningStateId.generate();

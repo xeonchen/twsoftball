@@ -56,9 +56,8 @@
 // Direct domain imports to resolve type conflicts
 // This ensures we're using the exact same types as the domain layer
 import type { GameId, TeamLineupId, InningStateId, DomainEvent } from '@twsoftball/domain';
-
-// Import test interfaces for EventStore only
-import type { EventStore, AggregateType } from '../test-utils/event-store';
+// Import shared test interfaces for EventStore types
+import type { EventStore, AggregateType } from '@twsoftball/shared';
 
 /** Metadata attached to stored events for operational purposes */
 interface StoredEventMetadata {

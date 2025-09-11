@@ -1,6 +1,7 @@
+import { GameId } from '@twsoftball/domain';
+import { DomainEvent } from '@twsoftball/shared';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { createMockGameId, DomainEvent, GameId } from '../test-utils/event-store';
 import { createMockIndexedDB, createMockIDBKeyRange } from '../test-utils/indexeddb';
 
 import { IndexedDBEventStore } from './IndexedDBEventStore';
@@ -26,7 +27,7 @@ describe('IndexedDBEventStore Serialization Validation', () => {
     eventStore = new IndexedDBEventStore('test-serialization-db');
 
     // Create test game ID
-    gameId = createMockGameId();
+    gameId = GameId.generate();
 
     // Wait for connection to establish
     await new Promise(resolve => setTimeout(resolve, 20));

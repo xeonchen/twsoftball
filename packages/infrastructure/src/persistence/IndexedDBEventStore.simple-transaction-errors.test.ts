@@ -1,6 +1,7 @@
+import { GameId } from '@twsoftball/domain';
+import { DomainEvent } from '@twsoftball/shared';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { createMockGameId, DomainEvent, GameId } from '../test-utils/event-store';
 import {
   createMockIndexedDB,
   MockDatabaseBuilder,
@@ -30,7 +31,7 @@ describe('IndexedDBEventStore Simple Transaction Error Tests', () => {
     eventStore = new IndexedDBEventStore('test-simple-tx-errors-db');
 
     // Create test game ID
-    gameId = createMockGameId();
+    gameId = GameId.generate();
   });
 
   afterEach(() => {

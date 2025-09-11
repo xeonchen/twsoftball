@@ -9,24 +9,21 @@
  * but full implementation will come in Phase 2.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-
+import { GameId, TeamLineupId, InningStateId } from '@twsoftball/domain';
 import {
   EventStore,
   StoredEvent,
   DomainEvent,
   DomainId,
-  GameId,
-  TeamLineupId,
-  InningStateId,
   createMockGameCreatedEvent,
   createMockAtBatCompletedEvent,
   createMockTeamLineupCreatedEvent,
   createMockInningStateCreatedEvent,
-  createMockGameId,
-  createMockTeamLineupId,
-  createMockInningStateId,
-} from '../test-utils/event-store';
+} from '@twsoftball/shared';
+import { describe, it, expect, beforeEach } from 'vitest';
+
+// Import from shared package for EventStore interfaces and test utilities
+// Import domain objects from domain package
 
 import { InMemoryEventStore } from './InMemoryEventStore';
 
@@ -41,9 +38,9 @@ describe('InMemoryEventStore', () => {
 
   beforeEach(() => {
     eventStore = new InMemoryEventStore();
-    gameId = createMockGameId();
-    teamLineupId = createMockTeamLineupId();
-    inningStateId = createMockInningStateId();
+    gameId = GameId.generate();
+    teamLineupId = TeamLineupId.generate();
+    inningStateId = InningStateId.generate();
 
     mockEvents = [createMockGameCreatedEvent(gameId), createMockAtBatCompletedEvent(gameId)];
   });
@@ -214,7 +211,7 @@ describe('InMemoryEventStore', () => {
     });
 
     it('should return empty array for non-existent stream', async () => {
-      const nonExistentId = createMockGameId();
+      const nonExistentId = GameId.generate();
       const events = await eventStore.getEvents(nonExistentId);
 
       expect(Array.isArray(events)).toBe(true);
@@ -315,7 +312,7 @@ describe('InMemoryEventStore', () => {
 
     it('should handle rapid sequential operations', async () => {
       const operations = Array.from({ length: 20 }, async () => {
-        const testGameId = createMockGameId();
+        const testGameId = GameId.generate();
         const event = createMockGameCreatedEvent(testGameId);
 
         await eventStore.append(testGameId, 'Game', [event]);
@@ -332,8 +329,8 @@ describe('InMemoryEventStore', () => {
     });
 
     it('should maintain isolation between different streams', async () => {
-      const gameId1 = createMockGameId();
-      const gameId2 = createMockGameId();
+      const gameId1 = GameId.generate();
+      const gameId2 = GameId.generate();
       const event1 = createMockGameCreatedEvent(gameId1);
       const event2 = createMockAtBatCompletedEvent(gameId2);
 
@@ -459,7 +456,7 @@ describe('InMemoryEventStore', () => {
 
       // Create multiple concurrent append operations
       for (let i = 0; i < concurrentOperations; i++) {
-        const testGameId = createMockGameId();
+        const testGameId = GameId.generate();
         const event = createMockGameCreatedEvent(testGameId);
         results.push(eventStore.append(testGameId, 'Game', [event]));
       }
@@ -511,7 +508,7 @@ describe('InMemoryEventStore', () => {
       // Create multiple streams with large datasets
       const streamCount = 10;
       const eventsPerStream = 500;
-      const testGameIds = Array.from({ length: streamCount }, () => createMockGameId());
+      const testGameIds = Array.from({ length: streamCount }, () => GameId.generate());
 
       for (const testGameId of testGameIds) {
         const events = Array.from({ length: eventsPerStream }, () =>
@@ -601,8 +598,8 @@ describe('InMemoryEventStore', () => {
     });
 
     it('should handle stream isolation under concurrent modifications', async () => {
-      const gameId1 = createMockGameId();
-      const gameId2 = createMockGameId();
+      const gameId1 = GameId.generate();
+      const gameId2 = GameId.generate();
 
       // Create concurrent modifications to different streams
       const operations = [
@@ -710,12 +707,12 @@ describe('InMemoryEventStore', () => {
 
     beforeEach(async () => {
       // Set up comprehensive test data across multiple games and aggregates
-      gameId1 = createMockGameId();
-      gameId2 = createMockGameId();
-      teamLineupId1 = createMockTeamLineupId();
-      teamLineupId2 = createMockTeamLineupId();
-      inningStateId1 = createMockInningStateId();
-      inningStateId2 = createMockInningStateId();
+      gameId1 = GameId.generate();
+      gameId2 = GameId.generate();
+      teamLineupId1 = TeamLineupId.generate();
+      teamLineupId2 = TeamLineupId.generate();
+      inningStateId1 = InningStateId.generate();
+      inningStateId2 = InningStateId.generate();
 
       // Game 1 events
       await eventStore.append(gameId1, 'Game', [createMockGameCreatedEvent(gameId1)]);
@@ -908,14 +905,14 @@ describe('InMemoryEventStore', () => {
       });
 
       it('should return empty array for non-existent game', async () => {
-        const nonExistentGameId = createMockGameId();
+        const nonExistentGameId = GameId.generate();
         const result = await eventStore.getGameEvents(nonExistentGameId);
 
         expect(result).toEqual([]);
       });
 
       it('should handle games with partial aggregate data', async () => {
-        const partialGameId = createMockGameId();
+        const partialGameId = GameId.generate();
         // Only create Game aggregate, no TeamLineup or InningState
         await eventStore.append(partialGameId, 'Game', [createMockGameCreatedEvent(partialGameId)]);
 
@@ -991,7 +988,7 @@ describe('InMemoryEventStore', () => {
 
       it('should return empty array when no aggregates match filter', async () => {
         // Create a game with only Game events, then filter for non-existent aggregate type
-        const emptyGameId = createMockGameId();
+        const emptyGameId = GameId.generate();
         await eventStore.append(emptyGameId, 'Game', [createMockGameCreatedEvent(emptyGameId)]);
 
         // This aggregate type filter won't match any events
@@ -1067,7 +1064,7 @@ describe('InMemoryEventStore', () => {
       const eventsPerStream = 20;
 
       for (let i = 0; i < streamCount; i++) {
-        const testGameId = createMockGameId();
+        const testGameId = GameId.generate();
         const events = Array.from({ length: eventsPerStream }, () =>
           createMockGameCreatedEvent(testGameId)
         );
@@ -1077,15 +1074,15 @@ describe('InMemoryEventStore', () => {
       // Verify all streams are accessible
       for (let i = 0; i < 10; i++) {
         // Test a sample
-        const testGameId = createMockGameId();
+        const testGameId = GameId.generate();
         const events = await eventStore.getEvents(testGameId);
         expect(events).toHaveLength(0); // New stream should be empty
       }
     });
 
     it('should maintain consistent behavior under memory pressure', async () => {
-      const gameId1 = createMockGameId();
-      const gameId2 = createMockGameId();
+      const gameId1 = GameId.generate();
+      const gameId2 = GameId.generate();
 
       // Create large event batches
       const largeEventBatch1 = Array.from({ length: 200 }, () =>
@@ -1117,7 +1114,7 @@ describe('InMemoryEventStore', () => {
 
     describe('Memory Limit Enforcement', () => {
       it('should enforce MAX_TOTAL_EVENTS limit (lines 312-315)', async () => {
-        const gameId = createMockGameId();
+        const gameId = GameId.generate();
 
         // Create a mock that will make the total events exceed MAX_TOTAL_EVENTS (100,000)
         // We need to simulate having many existing events in the store
@@ -1126,7 +1123,7 @@ describe('InMemoryEventStore', () => {
 
         // Add events in smaller batches to get close to the limit
         for (let i = 0; i < batchesNeeded - 1; i++) {
-          const batchGameId = createMockGameId();
+          const batchGameId = GameId.generate();
           const eventBatch = Array.from({ length: batchSize }, () =>
             createMockAtBatCompletedEvent(batchGameId)
           );
@@ -1154,7 +1151,7 @@ describe('InMemoryEventStore', () => {
       });
 
       it('should handle non-Error objects in getGameEvents catch block (lines 519-520)', async () => {
-        const gameId = createMockGameId();
+        const gameId = GameId.generate();
 
         // Create typed interface for the event store with private method access
         interface EventStoreWithValidateStreamId {

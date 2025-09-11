@@ -5,18 +5,18 @@
  */
 
 import { GameId, TeamLineupId, InningStateId, DomainEvent } from '@twsoftball/domain';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { MockedFunction } from 'vitest';
-
-import { EventStoreContractTests } from './EventStoreContractTests';
-import type { EventStore } from './EventStoreTestInterfaces';
+import type { EventStore } from '@twsoftball/shared';
 import {
   createMockGameCreatedEvent,
   createMockTeamLineupCreatedEvent,
   createMockInningStateCreatedEvent,
   createMockGameId,
   createMockEventBatch,
-} from './MockEventCreators';
+} from '@twsoftball/shared';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { MockedFunction } from 'vitest';
+
+import { EventStoreContractTests } from './EventStoreContractTests';
 
 // Test implementation of EventStoreContractTests
 class TestEventStoreContractTests extends EventStoreContractTests {

@@ -19,18 +19,19 @@
  * concerns such as database versioning, connection pooling, and browser compatibility.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-
-// Import shared test utilities and mock infrastructure
+import { GameId } from '@twsoftball/domain';
 import {
   EventStore,
   DomainEvent,
-  GameId,
   AggregateType,
   createMockGameCreatedEvent,
   createMockAtBatCompletedEvent,
-  createMockGameId,
-} from '../test-utils/event-store';
+} from '@twsoftball/shared';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+// Import from shared package for EventStore interfaces and test utilities
+// Import domain objects from domain package
+
 import { createMockIndexedDB, createMockIDBKeyRange } from '../test-utils/indexeddb';
 
 import { IndexedDBEventStore } from './IndexedDBEventStore';
@@ -69,7 +70,7 @@ describe('IndexedDBEventStore', () => {
 
     // Create eventStore for tests that expect it to be available
     eventStore = new IndexedDBEventStore();
-    gameId = createMockGameId();
+    gameId = GameId.generate();
     // teamLineupId = TeamLineupId.generate();
     // inningStateId = InningStateId.generate();
   });
@@ -83,7 +84,7 @@ describe('IndexedDBEventStore', () => {
   describe('Database Schema Creation', () => {
     it('should initialize database ready for event operations', async () => {
       // Verify the store can perform basic operations (behavioral test)
-      const gameId = createMockGameId();
+      const gameId = GameId.generate();
       const event = createMockGameCreatedEvent(gameId);
 
       // The store should be initialized and ready to append events
@@ -108,7 +109,7 @@ describe('IndexedDBEventStore', () => {
 
     it('should handle database schema upgrades correctly', async () => {
       // This test validates schema migration handling
-      const gameId = createMockGameId();
+      const gameId = GameId.generate();
       const event = createMockGameCreatedEvent(gameId);
 
       // This should trigger database creation and schema setup
@@ -144,7 +145,7 @@ describe('IndexedDBEventStore', () => {
     });
 
     it('should handle empty result when no events exist', async () => {
-      const nonExistentGameId = createMockGameId();
+      const nonExistentGameId = GameId.generate();
 
       const retrievedEvents = await eventStore.getEvents(nonExistentGameId);
       expect(retrievedEvents).toHaveLength(0);
@@ -253,7 +254,7 @@ describe('IndexedDBEventStore Optimistic Locking', () => {
     (globalThis as any).IDBKeyRange = createMockIDBKeyRange();
 
     eventStore = new IndexedDBEventStore();
-    gameId = createMockGameId();
+    gameId = GameId.generate();
   });
 
   afterEach(() => {
@@ -283,7 +284,7 @@ describe('Error Handling and Edge Cases', () => {
     (globalThis as any).IDBKeyRange = createMockIDBKeyRange();
 
     eventStore = new IndexedDBEventStore();
-    gameId = createMockGameId();
+    gameId = GameId.generate();
   });
 
   afterEach(() => {
@@ -317,7 +318,7 @@ describe('IndexedDBEventStore Performance and Scalability', () => {
     (globalThis as any).IDBKeyRange = createMockIDBKeyRange();
 
     eventStore = new IndexedDBEventStore();
-    gameId = createMockGameId();
+    gameId = GameId.generate();
   });
 
   afterEach(() => {
@@ -357,7 +358,7 @@ describe('IndexedDBEventStore Index Optimization', () => {
     (globalThis as any).IDBKeyRange = createMockIDBKeyRange();
 
     eventStore = new IndexedDBEventStore();
-    gameId = createMockGameId();
+    gameId = GameId.generate();
   });
 
   afterEach(() => {
@@ -393,7 +394,7 @@ describe('IndexedDBEventStore Additional Methods Coverage', () => {
     (globalThis as any).IDBKeyRange = createMockIDBKeyRange();
 
     eventStore = new IndexedDBEventStore();
-    gameId = createMockGameId();
+    gameId = GameId.generate();
   });
 
   afterEach(() => {
@@ -509,7 +510,7 @@ describe('IndexedDBEventStore Additional Methods Coverage', () => {
     });
 
     it('should return empty array for non-existent game', async () => {
-      const nonExistentGameId = createMockGameId();
+      const nonExistentGameId = GameId.generate();
       const gameEvents = await eventStore.getGameEvents(nonExistentGameId);
       expect(gameEvents).toHaveLength(0);
     });
@@ -566,7 +567,7 @@ describe('IndexedDBEventStore Additional Methods Coverage', () => {
     });
 
     it('should return empty array for non-existent game', async () => {
-      const nonExistentGameId = createMockGameId();
+      const nonExistentGameId = GameId.generate();
       const events = await eventStore.getEventsByGameId(nonExistentGameId);
       expect(events).toHaveLength(0);
     });
@@ -733,7 +734,7 @@ describe('IndexedDBEventStore Parameter Validation', () => {
     (globalThis as any).IDBKeyRange = createMockIDBKeyRange();
 
     eventStore = new IndexedDBEventStore();
-    gameId = createMockGameId();
+    gameId = GameId.generate();
   });
 
   afterEach(() => {
@@ -812,7 +813,7 @@ describe('IndexedDBEventStore Error Scenarios', () => {
 
   beforeEach(() => {
     originalIndexedDB = (globalThis as { indexedDB: IDBFactory }).indexedDB;
-    gameId = createMockGameId();
+    gameId = GameId.generate();
   });
 
   afterEach(() => {

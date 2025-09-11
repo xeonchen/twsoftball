@@ -512,7 +512,7 @@ const architectureRules = {
 // package.json
 {
   "scripts": {
-    "deps:check": "dependency-cruiser --validate tools/dependency-cruiser.config.js packages",
+    "deps:check": "dependency-cruiser --config .dependency-cruiser.cjs packages",
     "precommit": "pnpm lint && pnpm typecheck && pnpm deps:check && pnpm test"
   }
 }
