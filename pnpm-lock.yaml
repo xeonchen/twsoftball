@@ -108,6 +108,9 @@ importers:
       '@twsoftball/domain':
         specifier: workspace:*
         version: link:../domain
+      '@twsoftball/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ^3.2.4

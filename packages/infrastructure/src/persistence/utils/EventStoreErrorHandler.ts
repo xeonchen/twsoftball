@@ -4,6 +4,8 @@
  * Provides consistent error wrapping and logging
  */
 
+import { SecureRandom } from '@twsoftball/shared';
+
 /**
  * Categorized error types for EventStore operations in TW Softball application.
  *
@@ -622,7 +624,8 @@ export class EventStoreErrorHandler {
     const baseDelay = 1000; // 1 second
     const maxDelay = 30000; // 30 seconds
     const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
-    const jitter = Math.random() * 0.1 * delay;
+    // Use SecureRandom for cryptographically secure jitter generation
+    const jitter = SecureRandom.randomFloatRange(0, 0.1 * delay);
     return delay + jitter;
   }
 }

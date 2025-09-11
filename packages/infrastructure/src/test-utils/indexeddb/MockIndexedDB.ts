@@ -1,3 +1,4 @@
+import { SecureRandom } from '@twsoftball/shared';
 import { vi } from 'vitest';
 
 /**
@@ -260,7 +261,7 @@ export class MockIDBObjectStore {
     const key =
       this.keyPath && typeof value === 'object' && value !== null
         ? ((value as Record<string, unknown>)[this.keyPath as string] as string)
-        : Math.random().toString();
+        : SecureRandom.randomStringId(8);
 
     if (typeof key === 'string') {
       this._data.set(key, value);
@@ -286,7 +287,7 @@ export class MockIDBObjectStore {
     const key =
       this.keyPath && typeof value === 'object' && value !== null
         ? ((value as Record<string, unknown>)[this.keyPath as string] as string)
-        : Math.random().toString();
+        : SecureRandom.randomStringId(8);
 
     if (typeof key === 'string') {
       this._data.set(key, value);

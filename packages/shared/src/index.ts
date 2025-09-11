@@ -1,3 +1,4 @@
 // Shared utilities and types
-// Currently empty - placeholder for future shared code
-export {};
+
+// Core utilities
+export { SecureRandom } from './utils/SecureRandom';

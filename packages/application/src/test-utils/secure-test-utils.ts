@@ -1,3 +1,5 @@
+import { SecureRandom } from '@twsoftball/shared';
+
 /**
  * Secure test utilities to replace Math.random() with cryptographically secure alternatives.
  *
@@ -5,8 +7,8 @@
  * This utility provides secure random generation for test scenarios, eliminating
  * security hotspots from static code analysis while maintaining test functionality.
  *
- * All methods use crypto.randomUUID() for secure random generation and provide
- * consistent formatting for test data.
+ * All methods delegate to SecureRandom primitives from the shared package for
+ * cryptographic security while providing domain-specific convenience methods.
  *
  * @example
  * ```typescript
@@ -30,7 +32,7 @@ export class SecureTestUtils {
    * @returns A secure random string identifier suitable for tests
    */
   static generateTestId(): string {
-    return crypto.randomUUID().substring(0, 8);
+    return SecureRandom.randomStringId(8);
   }
 
   /**
@@ -44,7 +46,7 @@ export class SecureTestUtils {
    */
   static generateEventId(): string {
     const timestamp = Date.now();
-    const randomId = crypto.randomUUID().substring(0, 8);
+    const randomId = SecureRandom.randomStringId(8);
     return `event-${timestamp}-${randomId}`;
   }
 
@@ -61,9 +63,8 @@ export class SecureTestUtils {
    */
   static generateTestTimestamp(baseTime?: number, maxOffsetMs: number = 1000): number {
     const base = baseTime ?? Date.now();
-    // Use crypto to generate random bytes and convert to offset
-    const randomBytes = crypto.getRandomValues(new Uint32Array(1));
-    const randomOffset = (randomBytes[0]! / 0xffffffff) * maxOffsetMs;
+    // Use SecureRandom for secure offset generation
+    const randomOffset = SecureRandom.randomFloatRange(0, maxOffsetMs);
     return base + randomOffset;
   }
 
@@ -78,7 +79,7 @@ export class SecureTestUtils {
    * @returns A secure random game identifier
    */
   static generateGameId(prefix: string = 'test-game'): string {
-    const randomId = crypto.randomUUID().substring(0, 7); // Match original length
+    const randomId = SecureRandom.randomStringId(7); // Match original length
     return `${prefix}-${randomId}`;
   }
 
@@ -93,7 +94,7 @@ export class SecureTestUtils {
    * @returns A secure random player identifier
    */
   static generatePlayerId(prefix: string = 'test-player'): string {
-    const randomId = crypto.randomUUID().substring(0, 7); // Match original length
+    const randomId = SecureRandom.randomStringId(7); // Match original length
     return `${prefix}-${randomId}`;
   }
 
@@ -109,9 +110,7 @@ export class SecureTestUtils {
    * @returns A secure random number within the specified range
    */
   static generateSecureRandomNumber(min: number = 0, max: number = 1): number {
-    const randomBytes = crypto.getRandomValues(new Uint32Array(1));
-    const randomFloat = randomBytes[0]! / 0xffffffff;
-    return min + randomFloat * (max - min);
+    return SecureRandom.randomFloatRange(min, max);
   }
 
   /**
@@ -126,9 +125,7 @@ export class SecureTestUtils {
    * @returns A secure random integer within the specified range
    */
   static generateSecureRandomInt(min: number = 0, max: number = 100): number {
-    const range = max - min;
-    const randomBytes = crypto.getRandomValues(new Uint32Array(1));
-    return min + (randomBytes[0]! % range);
+    return SecureRandom.randomInt(min, max);
   }
 }
 
