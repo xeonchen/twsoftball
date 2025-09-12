@@ -667,6 +667,37 @@ export class InMemoryEventStore implements EventStore {
   }
 
   /**
+   * Deletes all events for a specific stream.
+   *
+   * @remarks
+   * This method is primarily used for testing and administrative operations.
+   * It completely removes the event stream from the store, which is typically
+   * not done in production event sourcing scenarios as events are immutable.
+   *
+   * @param streamId - The unique identifier for the stream to delete
+   * @returns Promise that resolves when deletion is complete
+   */
+  async delete(streamId: GameId | TeamLineupId | InningStateId): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      try {
+        // Validate input parameter
+        if (!streamId) {
+          reject(new Error('Stream ID cannot be null or undefined'));
+          return;
+        }
+
+        // Delete the stream from storage
+        const streamKey = streamId.value;
+        this.streams.delete(streamKey);
+
+        resolve();
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  }
+
+  /**
    * Creates standardized metadata for stored events.
    *
    * @remarks

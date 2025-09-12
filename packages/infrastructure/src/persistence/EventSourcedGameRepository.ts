@@ -26,7 +26,7 @@ import { GameId, Game, GameStatus, DomainEvent } from '@twsoftball/domain';
  * event sourcing scenarios.
  */
 interface EventStoreWithDelete extends EventStore {
-  delete(streamId: GameId): Promise<void>;
+  delete(id: GameId): Promise<void>;
 }
 
 /**
