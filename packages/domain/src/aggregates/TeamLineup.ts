@@ -332,9 +332,8 @@ export class TeamLineup {
       }
 
       // Check if event has teamLineupId property and validate it
-      if ('teamLineupId' in event) {
-        const teamLineupEvent = event as { teamLineupId: TeamLineupId };
-        if (!teamLineupEvent.teamLineupId.equals(expectedTeamLineupId)) {
+      if (TeamLineup.hasTeamLineupId(event)) {
+        if (!event.teamLineupId.equals(expectedTeamLineupId)) {
           throw new DomainError('All events must belong to the same team lineup');
         }
       }
@@ -1152,6 +1151,30 @@ export class TeamLineup {
       default:
         break;
     }
+  }
+
+  /**
+   * Type guard to check if an event has a teamLineupId property.
+   *
+   * @param event - The domain event to check
+   * @returns True if the event has a teamLineupId property
+   *
+   * @remarks
+   * This type guard safely checks if a DomainEvent has a teamLineupId property
+   * without using unsafe type assertions. It uses duck typing to validate
+   * that the property exists and is a TeamLineupId instance.
+   */
+  private static hasTeamLineupId(
+    event: DomainEvent
+  ): event is DomainEvent & { teamLineupId: TeamLineupId } {
+    return (
+      'teamLineupId' in event &&
+      event['teamLineupId'] !== undefined &&
+      event['teamLineupId'] !== null &&
+      typeof event['teamLineupId'] === 'object' &&
+      'equals' in event['teamLineupId'] &&
+      typeof event['teamLineupId'].equals === 'function'
+    );
   }
 
   /**

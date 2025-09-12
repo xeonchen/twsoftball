@@ -38,10 +38,10 @@ Application Layer (Use Cases) 🚀 IN DEVELOPMENT
 ├── services/     # Application services
 └── dtos/         # Data Transfer Objects
 
-Infrastructure Layer (Adapters) ⏳ PENDING
-├── persistence/  # IndexedDB, SQLite implementations
-├── auth/         # Authentication adapters
-└── config/       # Dependency injection
+Infrastructure Layer (Adapters) 🚀 IN DEVELOPMENT
+├── persistence/  # IndexedDB, InMemory EventStore implementations ✅ COMPLETED
+├── auth/         # Authentication adapters ⏳ PENDING
+└── config/       # Dependency injection ⏳ PENDING
 
 Web Layer (Presentation) ⏳ PENDING
 ├── adapters/     # Controllers, presenters
@@ -95,7 +95,9 @@ pnpm typecheck        # TypeScript check
 pnpm deps:check       # Architecture violations
 
 # Package-specific
+pnpm --filter @twsoftball/domain test           # Domain tests only
 pnpm --filter @twsoftball/domain typecheck      # Domain typecheck
+pnpm --filter @twsoftball/infrastructure test   # Infrastructure tests only
 ```
 
 ## 🧪 Testing Strategy
@@ -162,4 +164,4 @@ Built with ❤️ using Hexagonal Architecture and Event Sourcing
 - **Domain Layer**: 99%+ test coverage with comprehensive softball business
   rules
 - **Architecture**: Strict layer separation with automated violation detection
-- **Quality**: 1,143+ tests validating complex game scenarios and edge cases
+- **Quality**: 4,600+ tests validating complex game scenarios and edge cases

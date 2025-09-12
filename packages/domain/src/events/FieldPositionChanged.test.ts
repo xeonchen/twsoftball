@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
 import { FieldPosition } from '../constants/FieldPosition';
-import { DomainError } from '../errors/DomainError';
 import { GameId } from '../value-objects/GameId';
 import { PlayerId } from '../value-objects/PlayerId';
 import { TeamLineupId } from '../value-objects/TeamLineupId';
@@ -116,7 +115,12 @@ describe('FieldPositionChanged', () => {
             FieldPosition.SECOND_BASE,
             0
           )
-      ).toThrow(new DomainError('Inning must be 1 or greater'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Inning must be 1 or greater',
+          name: 'DomainError',
+        }) as Error
+      );
 
       expect(
         () =>
@@ -128,7 +132,12 @@ describe('FieldPositionChanged', () => {
             FieldPosition.SHORTSTOP,
             -1
           )
-      ).toThrow(new DomainError('Inning must be 1 or greater'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Inning must be 1 or greater',
+          name: 'DomainError',
+        }) as Error
+      );
     });
   });
 
@@ -164,7 +173,12 @@ describe('FieldPositionChanged', () => {
               position, // Same position
               1
             )
-        ).toThrow(new DomainError('From and to positions must be different'));
+        ).toThrow(
+          expect.objectContaining({
+            message: 'From and to positions must be different',
+            name: 'DomainError',
+          }) as Error
+        );
       });
     });
 

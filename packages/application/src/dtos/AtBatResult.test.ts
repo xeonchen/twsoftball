@@ -809,7 +809,10 @@ describe('AtBatResult', () => {
       };
 
       expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-        new AtBatResultValidationError('gameState currentInning must be a positive number')
+        expect.objectContaining({
+          message: 'gameState currentInning must be a positive number',
+          name: 'AtBatResultValidationError',
+        }) as Error
       );
     });
 

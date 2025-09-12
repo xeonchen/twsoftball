@@ -44,7 +44,12 @@ describe('NumericValidation', () => {
 
       expect(() =>
         NumericValidation.validateNumber(undefined as unknown as number, 'jersey')
-      ).toThrow(new DomainError('jersey must be a valid number'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'jersey must be a valid number',
+          name: 'DomainError',
+        }) as Error
+      );
 
       expect(() => NumericValidation.validateNumber([] as unknown as number, 'count')).toThrow(
         new DomainError('count must be a valid number')

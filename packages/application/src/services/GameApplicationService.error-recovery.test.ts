@@ -1,6 +1,6 @@
 /**
- * @file GameApplicationService.test.ts
- * Comprehensive tests for the GameApplicationService orchestrator.
+ * @file GameApplicationService.error-recovery.test.ts
+ * Error Recovery and Concurrency tests for the GameApplicationService.
  *
  * @remarks
  * These tests verify the GameApplicationService's ability to orchestrate complex
@@ -8,11 +8,11 @@
  * and provide transactional boundaries for multi-step business processes.
  *
  * **Test Coverage Areas**:
- * - Game lifecycle orchestration (start → record → end)
- * - Complex workflow coordination (multi-step operations)
- * - Transaction management and rollback scenarios
- * - Error recovery and compensation actions
- * - Business rule validation across use cases
+ * - Error recovery and retry mechanisms
+ * - Compensation pattern execution
+ * - Concurrent operation handling and race conditions
+ * - Advanced workflow state management
+ * - System boundary and performance edge cases
  * - Audit and logging verification
  *
  * **Testing Strategy**:
@@ -43,13 +43,11 @@ import { CompleteAtBatSequenceCommand } from '../dtos/CompleteAtBatSequenceComma
 import { CompleteGameWorkflowCommand } from '../dtos/CompleteGameWorkflowCommand';
 import { GameStartResult } from '../dtos/GameStartResult';
 import { GameStateDTO } from '../dtos/GameStateDTO';
-import { InningEndResult } from '../dtos/InningEndResult';
 import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand';
 import { RedoResult } from '../dtos/RedoResult';
 import { StartNewGameCommand } from '../dtos/StartNewGameCommand';
 import { UndoResult } from '../dtos/UndoResult';
 // Port imports
-import { UserProfile, SessionInfo } from '../ports/out/AuthService';
 // Test factory imports
 import { createGameStateDTO } from '../test-factories/dto-factories';
 import { createGameApplicationServiceMocks } from '../test-factories/mock-service-factories';
@@ -65,35 +63,6 @@ import { UndoLastAction } from '../use-cases/UndoLastAction';
 // Note: These imports available for potential future test expansion
 // import { SubstitutePlayerCommand } from '../dtos/SubstitutePlayerCommand';
 // import { SubstitutionResult } from '../dtos/SubstitutionResult';
-// Test helper functions for creating proper test objects
-function createTestUserProfile(overrides: Partial<UserProfile> = {}): UserProfile {
-  return {
-    id: 'user123',
-    username: 'testuser',
-    email: 'test@example.com',
-    displayName: 'Test User',
-    roles: ['PLAYER'],
-    isActive: true,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
-    ...overrides,
-  };
-}
-
-function createTestSessionInfo(overrides: Partial<SessionInfo> = {}): SessionInfo {
-  return {
-    sessionId: 'session123',
-    userId: 'user123',
-    isActive: true,
-    createdAt: new Date('2024-01-01'),
-    lastActivityAt: new Date('2024-01-01'),
-    expiresAt: new Date('2024-01-02'),
-    authMethod: 'local',
-    ipAddress: '127.0.0.1',
-    userAgent: 'test-agent',
-    ...overrides,
-  };
-}
 // DTO imports
 
 // Port imports
@@ -164,1044 +133,6 @@ describe('GameApplicationService', () => {
       mocks.mockNotificationService,
       mocks.mockAuthService
     );
-  });
-
-  describe('Game Lifecycle Orchestration', () => {
-    describe('startNewGameWithNotifications', () => {
-      it('should successfully start game and send notifications', async () => {
-        // Arrange
-        const command = {
-          gameId,
-          homeTeamName: 'Home Team',
-          awayTeamName: 'Away Team',
-          ourTeamSide: 'HOME',
-          gameDate: new Date(),
-          location: 'Test Field',
-          initialLineup: [],
-          gameRules: {
-            mercyRuleEnabled: false,
-            mercyRuleInning4: 15,
-            mercyRuleInning5: 10,
-            timeLimitMinutes: 60,
-            extraPlayerAllowed: false,
-            maxPlayersInLineup: 9,
-          },
-        } as StartNewGameCommand;
-
-        const expectedResult: GameStartResult = {
-          success: true,
-          gameId,
-          initialState: {
-            gameId,
-            status: GameStatus.IN_PROGRESS,
-            currentInning: 1,
-            isTopHalf: true,
-          } as GameStateDTO,
-        };
-
-        mocks.functions.executeStartNewGame.mockResolvedValue(expectedResult);
-        mocks.functions.authenticateUser.mockResolvedValue({
-          success: true,
-          user: createTestUserProfile(),
-          session: createTestSessionInfo(),
-          timestamp: new Date(),
-        });
-
-        // Act
-        const result = await gameApplicationService.startNewGameWithNotifications(command);
-
-        // Assert
-        expect(result.success).toBe(true);
-        expect(result.gameId).toEqual(gameId);
-        expect(mocks.functions.executeStartNewGame).toHaveBeenCalledWith(command);
-        expect(mocks.functions.notifyGameStarted).toHaveBeenCalledWith({
-          gameId,
-          homeTeam: 'Home Team',
-          awayTeam: 'Away Team',
-          startTime: expect.any(Date),
-        });
-        expect(mocks.functions.loggerInfo).toHaveBeenCalledWith(
-          'Game started successfully with notifications',
-          expect.objectContaining({
-            gameId: gameId.value,
-            operation: 'startNewGameWithNotifications',
-          })
-        );
-      });
-
-      it('should handle start game failure gracefully', async () => {
-        // Arrange
-        const command: StartNewGameCommand = {
-          gameId,
-          homeTeamName: 'Home Team',
-          awayTeamName: 'Away Team',
-        } as StartNewGameCommand;
-
-        const expectedError = new DomainError('Invalid lineup configuration');
-        mocks.functions.executeStartNewGame.mockRejectedValue(expectedError);
-
-        // Act
-        const result = await gameApplicationService.startNewGameWithNotifications(command);
-
-        // Assert
-        expect(result.success).toBe(false);
-        expect(result.errors).toContain('Invalid lineup configuration');
-        expect(mocks.functions.notifyGameStarted).not.toHaveBeenCalled();
-        expect(mocks.functions.loggerError).toHaveBeenCalledWith(
-          'Failed to start new game',
-          expectedError,
-          expect.objectContaining({
-            gameId: gameId.value,
-            operation: 'startNewGameWithNotifications',
-          })
-        );
-      });
-
-      it('should handle notification service failure gracefully', async () => {
-        // Arrange
-        const command: StartNewGameCommand = {
-          gameId,
-          homeTeamName: 'Home Team',
-          awayTeamName: 'Away Team',
-        } as StartNewGameCommand;
-
-        const expectedResult: GameStartResult = {
-          success: true,
-          gameId,
-          initialState: {
-            gameId,
-            status: GameStatus.IN_PROGRESS,
-            currentInning: 1,
-            isTopHalf: true,
-          } as GameStateDTO,
-        };
-
-        mocks.functions.executeStartNewGame.mockResolvedValue(expectedResult);
-        mocks.functions.notifyGameStarted.mockRejectedValue(
-          new Error('Notification service unavailable')
-        );
-
-        // Act
-        const result = await gameApplicationService.startNewGameWithNotifications(command);
-
-        // Assert
-        expect(result.success).toBe(true); // Game creation should still succeed
-        expect(mocks.functions.loggerWarn).toHaveBeenCalledWith(
-          'Failed to send game start notification',
-          expect.objectContaining({
-            gameId: gameId.value,
-          })
-        );
-      });
-    });
-
-    describe('completeGameWorkflow', () => {
-      it('should execute complete game workflow from start to completion', async () => {
-        // Arrange
-        const command: CompleteGameWorkflowCommand = {
-          startGameCommand: {
-            gameId,
-            homeTeamName: 'Tigers',
-            awayTeamName: 'Lions',
-          } as StartNewGameCommand,
-          atBatSequences: [
-            {
-              gameId,
-              batterId: playerId,
-              result: AtBatResultType.SINGLE,
-            } as RecordAtBatCommand,
-          ],
-          substitutions: [],
-          endGameNaturally: true,
-        };
-
-        // Mock successful responses
-        mocks.functions.executeStartNewGame.mockResolvedValue({
-          success: true,
-          gameId,
-          initialState: {
-            gameId,
-            status: GameStatus.IN_PROGRESS,
-            currentInning: 1,
-            isTopHalf: true,
-          } as GameStateDTO,
-        } as GameStartResult);
-
-        mocks.functions.executeRecordAtBat.mockResolvedValue({
-          success: true,
-          gameEnded: true,
-          runsScored: 1,
-        } as AtBatResult);
-
-        mocks.functions.authenticateUser.mockResolvedValue({
-          success: true,
-          user: createTestUserProfile(),
-          session: createTestSessionInfo(),
-          timestamp: new Date(),
-        });
-
-        // Act
-        const result = await gameApplicationService.completeGameWorkflow(command);
-
-        // Assert
-        expect(result.success).toBe(true);
-        expect(result.gameId).toEqual(gameId);
-        expect(result.totalAtBats).toBe(1);
-        expect(result.totalRuns).toBe(1);
-        expect(result.gameCompleted).toBe(true);
-        expect(mocks.functions.executeStartNewGame).toHaveBeenCalled();
-        expect(mocks.functions.executeRecordAtBat).toHaveBeenCalled();
-        expect(mocks.functions.notifyGameEnded).toHaveBeenCalled();
-      });
-
-      it('should handle partial workflow failure with proper rollback', async () => {
-        // Arrange
-        const command: CompleteGameWorkflowCommand = {
-          startGameCommand: {
-            gameId,
-            homeTeamName: 'Tigers',
-            awayTeamName: 'Lions',
-          } as StartNewGameCommand,
-          atBatSequences: [
-            {
-              gameId,
-              batterId: playerId,
-              result: AtBatResultType.SINGLE,
-            } as RecordAtBatCommand,
-          ],
-          substitutions: [],
-          endGameNaturally: false,
-        };
-
-        // Mock successful game start but failed at-bat
-        mocks.functions.executeStartNewGame.mockResolvedValue({
-          success: true,
-          gameId,
-        } as GameStartResult);
-
-        mocks.functions.executeRecordAtBat.mockResolvedValue({
-          success: false,
-          errors: ['Invalid at-bat configuration'],
-        } as AtBatResult);
-
-        // Act
-        const result = await gameApplicationService.completeGameWorkflow(command);
-
-        // Assert
-        expect(result.success).toBe(false);
-        expect(result.errors).toContain(
-          'Workflow failed during at-bat sequence: Invalid at-bat configuration'
-        );
-        expect(result.totalAtBats).toBe(0);
-        expect(mocks.functions.loggerError).toHaveBeenCalledWith(
-          'Game workflow failed, attempting compensation',
-          undefined,
-          expect.objectContaining({
-            gameId: expect.any(String),
-            operation: 'completeGameWorkflow',
-            errors: expect.any(Array),
-          })
-        );
-      });
-
-      it('should stop execution early when max attempts exceeded', async () => {
-        // Arrange
-        const command: CompleteGameWorkflowCommand = {
-          startGameCommand: {
-            gameId,
-            homeTeamName: 'Tigers',
-            awayTeamName: 'Lions',
-          } as StartNewGameCommand,
-          atBatSequences: Array(10).fill({
-            gameId,
-            batterId: playerId,
-            result: AtBatResultType.SINGLE,
-          } as RecordAtBatCommand),
-          substitutions: [],
-          endGameNaturally: false,
-          maxAttempts: 3,
-        };
-
-        mocks.functions.executeStartNewGame.mockResolvedValue({
-          success: true,
-          gameId,
-        } as GameStartResult);
-
-        // Mock failures for all at-bats
-        mocks.functions.executeRecordAtBat.mockResolvedValue({
-          success: false,
-          errors: ['Failed at-bat'],
-        } as AtBatResult);
-
-        // Act
-        const result = await gameApplicationService.completeGameWorkflow(command);
-
-        // Assert
-        expect(result.success).toBe(false);
-        expect(mocks.functions.executeRecordAtBat).toHaveBeenCalledTimes(3); // Should stop at maxAttempts
-        expect(result.errors).toContain('Maximum workflow attempts exceeded (3)');
-      });
-    });
-  });
-
-  describe('Complex Workflow Coordination', () => {
-    describe('completeAtBatSequence', () => {
-      it('should coordinate complete at-bat sequence with inning management', async () => {
-        // Arrange
-        const command: CompleteAtBatSequenceCommand = {
-          gameId,
-          atBatCommand: {
-            gameId,
-            batterId: playerId,
-            result: AtBatResultType.HOME_RUN,
-          } as RecordAtBatCommand,
-          checkInningEnd: true,
-          handleSubstitutions: true,
-          notifyScoreChanges: true,
-        };
-
-        mocks.functions.executeRecordAtBat.mockResolvedValue({
-          success: true,
-          inningEnded: true,
-          runsScored: 1,
-          gameState: {
-            gameId,
-            status: GameStatus.IN_PROGRESS,
-            currentInning: 2,
-            isTopHalf: false,
-          },
-        } as AtBatResult);
-
-        mocks.functions.executeEndInning.mockResolvedValue({
-          success: true,
-          gameState: createGameStateDTO(GameId.generate()),
-          transitionType: 'FULL_INNING',
-          previousHalf: { inning: 1, isTopHalf: false },
-          newHalf: { inning: 2, isTopHalf: true },
-          gameEnded: false,
-          endingReason: 'THREE_OUTS',
-          finalOuts: 3,
-          eventsGenerated: ['HalfInningEnded', 'InningAdvanced'],
-        } as InningEndResult);
-
-        // Act
-        const result = await gameApplicationService.completeAtBatSequence(command);
-
-        // Assert
-        expect(result.success).toBe(true);
-        expect(result.atBatResult.success).toBe(true);
-        expect(result.inningEndResult?.success).toBe(true);
-        expect(result.scoreUpdateSent).toBe(true);
-        expect(mocks.functions.executeRecordAtBat).toHaveBeenCalledWith(command.atBatCommand);
-        expect(mocks.functions.executeEndInning).toHaveBeenCalled();
-        expect(mocks.functions.notifyScoreUpdate).toHaveBeenCalledWith(
-          gameId.value,
-          expect.objectContaining({
-            homeScore: expect.any(Number),
-            awayScore: expect.any(Number),
-            inning: expect.any(Number),
-            scoringPlay: expect.stringContaining('run'),
-          })
-        );
-      });
-
-      it('should handle at-bat success but skip inning end when not needed', async () => {
-        // Arrange
-        const command: CompleteAtBatSequenceCommand = {
-          gameId,
-          atBatCommand: {
-            gameId,
-            batterId: playerId,
-            result: AtBatResultType.SINGLE,
-          } as RecordAtBatCommand,
-          checkInningEnd: true,
-        };
-
-        mocks.functions.executeRecordAtBat.mockResolvedValue({
-          success: true,
-          inningEnded: false,
-          runsScored: 0,
-        } as AtBatResult);
-
-        // Act
-        const result = await gameApplicationService.completeAtBatSequence(command);
-
-        // Assert
-        expect(result.success).toBe(true);
-        expect(result.inningEndResult).toBeUndefined();
-        expect(mocks.functions.executeEndInning).not.toHaveBeenCalled();
-      });
-
-      it('should handle at-bat failure and stop sequence', async () => {
-        // Arrange
-        const command: CompleteAtBatSequenceCommand = {
-          gameId,
-          atBatCommand: {
-            gameId,
-            batterId: playerId,
-            result: AtBatResultType.SINGLE,
-          } as RecordAtBatCommand,
-        };
-
-        mocks.functions.executeRecordAtBat.mockResolvedValue({
-          success: false,
-          errors: ['Invalid batter'],
-        } as AtBatResult);
-
-        // Act
-        const result = await gameApplicationService.completeAtBatSequence(command);
-
-        // Assert
-        expect(result.success).toBe(false);
-        expect(result.errors).toContain('At-bat failed: Invalid batter');
-        expect(mocks.functions.executeEndInning).not.toHaveBeenCalled();
-      });
-    });
-
-    describe('executeWithCompensation', () => {
-      it('should execute operation and handle compensation on failure', async () => {
-        // Arrange
-        const operation = vi
-          .fn()
-          .mockResolvedValue({ success: false, errors: ['Operation failed'] });
-        const compensation = vi.fn().mockResolvedValue({ success: true });
-
-        // Act
-        const result = await gameApplicationService.executeWithCompensation(
-          'test-operation',
-          operation,
-          compensation,
-          { gameId: gameId.value }
-        );
-
-        // Assert
-        expect((result as TestResult).success).toBe(false);
-        expect(result.compensationApplied).toBe(true);
-        expect(operation).toHaveBeenCalled();
-        expect(compensation).toHaveBeenCalled();
-        expect(mocks.functions.loggerWarn).toHaveBeenCalledWith(
-          'Applied compensation for failed operation',
-          expect.objectContaining({
-            operation: 'test-operation',
-            gameId: gameId.value,
-          })
-        );
-      });
-
-      it('should execute operation successfully without compensation', async () => {
-        // Arrange
-        const operation = vi.fn().mockResolvedValue({ success: true, data: 'result' });
-        const compensation = vi.fn();
-
-        // Act
-        const result = await gameApplicationService.executeWithCompensation(
-          'test-operation',
-          operation,
-          compensation,
-          { gameId: gameId.value }
-        );
-
-        // Assert
-        expect((result as TestResult).success).toBe(true);
-        expect(result.compensationApplied).toBe(false);
-        expect(operation).toHaveBeenCalled();
-        expect(compensation).not.toHaveBeenCalled();
-      });
-
-      it('should handle compensation failure gracefully', async () => {
-        // Arrange
-        const operation = vi
-          .fn()
-          .mockResolvedValue({ success: false, errors: ['Operation failed'] });
-        const compensation = vi.fn().mockRejectedValue(new Error('Compensation failed'));
-
-        // Act
-        const result = await gameApplicationService.executeWithCompensation(
-          'test-operation',
-          operation,
-          compensation,
-          { gameId: gameId.value }
-        );
-
-        // Assert
-        expect((result as TestResult).success).toBe(false);
-        expect(result.compensationApplied).toBe(false);
-        expect(mocks.functions.loggerError).toHaveBeenCalledWith(
-          'Compensation failed for operation',
-          expect.any(Error),
-          expect.objectContaining({
-            operation: 'test-operation',
-          })
-        );
-      });
-    });
-  });
-
-  describe('Transaction Management', () => {
-    describe('executeInTransaction', () => {
-      it('should execute multiple operations atomically', async () => {
-        // Arrange
-        const operations = [
-          vi.fn().mockResolvedValue({ success: true, data: 'op1' }),
-          vi.fn().mockResolvedValue({ success: true, data: 'op2' }),
-          vi.fn().mockResolvedValue({ success: true, data: 'op3' }),
-        ];
-
-        // Act
-        const result = await gameApplicationService.executeInTransaction(
-          'multi-operation',
-          operations,
-          { gameId: gameId.value }
-        );
-
-        // Assert
-        expect(result.success).toBe(true);
-        expect(result.results).toHaveLength(3);
-        expect((result.results[0] as TestResult).data).toBe('op1');
-        expect((result.results[1] as TestResult).data).toBe('op2');
-        expect((result.results[2] as TestResult).data).toBe('op3');
-        operations.forEach(op => expect(op).toHaveBeenCalled());
-      });
-
-      it('should rollback on any operation failure', async () => {
-        // Arrange
-        const operations = [
-          vi.fn().mockResolvedValue({ success: true, data: 'op1' }),
-          vi.fn().mockResolvedValue({ success: false, errors: ['Op2 failed'] }),
-          vi.fn().mockResolvedValue({ success: true, data: 'op3' }),
-        ];
-
-        // Act
-        const result = await gameApplicationService.executeInTransaction(
-          'multi-operation',
-          operations,
-          { gameId: gameId.value }
-        );
-
-        // Assert
-        expect(result.success).toBe(false);
-        expect(result.rollbackApplied).toBe(true);
-        expect(result.errors).toContain('Transaction failed at operation 1: Op2 failed');
-        expect(operations[0]).toHaveBeenCalled();
-        expect(operations[1]).toHaveBeenCalled();
-        expect(operations[2]).not.toHaveBeenCalled(); // Should stop at failure
-      });
-
-      it('should handle operation exception and perform rollback', async () => {
-        // Arrange
-        const operations = [
-          vi.fn().mockResolvedValue({ success: true, data: 'op1' }),
-          vi.fn().mockRejectedValue(new Error('Op2 exception')),
-        ];
-
-        // Act
-        const result = await gameApplicationService.executeInTransaction(
-          'multi-operation',
-          operations,
-          { gameId: gameId.value }
-        );
-
-        // Assert
-        expect(result.success).toBe(false);
-        expect(result.rollbackApplied).toBe(true);
-        expect(result.errors).toContain('Transaction exception at operation 1: Op2 exception');
-        expect(mocks.functions.loggerError).toHaveBeenCalledWith(
-          'Transaction failed with exception',
-          expect.any(Error),
-          expect.objectContaining({
-            operation: 'multi-operation',
-            failedAt: 1,
-          })
-        );
-      });
-
-      it('should handle undefined operations in transaction gracefully', async () => {
-        // Arrange - Operations array with undefined element
-        const operations = [
-          vi.fn().mockResolvedValue({ success: true, data: 'op1' }),
-          undefined as unknown as () => Promise<unknown>,
-          vi.fn().mockResolvedValue({ success: true, data: 'op3' }),
-        ];
-
-        // Act
-        const result = await gameApplicationService.executeInTransaction(
-          'multi-operation-with-undefined',
-          operations,
-          { gameId: gameId.value }
-        );
-
-        // Assert
-        expect(result.success).toBe(false);
-        expect(result.rollbackApplied).toBe(true);
-        expect(result.errors).toContain(
-          'Transaction exception at operation 1: Operation at index 1 is undefined'
-        );
-        expect(operations[0]).toHaveBeenCalled();
-        expect(operations[2]).not.toHaveBeenCalled();
-      });
-
-      it('should handle operation failure with complex error structures', async () => {
-        // Arrange - Operation that fails with complex error array
-        const operations = [
-          vi.fn().mockResolvedValue({ success: true, data: 'op1' }),
-          vi.fn().mockResolvedValue({
-            success: false,
-            errors: [
-              'Primary validation failed',
-              'Secondary check failed',
-              'Tertiary rule violated',
-            ],
-          }),
-        ];
-
-        // Act
-        const result = await gameApplicationService.executeInTransaction(
-          'complex-error-transaction',
-          operations,
-          { gameId: gameId.value, complexErrorTest: true }
-        );
-
-        // Assert
-        expect(result.success).toBe(false);
-        expect(result.rollbackApplied).toBe(true);
-        expect(result.errors).toContain(
-          'Transaction failed at operation 1: Primary validation failed, Secondary check failed, Tertiary rule violated'
-        );
-        expect(operations[0]).toHaveBeenCalled();
-        expect(operations[1]).toHaveBeenCalled();
-      });
-
-      it('should handle operation failure without error array', async () => {
-        // Arrange - Operation that fails without errors array
-        const operations = [
-          vi.fn().mockResolvedValue({ success: true, data: 'op1' }),
-          vi.fn().mockResolvedValue({
-            success: false,
-            message: 'Operation failed but no errors array',
-          }),
-        ];
-
-        // Act
-        const result = await gameApplicationService.executeInTransaction(
-          'no-errors-array-transaction',
-          operations,
-          { gameId: gameId.value }
-        );
-
-        // Assert
-        expect(result.success).toBe(false);
-        expect(result.rollbackApplied).toBe(true);
-        expect(result.errors).toContain('Transaction failed at operation 1: Operation failed');
-        expect(operations[0]).toHaveBeenCalled();
-        expect(operations[1]).toHaveBeenCalled();
-      });
-
-      it('should handle transaction system error gracefully', async (): Promise<void> => {
-        // Test the catch block in executeInTransaction by creating operations that cause a system error
-        const operations = [
-          vi.fn().mockResolvedValue({ success: true, data: 'op1' }),
-          (): never => {
-            throw new Error('System operation failure');
-          }, // This will trigger the catch block
-        ];
-
-        // Act
-        const result = await gameApplicationService.executeInTransaction(
-          'system-error-transaction',
-          operations,
-          { gameId: gameId.value }
-        );
-
-        // Assert - when a system error occurs during operation execution, rollback is attempted
-        expect(result.success).toBe(false);
-        expect(result.rollbackApplied).toBe(true); // Rollback is applied when system error occurs
-        expect(result.errors).toEqual(
-          expect.arrayContaining([
-            expect.stringMatching(/Transaction exception at operation 1: System operation failure/),
-          ])
-        );
-      });
-
-      it('should maintain ACID properties during nested transaction workflows', async () => {
-        // Given: Complex multi-step workflow with potential failure points
-        let atBatExecuted = false;
-        let inningProcessed = false;
-        let scoresUpdated = false;
-
-        const operations = [
-          // Operation 1: Record at-bat (succeeds)
-          vi.fn().mockImplementation(() => {
-            atBatExecuted = true;
-            return { success: true, data: 'at-bat-recorded', playerId: playerId.value };
-          }),
-          // Operation 2: Process inning change (succeeds)
-          vi.fn().mockImplementation(() => {
-            inningProcessed = true;
-            return { success: true, data: 'inning-processed', newInning: 2 };
-          }),
-          // Operation 3: Update scores (fails at step 3 of 5)
-          vi.fn().mockImplementation(() => {
-            scoresUpdated = true;
-            return {
-              success: false,
-              errors: ['Score calculation failed', 'Database constraint violation'],
-            };
-          }),
-        ];
-
-        // When: Operation fails at step 3 of 5
-        const result = await gameApplicationService.executeInTransaction(
-          'complex-game-workflow',
-          operations,
-          {
-            gameId: gameId.value,
-            workflowType: 'nested-transaction',
-            totalSteps: 5,
-            criticalSection: true,
-          }
-        );
-
-        // Then: Steps 1-2 rolled back, state consistent, audit preserved
-        expect(result.success).toBe(false);
-        expect(result.rollbackApplied).toBe(true);
-        expect(result.results).toHaveLength(2); // Only successful operations before failure
-        expect(result.errors).toContain(
-          'Transaction failed at operation 2: Score calculation failed, Database constraint violation'
-        );
-
-        // Verify all operations up to failure were executed
-        expect(atBatExecuted).toBe(true);
-        expect(inningProcessed).toBe(true);
-        expect(scoresUpdated).toBe(true);
-
-        // Verify rollback was logged with proper context
-        expect(mocks.functions.loggerWarn).toHaveBeenCalledWith(
-          'Performing transaction rollback',
-          expect.objectContaining({
-            transaction: 'complex-game-workflow',
-            operationsToRollback: 2,
-            gameId: gameId.value,
-            workflowType: 'nested-transaction',
-          })
-        );
-      });
-
-      it('should handle compensation chain failures gracefully', async () => {
-        // Given: Workflow with compensation actions that will trigger rollback
-        const operations = [
-          vi.fn().mockResolvedValue({ success: true, data: 'primary-operation-succeeded' }),
-          vi.fn().mockResolvedValue({ success: false, errors: ['Primary operation failed'] }),
-        ];
-
-        // When: Primary fails, compensation is triggered
-        const result = await gameApplicationService.executeInTransaction(
-          'compensation-chain-failure',
-          operations,
-          {
-            gameId: gameId.value,
-            compensationType: 'critical-rollback',
-          }
-        );
-
-        // Then: Transaction fails and rollback is applied
-        expect(result.success).toBe(false);
-        expect(result.rollbackApplied).toBe(true);
-        expect(result.errors).toContain(
-          'Transaction failed at operation 1: Primary operation failed'
-        );
-
-        // Verify rollback was attempted
-        expect(mocks.functions.loggerWarn).toHaveBeenCalledWith(
-          'Performing transaction rollback',
-          expect.objectContaining({
-            transaction: 'compensation-chain-failure',
-            operationsToRollback: 1,
-            gameId: gameId.value,
-            compensationType: 'critical-rollback',
-          })
-        );
-      });
-
-      it('should verify transaction boundary isolation', async () => {
-        // Given: Two concurrent transaction attempts
-        let transaction1State = 'initial';
-        let transaction2State = 'initial';
-
-        const transaction1Operations = [
-          vi.fn().mockImplementation(async () => {
-            transaction1State = 'modified';
-            // Simulate processing time
-            await new Promise(resolve => setTimeout(resolve, 50));
-            return { success: true, data: 'tx1-step1' };
-          }),
-          vi.fn().mockImplementation(() => {
-            // This should fail and trigger rollback
-            return { success: false, errors: ['Transaction 1 intentional failure'] };
-          }),
-        ];
-
-        const transaction2Operations = [
-          vi.fn().mockImplementation(() => {
-            transaction2State = 'modified';
-            return { success: true, data: 'tx2-step1' };
-          }),
-          vi.fn().mockImplementation(() => {
-            return { success: true, data: 'tx2-step2' };
-          }),
-        ];
-
-        // When: Both transactions execute concurrently
-        const [result1, result2] = await Promise.all([
-          gameApplicationService.executeInTransaction('concurrent-tx1', transaction1Operations, {
-            gameId: gameId.value,
-            isolationLevel: 'strict',
-          }),
-          gameApplicationService.executeInTransaction('concurrent-tx2', transaction2Operations, {
-            gameId: gameId.value,
-            isolationLevel: 'strict',
-          }),
-        ]);
-
-        // Then: Transaction boundaries maintained, no cross-contamination
-        expect(result1.success).toBe(false);
-        expect(result1.rollbackApplied).toBe(true);
-        expect(result2.success).toBe(true);
-        expect(result2.rollbackApplied).toBe(false);
-
-        // Verify state modifications occurred independently
-        expect(transaction1State).toBe('modified');
-        expect(transaction2State).toBe('modified');
-      });
-
-      it('should handle rollback scenarios when operations fail mid-process', async () => {
-        // Given: Multi-step operation with mid-process failure
-        const operationStates: string[] = [];
-
-        const operations = [
-          vi.fn().mockImplementation(() => {
-            operationStates.push('step1-executed');
-            return { success: true, data: 'step1-complete', rollbackData: 'step1-rollback-info' };
-          }),
-          vi.fn().mockImplementation(() => {
-            operationStates.push('step2-executed');
-            return { success: true, data: 'step2-complete', rollbackData: 'step2-rollback-info' };
-          }),
-          vi.fn().mockImplementation((): never => {
-            operationStates.push('step3-started');
-            // Simulate mid-process failure (after starting but before completing)
-            throw new Error('Mid-process failure during step 3 execution');
-          }),
-          vi.fn().mockImplementation(() => {
-            operationStates.push('step4-should-not-execute');
-            return { success: true, data: 'step4-complete' };
-          }),
-        ];
-
-        // When: Operation fails mid-process at step 3
-        const result = await gameApplicationService.executeInTransaction(
-          'mid-process-failure-transaction',
-          operations,
-          {
-            gameId: gameId.value,
-            rollbackStrategy: 'immediate',
-            auditLevel: 'detailed',
-          }
-        );
-
-        // Then: Proper rollback triggered, audit trail maintained
-        expect(result.success).toBe(false);
-        expect(result.rollbackApplied).toBe(true);
-        expect(result.errors).toContain(
-          'Transaction exception at operation 2: Mid-process failure during step 3 execution'
-        );
-
-        // Verify execution sequence: steps 1,2,3 executed, step 4 never reached
-        expect(operationStates).toEqual(['step1-executed', 'step2-executed', 'step3-started']);
-
-        // Verify operations called in correct sequence
-        expect(operations[0]).toHaveBeenCalled();
-        expect(operations[1]).toHaveBeenCalled();
-        expect(operations[2]).toHaveBeenCalled();
-        expect(operations[3]).not.toHaveBeenCalled();
-
-        // Verify rollback logging with context
-        expect(mocks.functions.loggerWarn).toHaveBeenCalledWith(
-          'Performing transaction rollback',
-          expect.objectContaining({
-            transaction: 'mid-process-failure-transaction',
-            operationsToRollback: 2, // steps 1 and 2 need rollback
-            gameId: gameId.value,
-            rollbackStrategy: 'immediate',
-          })
-        );
-      });
-
-      it('should handle transaction with operations returning different result formats', async () => {
-        // Test various result formats to improve branch coverage
-        const operations = [
-          vi.fn().mockResolvedValue({ success: true, data: 'string-result' }),
-          vi.fn().mockResolvedValue({ success: false, errors: ['operation-error'] }),
-          vi.fn().mockResolvedValue({ success: true, complex: { nested: 'data' } }),
-        ];
-
-        const result = await gameApplicationService.executeInTransaction(
-          'mixed-results-transaction',
-          operations,
-          { gameId: gameId.value, testMixedResults: true }
-        );
-
-        expect(result.success).toBe(false); // Should fail because second operation failed
-        expect(result.rollbackApplied).toBe(true);
-        expect(result.errors).toContain('Transaction failed at operation 1: operation-error');
-
-        expect(operations[0]).toHaveBeenCalled();
-        expect(operations[1]).toHaveBeenCalled();
-        expect(operations[2]).not.toHaveBeenCalled(); // Should stop after failure
-      });
-
-      it('should handle executeWithCompensation with complex operation results', async () => {
-        // Test compensation with complex result structures
-        const complexResult = {
-          success: false,
-          data: { complexField: 'test' },
-          metadata: { source: 'test', timestamp: Date.now() },
-          errors: ['Complex operation failed'],
-        };
-
-        const operation = vi.fn().mockResolvedValue(complexResult);
-        const compensation = vi.fn().mockResolvedValue({ compensated: true, rollbackData: 'test' });
-
-        const result = await gameApplicationService.executeWithCompensation(
-          'complex-compensation-test',
-          operation,
-          compensation,
-          { gameId: gameId.value, complexTest: true }
-        );
-
-        expect(result).toEqual({
-          ...complexResult,
-          compensationApplied: true,
-        });
-        expect(operation).toHaveBeenCalled();
-        expect(compensation).toHaveBeenCalled();
-
-        expect(mocks.functions.loggerWarn).toHaveBeenCalledWith(
-          'Applied compensation for failed operation',
-          expect.objectContaining({
-            operation: 'complex-compensation-test',
-            gameId: gameId.value,
-            complexTest: true,
-          })
-        );
-      });
-    });
-  });
-
-  describe('Business Rule Validation', () => {
-    describe('validateGameOperationPermissions', () => {
-      it('should validate user permissions for game operations', async () => {
-        // Arrange
-        mocks.functions.getCurrentUser.mockResolvedValue({ userId: 'user123' });
-        mocks.functions.hasPermission.mockResolvedValue(true);
-
-        // Act
-        const result = await gameApplicationService.validateGameOperationPermissions(
-          gameId,
-          'RECORD_AT_BAT'
-        );
-
-        // Assert
-        expect(result.valid).toBe(true);
-        expect(result.userId).toBe('user123');
-        expect(mocks.functions.hasPermission).toHaveBeenCalledWith('user123', 'RECORD_AT_BAT');
-      });
-
-      it('should reject operations for unauthorized users', async () => {
-        // Arrange
-        mocks.functions.getCurrentUser.mockResolvedValue({ userId: 'user123' });
-        mocks.functions.hasPermission.mockResolvedValue(false);
-
-        // Act
-        const result = await gameApplicationService.validateGameOperationPermissions(
-          gameId,
-          'END_GAME'
-        );
-
-        // Assert
-        expect(result.valid).toBe(false);
-        expect(result.errors).toContain('User does not have permission for END_GAME');
-      });
-
-      it('should handle authentication service failures', async () => {
-        // Arrange
-        mocks.functions.getCurrentUser.mockRejectedValue(new Error('Auth service down'));
-
-        // Act
-        const result = await gameApplicationService.validateGameOperationPermissions(
-          gameId,
-          'RECORD_AT_BAT'
-        );
-
-        // Assert
-        expect(result.valid).toBe(false);
-        expect(result.errors).toContain('Authentication failed: Auth service down');
-      });
-    });
-    describe('Additional Transaction Edge Cases', () => {
-      it('should handle transaction with empty operations array', async () => {
-        // Test transaction behavior with no operations
-        const operations: Array<() => Promise<TestResult>> = [];
-
-        const result = await gameApplicationService.executeInTransaction(
-          'empty-transaction',
-          operations,
-          { gameId: gameId.value }
-        );
-
-        expect(result.success).toBe(true);
-        expect(result.results).toHaveLength(0);
-        expect(result.rollbackApplied).toBe(false);
-      });
-
-      it('should handle transaction with single successful operation', async () => {
-        // Test basic successful transaction
-        const operations = [
-          vi.fn().mockResolvedValue({ success: true, data: 'single-op-success' }),
-        ];
-
-        const result = await gameApplicationService.executeInTransaction(
-          'single-success-transaction',
-          operations,
-          { gameId: gameId.value }
-        );
-
-        expect(result.success).toBe(true);
-        expect(result.results).toHaveLength(1);
-        expect(result.rollbackApplied).toBe(false);
-        expect((result.results[0] as TestResult).data).toBe('single-op-success');
-      });
-
-      it('should handle transaction debug logging correctly', async () => {
-        // Test that debug logging works without causing issues
-        const operations = [vi.fn().mockResolvedValue({ success: true, data: 'debug-test' })];
-
-        const result = await gameApplicationService.executeInTransaction(
-          'debug-logging-test',
-          operations,
-          { gameId: gameId.value, debugLevel: 'verbose' }
-        );
-
-        expect(result.success).toBe(true);
-        expect(mocks.functions.loggerDebug).toHaveBeenCalledWith(
-          'Starting transaction',
-          expect.objectContaining({
-            operation: 'debug-logging-test',
-            operationCount: 1,
-            gameId: gameId.value,
-          })
-        );
-      });
-    });
   });
 
   describe('Error Recovery', () => {
@@ -1944,8 +875,27 @@ describe('GameApplicationService', () => {
         // Arrange
         mocks.functions.authenticateUser.mockResolvedValue({
           success: true,
-          user: createTestUserProfile({ id: 'test-user-123', username: 'testuser123' }),
-          session: createTestSessionInfo({ userId: 'test-user-123' }),
+          user: {
+            id: 'test-user-123',
+            username: 'testuser123',
+            email: 'test@example.com',
+            displayName: 'Test User',
+            roles: ['PLAYER'] as const,
+            isActive: true,
+            createdAt: new Date('2024-01-01'),
+            updatedAt: new Date('2024-01-01'),
+          },
+          session: {
+            sessionId: 'session123',
+            userId: 'test-user-123',
+            isActive: true,
+            createdAt: new Date('2024-01-01'),
+            lastActivityAt: new Date('2024-01-01'),
+            expiresAt: new Date('2024-01-02'),
+            authMethod: 'local' as const,
+            ipAddress: '127.0.0.1',
+            userAgent: 'test-agent',
+          },
           timestamp: new Date(),
         });
 
@@ -1978,8 +928,27 @@ describe('GameApplicationService', () => {
         // Arrange
         mocks.functions.authenticateUser.mockResolvedValue({
           success: true,
-          user: createTestUserProfile({ id: 'test-user-456', username: 'testuser456' }),
-          session: createTestSessionInfo({ sessionId: 'session456', userId: 'test-user-456' }),
+          user: {
+            id: 'test-user-456',
+            username: 'testuser456',
+            email: 'test@example.com',
+            displayName: 'Test User',
+            roles: ['PLAYER'] as const,
+            isActive: true,
+            createdAt: new Date('2024-01-01'),
+            updatedAt: new Date('2024-01-01'),
+          },
+          session: {
+            sessionId: 'session456',
+            userId: 'test-user-456',
+            isActive: true,
+            createdAt: new Date('2024-01-01'),
+            lastActivityAt: new Date('2024-01-01'),
+            expiresAt: new Date('2024-01-02'),
+            authMethod: 'local' as const,
+            ipAddress: '127.0.0.1',
+            userAgent: 'test-agent',
+          },
           timestamp: new Date(),
         });
 
@@ -2331,8 +1300,27 @@ describe('GameApplicationService', () => {
         mocks.functions.executeUndoLastAction.mockResolvedValueOnce(mockUndoResult);
         mocks.functions.authenticateUser.mockResolvedValue({
           success: true,
-          user: createTestUserProfile({ id: 'test-user-123', username: 'testuser123' }),
-          session: createTestSessionInfo({ userId: 'test-user-123' }),
+          user: {
+            id: 'test-user-123',
+            username: 'testuser123',
+            email: 'test@example.com',
+            displayName: 'Test User',
+            roles: ['PLAYER'] as const,
+            isActive: true,
+            createdAt: new Date('2024-01-01'),
+            updatedAt: new Date('2024-01-01'),
+          },
+          session: {
+            sessionId: 'session123',
+            userId: 'test-user-123',
+            isActive: true,
+            createdAt: new Date('2024-01-01'),
+            lastActivityAt: new Date('2024-01-01'),
+            expiresAt: new Date('2024-01-02'),
+            authMethod: 'local' as const,
+            ipAddress: '127.0.0.1',
+            userAgent: 'test-agent',
+          },
           timestamp: new Date(),
         });
 
@@ -2408,8 +1396,27 @@ describe('GameApplicationService', () => {
         mocks.functions.executeRedoLastAction.mockResolvedValueOnce(mockRedoResult);
         mocks.functions.authenticateUser.mockResolvedValue({
           success: true,
-          user: createTestUserProfile({ id: 'test-user-123', username: 'testuser123' }),
-          session: createTestSessionInfo({ userId: 'test-user-123' }),
+          user: {
+            id: 'test-user-123',
+            username: 'testuser123',
+            email: 'test@example.com',
+            displayName: 'Test User',
+            roles: ['PLAYER'] as const,
+            isActive: true,
+            createdAt: new Date('2024-01-01'),
+            updatedAt: new Date('2024-01-01'),
+          },
+          session: {
+            sessionId: 'session123',
+            userId: 'test-user-123',
+            isActive: true,
+            createdAt: new Date('2024-01-01'),
+            lastActivityAt: new Date('2024-01-01'),
+            expiresAt: new Date('2024-01-02'),
+            authMethod: 'local' as const,
+            ipAddress: '127.0.0.1',
+            userAgent: 'test-agent',
+          },
           timestamp: new Date(),
         });
 

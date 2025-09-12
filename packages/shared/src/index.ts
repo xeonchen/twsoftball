@@ -1,3 +1,7 @@
 // Shared utilities and types
-// Currently empty - placeholder for future shared code
-export {};
+
+// Core utilities
+export { SecureRandom } from './utils/SecureRandom';
+
+// Test utilities
+export * from './test-utils/event-store';

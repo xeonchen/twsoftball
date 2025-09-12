@@ -12,12 +12,12 @@ module.exports = {
     },
     {
       name: 'application-layer-restrictions',
-      comment: 'Application layer can only depend on domain layer',
+      comment: 'Application layer can only depend on domain and shared layers',
       severity: 'error',
       from: { path: '^packages/application' },
       to: {
-        path: '^packages/(infrastructure|shared)',
-        pathNot: '^packages/(domain|application)'
+        path: '^packages/infrastructure',
+        pathNot: '^packages/(domain|application|shared)'
       }
     },
     {
@@ -29,12 +29,12 @@ module.exports = {
     },
     {
       name: 'infrastructure-layer-restrictions',
-      comment: 'Infrastructure layer can only depend on domain and application layers',
+      comment: 'Infrastructure layer can only depend on domain, application, and shared layers',
       severity: 'error',
       from: { path: '^packages/infrastructure' },
       to: {
-        path: '^packages/(web|shared)',
-        pathNot: '^packages/(domain|application|infrastructure)'
+        path: '^packages/web',
+        pathNot: '^packages/(domain|application|infrastructure|shared)'
       }
     },
     {
@@ -52,11 +52,11 @@ module.exports = {
     },
     {
       name: 'shared-layer-isolation',
-      comment: 'Shared utilities must not depend on any business layer',
+      comment: 'Shared utilities must not depend on application or infrastructure layers',
       severity: 'error', 
       from: { path: '^packages/shared' },
       to: {
-        path: '^packages/(domain|application|infrastructure)'
+        path: '^packages/(application|infrastructure)'
       }
     },
     {
@@ -71,7 +71,7 @@ module.exports = {
     {
       name: 'ports-and-adapters-pattern',
       comment: 'Infrastructure must implement application ports, not create direct dependencies',
-      severity: 'warn',
+      severity: 'error',
       from: { path: '^packages/infrastructure' },
       to: {
         path: '^packages/application',

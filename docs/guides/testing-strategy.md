@@ -298,27 +298,129 @@ describe('RBICalculator', () => {
 ### File Naming Convention
 
 - **Unit Tests**: `[entity-name].test.ts` (co-located with source)
+- **Focused Test Modules**: `[entity-name].[focus-area].test.ts` for complex
+  components
 - **Integration Tests**: `[use-case-name].integration.test.ts`
 - **E2E Tests**: `[feature-name].e2e.test.ts`
+
+### Test Module Organization Patterns
+
+For complex components with extensive test suites, we split tests into focused
+modules:
+
+#### Aggregate Test Organization
+
+```
+packages/domain/src/aggregates/
+├── Game.ts
+├── Game.core.test.ts              # Basic functionality and state management
+├── Game.event-sourcing.test.ts    # Event creation and reconstruction
+├── Game.validation.test.ts        # Input validation and business rules
+├── InningState.ts
+├── InningState.core.test.ts       # Core inning management
+├── InningState.event-sourcing.test.ts
+└── InningState.runner-management.test.ts  # Runner advancement logic
+```
+
+#### Service Test Organization
+
+```
+packages/domain/src/services/
+├── GameCoordinator.ts
+├── GameCoordinator.core.test.ts          # Basic coordination logic
+├── GameCoordinator.complex-scenarios.test.ts  # Multi-step game scenarios
+└── GameCoordinator.error-handling.test.ts     # Error conditions
+```
+
+#### Application Service Test Organization
+
+```
+packages/application/src/services/
+├── EventSourcingService.ts
+├── EventSourcingService.integrity.test.ts     # Data integrity and consistency
+├── EventSourcingService.performance.test.ts   # Performance and scalability
+├── EventSourcingService.queries.test.ts       # Query operations
+├── EventSourcingService.reconstruction.test.ts # Event stream reconstruction
+├── EventSourcingService.snapshots.test.ts     # Snapshot functionality
+└── EventSourcingService.stream-management.test.ts # Stream operations
+```
+
+#### Use Case Test Organization
+
+```
+packages/application/src/use-cases/
+├── StartNewGame.ts
+├── StartNewGame.core.test.ts          # Happy path scenarios
+├── StartNewGame.error-handling.test.ts # Error conditions and recovery
+└── StartNewGame.validation.test.ts    # Input validation and constraints
+```
 
 ### Directory Structure
 
 ```
 packages/domain/src/
-├── entities/
-│   ├── game.ts
-│   ├── game.test.ts           # Co-located unit tests
-│   ├── game-state.ts
-│   └── game-state.test.ts
+├── aggregates/
+│   ├── Game.ts
+│   ├── Game.core.test.ts
+│   ├── Game.event-sourcing.test.ts
+│   ├── Game.validation.test.ts
+│   ├── InningState.ts
+│   ├── InningState.core.test.ts
+│   ├── InningState.event-sourcing.test.ts
+│   └── InningState.runner-management.test.ts
 ├── value-objects/
 │   ├── game-id.ts
 │   ├── game-id.test.ts
 │   ├── score.ts
 │   └── score.test.ts
 └── services/
-    ├── rbi-calculator.ts
-    └── rbi-calculator.test.ts
+    ├── GameCoordinator.ts
+    ├── GameCoordinator.core.test.ts
+    ├── GameCoordinator.complex-scenarios.test.ts
+    └── GameCoordinator.error-handling.test.ts
 ```
+
+### Test Module Focus Areas
+
+#### Core Tests (`*.core.test.ts`)
+
+- Primary functionality and business logic
+- Basic state management and operations
+- Most common use cases and scenarios
+
+#### Event Sourcing Tests (`*.event-sourcing.test.ts`)
+
+- Event creation and validation
+- Aggregate reconstruction from events
+- Event stream consistency and integrity
+
+#### Validation Tests (`*.validation.test.ts`)
+
+- Input validation and constraint checking
+- Business rule enforcement
+- Error conditions and edge cases
+
+#### Error Handling Tests (`*.error-handling.test.ts`)
+
+- Exception scenarios and recovery
+- System boundary conditions
+- Resilience and fault tolerance
+
+#### Complex Scenarios Tests (`*.complex-scenarios.test.ts`)
+
+- Multi-step workflows and processes
+- Integration between multiple components
+- End-to-end business scenarios
+
+#### Performance Tests (`*.performance.test.ts`)
+
+- Load testing and scalability
+- Resource usage and optimization
+- Response time and throughput metrics
+
+This organization pattern improves test maintainability by grouping related test
+cases and makes it easier to focus on specific aspects of functionality during
+development and debugging.
 
 ## Test Commands
 

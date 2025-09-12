@@ -108,6 +108,7 @@ Web Layer (Presentation)
    - Main Agent summarizes review feedback and displays to user
    - If issues found, delegate ALL fixes to General-Purpose Agent (max 3
      attempts)
+   - Always get reviewd again after issues are fixed
 
 4. **Delegate Git Operations**
    - Main Agent delegates ALL git operations to General-Purpose Agent

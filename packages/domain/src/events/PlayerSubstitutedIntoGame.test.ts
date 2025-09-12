@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
 import { FieldPosition } from '../constants/FieldPosition';
-import { DomainError } from '../errors/DomainError';
 import { GameId } from '../value-objects/GameId';
 import { PlayerId } from '../value-objects/PlayerId';
 import { TeamLineupId } from '../value-objects/TeamLineupId';
@@ -125,7 +124,12 @@ describe('PlayerSubstitutedIntoGame', () => {
             FieldPosition.LEFT_FIELD,
             1
           )
-      ).toThrow(new DomainError('Batting slot must be between 1 and 20'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Batting slot must be between 1 and 20',
+          name: 'DomainError',
+        }) as Error
+      );
 
       expect(
         () =>
@@ -138,7 +142,12 @@ describe('PlayerSubstitutedIntoGame', () => {
             FieldPosition.SHORTSTOP,
             1
           )
-      ).toThrow(new DomainError('Batting slot must be between 1 and 20'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Batting slot must be between 1 and 20',
+          name: 'DomainError',
+        }) as Error
+      );
     });
 
     it('should reject batting slot greater than 20', () => {
@@ -153,7 +162,12 @@ describe('PlayerSubstitutedIntoGame', () => {
             FieldPosition.THIRD_BASE,
             1
           )
-      ).toThrow(new DomainError('Batting slot must be between 1 and 20'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Batting slot must be between 1 and 20',
+          name: 'DomainError',
+        }) as Error
+      );
 
       expect(
         () =>
@@ -166,7 +180,12 @@ describe('PlayerSubstitutedIntoGame', () => {
             FieldPosition.SHORT_FIELDER,
             1
           )
-      ).toThrow(new DomainError('Batting slot must be between 1 and 20'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Batting slot must be between 1 and 20',
+          name: 'DomainError',
+        }) as Error
+      );
     });
 
     it('should accept boundary batting slot values', () => {
@@ -246,7 +265,12 @@ describe('PlayerSubstitutedIntoGame', () => {
             FieldPosition.FIRST_BASE,
             0
           )
-      ).toThrow(new DomainError('Inning must be 1 or greater'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Inning must be 1 or greater',
+          name: 'DomainError',
+        }) as Error
+      );
 
       expect(
         () =>
@@ -259,7 +283,12 @@ describe('PlayerSubstitutedIntoGame', () => {
             FieldPosition.SECOND_BASE,
             -1
           )
-      ).toThrow(new DomainError('Inning must be 1 or greater'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Inning must be 1 or greater',
+          name: 'DomainError',
+        }) as Error
+      );
     });
   });
 
@@ -296,7 +325,12 @@ describe('PlayerSubstitutedIntoGame', () => {
             FieldPosition.SHORTSTOP,
             1
           )
-      ).toThrow(new DomainError('Outgoing and incoming players must be different'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Outgoing and incoming players must be different',
+          name: 'DomainError',
+        }) as Error
+      );
     });
 
     it('should reject players with same ID but different instances', () => {
@@ -314,7 +348,12 @@ describe('PlayerSubstitutedIntoGame', () => {
             FieldPosition.LEFT_FIELD,
             1
           )
-      ).toThrow(new DomainError('Outgoing and incoming players must be different'));
+      ).toThrow(
+        expect.objectContaining({
+          message: 'Outgoing and incoming players must be different',
+          name: 'DomainError',
+        }) as Error
+      );
     });
   });
 

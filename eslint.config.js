@@ -119,6 +119,7 @@ export default [
             '**/*.test.ts',
             '**/*.spec.ts',
             '**/test-factories/**',
+            '**/test-utils/**',
             '**/vitest.config.ts',
             '**/vite.config.ts',
             'tools/**',

@@ -187,7 +187,7 @@ export class ValueObjectTestHelper {
     let thrownError: Error | null = null;
 
     try {
-      new constructor(value);
+      void new constructor(value);
     } catch (error) {
       thrownError = error as Error;
     }

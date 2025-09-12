@@ -396,18 +396,20 @@ import { IndexedDBRepository } from '../../infrastructure/persistence'; // ERROR
 
 #### 5. Shared Layer Isolation (`shared-layer-isolation`)
 
-- **Rule**: Shared utilities must not depend on any business layer
+- **Rule**: Shared utilities must not depend on application or infrastructure
+  layers
 - **Severity**: ERROR
-- **Rationale**: Shared code should be generic utilities with no domain
-  knowledge
+- **Rationale**: Shared code can use domain types for test utilities, but should
+  not depend on higher architectural layers
 
 ```javascript
-// ✅ ALLOWED: Standard libraries and utilities
+// ✅ ALLOWED: Standard libraries, domain types for test utilities
 import { v4 as uuidv4 } from 'uuid';
+import { PlayerId } from '@twsoftball/domain'; // OK for test utilities
 
-// ❌ FORBIDDEN: Any business layer dependencies
-import { PlayerId } from '@twsoftball/domain'; // ERROR
+// ❌ FORBIDDEN: Application or infrastructure dependencies
 import { GameRepository } from '@twsoftball/application'; // ERROR
+import { IndexedDBRepository } from '@twsoftball/infrastructure'; // ERROR
 ```
 
 #### 6. Framework Import Restrictions (`no-direct-framework-imports-in-domain`)

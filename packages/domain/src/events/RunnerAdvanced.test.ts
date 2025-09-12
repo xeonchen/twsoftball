@@ -1,9 +1,15 @@
 import { describe, it, expect } from 'vitest';
 
-import { DomainError } from '../errors/DomainError';
 import { TestPlayerFactory, EventTestHelper } from '../test-utils';
+import {
+  createAdvanceEvent,
+  baseToBaseScenarios,
+  batterAdvancementScenarios,
+  runnerOutScenarios,
+  validationErrorScenarios,
+  advanceReasonScenarios,
+} from '../test-utils/RunnerAdvancedTestHelpers';
 import { Base } from '../value-objects/BasesState';
-import { GameId } from '../value-objects/GameId';
 import { PlayerId } from '../value-objects/PlayerId';
 
 import { RunnerAdvanced, AdvanceReason } from './RunnerAdvanced';
@@ -12,16 +18,6 @@ describe('RunnerAdvanced', () => {
   // Use EventTestHelper for consistent test data
   const gameId = EventTestHelper.createGameId('runner-advanced');
   const runnerId = TestPlayerFactory.createPlayers(1)[0]!.playerId;
-
-  // Helper function to reduce RunnerAdvanced instantiation duplication
-  const createAdvanceEvent = (
-    from: Base | null,
-    to: Base | 'HOME' | 'OUT',
-    reason: AdvanceReason = AdvanceReason.HIT,
-    customGameId?: GameId,
-    customRunnerId?: PlayerId
-  ): RunnerAdvanced =>
-    new RunnerAdvanced(customGameId ?? gameId, customRunnerId ?? runnerId, from, to, reason);
 
   describe('AdvanceReason enum', () => {
     it('should have all valid advance reasons', () => {
@@ -44,7 +40,7 @@ describe('RunnerAdvanced', () => {
 
   describe('Construction', () => {
     it('should create RunnerAdvanced event with valid parameters', () => {
-      const event = createAdvanceEvent('FIRST', 'SECOND');
+      const event = createAdvanceEvent('FIRST', 'SECOND', AdvanceReason.HIT, gameId, runnerId);
 
       expect(event.gameId).toBe(gameId);
       expect(event.runnerId).toBe(runnerId);
@@ -83,166 +79,63 @@ describe('RunnerAdvanced', () => {
   });
 
   describe('Base-to-Base Advancement', () => {
-    it('should allow advancement from FIRST to SECOND', () => {
-      const event = new RunnerAdvanced(gameId, runnerId, 'FIRST', 'SECOND', AdvanceReason.HIT);
-
-      expect(event.from).toBe('FIRST');
-      expect(event.to).toBe('SECOND');
-    });
-
-    it('should allow advancement from SECOND to THIRD', () => {
+    it.each(baseToBaseScenarios)('should allow $description', scenario => {
       const event = new RunnerAdvanced(
         gameId,
         runnerId,
-        'SECOND',
-        'THIRD',
-        AdvanceReason.SACRIFICE
+        scenario.from,
+        scenario.to,
+        scenario.reason
       );
 
-      expect(event.from).toBe('SECOND');
-      expect(event.to).toBe('THIRD');
-    });
-
-    it('should allow advancement from THIRD to HOME', () => {
-      const event = createAdvanceEvent('THIRD', 'HOME');
-
-      expect(event.from).toBe('THIRD');
-      expect(event.to).toBe('HOME');
-    });
-
-    it('should allow multiple base advancement (FIRST to THIRD)', () => {
-      const event = createAdvanceEvent('FIRST', 'THIRD');
-
-      expect(event.from).toBe('FIRST');
-      expect(event.to).toBe('THIRD');
-    });
-
-    it('should allow advancement from FIRST to HOME', () => {
-      const event = createAdvanceEvent('FIRST', 'HOME');
-
-      expect(event.from).toBe('FIRST');
-      expect(event.to).toBe('HOME');
-    });
-
-    it('should allow advancement from SECOND to HOME', () => {
-      const event = createAdvanceEvent('SECOND', 'HOME');
-
-      expect(event.from).toBe('SECOND');
-      expect(event.to).toBe('HOME');
+      expect(event.from).toBe(scenario.from);
+      expect(event.to).toBe(scenario.to);
+      expect(event.reason).toBe(scenario.reason);
     });
   });
 
   describe('Batter Advancement (from null)', () => {
-    it('should allow batter advancing to FIRST', () => {
-      const event = new RunnerAdvanced(gameId, runnerId, null, 'FIRST', AdvanceReason.HIT);
+    it.each(batterAdvancementScenarios)('should allow $description', scenario => {
+      const event = new RunnerAdvanced(
+        gameId,
+        runnerId,
+        scenario.from,
+        scenario.to,
+        scenario.reason
+      );
 
-      expect(event.from).toBeNull();
-      expect(event.to).toBe('FIRST');
-    });
-
-    it('should allow batter advancing to SECOND (double)', () => {
-      const event = new RunnerAdvanced(gameId, runnerId, null, 'SECOND', AdvanceReason.HIT);
-
-      expect(event.from).toBeNull();
-      expect(event.to).toBe('SECOND');
-    });
-
-    it('should allow batter advancing to THIRD (triple)', () => {
-      const event = new RunnerAdvanced(gameId, runnerId, null, 'THIRD', AdvanceReason.HIT);
-
-      expect(event.from).toBeNull();
-      expect(event.to).toBe('THIRD');
-    });
-
-    it('should allow batter advancing to HOME (home run)', () => {
-      const event = new RunnerAdvanced(gameId, runnerId, null, 'HOME', AdvanceReason.HIT);
-
-      expect(event.from).toBeNull();
-      expect(event.to).toBe('HOME');
+      expect(event.from).toBe(scenario.from);
+      expect(event.to).toBe(scenario.to);
+      expect(event.reason).toBe(scenario.reason);
     });
   });
 
   describe('Runner Getting Out', () => {
-    it('should allow runner getting out from FIRST', () => {
+    it.each(runnerOutScenarios)('should allow $description', scenario => {
       const event = new RunnerAdvanced(
         gameId,
         runnerId,
-        'FIRST',
-        'OUT',
-        AdvanceReason.FIELDERS_CHOICE
+        scenario.from,
+        scenario.to,
+        scenario.reason
       );
 
-      expect(event.from).toBe('FIRST');
-      expect(event.to).toBe('OUT');
-    });
-
-    it('should allow runner getting out from SECOND', () => {
-      const event = new RunnerAdvanced(
-        gameId,
-        runnerId,
-        'SECOND',
-        'OUT',
-        AdvanceReason.FIELDERS_CHOICE
-      );
-
-      expect(event.from).toBe('SECOND');
-      expect(event.to).toBe('OUT');
-    });
-
-    it('should allow runner getting out from THIRD', () => {
-      const event = new RunnerAdvanced(
-        gameId,
-        runnerId,
-        'THIRD',
-        'OUT',
-        AdvanceReason.FIELDERS_CHOICE
-      );
-
-      expect(event.from).toBe('THIRD');
-      expect(event.to).toBe('OUT');
-    });
-
-    it('should allow batter getting out (from null)', () => {
-      const event = new RunnerAdvanced(
-        gameId,
-        runnerId,
-        null,
-        'OUT',
-        AdvanceReason.FIELDERS_CHOICE
-      );
-
-      expect(event.from).toBeNull();
-      expect(event.to).toBe('OUT');
+      expect(event.from).toBe(scenario.from);
+      expect(event.to).toBe(scenario.to);
+      expect(event.reason).toBe(scenario.reason);
     });
   });
 
   describe('Validation Rules', () => {
-    it('should reject advancement from base to same base', () => {
+    it.each(validationErrorScenarios)('should reject $description', scenario => {
       expect(
-        () => new RunnerAdvanced(gameId, runnerId, 'FIRST', 'FIRST', AdvanceReason.HIT)
-      ).toThrow(new DomainError('Runner cannot advance from and to the same base'));
-
-      expect(
-        () => new RunnerAdvanced(gameId, runnerId, 'SECOND', 'SECOND', AdvanceReason.WALK)
-      ).toThrow(new DomainError('Runner cannot advance from and to the same base'));
-
-      expect(
-        () => new RunnerAdvanced(gameId, runnerId, 'THIRD', 'THIRD', AdvanceReason.SACRIFICE)
-      ).toThrow(new DomainError('Runner cannot advance from and to the same base'));
-    });
-
-    it('should reject backward advancement', () => {
-      expect(
-        () => new RunnerAdvanced(gameId, runnerId, 'SECOND', 'FIRST', AdvanceReason.HIT)
-      ).toThrow(new DomainError('Runner cannot advance backward from SECOND to FIRST'));
-
-      expect(
-        () => new RunnerAdvanced(gameId, runnerId, 'THIRD', 'FIRST', AdvanceReason.WALK)
-      ).toThrow(new DomainError('Runner cannot advance backward from THIRD to FIRST'));
-
-      expect(
-        () => new RunnerAdvanced(gameId, runnerId, 'THIRD', 'SECOND', AdvanceReason.SACRIFICE)
-      ).toThrow(new DomainError('Runner cannot advance backward from THIRD to SECOND'));
+        () => new RunnerAdvanced(gameId, runnerId, scenario.from, scenario.to, scenario.reason)
+      ).toThrow(
+        expect.objectContaining({
+          message: scenario.expectedError,
+          name: 'DomainError',
+        }) as Error
+      );
     });
 
     // Note: Tests for 'HOME' and 'OUT' as 'from' values removed since
@@ -256,20 +149,15 @@ describe('RunnerAdvanced', () => {
       });
     });
 
-    it('should store the correct advance reason', () => {
-      const hitEvent = new RunnerAdvanced(gameId, runnerId, 'FIRST', 'SECOND', AdvanceReason.HIT);
-      const walkEvent = new RunnerAdvanced(gameId, runnerId, 'SECOND', 'THIRD', AdvanceReason.WALK);
-      const stolenEvent = new RunnerAdvanced(
+    it.each(advanceReasonScenarios)('should store correct reason for $description', scenario => {
+      const event = new RunnerAdvanced(
         gameId,
         runnerId,
-        'FIRST',
-        'SECOND',
-        AdvanceReason.STOLEN_BASE
+        scenario.from,
+        scenario.to,
+        scenario.reason
       );
-
-      expect(hitEvent.reason).toBe(AdvanceReason.HIT);
-      expect(walkEvent.reason).toBe(AdvanceReason.WALK);
-      expect(stolenEvent.reason).toBe(AdvanceReason.STOLEN_BASE);
+      expect(event.reason).toBe(scenario.reason);
     });
   });
 
@@ -325,8 +213,7 @@ describe('RunnerAdvanced', () => {
       expect(parsed.from).toBe('SECOND');
       expect(parsed.to).toBe('HOME');
       expect(parsed.reason).toBe(AdvanceReason.HIT);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-      expect(new Date(parsed.timestamp)).toEqual(event.timestamp);
+      expect(new Date(parsed.timestamp as string)).toEqual(event.timestamp);
     });
 
     it('should handle null from value in serialization', () => {
@@ -362,32 +249,18 @@ describe('RunnerAdvanced', () => {
       });
     });
 
-    it('should work with different advance reasons and contexts', () => {
-      const scenarios = [
-        { from: null, to: 'FIRST' as const, reason: AdvanceReason.WALK },
-        { from: 'FIRST' as const, to: 'SECOND' as const, reason: AdvanceReason.STOLEN_BASE },
-        { from: 'SECOND' as const, to: 'HOME' as const, reason: AdvanceReason.SACRIFICE },
-        { from: 'THIRD' as const, to: 'OUT' as const, reason: AdvanceReason.FIELDERS_CHOICE },
-        { from: null, to: 'HOME' as const, reason: AdvanceReason.HIT },
-        { from: 'FIRST' as const, to: 'THIRD' as const, reason: AdvanceReason.ERROR },
-        { from: 'SECOND' as const, to: 'THIRD' as const, reason: AdvanceReason.WILD_PITCH },
-        { from: 'FIRST' as const, to: 'SECOND' as const, reason: AdvanceReason.BALK },
-        { from: null, to: 'SECOND' as const, reason: AdvanceReason.HIT },
-      ];
+    it.each(advanceReasonScenarios)('should work with $description', scenario => {
+      const event = new RunnerAdvanced(
+        gameId,
+        runnerId,
+        scenario.from,
+        scenario.to,
+        scenario.reason
+      );
 
-      scenarios.forEach(scenario => {
-        const event = new RunnerAdvanced(
-          gameId,
-          runnerId,
-          scenario.from,
-          scenario.to,
-          scenario.reason
-        );
-
-        expect(event.from).toBe(scenario.from);
-        expect(event.to).toBe(scenario.to);
-        expect(event.reason).toBe(scenario.reason);
-      });
+      expect(event.from).toBe(scenario.from);
+      expect(event.to).toBe(scenario.to);
+      expect(event.reason).toBe(scenario.reason);
     });
   });
 
