@@ -10,6 +10,7 @@ import {
   InningStateId,
   DomainEvent,
   GameCreated,
+  GameStarted,
   AtBatCompleted,
   TeamLineupCreated,
   InningStateCreated,
@@ -46,6 +47,40 @@ import {
  */
 export const createMockGameCreatedEvent = (gameId: GameId): GameCreated => {
   return new GameCreated(gameId, 'Mock Home Team', 'Mock Away Team');
+};
+
+/**
+ * Creates a mock GameStarted domain event for EventStore testing scenarios.
+ *
+ * Generates a realistic GameStarted event marking the transition from setup to active gameplay.
+ * Essential for testing game state transitions and gameplay-phase-dependent operations
+ * in the softball application.
+ *
+ * @param gameId - The game aggregate identifier for the started event
+ * @returns Properly constructed GameStarted domain event
+ *
+ * @remarks
+ * The mock event includes:
+ * - Valid game aggregate ID
+ * - Automatic timestamp marking when game officially began
+ * - Proper domain event structure and type information
+ * - Event sourcing compliance for state transitions
+ *
+ * This event represents the critical transition from NOT_STARTED to IN_PROGRESS
+ * status, enabling gameplay recording and locking team configurations.
+ *
+ * @example
+ * ```typescript
+ * const gameId = GameId.generate();
+ * const gameStarted = createMockGameStartedEvent(gameId);
+ *
+ * await eventStore.append(gameId, 'Game', [gameStarted]);
+ * const events = await eventStore.getEvents(gameId);
+ * expect(events[0].eventType).toBe('GameStarted');
+ * ```
+ */
+export const createMockGameStartedEvent = (gameId: GameId): GameStarted => {
+  return new GameStarted(gameId);
 };
 
 /**
