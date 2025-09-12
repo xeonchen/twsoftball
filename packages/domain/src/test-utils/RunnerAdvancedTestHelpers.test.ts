@@ -336,7 +336,7 @@ describe('RunnerAdvancedTestHelpers', () => {
     it('should trigger validation errors when creating events', () => {
       validationErrorScenarios.forEach(scenario => {
         expect(() => {
-          new RunnerAdvanced(gameId, runnerId, scenario.from, scenario.to, scenario.reason);
+          void new RunnerAdvanced(gameId, runnerId, scenario.from, scenario.to, scenario.reason);
         }).toThrow(DomainError);
       });
     });

@@ -52,7 +52,7 @@ describe('IndexedDBEventStore Database Lifecycle Events', () => {
       globalThis.indexedDB.open = vi.fn(() => blockedRequest);
 
       // Create event store that will trigger blocked scenario
-      new IndexedDBEventStore('blocked-test-db');
+      void new IndexedDBEventStore('blocked-test-db');
 
       // Wait for the blocked event to be processed
       await new Promise(resolve => setTimeout(resolve, 10));

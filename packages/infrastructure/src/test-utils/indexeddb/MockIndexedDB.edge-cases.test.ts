@@ -70,7 +70,8 @@ describe('MockIndexedDB Edge Cases', () => {
           includes: vi.fn((key: unknown) => key === 'beta'),
         } as unknown as IDBKeyRange;
 
-        new MockIDBCursor(indexEntries, mockRange, 'next', mockIndex);
+        const indexCursor = new MockIDBCursor(indexEntries, mockRange, 'next', mockIndex);
+        expect(indexCursor).toBeDefined();
 
         // Should have called includes with the indexed values ('alpha', 'beta', 'gamma')
         expect(mockRange.includes).toHaveBeenCalledWith('alpha');
@@ -91,14 +92,22 @@ describe('MockIndexedDB Edge Cases', () => {
       it('should handle string keyPath', () => {
         const testRecord = { name: 'test', nested: { value: 'deep' } };
         const mockIndex = new MockIDBIndex('test', 'name');
-        new MockIDBCursor([['key1', testRecord]], undefined, 'next', mockIndex);
+
+        const stringKeyCursor = new MockIDBCursor(
+          [['key1', testRecord]],
+          undefined,
+          'next',
+          mockIndex
+        );
+        expect(stringKeyCursor).toBeDefined();
 
         // Test via range filtering (indirect test of getValueByKeyPath)
         const mockRange = {
           includes: vi.fn(() => true),
         } as unknown as IDBKeyRange;
 
-        new MockIDBCursor([['key1', testRecord]], mockRange, 'next', mockIndex);
+        const testCursor = new MockIDBCursor([['key1', testRecord]], mockRange, 'next', mockIndex);
+        expect(testCursor).toBeDefined();
 
         expect(mockRange.includes).toHaveBeenCalledWith('test');
       });
@@ -110,7 +119,13 @@ describe('MockIndexedDB Edge Cases', () => {
           includes: vi.fn(() => true),
         } as unknown as IDBKeyRange;
 
-        new MockIDBCursor([['key1', testRecord]], mockRange, 'next', mockIndex);
+        const nestedCursor = new MockIDBCursor(
+          [['key1', testRecord]],
+          mockRange,
+          'next',
+          mockIndex
+        );
+        expect(nestedCursor).toBeDefined();
 
         expect(mockRange.includes).toHaveBeenCalledWith('deep-value');
       });
@@ -122,7 +137,8 @@ describe('MockIndexedDB Edge Cases', () => {
           includes: vi.fn(() => true),
         } as unknown as IDBKeyRange;
 
-        new MockIDBCursor([['key1', testRecord]], mockRange, 'next', mockIndex);
+        const arrayCursor = new MockIDBCursor([['key1', testRecord]], mockRange, 'next', mockIndex);
+        expect(arrayCursor).toBeDefined();
 
         expect(mockRange.includes).toHaveBeenCalledWith(['test', 'A']);
       });
@@ -134,7 +150,13 @@ describe('MockIndexedDB Edge Cases', () => {
           includes: vi.fn(() => true),
         } as unknown as IDBKeyRange;
 
-        new MockIDBCursor([['key1', testRecord]], mockRange, 'next', mockIndex);
+        const missingPropsCursor = new MockIDBCursor(
+          [['key1', testRecord]],
+          mockRange,
+          'next',
+          mockIndex
+        );
+        expect(missingPropsCursor).toBeDefined();
 
         expect(mockRange.includes).toHaveBeenCalledWith(undefined);
       });
@@ -146,7 +168,13 @@ describe('MockIndexedDB Edge Cases', () => {
           includes: vi.fn(() => true),
         } as unknown as IDBKeyRange;
 
-        new MockIDBCursor([['key1', testRecord]], mockRange, 'next', mockIndex);
+        const nonObjectCursor = new MockIDBCursor(
+          [['key1', testRecord]],
+          mockRange,
+          'next',
+          mockIndex
+        );
+        expect(nonObjectCursor).toBeDefined();
 
         expect(mockRange.includes).toHaveBeenCalledWith(undefined);
       });
@@ -625,20 +653,21 @@ describe('MockIndexedDB Edge Cases', () => {
 
       it('should handle cursor operations at boundaries', () => {
         const entries: [string, unknown][] = [['key1', { id: '1', value: 'first' }]];
-        const cursor = new MockIDBCursor(entries);
+
+        const boundaryCursor = new MockIDBCursor(entries);
 
         // Test advancing exactly to the boundary
-        expect(cursor.currentIndex).toBe(0);
-        cursor.continue();
-        expect(cursor.currentIndex).toBe(1);
-        expect(cursor.key).toBeNull();
-        expect(cursor.value).toBeNull();
+        expect(boundaryCursor.currentIndex).toBe(0);
+        boundaryCursor.continue();
+        expect(boundaryCursor.currentIndex).toBe(1);
+        expect(boundaryCursor.key).toBeNull();
+        expect(boundaryCursor.value).toBeNull();
 
         // Test advancing beyond the boundary
-        cursor.continue();
-        expect(cursor.currentIndex).toBe(2);
-        expect(cursor.key).toBeNull();
-        expect(cursor.value).toBeNull();
+        boundaryCursor.continue();
+        expect(boundaryCursor.currentIndex).toBe(2);
+        expect(boundaryCursor.key).toBeNull();
+        expect(boundaryCursor.value).toBeNull();
       });
     });
   });
