@@ -662,6 +662,9 @@ describe('EventSourcingService', () => {
 
     describe('Large Scale Performance & Memory Management', () => {
       it('should efficiently process large event streams without memory issues', async () => {
+        // Suppress expected warning for large batch test
+        const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
         // Arrange - Simulate 10K+ events for performance testing
         const largeEventCount = 10000;
         const largeEventStream = Array.from({ length: largeEventCount }, (_, i) => ({
@@ -697,9 +700,15 @@ describe('EventSourcingService', () => {
             streamVersion: largeEventCount,
           })
         );
+
+        // Restore console.warn spy
+        consoleWarnSpy.mockRestore();
       });
 
       it('should handle memory pressure during aggregate reconstruction of large streams', async () => {
+        // Suppress expected warning for large batch test
+        const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
         // Arrange - Large event stream with complex event data
         const complexEventCount = 5000;
         const complexEvents = Array.from({ length: complexEventCount }, (_, i) => ({
@@ -732,6 +741,9 @@ describe('EventSourcingService', () => {
         expect(result.currentVersion).toBe(complexEventCount);
         expect(result.reconstructionTimeMs).toBeDefined();
         expect(result.reconstructionTimeMs).toBeLessThan(2000); // Performance threshold
+
+        // Restore console.warn spy
+        consoleWarnSpy.mockRestore();
       });
 
       it('should manage batch operations efficiently under high load', async () => {

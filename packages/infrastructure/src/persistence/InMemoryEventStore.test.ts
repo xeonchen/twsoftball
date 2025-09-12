@@ -20,7 +20,7 @@ import {
   createMockTeamLineupCreatedEvent,
   createMockInningStateCreatedEvent,
 } from '@twsoftball/shared';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Import from shared package for EventStore interfaces and test utilities
 // Import domain objects from domain package
@@ -488,6 +488,9 @@ describe('InMemoryEventStore', () => {
     });
 
     it('should handle large event batches efficiently with memory management', async () => {
+      // Suppress expected warning for large batch test
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
       const largeEventBatch = Array.from({ length: 1000 }, () =>
         createMockGameCreatedEvent(gameId)
       );
@@ -502,6 +505,8 @@ describe('InMemoryEventStore', () => {
       storedEvents.forEach((event, index) => {
         expect(event.streamVersion).toBe(index + 1);
       });
+
+      consoleWarnSpy.mockRestore();
     });
 
     it('should maintain consistency under memory pressure scenarios', async () => {
@@ -557,6 +562,9 @@ describe('InMemoryEventStore', () => {
     });
 
     it('should handle excessive memory usage scenarios with proper limits', async () => {
+      // Suppress expected warning for large batch test
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
       // Test memory limit enforcement (simulate with very large event batches)
       const excessiveEventBatch = Array.from({ length: 10000 }, () =>
         createMockGameCreatedEvent(gameId)
@@ -574,6 +582,8 @@ describe('InMemoryEventStore', () => {
         const errorMessage = (error as Error).message;
         expect(errorMessage).toContain('Memory limit');
       }
+
+      consoleWarnSpy.mockRestore();
     });
 
     it('should validate event data serialization failures', async () => {
@@ -1114,6 +1124,9 @@ describe('InMemoryEventStore', () => {
 
     describe('Memory Limit Enforcement', () => {
       it('should enforce MAX_TOTAL_EVENTS limit (lines 312-315)', async () => {
+        // Suppress expected warnings for large batch tests
+        const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
         const gameId = GameId.generate();
 
         // Create a mock that will make the total events exceed MAX_TOTAL_EVENTS (100,000)
@@ -1138,6 +1151,8 @@ describe('InMemoryEventStore', () => {
         await expect(eventStore.append(gameId, 'Game', finalBatch)).rejects.toThrow(
           'Total events would exceed maximum allowed 100000'
         );
+
+        consoleWarnSpy.mockRestore();
       });
     });
 
