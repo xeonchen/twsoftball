@@ -3,6 +3,7 @@
  * Centralized exports for EventStore testing utilities
  */
 
-// Re-export shared utilities for backwards compatibility
-export * from '@twsoftball/shared';
+// Local EventStore test utilities
+export * from './EventStoreTestInterfaces';
+export * from './MockEventCreators';
 export * from './EventStoreContractTests';

@@ -16,6 +16,8 @@ import {
   PlayerId,
   AtBatResultType,
 } from '@twsoftball/domain';
+import { describe, it, expect } from 'vitest';
+
 import {
   createMockGameCreatedEvent,
   createMockAtBatCompletedEvent,
@@ -25,8 +27,7 @@ import {
   createMockTeamLineupId,
   createMockInningStateId,
   createMockEventBatch,
-} from '@twsoftball/shared';
-import { describe, it, expect } from 'vitest';
+} from './';
 
 describe('MockEventCreators', () => {
   describe('createMockGameCreatedEvent', () => {

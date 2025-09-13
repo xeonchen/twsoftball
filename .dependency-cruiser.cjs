@@ -72,7 +72,10 @@ module.exports = {
       name: 'ports-and-adapters-pattern',
       comment: 'Infrastructure must implement application ports, not create direct dependencies',
       severity: 'error',
-      from: { path: '^packages/infrastructure' },
+      from: {
+        path: '^packages/infrastructure',
+        pathNot: '\\.(?:test|spec)\\.[jt]s$' // Allow test files to import from application
+      },
       to: {
         path: '^packages/application',
         pathNot: '^packages/application/ports'

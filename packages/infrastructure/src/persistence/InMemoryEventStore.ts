@@ -55,9 +55,9 @@
 
 // Direct domain imports to resolve type conflicts
 // This ensures we're using the exact same types as the domain layer
+import type { EventStore, AggregateType } from '@twsoftball/application/ports/out/EventStore';
 import type { GameId, TeamLineupId, InningStateId, DomainEvent } from '@twsoftball/domain';
 // Import shared test interfaces for EventStore types
-import type { EventStore, AggregateType } from '@twsoftball/shared';
 
 /** Metadata attached to stored events for operational purposes */
 interface StoredEventMetadata {
@@ -660,6 +660,37 @@ export class InMemoryEventStore implements EventStore {
         gameEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
         resolve(gameEvents);
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  }
+
+  /**
+   * Deletes all events for a specific stream.
+   *
+   * @remarks
+   * This method is primarily used for testing and administrative operations.
+   * It completely removes the event stream from the store, which is typically
+   * not done in production event sourcing scenarios as events are immutable.
+   *
+   * @param streamId - The unique identifier for the stream to delete
+   * @returns Promise that resolves when deletion is complete
+   */
+  async delete(streamId: GameId | TeamLineupId | InningStateId): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      try {
+        // Validate input parameter
+        if (!streamId) {
+          reject(new Error('Stream ID cannot be null or undefined'));
+          return;
+        }
+
+        // Delete the stream from storage
+        const streamKey = streamId.value;
+        this.streams.delete(streamKey);
+
+        resolve();
       } catch (error) {
         reject(error instanceof Error ? error : new Error(String(error)));
       }

@@ -24,6 +24,9 @@ export type { AuthService } from './ports/out/AuthService';
 export * from './services/GameApplicationService';
 export * from './services/EventSourcingService';
 
+// Test Utilities - EventStore testing support
+export * from './test-utils/event-store';
+
 // DTOs - Data Transfer Objects
 export type { AtBatResult } from './dtos/AtBatResult';
 export type { AtBatResultDTO } from './dtos/AtBatResultDTO';

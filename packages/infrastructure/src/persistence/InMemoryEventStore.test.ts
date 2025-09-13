@@ -9,17 +9,16 @@
  * but full implementation will come in Phase 2.
  */
 
-import { GameId, TeamLineupId, InningStateId } from '@twsoftball/domain';
 import {
-  EventStore,
-  StoredEvent,
   DomainEvent,
   DomainId,
   createMockGameCreatedEvent,
   createMockAtBatCompletedEvent,
   createMockTeamLineupCreatedEvent,
   createMockInningStateCreatedEvent,
-} from '@twsoftball/shared';
+} from '@twsoftball/application';
+import type { EventStore, StoredEvent } from '@twsoftball/application/ports/out/EventStore';
+import { GameId, TeamLineupId, InningStateId } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Import from shared package for EventStore interfaces and test utilities

@@ -10,8 +10,8 @@
  * - Non-standard error types in catch blocks
  */
 
+import { createMockGameCreatedEvent, createMockAtBatCompletedEvent } from '@twsoftball/application';
 import { GameId } from '@twsoftball/domain';
-import { createMockGameCreatedEvent, createMockAtBatCompletedEvent } from '@twsoftball/shared';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import { createMockIndexedDB, createMockIDBKeyRange } from '../test-utils/indexeddb';
