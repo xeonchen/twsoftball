@@ -5,8 +5,8 @@
 A slow-pitch softball game recording Progressive Web App (PWA) built with
 Hexagonal Architecture and Event Sourcing.
 
-**Project Status**: Core domain layer complete with 99%+ test coverage.
-Application layer in development.
+**Project Status**: Domain, application, and event-sourcing infrastructure
+complete. Ready for UI development.
 
 ## 🚀 Features
 
@@ -32,14 +32,14 @@ Domain Layer (Core Business Logic) ✅ COMPLETED
 ├── services/     # GameCoordinator, RBICalculator, validators
 └── rules/        # SoftballRules, RuleVariants (configurable rules)
 
-Application Layer (Use Cases) 🚀 IN DEVELOPMENT
-├── use-cases/    # RecordAtBat, StartGame, etc.
+Application Layer (Use Cases) ✅ COMPLETED
+├── use-cases/    # RecordAtBat, StartGame, SubstitutePlayer, EndInning, Undo/Redo
 ├── ports/        # Interface definitions
 ├── services/     # Application services
 └── dtos/         # Data Transfer Objects
 
-Infrastructure Layer (Adapters) 🚀 IN DEVELOPMENT
-├── persistence/  # IndexedDB, InMemory EventStore implementations ✅ COMPLETED
+Infrastructure Layer (Adapters) 🔄 PHASE 4.4 IN PROGRESS
+├── persistence/  # EventStore + EventSourced Repositories ✅ COMPLETED
 ├── auth/         # Authentication adapters ⏳ PENDING
 └── config/       # Dependency injection ⏳ PENDING
 
