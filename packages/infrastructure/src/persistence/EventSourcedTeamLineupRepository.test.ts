@@ -21,11 +21,11 @@
  * - TeamLineup-specific query operations (findByGameId, findByGameIdAndSide)
  */
 
+import { createMockTeamLineupCreatedEvent } from '@twsoftball/application';
 import type { EventStore } from '@twsoftball/application/ports/out/EventStore';
 import type { GameRepository } from '@twsoftball/application/ports/out/GameRepository';
 import type { TeamLineupRepository } from '@twsoftball/application/ports/out/TeamLineupRepository';
 import { TeamLineupId, TeamLineup, GameId, DomainEvent, Game } from '@twsoftball/domain';
-import { createMockTeamLineupCreatedEvent } from '@twsoftball/shared';
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
 
 /**

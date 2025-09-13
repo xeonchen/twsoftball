@@ -15,12 +15,13 @@ import {
   PlayerId,
   AtBatResultType,
 } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach } from 'vitest';
+
 import {
   createMockGameId,
   createMockTeamLineupId,
   createMockInningStateId,
-} from '@twsoftball/shared';
-import { describe, it, expect, beforeEach } from 'vitest';
+} from '../../test-utils/event-store';
 
 import { EventStore, StoredEvent } from './EventStore';
 

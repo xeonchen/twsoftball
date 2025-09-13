@@ -4,15 +4,13 @@
  * Validates all exports are properly exposed and accessible.
  */
 
-import * as EventStoreTestInterfaces from '@twsoftball/shared';
-import * as MockEventCreators from '@twsoftball/shared';
 import { describe, it, expect } from 'vitest';
 
-// Import everything from the index
-
-// Import individual modules to compare
 import { EventStoreContractTests } from './EventStoreContractTests';
 
+// Import individual modules to compare
+import * as EventStoreTestInterfaces from './';
+import * as MockEventCreators from './';
 import * as EventStoreTestUtils from './index';
 
 describe('EventStore Test Utils Index', () => {

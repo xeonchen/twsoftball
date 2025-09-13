@@ -10,8 +10,8 @@
  * - Method-specific error branches not yet covered
  */
 
+import { createMockGameCreatedEvent, createMockAtBatCompletedEvent } from '@twsoftball/application';
 import { GameId } from '@twsoftball/domain';
-import { createMockGameCreatedEvent, createMockAtBatCompletedEvent } from '@twsoftball/shared';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { createMockIndexedDB, createMockIDBKeyRange } from '../test-utils/indexeddb';

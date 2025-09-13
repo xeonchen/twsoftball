@@ -4,6 +4,9 @@
 # Claude Code local state
 .claude/
 
+# BMAD Core generated files
+.bmad-core/
+
 # Dependencies
 node_modules/
 .pnp

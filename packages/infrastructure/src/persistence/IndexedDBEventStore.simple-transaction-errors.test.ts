@@ -1,5 +1,5 @@
+import { DomainEvent } from '@twsoftball/application';
 import { GameId } from '@twsoftball/domain';
-import { DomainEvent } from '@twsoftball/shared';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import {

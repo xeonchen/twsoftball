@@ -5,6 +5,8 @@
  */
 
 import { GameId, TeamLineupId, InningStateId, DomainEvent } from '@twsoftball/domain';
+import { describe, it, expect } from 'vitest';
+
 import {
   // Re-exported domain types
   GameId as ReexportedGameId,
@@ -17,8 +19,7 @@ import {
   StoredEventMetadata,
   StoredEvent,
   EventStore,
-} from '@twsoftball/shared';
-import { describe, it, expect } from 'vitest';
+} from './';
 
 describe('EventStoreTestInterfaces', () => {
   describe('Domain Type Re-exports', () => {

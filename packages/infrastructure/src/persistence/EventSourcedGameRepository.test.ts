@@ -20,14 +20,14 @@
  * - Proper event committing after successful saves
  */
 
-import type { EventStore } from '@twsoftball/application/ports/out/EventStore';
-import type { GameRepository } from '@twsoftball/application/ports/out/GameRepository';
-import { GameId, Game, GameStatus, DomainEvent } from '@twsoftball/domain';
 import {
   createMockGameCreatedEvent,
   createMockGameStartedEvent,
   createMockAtBatCompletedEvent,
-} from '@twsoftball/shared';
+} from '@twsoftball/application';
+import type { EventStore } from '@twsoftball/application/ports/out/EventStore';
+import type { GameRepository } from '@twsoftball/application/ports/out/GameRepository';
+import { GameId, Game, GameStatus, DomainEvent } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
 
 /**

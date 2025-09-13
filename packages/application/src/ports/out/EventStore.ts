@@ -62,6 +62,11 @@
 import { GameId, TeamLineupId, InningStateId, DomainEvent } from '@twsoftball/domain';
 
 /**
+ * Union type of all supported aggregate types in the event store.
+ */
+export type AggregateType = 'Game' | 'TeamLineup' | 'InningState';
+
+/**
  * Event store interface for multi-aggregate event persistence and retrieval.
  *
  * @remarks

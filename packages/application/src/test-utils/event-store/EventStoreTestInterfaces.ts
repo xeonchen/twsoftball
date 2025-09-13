@@ -6,8 +6,13 @@
 
 import { GameId, TeamLineupId, InningStateId, DomainEvent } from '@twsoftball/domain';
 
+import { AggregateType } from '../../ports/out/EventStore';
+
 // Re-export domain types for consistent usage across tests
 export { GameId, TeamLineupId, InningStateId, DomainEvent };
+
+// Re-export EventStore port types for consistent usage across tests
+export type { AggregateType };
 
 /**
  * Union type representing all valid domain aggregate identifiers in the TW Softball system.
@@ -17,19 +22,6 @@ export { GameId, TeamLineupId, InningStateId, DomainEvent };
  * the actual domain model structure.
  */
 export type DomainId = GameId | TeamLineupId | InningStateId;
-
-/**
- * Literal union type for all valid aggregate types in the softball domain model.
- *
- * Corresponds exactly to the three aggregate roots in the domain:
- * - Game: Core game aggregate managing overall game state
- * - TeamLineup: Team composition and batting order management
- * - InningState: Inning-specific state and progression tracking
- *
- * Used throughout EventStore interfaces to ensure type safety and
- * prevent invalid aggregate type usage in test scenarios.
- */
-export type AggregateType = 'Game' | 'TeamLineup' | 'InningState';
 
 /**
  * Metadata structure for stored events in the EventStore system.

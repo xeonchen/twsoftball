@@ -7,13 +7,21 @@
     "noEmit": false,
     "declaration": true,
     "declarationMap": true,
-    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "baseUrl": ".",
+    "paths": {
+      "@twsoftball/domain": ["../domain/src/index"],
+      "@twsoftball/shared": ["../shared/src/index"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": [],
   "references": [
     {
       "path": "../domain"
+    },
+    {
+      "path": "../shared"
     }
   ]
 }
