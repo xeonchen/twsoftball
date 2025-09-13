@@ -10,6 +10,7 @@
  * **Service Categories**:
  * - **GameApplicationService**: Complex game workflow orchestration
  * - **EventSourcingService**: Advanced event sourcing operations
+ * - **SnapshotManager**: Snapshot management and optimization
  *
  * All services follow hexagonal architecture principles, depending only on
  * use cases and ports, never directly on infrastructure implementations.
@@ -18,6 +19,7 @@
 // High-level orchestration services
 export * from './GameApplicationService';
 export * from './EventSourcingService';
+export * from './SnapshotManager';
 
 // Re-export service result types for convenience
 export type {

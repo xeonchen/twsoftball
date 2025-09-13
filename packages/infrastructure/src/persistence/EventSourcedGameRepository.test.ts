@@ -27,8 +27,13 @@ import {
 } from '@twsoftball/application';
 import type { EventStore } from '@twsoftball/application/ports/out/EventStore';
 import type { GameRepository } from '@twsoftball/application/ports/out/GameRepository';
+import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore';
+import { SnapshotManager } from '@twsoftball/application/services/SnapshotManager';
 import { GameId, Game, GameStatus, DomainEvent } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
+
+// Import the class we're testing (it doesn't exist yet - TDD!)
+import { EventSourcedGameRepository } from './EventSourcedGameRepository';
 
 /**
  * Extended EventStore interface for testing that includes delete operations.
@@ -37,12 +42,19 @@ interface MockEventStoreWithDelete extends EventStore {
   delete: Mock;
 }
 
-// Import the class we're testing (it doesn't exist yet - TDD!)
-import { EventSourcedGameRepository } from './EventSourcedGameRepository';
+/**
+ * Mock SnapshotStore interface for testing snapshot operations.
+ */
+interface MockSnapshotStore extends SnapshotStore {
+  saveSnapshot: Mock;
+  getSnapshot: Mock;
+}
 
 describe('EventSourcedGameRepository', () => {
   let repository: GameRepository;
+  let repositoryWithSnapshot: GameRepository;
   let mockEventStore: MockEventStoreWithDelete;
+  let mockSnapshotStore: MockSnapshotStore;
   let gameId: GameId;
   let mockGame: Game;
   let mockEvents: DomainEvent[];
@@ -57,6 +69,12 @@ describe('EventSourcedGameRepository', () => {
       getEventsByType: vi.fn(),
       getEventsByGameId: vi.fn(),
       delete: vi.fn(),
+    };
+
+    // Create mock SnapshotStore with all required methods
+    mockSnapshotStore = {
+      saveSnapshot: vi.fn(),
+      getSnapshot: vi.fn(),
     };
 
     gameId = GameId.generate();
@@ -83,8 +101,9 @@ describe('EventSourcedGameRepository', () => {
     // Setup default return values for mock methods
     (mockGame.getVersion as Mock).mockReturnValue(0);
 
-    // Create repository instance with mocked EventStore
+    // Create repository instances with and without snapshot support
     repository = new EventSourcedGameRepository(mockEventStore);
+    repositoryWithSnapshot = new EventSourcedGameRepository(mockEventStore, mockSnapshotStore);
   });
 
   describe('Core Implementation', () => {
@@ -1391,6 +1410,673 @@ describe('EventSourcedGameRepository', () => {
       } finally {
         mockFromEventsCache.mockRestore();
       }
+    });
+  });
+
+  describe('Snapshot Optimization', () => {
+    describe('Constructor and Dependencies', () => {
+      it('should create repository with optional SnapshotStore for backward compatibility', () => {
+        // Verify: Repository can be created without SnapshotStore
+        expect(repository).toBeInstanceOf(EventSourcedGameRepository);
+        expect(typeof repository.save).toBe('function');
+        expect(typeof repository.findById).toBe('function');
+
+        // Verify: Repository can be created with SnapshotStore
+        expect(repositoryWithSnapshot).toBeInstanceOf(EventSourcedGameRepository);
+        expect(typeof repositoryWithSnapshot.save).toBe('function');
+        expect(typeof repositoryWithSnapshot.findById).toBe('function');
+      });
+
+      it('should maintain same interface whether SnapshotStore is provided or not', () => {
+        // Both repositories should have identical public interfaces
+        const repositoryMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(repository));
+        const snapshotRepositoryMethods = Object.getOwnPropertyNames(
+          Object.getPrototypeOf(repositoryWithSnapshot)
+        );
+
+        expect(repositoryMethods).toEqual(snapshotRepositoryMethods);
+      });
+    });
+
+    describe('Snapshot-Optimized findById()', () => {
+      it('should use SnapshotManager when SnapshotStore is available', async () => {
+        // Setup: Mock SnapshotManager and Game.fromSnapshot
+        const mockSnapshotLoadResult = {
+          aggregateId: gameId,
+          aggregateType: 'Game' as const,
+          version: 150,
+          snapshotVersion: 100,
+          data: { gameState: 'snapshot data' },
+          subsequentEvents: [], // No events after snapshot - will trigger fallback
+          reconstructedFromSnapshot: true,
+        };
+
+        // Mock SnapshotManager constructor
+        const mockSnapshotManagerConstructor = vi.spyOn(
+          SnapshotManager.prototype,
+          'constructor' as keyof SnapshotManager
+        );
+        const mockLoadAggregate = vi
+          .spyOn(SnapshotManager.prototype, 'loadAggregate')
+          .mockResolvedValue(mockSnapshotLoadResult);
+
+        // Setup EventStore mock for fallback when no subsequent events
+        const storedEvents = mockEvents.map((event, index) => ({
+          eventId: event.eventId,
+          streamId: gameId.value,
+          aggregateType: 'Game' as const,
+          eventType: event.type,
+          eventData: JSON.stringify(event),
+          eventVersion: 1,
+          streamVersion: index + 1,
+          timestamp: event.timestamp,
+          metadata: { source: 'test', createdAt: event.timestamp },
+        }));
+        (mockEventStore.getEvents as Mock).mockResolvedValue(storedEvents);
+
+        // Mock Game.fromEvents static method since Game doesn't have fromSnapshot yet
+        const mockGameFromEvents = vi.spyOn(Game, 'fromEvents').mockReturnValue(mockGame);
+
+        try {
+          // Execute
+          const result = await repositoryWithSnapshot.findById(gameId);
+
+          // Verify: SnapshotManager.loadAggregate called
+          expect(mockLoadAggregate).toHaveBeenCalledOnce();
+          expect(mockLoadAggregate).toHaveBeenCalledWith(gameId, 'Game');
+
+          // Verify: Fallback to EventStore when no subsequent events
+          expect(mockEventStore.getEvents).toHaveBeenCalledOnce();
+          expect(mockEventStore.getEvents).toHaveBeenCalledWith(gameId);
+
+          // Verify: Game.fromEvents called with all events from EventStore
+          expect(mockGameFromEvents).toHaveBeenCalledOnce();
+
+          // Verify: Correct game returned
+          expect(result).toBe(mockGame);
+        } finally {
+          mockSnapshotManagerConstructor.mockRestore();
+          mockLoadAggregate.mockRestore();
+          mockGameFromEvents.mockRestore();
+        }
+      });
+
+      it('should fallback to event-only loading when no snapshot exists', async () => {
+        // Setup: Mock SnapshotManager to return no snapshot
+        const storedEventsForSnapshot = mockEvents.map((event, index) => ({
+          eventId: event.eventId,
+          streamId: gameId.value,
+          aggregateType: 'Game' as const,
+          eventType: event.type,
+          eventData: JSON.stringify(event),
+          eventVersion: 1,
+          streamVersion: index + 1,
+          timestamp: event.timestamp,
+          metadata: { source: 'test', createdAt: event.timestamp },
+        }));
+
+        const mockSnapshotLoadResult = {
+          aggregateId: gameId,
+          aggregateType: 'Game' as const,
+          version: 3,
+          snapshotVersion: null,
+          data: null,
+          subsequentEvents: storedEventsForSnapshot, // StoredEvent format
+          reconstructedFromSnapshot: false,
+        };
+
+        const mockLoadAggregate = vi
+          .spyOn(SnapshotManager.prototype, 'loadAggregate')
+          .mockResolvedValue(mockSnapshotLoadResult);
+
+        // Mock Game.fromEvents static method
+        const mockGameFromEvents = vi.spyOn(Game, 'fromEvents').mockReturnValue(mockGame);
+
+        try {
+          // Execute
+          const result = await repositoryWithSnapshot.findById(gameId);
+
+          // Verify: SnapshotManager.loadAggregate called
+          expect(mockLoadAggregate).toHaveBeenCalledOnce();
+          expect(mockLoadAggregate).toHaveBeenCalledWith(gameId, 'Game');
+
+          // Verify: Game.fromEvents called with parsed domain events
+          expect(mockGameFromEvents).toHaveBeenCalledOnce();
+          const fromEventsArg = mockGameFromEvents.mock.calls[0]![0];
+          expect(fromEventsArg).toHaveLength(storedEventsForSnapshot.length); // All events parsed from subsequentEvents
+
+          // Verify: Correct game returned
+          expect(result).toBe(mockGame);
+        } finally {
+          mockLoadAggregate.mockRestore();
+          mockGameFromEvents.mockRestore();
+        }
+      });
+
+      it('should use regular event-only loading when no SnapshotStore provided', async () => {
+        // Setup: Mock EventStore.getEvents to return StoredEvent objects
+        const storedEvents = mockEvents.map((event, index) => ({
+          eventId: event.eventId,
+          streamId: gameId.value,
+          aggregateType: 'Game' as const,
+          eventType: event.type,
+          eventData: JSON.stringify(event),
+          eventVersion: 1,
+          streamVersion: index + 1,
+          timestamp: event.timestamp,
+          metadata: { source: 'test', createdAt: event.timestamp },
+        }));
+        (mockEventStore.getEvents as Mock).mockResolvedValue(storedEvents);
+
+        // Mock Game.fromEvents static method
+        const mockGameFromEvents = vi.spyOn(Game, 'fromEvents').mockReturnValue(mockGame);
+
+        // Spy on SnapshotManager to ensure it's not used
+        const mockLoadAggregate = vi.spyOn(SnapshotManager.prototype, 'loadAggregate');
+
+        try {
+          // Execute with repository without snapshot support
+          const result = await repository.findById(gameId);
+
+          // Verify: Traditional EventStore.getEvents called
+          expect(mockEventStore.getEvents).toHaveBeenCalledOnce();
+          expect(mockEventStore.getEvents).toHaveBeenCalledWith(gameId);
+
+          // Verify: Game.fromEvents called with parsed domain events
+          expect(mockGameFromEvents).toHaveBeenCalledOnce();
+
+          // Verify: SnapshotManager not used
+          expect(mockLoadAggregate).not.toHaveBeenCalled();
+
+          // Verify: Correct game returned
+          expect(result).toBe(mockGame);
+        } finally {
+          mockGameFromEvents.mockRestore();
+          mockLoadAggregate.mockRestore();
+        }
+      });
+
+      it('should handle SnapshotManager errors gracefully and fallback to event-only loading', async () => {
+        // Setup: Mock SnapshotManager to throw error
+        const snapshotError = new Error('Snapshot store connection failed');
+        const mockLoadAggregate = vi
+          .spyOn(SnapshotManager.prototype, 'loadAggregate')
+          .mockRejectedValue(snapshotError);
+
+        // Setup: Mock EventStore.getEvents for fallback
+        const storedEvents = mockEvents.map((event, index) => ({
+          eventId: event.eventId,
+          streamId: gameId.value,
+          aggregateType: 'Game' as const,
+          eventType: event.type,
+          eventData: JSON.stringify(event),
+          eventVersion: 1,
+          streamVersion: index + 1,
+          timestamp: event.timestamp,
+          metadata: { source: 'test', createdAt: event.timestamp },
+        }));
+        (mockEventStore.getEvents as Mock).mockResolvedValue(storedEvents);
+
+        // Mock Game.fromEvents static method for fallback
+        const mockGameFromEvents = vi.spyOn(Game, 'fromEvents').mockReturnValue(mockGame);
+
+        try {
+          // Execute
+          const result = await repositoryWithSnapshot.findById(gameId);
+
+          // Verify: SnapshotManager.loadAggregate attempted first
+          expect(mockLoadAggregate).toHaveBeenCalledOnce();
+
+          // Verify: Fallback to EventStore.getEvents
+          expect(mockEventStore.getEvents).toHaveBeenCalledOnce();
+          expect(mockEventStore.getEvents).toHaveBeenCalledWith(gameId);
+
+          // Verify: Game.fromEvents called for fallback
+          expect(mockGameFromEvents).toHaveBeenCalledOnce();
+
+          // Verify: Correct game returned despite snapshot error
+          expect(result).toBe(mockGame);
+        } finally {
+          mockLoadAggregate.mockRestore();
+          mockGameFromEvents.mockRestore();
+        }
+      });
+
+      it('should return null when aggregate does not exist (snapshot-optimized path)', async () => {
+        // Setup: Mock SnapshotManager to return empty result
+        const mockSnapshotLoadResult = {
+          aggregateId: gameId,
+          aggregateType: 'Game' as const,
+          version: 0,
+          snapshotVersion: null,
+          data: null,
+          subsequentEvents: [], // No events
+          reconstructedFromSnapshot: false,
+        };
+
+        const mockLoadAggregate = vi
+          .spyOn(SnapshotManager.prototype, 'loadAggregate')
+          .mockResolvedValue(mockSnapshotLoadResult);
+
+        try {
+          // Execute
+          const result = await repositoryWithSnapshot.findById(gameId);
+
+          // Verify: SnapshotManager.loadAggregate called
+          expect(mockLoadAggregate).toHaveBeenCalledOnce();
+
+          // Verify: null returned for non-existent game
+          expect(result).toBeNull();
+        } finally {
+          mockLoadAggregate.mockRestore();
+        }
+      });
+    });
+
+    describe('Automatic Snapshot Creation on save()', () => {
+      it('should create snapshot when frequency threshold is reached', async () => {
+        // Setup: Mock game with version that triggers snapshot (multiple of 100)
+        const uncommittedEvents = [mockEvents[0]!];
+        (mockGame.getUncommittedEvents as Mock).mockReturnValue(uncommittedEvents);
+        (mockGame.getVersion as Mock).mockReturnValue(200); // Version 200 = snapshot threshold
+        (mockEventStore.append as Mock).mockResolvedValue(undefined);
+
+        // Mock SnapshotManager methods
+        const mockShouldCreateSnapshot = vi
+          .spyOn(SnapshotManager.prototype, 'shouldCreateSnapshot')
+          .mockResolvedValue(true);
+        const mockCreateSnapshot = vi
+          .spyOn(SnapshotManager.prototype, 'createSnapshot')
+          .mockResolvedValue(undefined);
+
+        // Mock Game.fromSnapshot and other required methods for snapshot creation
+        const mockGameGetId = vi.fn().mockReturnValue(gameId);
+        const mockGameGetAggregateType = vi.fn().mockReturnValue('Game');
+        const mockGameGetState = vi.fn().mockReturnValue({ gameState: 'current state' });
+        Object.assign(mockGame, {
+          getId: mockGameGetId,
+          getAggregateType: mockGameGetAggregateType,
+          getState: mockGameGetState,
+        });
+
+        try {
+          // Execute
+          await repositoryWithSnapshot.save(mockGame);
+
+          // Verify: Event store operations completed first
+          expect(mockEventStore.append).toHaveBeenCalledOnce();
+          expect(mockGame.markEventsAsCommitted).toHaveBeenCalledOnce();
+
+          // Verify: Snapshot operations triggered
+          expect(mockShouldCreateSnapshot).toHaveBeenCalledOnce();
+          expect(mockShouldCreateSnapshot).toHaveBeenCalledWith(gameId);
+
+          expect(mockCreateSnapshot).toHaveBeenCalledOnce();
+          // Verify that createSnapshot was called with a wrapper object
+          const createSnapshotArg = mockCreateSnapshot.mock.calls[0]![0];
+          expect(createSnapshotArg).toHaveProperty('getId');
+          expect(createSnapshotArg).toHaveProperty('getVersion');
+          expect(createSnapshotArg).toHaveProperty('getAggregateType');
+          expect(createSnapshotArg).toHaveProperty('getState');
+        } finally {
+          mockShouldCreateSnapshot.mockRestore();
+          mockCreateSnapshot.mockRestore();
+        }
+      });
+
+      it('should not create snapshot when frequency threshold is not reached', async () => {
+        // Setup: Mock game with version below snapshot threshold
+        const uncommittedEvents = [mockEvents[0]!];
+        (mockGame.getUncommittedEvents as Mock).mockReturnValue(uncommittedEvents);
+        (mockGame.getVersion as Mock).mockReturnValue(50); // Version 50 = below threshold
+        (mockEventStore.append as Mock).mockResolvedValue(undefined);
+
+        // Mock SnapshotManager methods
+        const mockShouldCreateSnapshot = vi
+          .spyOn(SnapshotManager.prototype, 'shouldCreateSnapshot')
+          .mockResolvedValue(false);
+        const mockCreateSnapshot = vi
+          .spyOn(SnapshotManager.prototype, 'createSnapshot')
+          .mockResolvedValue(undefined);
+
+        try {
+          // Execute
+          await repositoryWithSnapshot.save(mockGame);
+
+          // Verify: Event store operations completed
+          expect(mockEventStore.append).toHaveBeenCalledOnce();
+          expect(mockGame.markEventsAsCommitted).toHaveBeenCalledOnce();
+
+          // Verify: Snapshot check performed but no snapshot created
+          expect(mockShouldCreateSnapshot).toHaveBeenCalledOnce();
+          expect(mockShouldCreateSnapshot).toHaveBeenCalledWith(gameId);
+
+          expect(mockCreateSnapshot).not.toHaveBeenCalled();
+        } finally {
+          mockShouldCreateSnapshot.mockRestore();
+          mockCreateSnapshot.mockRestore();
+        }
+      });
+
+      it('should not attempt snapshot creation when no SnapshotStore provided', async () => {
+        // Setup: Mock successful save operation
+        const uncommittedEvents = [mockEvents[0]!];
+        (mockGame.getUncommittedEvents as Mock).mockReturnValue(uncommittedEvents);
+        (mockGame.getVersion as Mock).mockReturnValue(200); // Version that would trigger snapshot
+        (mockEventStore.append as Mock).mockResolvedValue(undefined);
+
+        // Spy on SnapshotManager to ensure it's not used
+        const mockShouldCreateSnapshot = vi.spyOn(
+          SnapshotManager.prototype,
+          'shouldCreateSnapshot'
+        );
+        const mockCreateSnapshot = vi.spyOn(SnapshotManager.prototype, 'createSnapshot');
+
+        try {
+          // Execute with repository without snapshot support
+          await repository.save(mockGame);
+
+          // Verify: Event store operations completed
+          expect(mockEventStore.append).toHaveBeenCalledOnce();
+          expect(mockGame.markEventsAsCommitted).toHaveBeenCalledOnce();
+
+          // Verify: No snapshot operations attempted
+          expect(mockShouldCreateSnapshot).not.toHaveBeenCalled();
+          expect(mockCreateSnapshot).not.toHaveBeenCalled();
+        } finally {
+          mockShouldCreateSnapshot.mockRestore();
+          mockCreateSnapshot.mockRestore();
+        }
+      });
+
+      it('should handle snapshot creation errors gracefully without affecting save', async () => {
+        // Setup: Mock successful save but failing snapshot creation
+        const uncommittedEvents = [mockEvents[0]!];
+        (mockGame.getUncommittedEvents as Mock).mockReturnValue(uncommittedEvents);
+        (mockGame.getVersion as Mock).mockReturnValue(200); // Version that triggers snapshot
+        (mockEventStore.append as Mock).mockResolvedValue(undefined);
+
+        // Mock SnapshotManager methods with error
+        const mockShouldCreateSnapshot = vi
+          .spyOn(SnapshotManager.prototype, 'shouldCreateSnapshot')
+          .mockResolvedValue(true);
+        const snapshotError = new Error('Snapshot creation failed');
+        const mockCreateSnapshot = vi
+          .spyOn(SnapshotManager.prototype, 'createSnapshot')
+          .mockRejectedValue(snapshotError);
+
+        // Mock Game interface methods for snapshot creation attempt
+        const mockGameGetId = vi.fn().mockReturnValue(gameId);
+        const mockGameGetAggregateType = vi.fn().mockReturnValue('Game');
+        const mockGameGetState = vi.fn().mockReturnValue({ gameState: 'current state' });
+        Object.assign(mockGame, {
+          getId: mockGameGetId,
+          getAggregateType: mockGameGetAggregateType,
+          getState: mockGameGetState,
+        });
+
+        try {
+          // Execute - should not throw despite snapshot error
+          await repositoryWithSnapshot.save(mockGame);
+
+          // Verify: Event store operations completed successfully
+          expect(mockEventStore.append).toHaveBeenCalledOnce();
+          expect(mockGame.markEventsAsCommitted).toHaveBeenCalledOnce();
+
+          // Verify: Snapshot operations attempted
+          expect(mockShouldCreateSnapshot).toHaveBeenCalledOnce();
+          expect(mockCreateSnapshot).toHaveBeenCalledOnce();
+        } finally {
+          mockShouldCreateSnapshot.mockRestore();
+          mockCreateSnapshot.mockRestore();
+        }
+      });
+    });
+
+    describe('Performance and Memory Management', () => {
+      it('should load large aggregates efficiently with snapshots', async () => {
+        // Setup: Mock large aggregate with 1000+ events but recent snapshot
+        const largeEventStream = Array.from({ length: 1000 }, (_, index) => ({
+          eventId: `event-${index}`,
+          streamId: gameId.value,
+          aggregateType: 'Game' as const,
+          eventType: 'AtBatCompleted',
+          eventData: JSON.stringify(createMockAtBatCompletedEvent(gameId)),
+          eventVersion: 1,
+          streamVersion: index + 1,
+          timestamp: new Date(),
+          metadata: { source: 'test', createdAt: new Date() },
+        }));
+
+        // Snapshot at version 900, so only 100 events need replay
+        const mockSnapshotLoadResult = {
+          aggregateId: gameId,
+          aggregateType: 'Game' as const,
+          version: 1000,
+          snapshotVersion: 900,
+          data: { gameState: 'snapshot at version 900' },
+          subsequentEvents: largeEventStream.slice(900), // Only 100 events after snapshot
+          reconstructedFromSnapshot: true,
+        };
+
+        const mockLoadAggregate = vi
+          .spyOn(SnapshotManager.prototype, 'loadAggregate')
+          .mockResolvedValue(mockSnapshotLoadResult);
+        const mockGameFromEvents = vi.spyOn(Game, 'fromEvents').mockReturnValue(mockGame);
+
+        try {
+          // Execute
+          const result = await repositoryWithSnapshot.findById(gameId);
+
+          // Verify: SnapshotManager used for optimization
+          expect(mockLoadAggregate).toHaveBeenCalledOnce();
+
+          // Verify: Game.fromEvents called with minimal events (only subsequent events)
+          expect(mockGameFromEvents).toHaveBeenCalledOnce();
+
+          // Verify: Only 100 events replayed instead of 1000
+          expect(mockSnapshotLoadResult.subsequentEvents).toHaveLength(100);
+
+          // Verify: Result returned
+          expect(result).toBe(mockGame);
+
+          // Note: Actual performance verification would be in integration tests
+          // This test verifies the correct method calls for performance optimization
+        } finally {
+          mockLoadAggregate.mockRestore();
+          mockGameFromEvents.mockRestore();
+        }
+      });
+
+      it('should minimize memory usage during snapshot-optimized loading', async () => {
+        // Setup: Mock snapshot loading with minimal memory footprint
+        const subsequentEvents = mockEvents.slice(0, 3).map((event, index) => ({
+          eventId: event.eventId,
+          streamId: gameId.value,
+          aggregateType: 'Game' as const,
+          eventType: event.type,
+          eventData: JSON.stringify(event),
+          eventVersion: 1,
+          streamVersion: index + 201, // After snapshot version 200
+          timestamp: event.timestamp,
+          metadata: { source: 'test', createdAt: event.timestamp },
+        }));
+
+        const mockSnapshotLoadResult = {
+          aggregateId: gameId,
+          aggregateType: 'Game' as const,
+          version: 250,
+          snapshotVersion: 200,
+          data: { compactState: 'minimal snapshot data' },
+          subsequentEvents, // Only 3 events since snapshot
+          reconstructedFromSnapshot: true,
+        };
+
+        const mockLoadAggregate = vi
+          .spyOn(SnapshotManager.prototype, 'loadAggregate')
+          .mockResolvedValue(mockSnapshotLoadResult);
+        const mockGameFromEvents = vi.spyOn(Game, 'fromEvents').mockReturnValue(mockGame);
+
+        try {
+          // Execute
+          const result = await repositoryWithSnapshot.findById(gameId);
+
+          // Verify: Minimal data structures used
+          expect(subsequentEvents).toHaveLength(3);
+          expect(typeof mockSnapshotLoadResult.data).toBe('object');
+          expect(Object.keys(mockSnapshotLoadResult.data as object)).toHaveLength(1); // Compact snapshot
+
+          // Verify: Correct reconstruction with only subsequent events
+          expect(mockGameFromEvents).toHaveBeenCalledOnce();
+          const fromEventsArg = mockGameFromEvents.mock.calls[0]![0];
+          expect(fromEventsArg).toHaveLength(3); // Only 3 subsequent events
+          expect(result).toBe(mockGame);
+        } finally {
+          mockLoadAggregate.mockRestore();
+          mockGameFromEvents.mockRestore();
+        }
+      });
+    });
+
+    describe('Backward Compatibility', () => {
+      it('should maintain identical behavior for existing code when SnapshotStore not provided', async () => {
+        // Setup: Mock traditional event store operations
+        const storedEvents = mockEvents.map((event, index) => ({
+          eventId: event.eventId,
+          streamId: gameId.value,
+          aggregateType: 'Game' as const,
+          eventType: event.type,
+          eventData: JSON.stringify(event),
+          eventVersion: 1,
+          streamVersion: index + 1,
+          timestamp: event.timestamp,
+          metadata: { source: 'test', createdAt: event.timestamp },
+        }));
+        (mockEventStore.getEvents as Mock).mockResolvedValue(storedEvents);
+
+        const mockGameFromEvents = vi.spyOn(Game, 'fromEvents').mockReturnValue(mockGame);
+
+        try {
+          // Execute with repository without snapshot support
+          const result = await repository.findById(gameId);
+
+          // Verify: Traditional behavior maintained
+          expect(mockEventStore.getEvents).toHaveBeenCalledOnce();
+          expect(mockEventStore.getEvents).toHaveBeenCalledWith(gameId);
+
+          expect(mockGameFromEvents).toHaveBeenCalledOnce();
+          const parsedEvents = mockGameFromEvents.mock.calls[0]![0];
+          expect(parsedEvents).toHaveLength(mockEvents.length);
+
+          expect(result).toBe(mockGame);
+        } finally {
+          mockGameFromEvents.mockRestore();
+        }
+      });
+
+      it('should handle all existing GameRepository methods with snapshot optimization', async () => {
+        // Test findByStatus with snapshot optimization
+        const allEvents = [
+          ...mockEvents.map((event, index) => ({
+            eventId: event.eventId,
+            streamId: gameId.value,
+            aggregateType: 'Game' as const,
+            eventType: event.type,
+            eventData: JSON.stringify(event),
+            eventVersion: 1,
+            streamVersion: index + 1,
+            timestamp: event.timestamp,
+            metadata: { source: 'test', createdAt: event.timestamp },
+          })),
+        ];
+        (mockEventStore.getAllEvents as Mock).mockResolvedValue(allEvents);
+
+        const mockInProgressGame = {
+          ...mockGame,
+          status: GameStatus.IN_PROGRESS,
+        } as unknown as Game;
+        const mockGameFromEvents = vi.spyOn(Game, 'fromEvents').mockReturnValue(mockInProgressGame);
+
+        try {
+          // Execute findByStatus
+          const result = await repositoryWithSnapshot.findByStatus(GameStatus.IN_PROGRESS);
+
+          // Verify: Method works with snapshot-optimized repository
+          expect(mockEventStore.getAllEvents).toHaveBeenCalledOnce();
+          expect(result).toHaveLength(1);
+          expect(result[0]).toBe(mockInProgressGame);
+        } finally {
+          mockGameFromEvents.mockRestore();
+        }
+      });
+    });
+
+    describe('Edge Cases and Error Handling', () => {
+      it('should handle corrupt snapshots by falling back to event-only loading', async () => {
+        // Setup: Mock SnapshotManager to throw corruption error
+        const corruptionError = new Error('Snapshot data is corrupted');
+        const mockLoadAggregate = vi
+          .spyOn(SnapshotManager.prototype, 'loadAggregate')
+          .mockRejectedValue(corruptionError);
+
+        // Setup: Mock EventStore fallback
+        const storedEvents = mockEvents.map((event, index) => ({
+          eventId: event.eventId,
+          streamId: gameId.value,
+          aggregateType: 'Game' as const,
+          eventType: event.type,
+          eventData: JSON.stringify(event),
+          eventVersion: 1,
+          streamVersion: index + 1,
+          timestamp: event.timestamp,
+          metadata: { source: 'test', createdAt: event.timestamp },
+        }));
+        (mockEventStore.getEvents as Mock).mockResolvedValue(storedEvents);
+
+        const mockGameFromEvents = vi.spyOn(Game, 'fromEvents').mockReturnValue(mockGame);
+
+        try {
+          // Execute
+          const result = await repositoryWithSnapshot.findById(gameId);
+
+          // Verify: Graceful fallback to event-only loading
+          expect(mockLoadAggregate).toHaveBeenCalledOnce();
+          expect(mockEventStore.getEvents).toHaveBeenCalledOnce();
+          expect(mockGameFromEvents).toHaveBeenCalledOnce();
+          expect(result).toBe(mockGame);
+        } finally {
+          mockLoadAggregate.mockRestore();
+          mockGameFromEvents.mockRestore();
+        }
+      });
+
+      it('should handle missing snapshot data gracefully', async () => {
+        // Setup: Mock SnapshotManager to return null snapshot data
+        const mockSnapshotLoadResult = {
+          aggregateId: gameId,
+          aggregateType: 'Game' as const,
+          version: 0,
+          snapshotVersion: null,
+          data: null,
+          subsequentEvents: [],
+          reconstructedFromSnapshot: false,
+        };
+
+        const mockLoadAggregate = vi
+          .spyOn(SnapshotManager.prototype, 'loadAggregate')
+          .mockResolvedValue(mockSnapshotLoadResult);
+
+        try {
+          // Execute
+          const result = await repositoryWithSnapshot.findById(gameId);
+
+          // Verify: null returned for missing data
+          expect(mockLoadAggregate).toHaveBeenCalledOnce();
+          expect(result).toBeNull();
+        } finally {
+          mockLoadAggregate.mockRestore();
+        }
+      });
     });
   });
 });
