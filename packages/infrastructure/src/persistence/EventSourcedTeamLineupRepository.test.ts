@@ -25,7 +25,7 @@ import { createMockTeamLineupCreatedEvent } from '@twsoftball/application';
 import type { EventStore } from '@twsoftball/application/ports/out/EventStore';
 import type { GameRepository } from '@twsoftball/application/ports/out/GameRepository';
 import type { TeamLineupRepository } from '@twsoftball/application/ports/out/TeamLineupRepository';
-// import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore'; // Commented out while snapshot tests are disabled
+// import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore'; // Commented out since snapshot tests are disabled
 import { TeamLineupId, TeamLineup, GameId, DomainEvent, Game } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
 
@@ -41,9 +41,9 @@ import { EventSourcedTeamLineupRepository } from './EventSourcedTeamLineupReposi
 
 describe('EventSourcedTeamLineupRepository', () => {
   let repository: TeamLineupRepository;
-  // let repositoryWithSnapshots: TeamLineupRepository; // Commented out for now while snapshot tests are disabled
+  // Note: repositoryWithSnapshots variable removed as snapshot tests are commented out
   let mockEventStore: MockEventStoreWithDelete;
-  // let mockSnapshotStore: SnapshotStore; // Commented out for now while snapshot tests are disabled
+  // let mockSnapshotStore: SnapshotStore; // Commented out since snapshot tests are disabled
   let mockGameRepository: GameRepository;
   let teamLineupId: TeamLineupId;
   let gameId: GameId;
@@ -1047,6 +1047,33 @@ describe('EventSourcedTeamLineupRepository', () => {
       await expect(repository.findById(nullTeamLineupId)).rejects.toThrow();
     });
 
+    it('should return null in findByGameIdAndSide when game is not found', async () => {
+      // Setup: Mock that lineups exist for the game
+      const mockTeamLineupEvents = mockEvents.map((event, index) => ({
+        eventId: event.eventId,
+        streamId: teamLineupId.value,
+        streamType: 'TeamLineup',
+        aggregateType: 'TeamLineup' as const,
+        eventType: event.type,
+        eventData: JSON.stringify(event),
+        eventVersion: 1,
+        streamVersion: index + 1,
+        timestamp: event.timestamp,
+        metadata: { source: 'test', createdAt: event.timestamp },
+      }));
+
+      (mockEventStore.getAllEvents as Mock).mockResolvedValue(mockTeamLineupEvents);
+      vi.spyOn(TeamLineup, 'fromEvents').mockReturnValue(mockTeamLineup);
+      (mockGameRepository.findById as Mock).mockResolvedValue(null); // No game found
+
+      // Execute
+      const result = await repository.findByGameIdAndSide(gameId, 'HOME');
+
+      // Verify: null returned when game not found
+      expect(result).toBeNull();
+      expect(mockGameRepository.findById).toHaveBeenCalledWith(gameId);
+    });
+
     it('should handle malformed events during reconstruction', async () => {
       // Setup: Mock EventStore.getEvents to return StoredEvent objects with malformed eventData
       const malformedEvents = [
@@ -1371,13 +1398,13 @@ describe('EventSourcedTeamLineupRepository', () => {
       });
 
       it('should work with SnapshotStore for enhanced performance', () => {
-        const repositoryWithSnapshots = new EventSourcedTeamLineupRepository(
+        const testRepositoryWithSnapshots = new EventSourcedTeamLineupRepository(
           mockEventStore,
           mockGameRepository,
           mockSnapshotStore
         );
-        expect(repositoryWithSnapshots).toBeDefined();
-        expect(repositoryWithSnapshots).toBeInstanceOf(EventSourcedTeamLineupRepository);
+        expect(testRepositoryWithSnapshots).toBeDefined();
+        expect(testRepositoryWithSnapshots).toBeInstanceOf(EventSourcedTeamLineupRepository);
       });
     });
 
@@ -1392,6 +1419,7 @@ describe('EventSourcedTeamLineupRepository', () => {
         // Mock SnapshotManager methods to simulate reaching threshold
         (mockEventStore.getEvents as Mock).mockResolvedValue(Array(100).fill(mockEvents[0])); // 100 events
         (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null); // No existing snapshot
+        (mockSnapshotStore.saveSnapshot as Mock).mockResolvedValue(undefined);
 
         // Execute
         await repositoryWithSnapshots.save(mockTeamLineup);
@@ -1515,7 +1543,7 @@ describe('EventSourcedTeamLineupRepository', () => {
         const result = await repositoryWithSnapshots.findById(teamLineupId);
 
         // Verify: Snapshot loaded
-        expect(mockSnapshotStore.findLatest).toHaveBeenCalledWith(teamLineupId);
+        expect(mockSnapshotStore.getSnapshot).toHaveBeenCalledWith(teamLineupId);
 
         // Verify: Subsequent events loaded after snapshot version
         expect(mockEventStore.getEvents).toHaveBeenCalledWith(teamLineupId, 5);
@@ -1529,7 +1557,7 @@ describe('EventSourcedTeamLineupRepository', () => {
 
       it('should fallback to event-only loading when no snapshot exists', async () => {
         // Setup: No snapshot available
-        (mockSnapshotStore.findLatest as Mock).mockResolvedValue(null);
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null);
         const allEvents = mockEvents.map((event, index) => ({
           eventId: event.eventId,
           streamId: teamLineupId.value,
@@ -1552,7 +1580,7 @@ describe('EventSourcedTeamLineupRepository', () => {
         const result = await repositoryWithSnapshots.findById(teamLineupId);
 
         // Verify: Snapshot checked
-        expect(mockSnapshotStore.findLatest).toHaveBeenCalledWith(teamLineupId);
+        expect(mockSnapshotStore.getSnapshot).toHaveBeenCalledWith(teamLineupId);
 
         // Verify: All events loaded (traditional approach)
         expect(mockEventStore.getEvents).toHaveBeenCalledWith(teamLineupId);
@@ -1564,7 +1592,7 @@ describe('EventSourcedTeamLineupRepository', () => {
 
       it('should gracefully fallback to event-only loading on snapshot errors', async () => {
         // Setup: Snapshot loading fails
-        (mockSnapshotStore.findLatest as Mock).mockRejectedValue(new Error('Snapshot load failed'));
+        (mockSnapshotStore.getSnapshot as Mock).mockRejectedValue(new Error('Snapshot load failed'));
         const allEvents = mockEvents.map((event, index) => ({
           eventId: event.eventId,
           streamId: teamLineupId.value,
@@ -1594,7 +1622,7 @@ describe('EventSourcedTeamLineupRepository', () => {
 
       it('should return null when no snapshot and no events exist', async () => {
         // Setup: No snapshot and no events
-        (mockSnapshotStore.findLatest as Mock).mockResolvedValue(null);
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null);
         (mockEventStore.getEvents as Mock).mockResolvedValue([]);
 
         // Execute
@@ -1631,9 +1659,164 @@ describe('EventSourcedTeamLineupRepository', () => {
         const result = await repository.findById(teamLineupId);
 
         // Verify: Only event store used (no snapshot calls)
-        expect(mockSnapshotStore.findLatest).not.toHaveBeenCalled();
+        expect(mockSnapshotStore.getSnapshot).not.toHaveBeenCalled();
         expect(mockEventStore.getEvents).toHaveBeenCalledWith(teamLineupId);
         expect(result).toBe(mockReconstructedLineup);
+      });
+    });
+
+    describe('Snapshot Loading Edge Cases', () => {
+      it('should handle snapshot with no subsequent events (fallback to full event loading)', async () => {
+        // Setup: Mock SnapshotManager to return snapshot with no subsequent events
+        const mockLoadAggregate = vi.spyOn(
+          repositoryWithSnapshots['snapshotManager']!,
+          'loadAggregate'
+        ).mockResolvedValue({
+          aggregateId: teamLineupId,
+          aggregateType: 'TeamLineup' as const,
+          version: 25,
+          snapshotVersion: 25,
+          data: { id: teamLineupId.value, gameId: gameId.value, teamName: 'Test Team' },
+          subsequentEvents: [], // No subsequent events
+          reconstructedFromSnapshot: true,
+        });
+
+        // Mock findByIdFromEvents to return a lineup
+        const mockFindByIdFromEvents = vi.spyOn(
+          repositoryWithSnapshots as any,
+          'findByIdFromEvents'
+        ).mockResolvedValue(mockTeamLineup);
+
+        // Execute
+        const result = await repositoryWithSnapshots.findById(teamLineupId);
+
+        // Verify: SnapshotManager was called
+        expect(mockLoadAggregate).toHaveBeenCalledWith(teamLineupId, 'TeamLineup');
+
+        // Verify: Falls back to findByIdFromEvents when no subsequent events
+        expect(mockFindByIdFromEvents).toHaveBeenCalledWith(teamLineupId);
+
+        // Verify: Result returned
+        expect(result).toBe(mockTeamLineup);
+      });
+
+      it('should handle snapshot loading errors gracefully', async () => {
+        // Setup: Mock SnapshotManager to throw error
+        const mockLoadAggregate = vi.spyOn(
+          repositoryWithSnapshots['snapshotManager']!,
+          'loadAggregate'
+        ).mockRejectedValue(new Error('Snapshot loading failed'));
+
+        // Mock findByIdFromEvents fallback
+        const mockFindByIdFromEvents = vi.spyOn(
+          repositoryWithSnapshots as any,
+          'findByIdFromEvents'
+        ).mockResolvedValue(mockTeamLineup);
+
+        // Execute
+        const result = await repositoryWithSnapshots.findById(teamLineupId);
+
+        // Verify: SnapshotManager was called
+        expect(mockLoadAggregate).toHaveBeenCalledWith(teamLineupId, 'TeamLineup');
+
+        // Verify: Falls back to findByIdFromEvents on error
+        expect(mockFindByIdFromEvents).toHaveBeenCalledWith(teamLineupId);
+
+        // Verify: Result returned
+        expect(result).toBe(mockTeamLineup);
+      });
+
+      it('should return null when no snapshot and no events exist', async () => {
+        // Setup: Mock SnapshotManager to return empty result
+        const mockLoadAggregate = vi.spyOn(
+          repositoryWithSnapshots['snapshotManager']!,
+          'loadAggregate'
+        ).mockResolvedValue({
+          aggregateId: teamLineupId,
+          aggregateType: 'TeamLineup' as const,
+          version: 0,
+          snapshotVersion: null,
+          data: null,
+          subsequentEvents: [],
+          reconstructedFromSnapshot: false,
+        });
+
+        // Execute
+        const result = await repositoryWithSnapshots.findById(teamLineupId);
+
+        // Verify: SnapshotManager was called
+        expect(mockLoadAggregate).toHaveBeenCalledWith(teamLineupId, 'TeamLineup');
+
+        // Verify: null returned when no data exists
+        expect(result).toBeNull();
+      });
+
+      it('should handle event-only reconstruction when no snapshot available', async () => {
+        // Setup: Mock SnapshotManager to return events without snapshot
+        const eventData = [createMockTeamLineupCreatedEvent(gameId, teamLineupId)];
+        const storedEvents = eventData.map((event, index) => ({
+          eventId: event.eventId,
+          streamId: teamLineupId.value,
+          aggregateType: 'TeamLineup' as const,
+          eventType: event.type,
+          eventData: JSON.stringify(event),
+          eventVersion: 1,
+          streamVersion: index + 1,
+          timestamp: event.timestamp,
+          metadata: { source: 'test', createdAt: event.timestamp },
+        }));
+
+        const mockLoadAggregate = vi.spyOn(
+          repositoryWithSnapshots['snapshotManager']!,
+          'loadAggregate'
+        ).mockResolvedValue({
+          aggregateId: teamLineupId,
+          aggregateType: 'TeamLineup' as const,
+          version: 1,
+          snapshotVersion: null,
+          data: null,
+          subsequentEvents: storedEvents,
+          reconstructedFromSnapshot: false,
+        });
+
+        const mockFromEvents = vi.spyOn(TeamLineup, 'fromEvents').mockReturnValue(mockTeamLineup);
+
+        // Execute
+        const result = await repositoryWithSnapshots.findById(teamLineupId);
+
+        // Verify: SnapshotManager was called
+        expect(mockLoadAggregate).toHaveBeenCalledWith(teamLineupId, 'TeamLineup');
+
+        // Verify: TeamLineup reconstructed from events
+        expect(mockFromEvents).toHaveBeenCalledOnce();
+
+        // Verify: Result returned
+        expect(result).toBe(mockTeamLineup);
+      });
+
+      it('should return null when event-only reconstruction has no events', async () => {
+        // Setup: Mock SnapshotManager to return empty events
+        const mockLoadAggregate = vi.spyOn(
+          repositoryWithSnapshots['snapshotManager']!,
+          'loadAggregate'
+        ).mockResolvedValue({
+          aggregateId: teamLineupId,
+          aggregateType: 'TeamLineup' as const,
+          version: 0,
+          snapshotVersion: null,
+          data: null,
+          subsequentEvents: [],
+          reconstructedFromSnapshot: false,
+        });
+
+        // Execute
+        const result = await repositoryWithSnapshots.findById(teamLineupId);
+
+        // Verify: SnapshotManager was called
+        expect(mockLoadAggregate).toHaveBeenCalledWith(teamLineupId, 'TeamLineup');
+
+        // Verify: null returned when no events
+        expect(result).toBeNull();
       });
     });
 
@@ -1659,7 +1842,7 @@ describe('EventSourcedTeamLineupRepository', () => {
           metadata: { source: 'test', createdAt: event.timestamp },
         }));
 
-        (mockSnapshotStore.findLatest as Mock).mockResolvedValue({
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue({
           aggregateId: teamLineupId,
           aggregateType: 'TeamLineup',
           version: 50,
@@ -1702,7 +1885,7 @@ describe('EventSourcedTeamLineupRepository', () => {
         }));
 
         // Mock both paths
-        (mockSnapshotStore.findLatest as Mock).mockResolvedValue(null);
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null);
         (mockEventStore.getEvents as Mock).mockResolvedValue(allEvents);
         const mockFromEvents = vi.spyOn(TeamLineup, 'fromEvents').mockReturnValue(mockTeamLineup);
 

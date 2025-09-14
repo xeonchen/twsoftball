@@ -496,6 +496,66 @@ describe('InMemorySnapshotStore', () => {
   });
 
   describe('Edge Cases and Error Handling', () => {
+    it('should handle saveSnapshot errors properly', async () => {
+      // Force an error in the saveSnapshot method by creating a malformed snapshot
+      // that will cause JSON.stringify to fail (circular reference)
+      const circularData: Record<string, unknown> = { name: 'test' };
+      circularData['self'] = circularData; // Create circular reference
+
+      const circularSnapshot: AggregateSnapshot<Record<string, unknown>> = {
+        aggregateId: gameId,
+        aggregateType: 'Game',
+        version: 1,
+        data: circularData,
+        timestamp: new Date(),
+      };
+
+      // Should reject with a properly wrapped error
+      await expect(snapshotStore.saveSnapshot(gameId, circularSnapshot)).rejects.toThrow();
+    });
+
+    it('should handle Map access errors', async () => {
+      // Test the edge case where Map.get throws (very unlikely but covers the error path)
+      const originalGet = Map.prototype.get;
+      Map.prototype.get = function (): unknown {
+        throw new Error('Map access failed');
+      };
+
+      try {
+        await expect(snapshotStore.getSnapshot(gameId)).rejects.toThrow();
+      } finally {
+        // Restore original Map.get
+        Map.prototype.get = originalGet;
+      }
+    });
+
+    it('should handle saveSnapshot internal errors', async () => {
+      // Create a snapshot that will cause issues during the save process
+      const snapshot: AggregateSnapshot<Record<string, unknown>> = {
+        aggregateId: gameId,
+        aggregateType: 'Game',
+        version: 1,
+        data: { score: { home: 0, away: 0 }, inning: 1, isActive: true },
+        timestamp: new Date(),
+      };
+
+      // Mock the internal deepCloneSnapshot method to throw an error
+      const storeWithPrivateMembers = snapshotStore as unknown as {
+        deepCloneSnapshot: unknown;
+      };
+      const originalDeepClone = storeWithPrivateMembers.deepCloneSnapshot;
+      storeWithPrivateMembers.deepCloneSnapshot = (): unknown => {
+        throw new Error('Non-Error object thrown'); // String instead of Error
+      };
+
+      try {
+        await expect(snapshotStore.saveSnapshot(gameId, snapshot)).rejects.toThrow();
+      } finally {
+        // Restore original method
+        storeWithPrivateMembers.deepCloneSnapshot = originalDeepClone;
+      }
+    });
+
     it('should handle null and undefined data gracefully', async () => {
       const snapshotWithNull: AggregateSnapshot<null> = {
         aggregateId: gameId,
