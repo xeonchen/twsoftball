@@ -21,9 +21,16 @@
  */
 
 export type { AuthService } from './AuthService';
-export type { EventStore } from './EventStore';
+export type { EventStore, StoredEvent, StoredEventMetadata } from './EventStore';
 export type { GameRepository } from './GameRepository';
 export type { InningStateRepository } from './InningStateRepository';
 export type { Logger } from './Logger';
 export type { NotificationService } from './NotificationService';
+export type {
+  SnapshotStore,
+  AggregateSnapshot,
+  GameSnapshot,
+  TeamLineupSnapshot,
+  InningStateSnapshot,
+} from './SnapshotStore';
 export type { TeamLineupRepository } from './TeamLineupRepository';

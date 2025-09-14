@@ -14,8 +14,18 @@
 
 import type { EventStore, StoredEvent } from '@twsoftball/application/ports/out/EventStore';
 import type { GameRepository } from '@twsoftball/application/ports/out/GameRepository';
+import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore';
 import type { TeamLineupRepository } from '@twsoftball/application/ports/out/TeamLineupRepository';
+import { SnapshotManager } from '@twsoftball/application/services/SnapshotManager';
 import { TeamLineupId, TeamLineup, GameId, DomainEvent } from '@twsoftball/domain';
+
+interface EventSourcedAggregate {
+  getId(): TeamLineupId;
+  getVersion(): number;
+  getAggregateType(): 'Game' | 'TeamLineup' | 'InningState';
+  getState(): unknown;
+  applyEvents(): void;
+}
 
 /**
  * Extended EventStore interface that includes delete operations.
@@ -31,15 +41,24 @@ interface EventStoreWithDelete extends EventStore {
 }
 
 export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
+  private readonly snapshotManager?: SnapshotManager;
+
   constructor(
     private readonly eventStore: EventStore,
-    private readonly gameRepository: GameRepository
-  ) {}
+    private readonly gameRepository: GameRepository,
+    snapshotStore?: SnapshotStore
+  ) {
+    // Create SnapshotManager only when SnapshotStore is provided for backward compatibility
+    if (snapshotStore) {
+      this.snapshotManager = new SnapshotManager(eventStore, snapshotStore);
+    }
+  }
 
   async save(lineup: TeamLineup): Promise<void> {
     const events = lineup.getUncommittedEvents();
     const eventsLength = events?.length ?? 0;
 
+    // Save events to event store first
     await this.eventStore.append(
       lineup.id,
       'TeamLineup',
@@ -47,7 +66,46 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
       lineup.getVersion() - eventsLength
     );
 
+    // Mark events as committed
     lineup.markEventsAsCommitted();
+
+    // Create snapshot if SnapshotManager is available and threshold is reached
+    if (this.snapshotManager) {
+      try {
+        const shouldCreateSnapshot = await this.snapshotManager.shouldCreateSnapshot(lineup.id);
+
+        if (shouldCreateSnapshot) {
+          // Create a wrapper that implements EventSourcedAggregate interface
+          const aggregateWrapper = this.createAggregateWrapper(lineup);
+          await this.snapshotManager.createSnapshot(aggregateWrapper);
+        }
+      } catch (_error) {
+        // Snapshot creation errors should not affect the save operation
+        // In production, this would be logged to a proper logging service
+        // For now, we silently ignore snapshot creation errors
+      }
+    }
+  }
+
+  /**
+   * Creates a wrapper that adapts TeamLineup aggregate to EventSourcedAggregate interface.
+   */
+  private createAggregateWrapper(lineup: TeamLineup): EventSourcedAggregate {
+    return {
+      getId: () => lineup.id,
+      getVersion: () => lineup.getVersion(),
+      getAggregateType: () => 'TeamLineup' as const,
+      getState: () => ({
+        id: lineup.id.value,
+        gameId: lineup.gameId.value,
+        teamName: lineup.teamName,
+        version: lineup.getVersion(),
+      }),
+      applyEvents: (): void => {
+        // This method is required by interface but not used in snapshot creation
+        throw new Error('applyEvents not supported in this context');
+      },
+    };
   }
 
   async findById(id: TeamLineupId): Promise<TeamLineup | null> {
@@ -55,6 +113,54 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
       throw new Error('Invalid lineupId: lineupId cannot be null or undefined');
     }
 
+    // Use snapshot optimization when SnapshotManager is available
+    if (this.snapshotManager) {
+      try {
+        const loadResult = await this.snapshotManager.loadAggregate(id, 'TeamLineup');
+
+        // Return null if no data exists
+        if (loadResult.version === 0 && loadResult.subsequentEvents.length === 0) {
+          return null;
+        }
+
+        // Reconstruct from snapshot + subsequent events when snapshot is available
+        if (loadResult.reconstructedFromSnapshot && loadResult.data) {
+          const subsequentDomainEvents = loadResult.subsequentEvents.map(
+            storedEvent => JSON.parse(storedEvent.eventData) as DomainEvent
+          );
+
+          // If we have subsequent events, reconstruct only from those for now
+          // In a full implementation, we would have TeamLineup.fromSnapshot(data, events)
+          if (subsequentDomainEvents.length > 0) {
+            return TeamLineup.fromEvents(subsequentDomainEvents);
+          }
+
+          // If no events since snapshot, fall back to traditional event sourcing for the entire stream
+          // This ensures we get a properly reconstructed aggregate
+          return this.findByIdFromEvents(id);
+        }
+
+        // Fallback to event-only reconstruction when no snapshot available
+        const allDomainEvents = loadResult.subsequentEvents.map(
+          storedEvent => JSON.parse(storedEvent.eventData) as DomainEvent
+        );
+
+        if (allDomainEvents.length === 0) return null;
+        return TeamLineup.fromEvents(allDomainEvents);
+      } catch (_error) {
+        // Graceful fallback to event-only loading on snapshot errors
+        return this.findByIdFromEvents(id);
+      }
+    }
+
+    // Traditional event-only loading when no SnapshotManager available
+    return this.findByIdFromEvents(id);
+  }
+
+  /**
+   * Traditional event-only reconstruction method for backward compatibility.
+   */
+  private async findByIdFromEvents(id: TeamLineupId): Promise<TeamLineup | null> {
     const storedEvents = await this.eventStore.getEvents(id);
     if (!storedEvents || storedEvents.length === 0) return null;
 

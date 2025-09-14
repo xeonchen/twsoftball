@@ -544,6 +544,199 @@ export class Game {
   }
 
   /**
+   * Reconstructs a Game aggregate from a snapshot and optional subsequent events.
+   *
+   * @param snapshot - Aggregate snapshot containing the base state
+   * @param subsequentEvents - Events that occurred after the snapshot was created
+   * @returns Game instance reconstructed from snapshot and events
+   * @throws {DomainError} When snapshot is invalid or events are incompatible
+   *
+   * @remarks
+   * **Snapshot Reconstruction Process:**
+   * - Validates snapshot structure and aggregate type compatibility
+   * - Creates Game instance from snapshot data
+   * - Applies any subsequent events to reach current state
+   * - Returns fully reconstructed aggregate with correct version
+   *
+   * **Validation Rules:**
+   * - Snapshot cannot be null or undefined
+   * - Aggregate type must be 'Game'
+   * - Aggregate ID in snapshot must match data.id
+   * - Version must be positive
+   * - All subsequent events must belong to the same aggregate
+   * - Snapshot data must represent valid game state
+   *
+   * **Performance Benefits:**
+   * - Avoids replaying entire event history
+   * - Enables fast aggregate reconstruction for large event streams
+   * - Maintains complete state consistency
+   * - Supports optimistic concurrency control
+   *
+   * @example
+   * ```typescript
+   * const snapshot = {
+   *   aggregateId: gameId,
+   *   aggregateType: 'Game',
+   *   version: 100,
+   *   data: {
+   *     id: gameId.value,
+   *     homeTeamName: 'Tigers',
+   *     awayTeamName: 'Lions',
+   *     status: GameStatus.IN_PROGRESS,
+   *     homeRuns: 3,
+   *     awayRuns: 2,
+   *     currentInning: 5,
+   *     isTopHalf: false,
+   *     outs: 1
+   *   },
+   *   timestamp: new Date()
+   * };
+   *
+   * const subsequentEvents = [
+   *   new ScoreUpdated(gameId, 'HOME', 1, { home: 4, away: 2 })
+   * ];
+   *
+   * const game = Game.fromSnapshot(snapshot, subsequentEvents);
+   * console.log(game.score.getHomeRuns()); // 4
+   * console.log(game.getVersion());        // 101
+   * ```
+   */
+  static fromSnapshot<T>(
+    snapshot: {
+      readonly aggregateId: GameId;
+      readonly aggregateType: 'Game' | 'TeamLineup' | 'InningState';
+      readonly version: number;
+      readonly data: T;
+      readonly timestamp: Date;
+    },
+    subsequentEvents: DomainEvent[] | null
+  ): Game {
+    // Validate snapshot exists
+    if (!snapshot) {
+      throw new DomainError('Cannot reconstruct game from null or undefined snapshot');
+    }
+
+    // Validate aggregate type
+    if (snapshot.aggregateType !== 'Game') {
+      throw new DomainError(
+        `Cannot reconstruct Game from snapshot of type '${snapshot.aggregateType}'`
+      );
+    }
+
+    // Validate version
+    if (snapshot.version < 0) {
+      throw new DomainError('Snapshot version must be non-negative');
+    }
+
+    // Extract and validate snapshot data
+    const snapshotData = snapshot.data as unknown as {
+      id: string;
+      homeTeamName: string;
+      awayTeamName: string;
+      status: GameStatus;
+      homeRuns: number;
+      awayRuns: number;
+      currentInning: number;
+      isTopHalf: boolean;
+      outs: number;
+    };
+
+    // Validate required fields exist
+    if (!snapshotData || typeof snapshotData !== 'object') {
+      throw new DomainError('Snapshot data must be a valid object');
+    }
+
+    if (!snapshotData.id || typeof snapshotData.id !== 'string') {
+      throw new DomainError('Snapshot data must contain valid id');
+    }
+
+    // Validate aggregate ID consistency
+    const snapshotGameId = new GameId(snapshotData.id);
+    if (!snapshot.aggregateId.equals(snapshotGameId)) {
+      throw new DomainError('Snapshot aggregateId must match data.id');
+    }
+
+    // Validate team names
+    if (!snapshotData.homeTeamName || typeof snapshotData.homeTeamName !== 'string') {
+      throw new DomainError('Snapshot must contain valid homeTeamName');
+    }
+
+    if (!snapshotData.awayTeamName || typeof snapshotData.awayTeamName !== 'string') {
+      throw new DomainError('Snapshot must contain valid awayTeamName');
+    }
+
+    if (snapshotData.homeTeamName === snapshotData.awayTeamName) {
+      throw new DomainError('Home and away team names must be different');
+    }
+
+    if (snapshotData.homeTeamName.trim() === '') {
+      throw new DomainError('Home team name cannot be empty');
+    }
+
+    if (snapshotData.awayTeamName.trim() === '') {
+      throw new DomainError('Away team name cannot be empty');
+    }
+
+    // Validate game state
+    if (typeof snapshotData.homeRuns !== 'number' || snapshotData.homeRuns < 0) {
+      throw new DomainError('Home runs must be a non-negative number');
+    }
+
+    if (typeof snapshotData.awayRuns !== 'number' || snapshotData.awayRuns < 0) {
+      throw new DomainError('Away runs must be a non-negative number');
+    }
+
+    if (typeof snapshotData.currentInning !== 'number' || snapshotData.currentInning < 1) {
+      throw new DomainError('Current inning must be a positive number');
+    }
+
+    if (typeof snapshotData.isTopHalf !== 'boolean') {
+      throw new DomainError('isTopHalf must be a boolean value');
+    }
+
+    if (typeof snapshotData.outs !== 'number' || snapshotData.outs < 0 || snapshotData.outs > 2) {
+      throw new DomainError('Outs must be between 0 and 2');
+    }
+
+    // Create game instance from snapshot
+    const game = new Game(
+      snapshotGameId,
+      snapshotData.homeTeamName,
+      snapshotData.awayTeamName,
+      snapshotData.status,
+      GameScore.fromRuns(snapshotData.homeRuns, snapshotData.awayRuns),
+      snapshotData.currentInning,
+      snapshotData.isTopHalf,
+      snapshotData.outs
+    );
+
+    // Set version from snapshot
+    game.version = snapshot.version;
+
+    // Apply subsequent events if provided
+    const eventsToApply = subsequentEvents || [];
+    if (eventsToApply.length > 0) {
+      // Validate all events belong to the same game
+      for (const event of eventsToApply) {
+        if (!event.gameId.equals(snapshotGameId)) {
+          throw new DomainError('All subsequent events must belong to the same game');
+        }
+      }
+
+      // Apply events to reach current state
+      for (const event of eventsToApply) {
+        game.applyEvent(event);
+        game.version += 1; // Increment version for each event applied
+      }
+    }
+
+    // Ensure no uncommitted events (all events are already committed)
+    game.uncommittedEvents = [];
+
+    return game;
+  }
+
+  /**
    * Marks all uncommitted events as committed, clearing the event list.
    *
    * @remarks

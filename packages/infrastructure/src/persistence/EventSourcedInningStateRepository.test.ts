@@ -23,6 +23,7 @@
  */
 
 import type { InningStateRepository } from '@twsoftball/application/ports/out/InningStateRepository';
+import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore';
 import {
   InningStateId,
   InningState,
@@ -39,7 +40,9 @@ import { InMemoryEventStore } from './InMemoryEventStore';
 
 describe('EventSourcedInningStateRepository', () => {
   let repository: InningStateRepository;
+  let repositoryWithSnapshots: InningStateRepository;
   let eventStore: InMemoryEventStore;
+  let mockSnapshotStore: SnapshotStore;
   let inningStateId: InningStateId;
   let gameId: GameId;
   let mockInningState: InningState;
@@ -49,6 +52,12 @@ describe('EventSourcedInningStateRepository', () => {
   beforeEach(() => {
     // Create InMemoryEventStore for testing (matching other repository patterns)
     eventStore = new InMemoryEventStore();
+
+    // Create mock SnapshotStore
+    mockSnapshotStore = {
+      saveSnapshot: vi.fn(),
+      getSnapshot: vi.fn(),
+    };
 
     inningStateId = InningStateId.generate();
     gameId = GameId.generate();
@@ -121,6 +130,9 @@ describe('EventSourcedInningStateRepository', () => {
 
     // Create repository instance with InMemoryEventStore
     repository = new EventSourcedInningStateRepository(eventStore);
+
+    // Create repository instance with snapshot support
+    repositoryWithSnapshots = new EventSourcedInningStateRepository(eventStore, mockSnapshotStore);
   });
 
   describe('Core Implementation', () => {
@@ -307,7 +319,7 @@ describe('EventSourcedInningStateRepository', () => {
         eventData: JSON.stringify(event),
         eventVersion: 1,
         streamVersion: index + 1,
-        timestamp: event.timestamp,
+        timestamp: new Date(event.timestamp),
         metadata: {
           source: 'test',
           createdAt: event.timestamp,
@@ -491,7 +503,7 @@ describe('EventSourcedInningStateRepository', () => {
         eventData: JSON.stringify(event),
         eventVersion: 1,
         streamVersion: index + 1,
-        timestamp: event.timestamp,
+        timestamp: new Date(event.timestamp),
         metadata: {
           source: 'test',
           createdAt: event.timestamp,
@@ -592,8 +604,8 @@ describe('EventSourcedInningStateRepository', () => {
           eventData: JSON.stringify(event),
           eventVersion: 1,
           streamVersion: index + 1,
-          timestamp: event.timestamp,
-          metadata: { source: 'test', createdAt: event.timestamp },
+          timestamp: new Date(event.timestamp),
+          metadata: { source: 'test', createdAt: new Date(event.timestamp) },
         })),
         ...inning2Events.map((event, index) => ({
           eventId: event.eventId,
@@ -603,8 +615,8 @@ describe('EventSourcedInningStateRepository', () => {
           eventData: JSON.stringify(event),
           eventVersion: 1,
           streamVersion: index + 1,
-          timestamp: event.timestamp,
-          metadata: { source: 'test', createdAt: event.timestamp },
+          timestamp: new Date(event.timestamp),
+          metadata: { source: 'test', createdAt: new Date(event.timestamp) },
         })),
       ];
 
@@ -1032,7 +1044,7 @@ describe('EventSourcedInningStateRepository', () => {
         eventData: JSON.stringify(event),
         eventVersion: 1,
         streamVersion: index + 1,
-        timestamp: event.timestamp,
+        timestamp: new Date(event.timestamp),
         metadata: {
           source: 'test',
           createdAt: event.timestamp,
@@ -1272,7 +1284,7 @@ describe('EventSourcedInningStateRepository', () => {
         eventData: JSON.stringify(event),
         eventVersion: 1,
         streamVersion: index + 1,
-        timestamp: event.timestamp,
+        timestamp: new Date(event.timestamp),
         metadata: {
           source: 'test',
           createdAt: event.timestamp,
@@ -1295,6 +1307,1025 @@ describe('EventSourcedInningStateRepository', () => {
       } finally {
         mockFromEventsCache.mockRestore();
       }
+    });
+  });
+
+  describe('Snapshot Integration', () => {
+    describe('Constructor Backward Compatibility', () => {
+      it('should work without SnapshotStore for backward compatibility', () => {
+        const repositoryWithoutSnapshots = new EventSourcedInningStateRepository(eventStore);
+        expect(repositoryWithoutSnapshots).toBeDefined();
+        expect(repositoryWithoutSnapshots).toBeInstanceOf(EventSourcedInningStateRepository);
+      });
+
+      it('should work with SnapshotStore for enhanced performance', () => {
+        const repositoryWithSnapshots = new EventSourcedInningStateRepository(
+          eventStore,
+          mockSnapshotStore
+        );
+        expect(repositoryWithSnapshots).toBeDefined();
+        expect(repositoryWithSnapshots).toBeInstanceOf(EventSourcedInningStateRepository);
+      });
+    });
+
+    describe('Snapshot-Optimized save()', () => {
+      it('should create snapshot when frequency threshold is reached', async () => {
+        // Setup: Mock inning state with version that reaches snapshot frequency (100)
+        const uncommittedEvents = [mockEvents[0]!];
+        (mockInningState.getUncommittedEvents as Mock).mockReturnValue(uncommittedEvents);
+        (mockInningState.getVersion as Mock).mockReturnValue(100); // Meets frequency threshold (100 events)
+        vi.spyOn(eventStore, 'append').mockResolvedValue(undefined);
+
+        // Mock eventStore.getEvents to return 100 events (simulating aggregate with 100 events)
+        const mockEvents100 = Array.from({ length: 100 }, (_, i) => ({
+          eventId: crypto.randomUUID(),
+          streamId: inningStateId.value,
+          aggregateType: 'InningState' as const,
+          eventType: 'TestEvent',
+          eventData: JSON.stringify({ test: i }),
+          eventVersion: i + 1,
+          streamVersion: i + 1,
+          timestamp: new Date(),
+          metadata: { source: 'test', createdAt: new Date() },
+        }));
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(mockEvents100);
+
+        // Mock snapshotStore.getSnapshot to return null (no existing snapshot)
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null);
+
+        // Mock snapshotStore.saveSnapshot to succeed
+        (mockSnapshotStore.saveSnapshot as Mock).mockResolvedValue(undefined);
+
+        // Execute
+        await repositoryWithSnapshots.save(mockInningState);
+
+        // Verify: Events saved first
+        expect(eventStore.append).toHaveBeenCalledOnce();
+        expect(mockInningState.markEventsAsCommitted).toHaveBeenCalledOnce();
+
+        // Verify: Snapshot creation triggered
+        expect(mockSnapshotStore.saveSnapshot).toHaveBeenCalledOnce();
+        const snapshotCall = (mockSnapshotStore.saveSnapshot as Mock).mock.calls[0];
+        expect(snapshotCall).toBeDefined();
+        expect(snapshotCall![0]).toEqual(inningStateId);
+        expect(snapshotCall![1]).toBeDefined(); // AggregateSnapshot object
+        expect(snapshotCall![1].aggregateType).toBe('InningState');
+        expect(snapshotCall![1].version).toBe(100);
+        expect(snapshotCall![1].data).toBeDefined(); // snapshot data
+      });
+
+      it('should not create snapshot when frequency threshold not reached', async () => {
+        // Setup: Mock inning state with version below snapshot frequency
+        const uncommittedEvents = [mockEvents[0]!];
+        (mockInningState.getUncommittedEvents as Mock).mockReturnValue(uncommittedEvents);
+        (mockInningState.getVersion as Mock).mockReturnValue(50); // Below threshold (need 100)
+        vi.spyOn(eventStore, 'append').mockResolvedValue(undefined);
+
+        // Mock eventStore.getEvents to return 50 events (below threshold)
+        const mockEvents50 = Array.from({ length: 50 }, (_, i) => ({
+          eventId: crypto.randomUUID(),
+          streamId: inningStateId.value,
+          aggregateType: 'InningState' as const,
+          eventType: 'TestEvent',
+          eventData: JSON.stringify({ test: i }),
+          eventVersion: i + 1,
+          streamVersion: i + 1,
+          timestamp: new Date(),
+          metadata: { source: 'test', createdAt: new Date() },
+        }));
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(mockEvents50);
+
+        // Mock snapshotStore.getSnapshot to return null (no existing snapshot)
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null);
+
+        // Execute
+        await repositoryWithSnapshots.save(mockInningState);
+
+        // Verify: Events saved
+        expect(eventStore.append).toHaveBeenCalledOnce();
+        expect(mockInningState.markEventsAsCommitted).toHaveBeenCalledOnce();
+
+        // Verify: No snapshot created (below threshold)
+        expect(mockSnapshotStore.saveSnapshot).not.toHaveBeenCalled();
+      });
+
+      it('should not fail if snapshot creation fails', async () => {
+        // Setup: Mock inning state that triggers snapshot but snapshot fails
+        const uncommittedEvents = [mockEvents[0]!];
+        (mockInningState.getUncommittedEvents as Mock).mockReturnValue(uncommittedEvents);
+        (mockInningState.getVersion as Mock).mockReturnValue(100);
+        vi.spyOn(eventStore, 'append').mockResolvedValue(undefined);
+
+        // Mock eventStore.getEvents to return 100 events (triggering snapshot)
+        const mockEvents100 = Array.from({ length: 100 }, (_, i) => ({
+          eventId: crypto.randomUUID(),
+          streamId: inningStateId.value,
+          aggregateType: 'InningState' as const,
+          eventType: 'TestEvent',
+          eventData: JSON.stringify({ test: i }),
+          eventVersion: i + 1,
+          streamVersion: i + 1,
+          timestamp: new Date(),
+          metadata: { source: 'test', createdAt: new Date() },
+        }));
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(mockEvents100);
+
+        // Mock snapshotStore.getSnapshot to return null (no existing snapshot)
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null);
+
+        // Mock snapshotStore.saveSnapshot to fail
+        (mockSnapshotStore.saveSnapshot as Mock).mockRejectedValue(
+          new Error('Snapshot save failed')
+        );
+
+        // Execute - should not throw
+        await expect(repositoryWithSnapshots.save(mockInningState)).resolves.toBeUndefined();
+
+        // Verify: Events still saved and committed
+        expect(eventStore.append).toHaveBeenCalledOnce();
+        expect(mockInningState.markEventsAsCommitted).toHaveBeenCalledOnce();
+      });
+
+      it('should save without snapshots when no SnapshotStore provided', async () => {
+        // Setup: Use repository without snapshots
+        const uncommittedEvents = [mockEvents[0]!];
+        (mockInningState.getUncommittedEvents as Mock).mockReturnValue(uncommittedEvents);
+        (mockInningState.getVersion as Mock).mockReturnValue(100);
+        vi.spyOn(eventStore, 'append').mockResolvedValue(undefined);
+
+        // Execute
+        await repository.save(mockInningState);
+
+        // Verify: Events saved without snapshot creation
+        expect(eventStore.append).toHaveBeenCalledOnce();
+        expect(mockInningState.markEventsAsCommitted).toHaveBeenCalledOnce();
+        expect(mockSnapshotStore.saveSnapshot).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Aggregate Wrapper Creation', () => {
+      it('should create wrapper with correct aggregate type InningState', async () => {
+        // Setup: Mock inning state for snapshot creation (100+ events to trigger snapshot)
+        const uncommittedEvents = [mockEvents[0]!];
+        (mockInningState.getUncommittedEvents as Mock).mockReturnValue(uncommittedEvents);
+        (mockInningState.getVersion as Mock).mockReturnValue(100);
+        vi.spyOn(eventStore, 'append').mockResolvedValue(undefined);
+
+        // Mock eventStore.getEvents to return 100 events (triggering snapshot)
+        const mockEvents100 = Array.from({ length: 100 }, (_, i) => ({
+          eventId: crypto.randomUUID(),
+          streamId: inningStateId.value,
+          aggregateType: 'InningState' as const,
+          eventType: 'TestEvent',
+          eventData: JSON.stringify({ test: i }),
+          eventVersion: i + 1,
+          streamVersion: i + 1,
+          timestamp: new Date(),
+          metadata: { source: 'test', createdAt: new Date() },
+        }));
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(mockEvents100);
+
+        // Mock snapshotStore.getSnapshot to return null (no existing snapshot)
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null);
+
+        let capturedWrapper: {
+          getAggregateType(): string;
+          getState(): {
+            id: string;
+            gameId: string;
+            inning: number;
+            isTopHalf: boolean;
+            outs: number;
+            currentBattingSlot: number;
+            version: number;
+            basesState: {
+              first: string | null;
+              second: string | null;
+              third: string | null;
+            };
+          };
+          applyEvents(): void;
+        } | null = null;
+
+        // Mock SnapshotManager.createSnapshot to capture the wrapper
+        const repositoryWithPrivateMembers = repositoryWithSnapshots as unknown as {
+          snapshotManager?: { createSnapshot: unknown };
+        };
+        const originalCreateSnapshot = repositoryWithPrivateMembers.snapshotManager?.createSnapshot;
+        if (repositoryWithPrivateMembers.snapshotManager) {
+          repositoryWithPrivateMembers.snapshotManager.createSnapshot = vi
+            .fn()
+            .mockImplementation((wrapper: unknown) => {
+              capturedWrapper = wrapper as {
+                getAggregateType(): string;
+                getState(): {
+                  id: string;
+                  gameId: string;
+                  inning: number;
+                  isTopHalf: boolean;
+                  outs: number;
+                  currentBattingSlot: number;
+                  version: number;
+                  basesState: {
+                    first: string | null;
+                    second: string | null;
+                    third: string | null;
+                  };
+                };
+                applyEvents(): void;
+              };
+              return Promise.resolve();
+            });
+        }
+
+        // Execute save to trigger wrapper creation
+        await repositoryWithSnapshots.save(mockInningState);
+
+        // Verify: Wrapper has correct aggregate type
+        expect(capturedWrapper).toBeDefined();
+        expect(capturedWrapper!.getAggregateType()).toBe('InningState');
+
+        // Restore original method
+        if (repositoryWithPrivateMembers.snapshotManager && originalCreateSnapshot) {
+          repositoryWithPrivateMembers.snapshotManager.createSnapshot = originalCreateSnapshot;
+        }
+      });
+
+      it('should expose inning state properties through getState()', async () => {
+        // Setup: Mock inning state with specific properties
+        const mockBasesState = {
+          getRunner: vi
+            .fn()
+            .mockReturnValueOnce({ value: 'player1' }) // FIRST
+            .mockReturnValueOnce(null) // SECOND
+            .mockReturnValueOnce({ value: 'player3' }), // THIRD
+        };
+
+        const testInningState = {
+          ...mockInningState,
+          id: inningStateId,
+          gameId: gameId,
+          inning: 3,
+          isTopHalf: false,
+          outs: 2,
+          currentBattingSlot: 5,
+          basesState: mockBasesState,
+          getUncommittedEvents: vi.fn().mockReturnValue([mockEvents[0]!]),
+          getVersion: vi.fn().mockReturnValue(100),
+          markEventsAsCommitted: vi.fn(),
+        } as unknown as InningState;
+
+        vi.spyOn(eventStore, 'append').mockResolvedValue(undefined);
+
+        // Mock eventStore.getEvents to return 100 events (triggering snapshot)
+        const mockEvents100 = Array.from({ length: 100 }, (_, i) => ({
+          eventId: crypto.randomUUID(),
+          streamId: inningStateId.value,
+          aggregateType: 'InningState' as const,
+          eventType: 'TestEvent',
+          eventData: JSON.stringify({ test: i }),
+          eventVersion: i + 1,
+          streamVersion: i + 1,
+          timestamp: new Date(),
+          metadata: { source: 'test', createdAt: new Date() },
+        }));
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(mockEvents100);
+
+        // Mock snapshotStore.getSnapshot to return null (no existing snapshot)
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null);
+
+        let capturedWrapper: {
+          getAggregateType(): string;
+          getState(): {
+            id: string;
+            gameId: string;
+            inning: number;
+            isTopHalf: boolean;
+            outs: number;
+            currentBattingSlot: number;
+            version: number;
+            basesState: {
+              first: string | null;
+              second: string | null;
+              third: string | null;
+            };
+          };
+          applyEvents(): void;
+        } | null = null;
+
+        // Mock SnapshotManager.createSnapshot to capture the wrapper
+        const repositoryWithPrivateMembers = repositoryWithSnapshots as unknown as {
+          snapshotManager?: { createSnapshot: unknown };
+        };
+        const originalCreateSnapshot = repositoryWithPrivateMembers.snapshotManager?.createSnapshot;
+        if (repositoryWithPrivateMembers.snapshotManager) {
+          repositoryWithPrivateMembers.snapshotManager.createSnapshot = vi
+            .fn()
+            .mockImplementation((wrapper: unknown) => {
+              capturedWrapper = wrapper as {
+                getAggregateType(): string;
+                getState(): {
+                  id: string;
+                  gameId: string;
+                  inning: number;
+                  isTopHalf: boolean;
+                  outs: number;
+                  currentBattingSlot: number;
+                  version: number;
+                  basesState: {
+                    first: string | null;
+                    second: string | null;
+                    third: string | null;
+                  };
+                };
+                applyEvents(): void;
+              };
+              return Promise.resolve();
+            });
+        }
+
+        // Execute save to trigger wrapper creation
+        await repositoryWithSnapshots.save(testInningState);
+
+        // Verify: getState() exposes all inning state properties
+        expect(capturedWrapper).toBeDefined();
+        const state = capturedWrapper!.getState();
+
+        expect(state.id).toBe(inningStateId.value);
+        expect(state.gameId).toBe(gameId.value);
+        expect(state.inning).toBe(3);
+        expect(state.isTopHalf).toBe(false);
+        expect(state.outs).toBe(2);
+        expect(state.currentBattingSlot).toBe(5);
+        expect(state.version).toBe(100);
+
+        // Restore original method
+        if (repositoryWithPrivateMembers.snapshotManager && originalCreateSnapshot) {
+          repositoryWithPrivateMembers.snapshotManager.createSnapshot = originalCreateSnapshot;
+        }
+      });
+
+      it('should correctly map bases state with null runners', async () => {
+        // Setup: Mock inning state with empty bases
+        const mockBasesState = {
+          getRunner: vi.fn().mockReturnValue(null), // All bases empty
+        };
+
+        const testInningState = {
+          ...mockInningState,
+          basesState: mockBasesState,
+          getUncommittedEvents: vi.fn().mockReturnValue([mockEvents[0]!]),
+          getVersion: vi.fn().mockReturnValue(100),
+          markEventsAsCommitted: vi.fn(),
+        } as unknown as InningState;
+
+        vi.spyOn(eventStore, 'append').mockResolvedValue(undefined);
+
+        // Mock eventStore.getEvents to return 100 events (triggering snapshot)
+        const mockEvents100 = Array.from({ length: 100 }, (_, i) => ({
+          eventId: crypto.randomUUID(),
+          streamId: inningStateId.value,
+          aggregateType: 'InningState' as const,
+          eventType: 'TestEvent',
+          eventData: JSON.stringify({ test: i }),
+          eventVersion: i + 1,
+          streamVersion: i + 1,
+          timestamp: new Date(),
+          metadata: { source: 'test', createdAt: new Date() },
+        }));
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(mockEvents100);
+
+        // Mock snapshotStore.getSnapshot to return null (no existing snapshot)
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null);
+
+        let capturedWrapper: {
+          getAggregateType(): string;
+          getState(): {
+            id: string;
+            gameId: string;
+            inning: number;
+            isTopHalf: boolean;
+            outs: number;
+            currentBattingSlot: number;
+            version: number;
+            basesState: {
+              first: string | null;
+              second: string | null;
+              third: string | null;
+            };
+          };
+          applyEvents(): void;
+        } | null = null;
+
+        // Mock SnapshotManager.createSnapshot to capture the wrapper
+        const repositoryWithPrivateMembers = repositoryWithSnapshots as unknown as {
+          snapshotManager?: { createSnapshot: unknown };
+        };
+        const originalCreateSnapshot = repositoryWithPrivateMembers.snapshotManager?.createSnapshot;
+        if (repositoryWithPrivateMembers.snapshotManager) {
+          repositoryWithPrivateMembers.snapshotManager.createSnapshot = vi
+            .fn()
+            .mockImplementation((wrapper: unknown) => {
+              capturedWrapper = wrapper as {
+                getAggregateType(): string;
+                getState(): {
+                  id: string;
+                  gameId: string;
+                  inning: number;
+                  isTopHalf: boolean;
+                  outs: number;
+                  currentBattingSlot: number;
+                  version: number;
+                  basesState: {
+                    first: string | null;
+                    second: string | null;
+                    third: string | null;
+                  };
+                };
+                applyEvents(): void;
+              };
+              return Promise.resolve();
+            });
+        }
+
+        // Execute save to trigger wrapper creation
+        await repositoryWithSnapshots.save(testInningState);
+
+        // Verify: Bases state correctly mapped with null values
+        expect(capturedWrapper).toBeDefined();
+        const state = capturedWrapper!.getState();
+
+        expect(state.basesState.first).toBeNull();
+        expect(state.basesState.second).toBeNull();
+        expect(state.basesState.third).toBeNull();
+
+        // Verify all bases were checked
+        expect(mockBasesState.getRunner).toHaveBeenCalledWith('FIRST');
+        expect(mockBasesState.getRunner).toHaveBeenCalledWith('SECOND');
+        expect(mockBasesState.getRunner).toHaveBeenCalledWith('THIRD');
+
+        // Restore original method
+        if (repositoryWithPrivateMembers.snapshotManager && originalCreateSnapshot) {
+          repositoryWithPrivateMembers.snapshotManager.createSnapshot = originalCreateSnapshot;
+        }
+      });
+
+      it('should correctly map bases state with runners on all bases', async () => {
+        // Setup: Mock inning state with runners on all bases
+        const mockBasesState = {
+          getRunner: vi
+            .fn()
+            .mockReturnValueOnce({ value: 'runner-first' })
+            .mockReturnValueOnce({ value: 'runner-second' })
+            .mockReturnValueOnce({ value: 'runner-third' }),
+        };
+
+        const testInningState = {
+          ...mockInningState,
+          basesState: mockBasesState,
+          getUncommittedEvents: vi.fn().mockReturnValue([mockEvents[0]!]),
+          getVersion: vi.fn().mockReturnValue(100),
+          markEventsAsCommitted: vi.fn(),
+        } as unknown as InningState;
+
+        vi.spyOn(eventStore, 'append').mockResolvedValue(undefined);
+
+        // Mock eventStore.getEvents to return 100 events (triggering snapshot)
+        const mockEvents100 = Array.from({ length: 100 }, (_, i) => ({
+          eventId: crypto.randomUUID(),
+          streamId: inningStateId.value,
+          aggregateType: 'InningState' as const,
+          eventType: 'TestEvent',
+          eventData: JSON.stringify({ test: i }),
+          eventVersion: i + 1,
+          streamVersion: i + 1,
+          timestamp: new Date(),
+          metadata: { source: 'test', createdAt: new Date() },
+        }));
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(mockEvents100);
+
+        // Mock snapshotStore.getSnapshot to return null (no existing snapshot)
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null);
+
+        let capturedWrapper: {
+          getAggregateType(): string;
+          getState(): {
+            id: string;
+            gameId: string;
+            inning: number;
+            isTopHalf: boolean;
+            outs: number;
+            currentBattingSlot: number;
+            version: number;
+            basesState: {
+              first: string | null;
+              second: string | null;
+              third: string | null;
+            };
+          };
+          applyEvents(): void;
+        } | null = null;
+
+        // Mock SnapshotManager.createSnapshot to capture the wrapper
+        const repositoryWithPrivateMembers = repositoryWithSnapshots as unknown as {
+          snapshotManager?: { createSnapshot: unknown };
+        };
+        const originalCreateSnapshot = repositoryWithPrivateMembers.snapshotManager?.createSnapshot;
+        if (repositoryWithPrivateMembers.snapshotManager) {
+          repositoryWithPrivateMembers.snapshotManager.createSnapshot = vi
+            .fn()
+            .mockImplementation((wrapper: unknown) => {
+              capturedWrapper = wrapper as {
+                getAggregateType(): string;
+                getState(): {
+                  id: string;
+                  gameId: string;
+                  inning: number;
+                  isTopHalf: boolean;
+                  outs: number;
+                  currentBattingSlot: number;
+                  version: number;
+                  basesState: {
+                    first: string | null;
+                    second: string | null;
+                    third: string | null;
+                  };
+                };
+                applyEvents(): void;
+              };
+              return Promise.resolve();
+            });
+        }
+
+        // Execute save to trigger wrapper creation
+        await repositoryWithSnapshots.save(testInningState);
+
+        // Verify: Bases state correctly mapped with runner values
+        expect(capturedWrapper).toBeDefined();
+        const state = capturedWrapper!.getState();
+
+        expect(state.basesState.first).toBe('runner-first');
+        expect(state.basesState.second).toBe('runner-second');
+        expect(state.basesState.third).toBe('runner-third');
+
+        // Restore original method
+        if (repositoryWithPrivateMembers.snapshotManager && originalCreateSnapshot) {
+          repositoryWithPrivateMembers.snapshotManager.createSnapshot = originalCreateSnapshot;
+        }
+      });
+
+      it('should throw error when applyEvents() is called on wrapper', async () => {
+        // Setup: Mock inning state for snapshot creation (100+ events to trigger snapshot)
+        const uncommittedEvents = [mockEvents[0]!];
+        (mockInningState.getUncommittedEvents as Mock).mockReturnValue(uncommittedEvents);
+        (mockInningState.getVersion as Mock).mockReturnValue(100);
+        vi.spyOn(eventStore, 'append').mockResolvedValue(undefined);
+
+        // Mock eventStore.getEvents to return 100 events (triggering snapshot)
+        const mockEvents100 = Array.from({ length: 100 }, (_, i) => ({
+          eventId: crypto.randomUUID(),
+          streamId: inningStateId.value,
+          aggregateType: 'InningState' as const,
+          eventType: 'TestEvent',
+          eventData: JSON.stringify({ test: i }),
+          eventVersion: i + 1,
+          streamVersion: i + 1,
+          timestamp: new Date(),
+          metadata: { source: 'test', createdAt: new Date() },
+        }));
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(mockEvents100);
+
+        // Mock snapshotStore.getSnapshot to return null (no existing snapshot)
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null);
+
+        let capturedWrapper: {
+          getAggregateType(): string;
+          getState(): {
+            id: string;
+            gameId: string;
+            inning: number;
+            isTopHalf: boolean;
+            outs: number;
+            currentBattingSlot: number;
+            version: number;
+            basesState: {
+              first: string | null;
+              second: string | null;
+              third: string | null;
+            };
+          };
+          applyEvents(): void;
+        } | null = null;
+
+        // Mock SnapshotManager.createSnapshot to capture the wrapper
+        const repositoryWithPrivateMembers = repositoryWithSnapshots as unknown as {
+          snapshotManager?: { createSnapshot: unknown };
+        };
+        const originalCreateSnapshot = repositoryWithPrivateMembers.snapshotManager?.createSnapshot;
+        if (repositoryWithPrivateMembers.snapshotManager) {
+          repositoryWithPrivateMembers.snapshotManager.createSnapshot = vi
+            .fn()
+            .mockImplementation((wrapper: unknown) => {
+              capturedWrapper = wrapper as {
+                getAggregateType(): string;
+                getState(): {
+                  id: string;
+                  gameId: string;
+                  inning: number;
+                  isTopHalf: boolean;
+                  outs: number;
+                  currentBattingSlot: number;
+                  version: number;
+                  basesState: {
+                    first: string | null;
+                    second: string | null;
+                    third: string | null;
+                  };
+                };
+                applyEvents(): void;
+              };
+              return Promise.resolve();
+            });
+        }
+
+        // Execute save to trigger wrapper creation
+        await repositoryWithSnapshots.save(mockInningState);
+
+        // Verify: applyEvents() throws meaningful error
+        expect(capturedWrapper).toBeDefined();
+        expect(() => capturedWrapper!.applyEvents()).toThrow(
+          'applyEvents not supported in this context'
+        );
+
+        // Restore original method
+        if (repositoryWithPrivateMembers.snapshotManager && originalCreateSnapshot) {
+          repositoryWithPrivateMembers.snapshotManager.createSnapshot = originalCreateSnapshot;
+        }
+      });
+    });
+
+    describe('Snapshot-Optimized findById()', () => {
+      it('should load from snapshot + subsequent events when available', async () => {
+        // Setup: Mock snapshot and subsequent events
+        const snapshotData = {
+          id: inningStateId.value,
+          gameId: gameId.value,
+          inning: 1,
+          isTopHalf: true,
+          outs: 1,
+          currentBattingSlot: 3,
+          basesState: {
+            first: batterId.value,
+            second: null,
+            third: null,
+          },
+          version: 5,
+        };
+        const subsequentEvent = {
+          type: 'AtBatCompleted' as const,
+          eventId: crypto.randomUUID(),
+          timestamp: new Date(),
+          version: 1,
+          gameId,
+          batterId,
+          battingSlot: 3,
+          result: AtBatResultType.SINGLE,
+          inning: 1,
+          outs: 1,
+        } as DomainEvent;
+        const storedSubsequentEvents = [
+          {
+            eventId: subsequentEvent.eventId,
+            streamId: inningStateId.value,
+            aggregateType: 'InningState' as const,
+            eventType: subsequentEvent.type,
+            eventData: JSON.stringify(subsequentEvent),
+            eventVersion: 1,
+            streamVersion: 6,
+            timestamp: subsequentEvent.timestamp,
+            metadata: { source: 'test', createdAt: subsequentEvent.timestamp },
+          },
+        ];
+
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue({
+          aggregateId: inningStateId,
+          aggregateType: 'InningState',
+          version: 5,
+          data: snapshotData,
+          timestamp: new Date(),
+        });
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(storedSubsequentEvents);
+
+        // Mock InningState reconstruction
+        const mockReconstructedInningState = mockInningState;
+        const mockFromEvents = vi
+          .spyOn(InningState, 'fromEvents')
+          .mockReturnValue(mockReconstructedInningState);
+
+        // Execute
+        const result = await repositoryWithSnapshots.findById(inningStateId);
+
+        // Verify: Snapshot loaded
+        expect(mockSnapshotStore.getSnapshot).toHaveBeenCalledWith(inningStateId);
+
+        // Verify: Subsequent events loaded after snapshot version
+        expect(eventStore.getEvents).toHaveBeenCalledWith(inningStateId, 5);
+
+        // Verify: InningState reconstructed from subsequent events
+        expect(mockFromEvents).toHaveBeenCalledOnce();
+
+        // Verify: Correct result returned
+        expect(result).toBe(mockReconstructedInningState);
+      });
+
+      it('should fallback to event-only loading when no snapshot exists', async () => {
+        // Setup: No snapshot available
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null);
+        const allEvents = mockEvents.map((event, index) => ({
+          eventId: event.eventId,
+          streamId: inningStateId.value,
+          aggregateType: 'InningState' as const,
+          eventType: event.type,
+          eventData: JSON.stringify(event),
+          eventVersion: 1,
+          streamVersion: index + 1,
+          timestamp: new Date(event.timestamp),
+          metadata: { source: 'test', createdAt: new Date(event.timestamp) },
+        }));
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(allEvents);
+
+        const mockReconstructedInningState = mockInningState;
+        const mockFromEvents = vi
+          .spyOn(InningState, 'fromEvents')
+          .mockReturnValue(mockReconstructedInningState);
+
+        // Execute
+        const result = await repositoryWithSnapshots.findById(inningStateId);
+
+        // Verify: Snapshot checked
+        expect(mockSnapshotStore.getSnapshot).toHaveBeenCalledWith(inningStateId);
+
+        // Verify: All events loaded (traditional approach)
+        expect(eventStore.getEvents).toHaveBeenCalledWith(inningStateId);
+
+        // Verify: InningState reconstructed from all events
+        expect(mockFromEvents).toHaveBeenCalledOnce();
+        expect(result).toBe(mockReconstructedInningState);
+      });
+
+      it('should gracefully fallback to event-only loading on snapshot errors', async () => {
+        // Setup: Snapshot loading fails
+        (mockSnapshotStore.getSnapshot as Mock).mockRejectedValue(
+          new Error('Snapshot load failed')
+        );
+        const allEvents = mockEvents.map((event, index) => ({
+          eventId: event.eventId,
+          streamId: inningStateId.value,
+          aggregateType: 'InningState' as const,
+          eventType: event.type,
+          eventData: JSON.stringify(event),
+          eventVersion: 1,
+          streamVersion: index + 1,
+          timestamp: new Date(event.timestamp),
+          metadata: { source: 'test', createdAt: new Date(event.timestamp) },
+        }));
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(allEvents);
+
+        const mockReconstructedInningState = mockInningState;
+        const mockFromEvents = vi
+          .spyOn(InningState, 'fromEvents')
+          .mockReturnValue(mockReconstructedInningState);
+
+        // Execute - should not throw
+        const result = await repositoryWithSnapshots.findById(inningStateId);
+
+        // Verify: Fallback to event-only loading
+        expect(eventStore.getEvents).toHaveBeenCalledWith(inningStateId);
+        expect(mockFromEvents).toHaveBeenCalledOnce();
+        expect(result).toBe(mockReconstructedInningState);
+      });
+
+      it('should return null when no snapshot and no events exist', async () => {
+        // Setup: No snapshot and no events
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null);
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue([]);
+
+        // Execute
+        const result = await repositoryWithSnapshots.findById(inningStateId);
+
+        // Verify: null returned
+        expect(result).toBeNull();
+
+        // Verify: No reconstruction attempted
+        expect(vi.spyOn(InningState, 'fromEvents')).not.toHaveBeenCalled();
+      });
+
+      it('should work traditionally when no SnapshotStore provided', async () => {
+        // Setup: Use repository without snapshots
+        const allEvents = mockEvents.map((event, index) => ({
+          eventId: event.eventId,
+          streamId: inningStateId.value,
+          aggregateType: 'InningState' as const,
+          eventType: event.type,
+          eventData: JSON.stringify(event),
+          eventVersion: 1,
+          streamVersion: index + 1,
+          timestamp: new Date(event.timestamp),
+          metadata: { source: 'test', createdAt: new Date(event.timestamp) },
+        }));
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(allEvents);
+
+        const mockReconstructedInningState = mockInningState;
+        vi.spyOn(InningState, 'fromEvents').mockReturnValue(mockReconstructedInningState);
+
+        // Execute
+        const result = await repository.findById(inningStateId);
+
+        // Verify: Only event store used (no snapshot calls)
+        expect(mockSnapshotStore.getSnapshot).not.toHaveBeenCalled();
+        expect(eventStore.getEvents).toHaveBeenCalledWith(inningStateId);
+        expect(result).toBe(mockReconstructedInningState);
+      });
+    });
+
+    describe('Complex Inning State Snapshots', () => {
+      it('should handle snapshots with complex runner state', async () => {
+        // Setup: Complex inning state with multiple runners
+        const runner1 = PlayerId.generate();
+        const runner2 = PlayerId.generate();
+        const runner3 = PlayerId.generate();
+
+        const complexSnapshotData = {
+          id: inningStateId.value,
+          gameId: gameId.value,
+          inning: 7,
+          isTopHalf: false,
+          outs: 2,
+          currentBattingSlot: 9,
+          basesState: {
+            first: runner1.value,
+            second: runner2.value,
+            third: runner3.value,
+          },
+          version: 25,
+        };
+
+        // Mock SnapshotManager.loadAggregate to return complex state
+        const repositoryWithPrivateMembers = repositoryWithSnapshots as unknown as {
+          snapshotManager: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            loadAggregate: any;
+          };
+        };
+        const mockLoadAggregate = vi
+          .spyOn(repositoryWithPrivateMembers.snapshotManager, 'loadAggregate')
+          .mockResolvedValue({
+            aggregateId: inningStateId,
+            aggregateType: 'InningState' as const,
+            version: 25,
+            snapshotVersion: 25,
+            data: complexSnapshotData,
+            subsequentEvents: [],
+            reconstructedFromSnapshot: true,
+          });
+
+        // Mock InningState with complex state
+        const complexInningState = {
+          ...mockInningState,
+          inning: 7,
+          isTopHalf: false,
+          outs: 2,
+          currentBattingSlot: 9,
+          basesState: BasesState.empty()
+            .withRunnerOn('FIRST', runner1)
+            .withRunnerOn('SECOND', runner2)
+            .withRunnerOn('THIRD', runner3),
+        } as unknown as InningState;
+
+        // Mock event store to return some events for reconstruction
+        const mockEvents = [
+          {
+            eventId: crypto.randomUUID(),
+            streamId: inningStateId.value,
+            aggregateType: 'InningState' as const,
+            eventType: 'InningStateCreated',
+            eventData: JSON.stringify({ test: 'event' }),
+            eventVersion: 1,
+            streamVersion: 1,
+            timestamp: new Date(),
+            metadata: { source: 'test', createdAt: new Date() },
+          },
+        ];
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(mockEvents);
+
+        vi.spyOn(InningState, 'fromEvents').mockReturnValue(complexInningState);
+
+        // Execute
+        const result = await repositoryWithSnapshots.findById(inningStateId);
+
+        // Verify: Complex state loaded properly
+        expect(result).toBe(complexInningState);
+        expect(mockLoadAggregate).toHaveBeenCalledWith(inningStateId, 'InningState');
+      });
+
+      it('should achieve faster loading with snapshots for large inning histories', async () => {
+        // Setup: Large inning state with snapshot at version 50
+        const snapshotData = {
+          id: inningStateId.value,
+          gameId: gameId.value,
+          inning: 9,
+          isTopHalf: true,
+          outs: 1,
+          currentBattingSlot: 5,
+          basesState: {
+            first: batterId.value,
+            second: null,
+            third: null,
+          },
+          version: 50,
+        };
+        const fewSubsequentEvents = [
+          {
+            type: 'AtBatCompleted' as const,
+            eventId: crypto.randomUUID(),
+            timestamp: new Date(),
+            version: 1,
+            gameId,
+            batterId,
+            battingSlot: 5,
+            result: AtBatResultType.DOUBLE,
+            inning: 9,
+            outs: 1,
+          } as DomainEvent,
+        ];
+        const storedSubsequentEvents = fewSubsequentEvents.map(event => ({
+          eventId: event.eventId,
+          streamId: inningStateId.value,
+          aggregateType: 'InningState' as const,
+          eventType: event.type,
+          eventData: JSON.stringify(event),
+          eventVersion: 1,
+          streamVersion: 51,
+          timestamp: new Date(event.timestamp),
+          metadata: { source: 'test', createdAt: new Date(event.timestamp) },
+        }));
+
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue({
+          aggregateId: inningStateId,
+          aggregateType: 'InningState',
+          version: 50,
+          data: snapshotData,
+          timestamp: new Date(),
+        });
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(storedSubsequentEvents);
+
+        const mockFromEvents = vi.spyOn(InningState, 'fromEvents').mockReturnValue(mockInningState);
+
+        // Execute
+        const startTime = Date.now();
+        const result = await repositoryWithSnapshots.findById(inningStateId);
+        const endTime = Date.now();
+
+        // Verify: Only 1 event processed instead of 51
+        expect(mockFromEvents).toHaveBeenCalledOnce();
+        const eventsProcessed = mockFromEvents.mock.calls[0]![0];
+        expect(eventsProcessed).toHaveLength(1); // Only subsequent events, not all 51
+
+        // Verify: Result is correct
+        expect(result).toBe(mockInningState);
+
+        // Performance is inherently better by processing fewer events
+        expect(endTime - startTime).toBeLessThan(100); // Should be very fast
+      });
+
+      it('should maintain consistent interface regardless of snapshot availability', async () => {
+        // Setup: Test both repositories
+        const allEvents = mockEvents.map((event, index) => ({
+          eventId: event.eventId,
+          streamId: inningStateId.value,
+          aggregateType: 'InningState' as const,
+          eventType: event.type,
+          eventData: JSON.stringify(event),
+          eventVersion: 1,
+          streamVersion: index + 1,
+          timestamp: new Date(event.timestamp),
+          metadata: { source: 'test', createdAt: new Date(event.timestamp) },
+        }));
+
+        // Mock both paths
+        (mockSnapshotStore.getSnapshot as Mock).mockResolvedValue(null);
+        vi.spyOn(eventStore, 'getEvents').mockResolvedValue(allEvents);
+        vi.spyOn(InningState, 'fromEvents').mockReturnValue(mockInningState);
+
+        // Execute both
+        const resultWithSnapshots = await repositoryWithSnapshots.findById(inningStateId);
+        const resultWithoutSnapshots = await repository.findById(inningStateId);
+
+        // Verify: Same interface and results
+        expect(resultWithSnapshots).toBe(mockInningState);
+        expect(resultWithoutSnapshots).toBe(mockInningState);
+        expect(typeof resultWithSnapshots?.id).toBe(typeof resultWithoutSnapshots?.id);
+      });
     });
   });
 });
