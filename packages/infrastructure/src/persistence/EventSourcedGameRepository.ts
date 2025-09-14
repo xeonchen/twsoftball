@@ -16,7 +16,9 @@ import type { EventStore, StoredEvent } from '@twsoftball/application/ports/out/
 import type { GameRepository } from '@twsoftball/application/ports/out/GameRepository';
 import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore';
 import { SnapshotManager } from '@twsoftball/application/services/SnapshotManager';
-import { GameId, Game, GameStatus, DomainEvent } from '@twsoftball/domain';
+import { GameId, Game, GameStatus } from '@twsoftball/domain';
+
+import { deserializeEvent } from './utils/EventDeserializer';
 
 interface EventSourcedAggregate {
   getId(): GameId;
@@ -105,14 +107,11 @@ export class EventSourcedGameRepository implements GameRepository {
         homeTeamName: game.homeTeamName,
         awayTeamName: game.awayTeamName,
         status: game.status,
-        score: {
-          homeRuns: game.score.getHomeRuns(),
-          awayRuns: game.score.getAwayRuns(),
-        },
+        homeRuns: game.score.getHomeRuns(),
+        awayRuns: game.score.getAwayRuns(),
         currentInning: game.currentInning,
         isTopHalf: game.isTopHalf,
-        currentOuts: game.outs,
-        version: game.getVersion(),
+        outs: game.outs,
       }),
       applyEvents: (): void => {
         // This method is required by interface but not used in snapshot creation
@@ -138,25 +137,30 @@ export class EventSourcedGameRepository implements GameRepository {
 
         // Reconstruct from snapshot + subsequent events when snapshot is available
         if (loadResult.reconstructedFromSnapshot && loadResult.data) {
-          const subsequentDomainEvents = loadResult.subsequentEvents.map(
-            storedEvent => JSON.parse(storedEvent.eventData) as DomainEvent
-          );
+          // Convert subsequent events to domain events
+          const subsequentDomainEvents = loadResult.subsequentEvents.map(storedEvent => {
+            const rawData = JSON.parse(storedEvent.eventData) as unknown;
+            return deserializeEvent(rawData);
+          });
 
-          // If we have subsequent events, reconstruct only from those for now
-          // In a full implementation, we would have Game.fromSnapshot(data, events)
-          if (subsequentDomainEvents.length > 0) {
-            return Game.fromEvents(subsequentDomainEvents);
-          }
+          // Reconstruct the proper snapshot object structure that Game.fromSnapshot expects
+          const snapshotObject = {
+            aggregateId: loadResult.aggregateId as GameId,
+            aggregateType: 'Game' as const,
+            version: loadResult.snapshotVersion!,
+            data: loadResult.data,
+            timestamp: new Date(), // We don't have the original timestamp, use current time
+          };
 
-          // If no events since snapshot, fall back to traditional event sourcing for the entire stream
-          // This ensures we get a properly reconstructed aggregate
-          return this.findByIdFromEvents(id);
+          // Use Game.fromSnapshot() with the properly structured snapshot object
+          return Game.fromSnapshot(snapshotObject, subsequentDomainEvents);
         }
 
         // Fallback to event-only reconstruction when no snapshot available
-        const allDomainEvents = loadResult.subsequentEvents.map(
-          storedEvent => JSON.parse(storedEvent.eventData) as DomainEvent
-        );
+        const allDomainEvents = loadResult.subsequentEvents.map(storedEvent => {
+          const rawData = JSON.parse(storedEvent.eventData) as unknown;
+          return deserializeEvent(rawData);
+        });
 
         if (allDomainEvents.length === 0) return null;
         return Game.fromEvents(allDomainEvents);
@@ -177,11 +181,20 @@ export class EventSourcedGameRepository implements GameRepository {
     const storedEvents = await this.eventStore.getEvents(id);
     if (!storedEvents || storedEvents.length === 0) return null;
 
-    // Convert StoredEvents to DomainEvents for Game reconstruction
-    const domainEvents = storedEvents.map(
-      storedEvent => JSON.parse(storedEvent.eventData) as DomainEvent
-    );
-    return Game.fromEvents(domainEvents);
+    try {
+      // Convert StoredEvents to DomainEvents for Game reconstruction
+      const domainEvents = storedEvents.map(storedEvent => {
+        const rawData = JSON.parse(storedEvent.eventData) as unknown;
+        return deserializeEvent(rawData);
+      });
+      return Game.fromEvents(domainEvents);
+    } catch (error) {
+      // Only wrap unknown event type errors, let other errors propagate
+      if (error instanceof Error && error.message.startsWith('Unknown event type:')) {
+        throw new Error('Cannot reconstruct game from malformed events');
+      }
+      throw error;
+    }
   }
 
   async findByStatus(status: GameStatus): Promise<Game[]> {
@@ -200,7 +213,10 @@ export class EventSourcedGameRepository implements GameRepository {
     const games: Game[] = [];
     for (const [_streamId, events] of Array.from(gameEventGroups)) {
       if (events.length > 0) {
-        const domainEvents = events.map(e => JSON.parse(e.eventData) as DomainEvent);
+        const domainEvents = events.map(e => {
+          const rawData = JSON.parse(e.eventData) as unknown;
+          return deserializeEvent(rawData);
+        });
         const game = Game.fromEvents(domainEvents);
         if (game.status === status) {
           games.push(game);
@@ -231,7 +247,10 @@ export class EventSourcedGameRepository implements GameRepository {
     const games: Game[] = [];
     for (const [_streamId, events] of Array.from(gameEventGroups)) {
       if (events.length > 0) {
-        const domainEvents = events.map(e => JSON.parse(e.eventData) as DomainEvent);
+        const domainEvents = events.map(e => {
+          const rawData = JSON.parse(e.eventData) as unknown;
+          return deserializeEvent(rawData);
+        });
         const game = Game.fromEvents(domainEvents);
         // Check if this game instance has a scheduledDate property (used in tests and future implementations)
         if (hasScheduledDate(game)) {

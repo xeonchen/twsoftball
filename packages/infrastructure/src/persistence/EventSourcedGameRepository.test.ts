@@ -1474,8 +1474,8 @@ describe('EventSourcedGameRepository', () => {
         }));
         (mockEventStore.getEvents as Mock).mockResolvedValue(storedEvents);
 
-        // Mock Game.fromEvents static method since Game doesn't have fromSnapshot yet
-        const mockGameFromEvents = vi.spyOn(Game, 'fromEvents').mockReturnValue(mockGame);
+        // Mock Game.fromSnapshot static method for snapshot reconstruction
+        const mockGameFromSnapshot = vi.spyOn(Game, 'fromSnapshot').mockReturnValue(mockGame);
 
         try {
           // Execute
@@ -1485,19 +1485,28 @@ describe('EventSourcedGameRepository', () => {
           expect(mockLoadAggregate).toHaveBeenCalledOnce();
           expect(mockLoadAggregate).toHaveBeenCalledWith(gameId, 'Game');
 
-          // Verify: Fallback to EventStore when no subsequent events
-          expect(mockEventStore.getEvents).toHaveBeenCalledOnce();
-          expect(mockEventStore.getEvents).toHaveBeenCalledWith(gameId);
+          // Verify: Game.fromSnapshot called with snapshot and subsequent events (empty array)
+          expect(mockGameFromSnapshot).toHaveBeenCalledOnce();
+          expect(mockGameFromSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({
+              aggregateId: gameId,
+              aggregateType: 'Game',
+              version: 100,
+              data: { gameState: 'snapshot data' },
+              timestamp: expect.any(Date),
+            }),
+            [] // empty subsequent events
+          );
 
-          // Verify: Game.fromEvents called with all events from EventStore
-          expect(mockGameFromEvents).toHaveBeenCalledOnce();
+          // Verify: EventStore should NOT be called when snapshot is used
+          expect(mockEventStore.getEvents).not.toHaveBeenCalled();
 
           // Verify: Correct game returned
           expect(result).toBe(mockGame);
         } finally {
           mockSnapshotManagerConstructor.mockRestore();
           mockLoadAggregate.mockRestore();
-          mockGameFromEvents.mockRestore();
+          mockGameFromSnapshot.mockRestore();
         }
       });
 
@@ -1862,7 +1871,7 @@ describe('EventSourcedGameRepository', () => {
         const mockLoadAggregate = vi
           .spyOn(SnapshotManager.prototype, 'loadAggregate')
           .mockResolvedValue(mockSnapshotLoadResult);
-        const mockGameFromEvents = vi.spyOn(Game, 'fromEvents').mockReturnValue(mockGame);
+        const mockGameFromSnapshot = vi.spyOn(Game, 'fromSnapshot').mockReturnValue(mockGame);
 
         try {
           // Execute
@@ -1871,8 +1880,8 @@ describe('EventSourcedGameRepository', () => {
           // Verify: SnapshotManager used for optimization
           expect(mockLoadAggregate).toHaveBeenCalledOnce();
 
-          // Verify: Game.fromEvents called with minimal events (only subsequent events)
-          expect(mockGameFromEvents).toHaveBeenCalledOnce();
+          // Verify: Game.fromSnapshot called with snapshot and subsequent events
+          expect(mockGameFromSnapshot).toHaveBeenCalledOnce();
 
           // Verify: Only 100 events replayed instead of 1000
           expect(mockSnapshotLoadResult.subsequentEvents).toHaveLength(100);
@@ -1884,7 +1893,7 @@ describe('EventSourcedGameRepository', () => {
           // This test verifies the correct method calls for performance optimization
         } finally {
           mockLoadAggregate.mockRestore();
-          mockGameFromEvents.mockRestore();
+          mockGameFromSnapshot.mockRestore();
         }
       });
 
@@ -1915,7 +1924,7 @@ describe('EventSourcedGameRepository', () => {
         const mockLoadAggregate = vi
           .spyOn(SnapshotManager.prototype, 'loadAggregate')
           .mockResolvedValue(mockSnapshotLoadResult);
-        const mockGameFromEvents = vi.spyOn(Game, 'fromEvents').mockReturnValue(mockGame);
+        const mockGameFromSnapshot = vi.spyOn(Game, 'fromSnapshot').mockReturnValue(mockGame);
 
         try {
           // Execute
@@ -1926,14 +1935,14 @@ describe('EventSourcedGameRepository', () => {
           expect(typeof mockSnapshotLoadResult.data).toBe('object');
           expect(Object.keys(mockSnapshotLoadResult.data as object)).toHaveLength(1); // Compact snapshot
 
-          // Verify: Correct reconstruction with only subsequent events
-          expect(mockGameFromEvents).toHaveBeenCalledOnce();
-          const fromEventsArg = mockGameFromEvents.mock.calls[0]![0];
-          expect(fromEventsArg).toHaveLength(3); // Only 3 subsequent events
+          // Verify: Correct reconstruction with snapshot and subsequent events
+          expect(mockGameFromSnapshot).toHaveBeenCalledOnce();
+          const fromSnapshotCall = mockGameFromSnapshot.mock.calls[0]!;
+          expect(fromSnapshotCall[1]).toHaveLength(3); // Only 3 subsequent events
           expect(result).toBe(mockGame);
         } finally {
           mockLoadAggregate.mockRestore();
-          mockGameFromEvents.mockRestore();
+          mockGameFromSnapshot.mockRestore();
         }
       });
     });

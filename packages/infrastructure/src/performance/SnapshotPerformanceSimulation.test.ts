@@ -1,55 +1,57 @@
 /**
- * @file Realistic Performance Validation Tests
- * Performance measurement tests using realistic database simulation.
+ * @file Snapshot Performance Simulation Tests
+ * Performance measurement tests using realistic database I/O simulation.
  *
  * @remarks
- * This file contains performance tests that use SlowEventStore to simulate
- * real database latency, allowing proper validation of snapshot optimization
- * benefits that would be invisible with purely in-memory operations.
+ * This file focuses on PERFORMANCE testing with simulated database I/O delays
+ * using RealisticEventStore. It validates that snapshots provide significant
+ * performance improvements under realistic database conditions.
+ *
+ * For correctness testing without performance concerns, see SnapshotCorrectness.test.ts
+ *
+ * Test Focus:
+ * - Significant performance improvement validation
+ * - Realistic database I/O simulation
+ * - Scaling characteristics with event count
+ * - Performance under concurrent load
+ *
+ * Simulation Details:
+ * - RealisticEventStore simulates batch I/O patterns
+ * - Base cost + per-event cost for realistic delays
+ * - Models actual database query performance characteristics
+ *
+ * Limitations:
+ * - Simulation only (not actual database)
+ * - Future: Will need SQLite integration for production validation
  */
 
 /* eslint-disable no-console -- Performance test files need diagnostic console output */
 
-import type { Logger } from '@twsoftball/application/ports/out/Logger';
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 
 import { EventSourcedGameRepository } from '../persistence/EventSourcedGameRepository';
 import { InMemorySnapshotStore } from '../persistence/InMemorySnapshotStore';
 
-import { SlowEventStore } from './SlowEventStore';
+import { RealisticEventStore } from './RealisticEventStore';
 import type { ComparisonResult } from './SnapshotPerformanceBenchmark';
 import { SnapshotPerformanceBenchmark } from './SnapshotPerformanceBenchmark';
 
-describe('Realistic Performance Validation - Database Simulation', () => {
-  let eventStore: SlowEventStore;
+describe('Snapshot Performance Simulation - Database I/O', () => {
+  let eventStore: RealisticEventStore;
   let snapshotStore: InMemorySnapshotStore;
   let gameRepository: EventSourcedGameRepository;
   let benchmark: SnapshotPerformanceBenchmark;
 
   beforeEach(() => {
-    // Set up infrastructure with realistic delays
-    // 1ms per event read, 2ms per event write to simulate database operations
-    eventStore = new SlowEventStore(1, 2);
+    // Set up infrastructure with realistic delays for honest performance testing
+    eventStore = new RealisticEventStore();
     snapshotStore = new InMemorySnapshotStore();
     gameRepository = new EventSourcedGameRepository(eventStore, snapshotStore);
 
-    // Mock services for benchmarking
-    const mockLogger: Logger = {
-      debug: () => {},
-      info: () => {},
-      warn: () => {},
-      error: () => {},
-      log: () => {},
-      isLevelEnabled: () => true,
-    };
-
     // Create benchmark instance
-    benchmark = new SnapshotPerformanceBenchmark(
-      eventStore,
-      snapshotStore,
-      { gameRepository },
-      { logger: mockLogger }
-    );
+    benchmark = new SnapshotPerformanceBenchmark(eventStore, snapshotStore, {
+      gameRepository,
+    });
   });
 
   afterEach(() => {
@@ -58,30 +60,27 @@ describe('Realistic Performance Validation - Database Simulation', () => {
   });
 
   describe('Snapshot Optimization Benefits', () => {
-    it('should show significant performance improvement with realistic database delays', async () => {
-      console.log('🚀 Testing snapshot benefits with realistic database simulation...');
+    it('should show significant performance improvement with simulated database I/O', async () => {
+      console.log('🚀 Testing snapshot benefits with simulated database I/O delays...');
 
       const comparison = await benchmark.compareWithAndWithoutSnapshots(1000);
 
-      console.log(`📊 Results for 1000 events with database simulation:`);
+      console.log(`📊 Results for 1000 events with simulated I/O delays:`);
       console.log(`   With snapshots: ${comparison.withSnapshots.loadTimeMs.toFixed(2)}ms`);
       console.log(`   Without snapshots: ${comparison.withoutSnapshots.loadTimeMs.toFixed(2)}ms`);
       console.log(`   Improvement: ${comparison.improvementPercentage.toFixed(2)}%`);
-      console.log(`   Passes target: ${comparison.withSnapshots.passesTarget ? '✅' : '❌'}`);
-      console.log(`   Significant improvement: ${comparison.significantImprovement ? '✅' : '❌'}`);
+      console.log(`   Meets 100ms target: ${comparison.withSnapshots.passesTarget ? '✅' : '❌'}`);
+      console.log(
+        `   Meets 50%+ improvement: ${comparison.improvementPercentage >= 50 ? '✅' : '❌'}`
+      );
 
-      // TODO: Until Game.fromSnapshot() is implemented, validate framework works
-      // With realistic delays, snapshots should show significant improvement
-      expect(comparison.withSnapshots.loadTimeMs).toBeDefined();
-      expect(comparison.improvementPercentage).toBeDefined();
-      expect(comparison.withSnapshots.passesTarget).toBeDefined();
-      // TODO: Restore when snapshots are working:
-      // expect(comparison.withSnapshots.loadTimeMs).toBeLessThan(100);
-      // expect(comparison.improvementPercentage).toBeGreaterThanOrEqual(50);
-      // expect(comparison.withSnapshots.passesTarget).toBe(true);
+      // With simulated database I/O delays, snapshots should show significant improvement
+      expect(comparison.withSnapshots.loadTimeMs).toBeLessThan(100);
+      expect(comparison.improvementPercentage).toBeGreaterThanOrEqual(50); // Realistic expectation with test overhead
+      expect(comparison.withSnapshots.passesTarget).toBe(true);
     }, 60000);
 
-    it('should show increasing benefits with larger aggregates', async () => {
+    it('should show performance benefits scaling with aggregate size', async () => {
       console.log('🚀 Testing snapshot benefits scaling with aggregate size...');
 
       const eventCounts = [100, 500, 1000, 2000];
@@ -96,32 +95,34 @@ describe('Realistic Performance Validation - Database Simulation', () => {
         console.log(`   With snapshots: ${comparison.withSnapshots.loadTimeMs.toFixed(2)}ms`);
         console.log(`   Without snapshots: ${comparison.withoutSnapshots.loadTimeMs.toFixed(2)}ms`);
         console.log(`   Improvement: ${comparison.improvementPercentage.toFixed(2)}%`);
+        const expectedImprovement = eventCount >= 500 ? 40 : 20;
+        const meetsImprovement = comparison.improvementPercentage >= expectedImprovement;
+        console.log(
+          `   Meets ${expectedImprovement}%+ improvement: ${meetsImprovement ? '✅' : '❌'}`
+        );
       }
 
-      // Verify increasing benefits with size
-      for (let i = 1; i < results.length; i++) {
-        const current = results[i];
-        const previous = results[i - 1];
+      // Verify all aggregates meet performance targets with simulated I/O
+      for (const result of results) {
+        // All should meet the 100ms target with snapshots
+        expect(result.withSnapshots.passesTarget).toBe(true);
 
-        if (current && previous) {
-          // TODO: Until Game.fromSnapshot() is implemented, validate framework works
-          // Larger aggregates should show equal or better improvement percentages
-          expect(current.improvementPercentage).toBeDefined();
-          expect(previous.improvementPercentage).toBeDefined();
-          expect(current.withSnapshots.passesTarget).toBeDefined();
-          // TODO: Restore when snapshots work:
-          // expect(current.improvementPercentage).toBeGreaterThanOrEqual(
-          //   previous.improvementPercentage * 0.8
-          // );
-          // expect(current.withSnapshots.passesTarget).toBe(true);
-        }
+        // With simulated database I/O, expect scaling performance improvements:
+        // For smaller aggregates (100 events): 20%+ improvement (snapshot overhead impacts smaller sets)
+        // For larger aggregates (500+ events): 40%+ improvement (clear snapshot benefits)
+        const expectedImprovement = result.eventCount >= 500 ? 40 : 20;
+        expect(result.improvementPercentage).toBeGreaterThanOrEqual(expectedImprovement);
+
+        // Snapshots should have acceptable absolute performance
+        expect(result.withSnapshots.loadTimeMs).toBeLessThan(100); // 100ms target
       }
 
-      console.log(`✅ All aggregates meet performance targets with realistic delays`);
+      console.log(`✅ All aggregates achieve expected improvements with simulated database I/O`);
+      console.log(`   (20%+ for <500 events, 40%+ for 500+ events due to snapshot overhead)`);
     }, 180000);
 
-    it('should demonstrate linear vs constant time complexity', async () => {
-      console.log('🚀 Testing time complexity characteristics...');
+    it('should demonstrate linear vs constant time complexity with simulated I/O', async () => {
+      console.log('🚀 Testing time complexity characteristics with simulated database I/O...');
 
       const eventCounts = [500, 1000, 2000, 4000];
 
@@ -148,8 +149,8 @@ describe('Realistic Performance Validation - Database Simulation', () => {
   });
 
   describe('Performance Under Load', () => {
-    it('should maintain performance with multiple concurrent operations', async () => {
-      console.log('🚀 Testing concurrent performance...');
+    it('should maintain performance improvement with concurrent simulated I/O', async () => {
+      console.log('🚀 Testing concurrent performance with simulated database I/O...');
 
       // Create multiple aggregates concurrently
       const concurrentTests = [
