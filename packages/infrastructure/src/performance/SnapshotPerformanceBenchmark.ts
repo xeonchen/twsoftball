@@ -58,6 +58,7 @@ import type { InningStateRepository } from '@twsoftball/application/ports/out/In
 import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore';
 import type { TeamLineupRepository } from '@twsoftball/application/ports/out/TeamLineupRepository';
 import { GameId, TeamLineupId, InningStateId, Game } from '@twsoftball/domain';
+import { SecureRandom } from '@twsoftball/shared';
 
 /// <reference path="./eslint-disable.d.ts" />
 
@@ -514,19 +515,19 @@ export class SnapshotPerformanceBenchmark {
       const remainingEvents = eventCount - currentEventCount;
       const eventsThisHalfInning = Math.min(
         remainingEvents,
-        Math.floor(Math.random() * 5) + 1 // 1-5 events per half inning
+        SecureRandom.randomInt(1, 6) // 1-5 events per half inning
       );
 
       for (let i = 0; i < eventsThisHalfInning && currentEventCount < eventCount; i++) {
         // Simulate various game events (simplified)
-        if (Math.random() < 0.3) {
+        if (SecureRandom.randomFloat() < 0.3) {
           // Score a run
           if (isTopHalf) {
             game.addAwayRuns(1);
           } else {
             game.addHomeRuns(1);
           }
-        } else if (Math.random() < 0.5) {
+        } else if (SecureRandom.randomFloat() < 0.5) {
           // Record an out (simplified - no direct out recording, but inning advancement)
           outs++;
           if (outs >= 3) {
@@ -636,7 +637,7 @@ export class SnapshotPerformanceBenchmark {
     aggregateType: 'Game' | 'TeamLineup' | 'InningState'
   ): GameId | TeamLineupId | InningStateId {
     const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 1000000); // Increased range for uniqueness
+    const random = SecureRandom.randomInt(0, 1000000); // Increased range for uniqueness
     const nano = performance.now().toString().replace('.', ''); // Add high precision timing
 
     switch (aggregateType) {
