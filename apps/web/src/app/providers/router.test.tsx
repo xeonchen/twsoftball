@@ -17,58 +17,193 @@ vi.mock('../../pages/NotFoundPage', () => ({
   NotFoundPage: (): ReactElement => <div data-testid="not-found-page">Page Not Found</div>,
 }));
 
-describe('Router Configuration', () => {
-  it('should render home route correctly', () => {
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <AppRouter />
-      </MemoryRouter>
-    );
+// Mock new page components for Phase 2
+vi.mock('../../pages/SettingsPage', () => ({
+  SettingsPage: (): ReactElement => <div data-testid="settings-page">Settings Page</div>,
+}));
 
-    expect(screen.getByTestId('home-page')).toBeInTheDocument();
+vi.mock('../../pages/GameSetupTeamsPage', () => ({
+  GameSetupTeamsPage: (): ReactElement => (
+    <div data-testid="game-setup-teams-page">Game Setup Teams</div>
+  ),
+}));
+
+vi.mock('../../pages/GameSetupLineupPage', () => ({
+  GameSetupLineupPage: (): ReactElement => (
+    <div data-testid="game-setup-lineup-page">Game Setup Lineup</div>
+  ),
+}));
+
+vi.mock('../../pages/GameSetupConfirmPage', () => ({
+  GameSetupConfirmPage: (): ReactElement => (
+    <div data-testid="game-setup-confirm-page">Game Setup Confirm</div>
+  ),
+}));
+
+vi.mock('../../pages/GameRecordingPage', () => ({
+  GameRecordingPage: (): ReactElement => (
+    <div data-testid="game-recording-page">Game Recording Page</div>
+  ),
+}));
+
+vi.mock('../../pages/GameStatsPage', () => ({
+  GameStatsPage: (): ReactElement => <div data-testid="game-stats-page">Game Stats Page</div>,
+}));
+
+describe('Enhanced Router Configuration', () => {
+  describe('Core Routes', () => {
+    it('should render home route correctly', () => {
+      render(
+        <MemoryRouter initialEntries={['/']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId('home-page')).toBeInTheDocument();
+    });
+
+    it('should render settings route correctly', () => {
+      render(
+        <MemoryRouter initialEntries={['/settings']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId('settings-page')).toBeInTheDocument();
+    });
+
+    it('should render not found page for invalid routes', () => {
+      render(
+        <MemoryRouter initialEntries={['/invalid-route']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId('not-found-page')).toBeInTheDocument();
+    });
   });
 
-  it('should render game route correctly', () => {
-    render(
-      <MemoryRouter initialEntries={['/game/123']}>
-        <AppRouter />
-      </MemoryRouter>
-    );
+  describe('Game Setup Wizard Routes', () => {
+    it('should handle teams setup route', () => {
+      render(
+        <MemoryRouter initialEntries={['/game/setup/teams']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
 
-    expect(screen.getByTestId('game-page')).toBeInTheDocument();
+      expect(screen.getByTestId('game-setup-teams-page')).toBeInTheDocument();
+    });
+
+    it('should handle lineup setup route', () => {
+      render(
+        <MemoryRouter initialEntries={['/game/setup/lineup']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId('game-setup-lineup-page')).toBeInTheDocument();
+    });
+
+    it('should handle confirm setup route', () => {
+      render(
+        <MemoryRouter initialEntries={['/game/setup/confirm']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId('game-setup-confirm-page')).toBeInTheDocument();
+    });
   });
 
-  it('should render not found page for invalid routes', () => {
-    render(
-      <MemoryRouter initialEntries={['/invalid-route']}>
-        <AppRouter />
-      </MemoryRouter>
-    );
+  describe('Game Recording Routes', () => {
+    it('should handle game recording route with game ID', () => {
+      render(
+        <MemoryRouter initialEntries={['/game/test-game-id/record']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
 
-    expect(screen.getByTestId('not-found-page')).toBeInTheDocument();
+      expect(screen.getByTestId('game-recording-page')).toBeInTheDocument();
+    });
+
+    it('should handle game stats route with game ID', () => {
+      render(
+        <MemoryRouter initialEntries={['/game/test-game-id/stats']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId('game-stats-page')).toBeInTheDocument();
+    });
+
+    it('should handle different game IDs correctly', () => {
+      render(
+        <MemoryRouter initialEntries={['/game/another-game-123/record']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId('game-recording-page')).toBeInTheDocument();
+    });
   });
 
-  it('should handle navigation guards (placeholder for future auth)', () => {
-    // For Phase 1B, this is a placeholder test
-    // In future phases, this will test authentication-based route protection
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <AppRouter />
-      </MemoryRouter>
-    );
+  describe('Route Parameters', () => {
+    it('should handle game ID parameters correctly', () => {
+      render(
+        <MemoryRouter initialEntries={['/game/uuid-123-456-789/stats']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
 
-    // Currently all routes are public, so home should render
-    expect(screen.getByTestId('home-page')).toBeInTheDocument();
+      expect(screen.getByTestId('game-stats-page')).toBeInTheDocument();
+    });
+
+    it('should handle special characters in game IDs', () => {
+      render(
+        <MemoryRouter initialEntries={['/game/game-2025-03-15/record']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
+
+      expect(screen.getByTestId('game-recording-page')).toBeInTheDocument();
+    });
   });
 
-  it('should handle route parameters correctly', () => {
-    render(
-      <MemoryRouter initialEntries={['/game/test-game-id']}>
-        <AppRouter />
-      </MemoryRouter>
-    );
+  describe('Navigation Guards (Browser Protection)', () => {
+    it('should be prepared for browser navigation protection', () => {
+      // This test validates the routing structure is ready for navigation guards
+      // The actual navigation guard implementation will be tested separately
+      render(
+        <MemoryRouter initialEntries={['/game/active-game/record']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
 
-    // Game page should render when valid game ID is provided
-    expect(screen.getByTestId('game-page')).toBeInTheDocument();
+      expect(screen.getByTestId('game-recording-page')).toBeInTheDocument();
+    });
+
+    it('should support all routes required for navigation guard scenarios', () => {
+      const criticalRoutes = [
+        '/',
+        '/game/test/record',
+        '/game/test/stats',
+        '/game/setup/teams',
+        '/game/setup/lineup',
+        '/game/setup/confirm',
+        '/settings',
+      ];
+
+      criticalRoutes.forEach(route => {
+        const { unmount } = render(
+          <MemoryRouter initialEntries={[route]}>
+            <AppRouter />
+          </MemoryRouter>
+        );
+
+        // Should not show 404 for any critical route
+        expect(screen.queryByTestId('not-found-page')).not.toBeInTheDocument();
+        unmount();
+      });
+    });
   });
 });

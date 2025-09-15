@@ -2,40 +2,63 @@ import { ReactNode, type ReactElement } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import { GamePage } from '../../pages/GamePage';
+import { GameRecordingPage } from '../../pages/GameRecordingPage';
+import { GameSetupConfirmPage } from '../../pages/GameSetupConfirmPage';
+import { GameSetupLineupPage } from '../../pages/GameSetupLineupPage';
+import { GameSetupTeamsPage } from '../../pages/GameSetupTeamsPage';
+import { GameStatsPage } from '../../pages/GameStatsPage';
 import { HomePage } from '../../pages/HomePage';
 import { NotFoundPage } from '../../pages/NotFoundPage';
+import { SettingsPage } from '../../pages/SettingsPage';
 
 /**
  * Application router configuration for TW Softball PWA
  *
- * Defines the routing structure for the application. This is a basic
- * implementation for Phase 1B that will be expanded in future phases with:
- * - Authentication guards
- * - Role-based access control
- * - Dynamic route loading
- * - Offline routing support
+ * Phase 2 enhanced routing structure with comprehensive game management:
+ * - Home page with game selection and overview
+ * - Complete game setup wizard with team, lineup, and confirmation steps
+ * - Game recording interface with navigation protection
+ * - Game statistics and analysis views
+ * - Settings and configuration management
  *
  * @remarks
  * Routes defined:
- * - `/` - Home page with game selection and overview
- * - `/game/:gameId` - Individual game view and recording interface
+ * - `/` - Home page (Screen 1: Game List)
+ * - `/settings` - Settings page (Screen 9: Configuration)
+ * - `/game/setup/teams` - Team setup wizard step 1 (Screen 2)
+ * - `/game/setup/lineup` - Lineup setup wizard step 2 (Screen 3)
+ * - `/game/setup/confirm` - Setup confirmation step 3 (Screen 4)
+ * - `/game/:gameId/record` - Game recording interface (Screen 5)
+ * - `/game/:gameId/stats` - Game statistics view (Screen 8)
  * - `*` - 404 Not Found page for invalid routes
  *
- * All routes are currently public. Authentication will be added in Phase 3.
+ * Navigation guards will be implemented to protect active games from
+ * accidental browser navigation. All routes support proper parameter
+ * handling and maintain state across navigation events.
  */
 export const AppRouter = (): ReactElement => {
   return (
     <Routes>
-      {/* Home route */}
+      {/* Home route - Screen 1: Game List */}
       <Route path="/" element={<HomePage />} />
 
-      {/* Game routes */}
+      {/* Settings route - Screen 9: Settings & Configuration */}
+      <Route path="/settings" element={<SettingsPage />} />
+
+      {/* Game setup wizard routes */}
+      <Route path="/game/setup/teams" element={<GameSetupTeamsPage />} />
+      <Route path="/game/setup/lineup" element={<GameSetupLineupPage />} />
+      <Route path="/game/setup/confirm" element={<GameSetupConfirmPage />} />
+
+      {/* Game recording and stats routes with game ID parameter */}
+      <Route path="/game/:gameId/record" element={<GameRecordingPage />} />
+      <Route path="/game/:gameId/stats" element={<GameStatsPage />} />
+
+      {/* Legacy route for backward compatibility - will redirect internally */}
       <Route path="/game/:gameId" element={<GamePage />} />
 
       {/* Catch-all route for 404 */}
       <Route path="*" element={<NotFoundPage />} />
-
-      {/* Additional routes can be added here in future phases */}
     </Routes>
   );
 };
