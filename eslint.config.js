@@ -6,6 +6,8 @@ import boundaries from 'eslint-plugin-boundaries';
 import eslintComments from 'eslint-plugin-eslint-comments';
 import importPlugin from 'eslint-plugin-import';
 import security from 'eslint-plugin-security';
+import reactHooks from 'eslint-plugin-react-hooks';
+import reactRefresh from 'eslint-plugin-react-refresh';
 
 export default [
   // Base configs
@@ -120,6 +122,7 @@ export default [
             '**/*.spec.ts',
             '**/test-factories/**',
             '**/test-utils/**',
+            '**/src/test/**',
             '**/vitest.config.ts',
             '**/vite.config.ts',
             'tools/**',
@@ -244,11 +247,180 @@ export default [
     },
   },
 
+  // React/TSX files configuration for apps/web
+  {
+    files: ['apps/web/**/*.{ts,tsx}'],
+    languageOptions: {
+      parser: tseslintParser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        // Browser globals
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        console: 'readonly',
+        // React testing globals
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        vi: 'readonly',
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tseslint,
+      boundaries,
+      'eslint-comments': eslintComments,
+      import: importPlugin,
+      security,
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
+    },
+    rules: {
+      // Inherit all TypeScript ESLint rules
+      ...tseslint.configs.recommended.rules,
+      ...tseslint.configs['recommended-requiring-type-checking'].rules,
+
+      // All the same strict rules as the main TypeScript config
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/explicit-function-return-type': 'warn',
+      '@typescript-eslint/no-unsafe-assignment': 'error',
+      '@typescript-eslint/no-unsafe-member-access': 'error',
+      '@typescript-eslint/no-unsafe-call': 'error',
+      '@typescript-eslint/no-unsafe-return': 'error',
+      '@typescript-eslint/prefer-readonly': 'error',
+
+      // Import rules
+      'import/prefer-default-export': 'off',
+      'import/no-extraneous-dependencies': [
+        'error',
+        {
+          devDependencies: [
+            '**/*.test.{ts,tsx}',
+            '**/*.spec.{ts,tsx}',
+            '**/test-factories/**',
+            '**/test-utils/**',
+            '**/src/test/**',
+            '**/vitest.config.ts',
+            '**/vite.config.ts',
+            'tools/**',
+            'tests/**',
+          ],
+        },
+      ],
+      'import/order': [
+        'error',
+        {
+          groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
+          'newlines-between': 'always',
+          alphabetize: {
+            order: 'asc',
+            caseInsensitive: true,
+          },
+        },
+      ],
+      'import/no-cycle': ['error', { maxDepth: 10 }],
+      'import/no-self-import': 'error',
+
+      // General rules
+      'no-console': 'warn',
+      'prefer-const': 'error',
+      'no-var': 'error',
+
+      // Security rules (same as main config)
+      ...security.configs.recommended.rules,
+      'security/detect-object-injection': 'off',
+      'security/detect-non-literal-fs-filename': 'error',
+      'security/detect-possible-timing-attacks': 'warn',
+      'security/detect-eval-with-expression': 'error',
+
+      // ESLint comments rules - same strict enforcement
+      'eslint-comments/disable-enable-pair': 'error',
+      'eslint-comments/no-aggregating-enable': 'error',
+      'eslint-comments/no-duplicate-disable': 'error',
+      'eslint-comments/no-unlimited-disable': 'error',
+      'eslint-comments/no-unused-disable': 'error',
+      'eslint-comments/no-unused-enable': 'error',
+      'eslint-comments/require-description': 'error',
+      'eslint-comments/no-restricted-disable': [
+        'error',
+        'security/detect-eval-with-expression',
+        'security/detect-non-literal-fs-filename',
+        '@typescript-eslint/no-explicit-any',
+        '@typescript-eslint/no-unsafe-assignment',
+        '@typescript-eslint/no-unsafe-member-access',
+        '@typescript-eslint/no-unsafe-call',
+        '@typescript-eslint/no-unsafe-return',
+        'boundaries/element-types',
+      ],
+
+      // Architecture boundaries - same enforcement
+      'boundaries/element-types': [
+        'error',
+        {
+          default: 'disallow',
+          rules: [
+            {
+              from: 'web',
+              allow: ['domain', 'application', 'shared'],
+            },
+          ],
+        },
+      ],
+
+      // React-specific rules
+      ...reactHooks.configs.recommended.rules,
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+    },
+    settings: {
+      'boundaries/elements': [
+        {
+          type: 'web',
+          pattern: 'apps/web/src/**',
+        },
+        {
+          type: 'domain',
+          pattern: 'packages/domain/src/**',
+        },
+        {
+          type: 'application',
+          pattern: 'packages/application/src/**',
+        },
+        {
+          type: 'shared',
+          pattern: 'packages/shared/src/**',
+        },
+      ],
+    },
+  },
+
   // Test files overrides
   {
     files: [
       '**/*.test.ts',
       '**/*.spec.ts',
+      '**/*.test.tsx',
+      '**/*.spec.tsx',
       'tests/**/*.ts',
       '**/test-factories/**',
       '**/test-utils/**',
