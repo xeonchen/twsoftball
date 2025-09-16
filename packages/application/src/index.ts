@@ -15,6 +15,8 @@ export type { GameQueryService } from './ports/in/GameQueryService';
 
 // Ports - Output (Driven) Interfaces
 export type { GameRepository } from './ports/out/GameRepository';
+export type { TeamLineupRepository } from './ports/out/TeamLineupRepository';
+export type { InningStateRepository } from './ports/out/InningStateRepository';
 export type { EventStore, StoredEvent, StoredEventMetadata } from './ports/out/EventStore';
 export type {
   SnapshotStore,
