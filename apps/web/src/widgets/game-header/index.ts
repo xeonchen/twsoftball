@@ -1,2 +1,2 @@
-// Placeholder for game-header widget
-export {};
+export { GameHeader } from './GameHeader';
+export type { GameHeaderProps } from './GameHeader';

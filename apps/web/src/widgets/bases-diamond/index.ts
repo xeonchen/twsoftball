@@ -1,2 +1,2 @@
-// Placeholder for bases-diamond widget
-export {};
+export { BasesDiamond } from './BasesDiamond';
+export type { BasesDiamondProps } from './BasesDiamond';
