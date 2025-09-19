@@ -1,6 +1,6 @@
-import { FieldPosition } from '../constants/FieldPosition';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
-import { PlayerId } from '../value-objects/PlayerId';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import { JerseyNumber } from '../value-objects/JerseyNumber.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
 /**
  * Represents a player in a team lineup with their basic information.

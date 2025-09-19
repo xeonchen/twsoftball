@@ -1,6 +1,6 @@
-import { AtBatResultType } from '../constants/AtBatResultType';
-import { DomainError } from '../errors/DomainError';
-import { BasesState } from '../value-objects/BasesState';
+import { AtBatResultType } from '../constants/AtBatResultType.js';
+import { DomainError } from '../errors/DomainError.js';
+import { BasesState } from '../value-objects/BasesState.js';
 
 /**
  * Domain service responsible for calculating RBIs (Runs Batted In) based on at-bat results and game state.

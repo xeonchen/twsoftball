@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 
-import { GameId } from '../value-objects/GameId';
+import { GameId } from '../value-objects/GameId.js';
 
-import { EventDataValidator } from './EventDataValidator';
+import { EventDataValidator } from './EventDataValidator.js';
 
 describe('EventDataValidator', () => {
   describe('freezeData', () => {

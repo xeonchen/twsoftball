@@ -1,10 +1,10 @@
-import { FieldPosition } from '../constants/FieldPosition';
-import { DomainError } from '../errors/DomainError';
-import { SoftballRules } from '../rules/SoftballRules';
-import { PlayerId } from '../value-objects/PlayerId';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import { DomainError } from '../errors/DomainError.js';
+import { SoftballRules } from '../rules/SoftballRules.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
-import { BaseTeamStrategy } from './BaseTeamStrategy';
-import type { TeamPlayer, BattingSlotState } from './TeamStrategy';
+import { BaseTeamStrategy } from './BaseTeamStrategy.js';
+import type { TeamPlayer, BattingSlotState } from './TeamStrategy.js';
 
 /**
  * Simplified team strategy implementation focused on current lineup state only.

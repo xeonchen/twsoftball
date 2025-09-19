@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { FieldPosition } from '../constants/FieldPosition';
-import { DomainError } from '../errors/DomainError';
-import { SoftballRules } from '../rules/SoftballRules';
-import { TestPlayerFactory, TeamStrategyTestHelper } from '../test-utils';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import { DomainError } from '../errors/DomainError.js';
+import { SoftballRules } from '../rules/SoftballRules.js';
+import { TestPlayerFactory, TeamStrategyTestHelper } from '../test-utils/index.js';
 
-import { SimpleTeamStrategy } from './SimpleTeamStrategy';
-import type { TeamPlayer, BattingSlotState } from './TeamStrategy';
+import { SimpleTeamStrategy } from './SimpleTeamStrategy.js';
+import type { TeamPlayer, BattingSlotState } from './TeamStrategy.js';
 
 describe('SimpleTeamStrategy', () => {
   let strategy: SimpleTeamStrategy;

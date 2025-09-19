@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 
-import { DomainError } from '../errors/DomainError';
+import { DomainError } from '../errors/DomainError.js';
 
-import { RuleVariants } from './RuleVariants';
-import { SoftballRules } from './SoftballRules';
+import { RuleVariants } from './RuleVariants.js';
+import { SoftballRules } from './SoftballRules.js';
 
 describe('RuleVariants', () => {
   describe('Core Rule Variants', () => {

@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 
-import { FieldPosition } from '../constants/FieldPosition';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
-import { PlayerId } from '../value-objects/PlayerId';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import { JerseyNumber } from '../value-objects/JerseyNumber.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
-import { TeamStrategy, TeamPlayer, BattingSlotState } from './TeamStrategy';
+import { TeamStrategy, TeamPlayer, BattingSlotState } from './TeamStrategy.js';
 
 describe('TeamStrategy Interface Contracts', () => {
   // Mock implementation for testing interface contracts

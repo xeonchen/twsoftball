@@ -1,4 +1,4 @@
-import { DomainError } from '../errors/DomainError';
+import { DomainError } from '../errors/DomainError.js';
 
 /**
  * Specialized validator for softball game score validation.
