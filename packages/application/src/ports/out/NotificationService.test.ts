@@ -18,7 +18,7 @@ import type {
   UserNotificationPreferences,
   NotificationResult,
   NotificationMetadata,
-} from './NotificationService';
+} from './NotificationService.js';
 
 /**
  * Mock implementation of NotificationService for testing interface contracts.

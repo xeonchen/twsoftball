@@ -6,7 +6,7 @@
 import { GameId } from '@twsoftball/domain';
 import { describe, it, expect } from 'vitest';
 
-import { createEndGameCommand } from '../test-factories/command-factories';
+import { createEndGameCommand } from '../test-factories/command-factories.js';
 
 import {
   EndGameCommand,
@@ -16,7 +16,7 @@ import {
   EndGameCommandValidator,
   EndGameCommandValidationError,
   EndGameCommandFactory,
-} from './EndGameCommand';
+} from './EndGameCommand.js';
 
 describe('EndGameCommand', () => {
   describe('EndGameCommand interface', () => {

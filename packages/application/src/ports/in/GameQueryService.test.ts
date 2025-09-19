@@ -13,13 +13,13 @@ import {
 } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { GameHistoryDTO } from '../../dtos/GameHistoryDTO';
-import { GameStateDTO } from '../../dtos/GameStateDTO';
-import { GameStatisticsDTO } from '../../dtos/GameStatisticsDTO';
-import { PlayerStatisticsDTO } from '../../dtos/PlayerStatisticsDTO';
-import { TeamLineupDTO } from '../../dtos/TeamLineupDTO';
+import { GameHistoryDTO } from '../../dtos/GameHistoryDTO.js';
+import { GameStateDTO } from '../../dtos/GameStateDTO.js';
+import { GameStatisticsDTO } from '../../dtos/GameStatisticsDTO.js';
+import { PlayerStatisticsDTO } from '../../dtos/PlayerStatisticsDTO.js';
+import { TeamLineupDTO } from '../../dtos/TeamLineupDTO.js';
 
-import { GameQueryService } from './GameQueryService';
+import { GameQueryService } from './GameQueryService.js';
 
 // Helper function to create mock lineup DTOs for query service
 function createMockLineupDTOForQuery(

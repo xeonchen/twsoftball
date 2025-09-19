@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { GameScoreDTO } from './GameScoreDTO';
+import { GameScoreDTO } from './GameScoreDTO.js';
 
 describe('GameScoreDTO', () => {
   describe('Score Scenarios', () => {

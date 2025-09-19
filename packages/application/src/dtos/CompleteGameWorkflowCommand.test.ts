@@ -18,10 +18,10 @@ import {
   CompleteGameWorkflowCommandValidator,
   CompleteGameWorkflowCommandValidationError,
   CompleteGameWorkflowCommandFactory,
-} from './CompleteGameWorkflowCommand';
-import { RecordAtBatCommand } from './RecordAtBatCommand';
-import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from './StartNewGameCommand';
-import { SubstitutePlayerCommand } from './SubstitutePlayerCommand';
+} from './CompleteGameWorkflowCommand.js';
+import { RecordAtBatCommand } from './RecordAtBatCommand.js';
+import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from './StartNewGameCommand.js';
+import { SubstitutePlayerCommand } from './SubstitutePlayerCommand.js';
 
 describe('CompleteGameWorkflowCommand', () => {
   let validCommand: CompleteGameWorkflowCommand;

@@ -14,7 +14,7 @@ import type {
   FollowUpActionDTO,
   EndGameErrorDTO,
   EndGameErrorCode,
-} from './EndGameResult';
+} from './EndGameResult.js';
 
 describe('EndGameResult', () => {
   describe('EndGameResult interface', () => {

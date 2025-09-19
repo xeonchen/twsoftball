@@ -58,11 +58,11 @@
  * ```
  */
 
-import { ValidationError } from '../errors/ValidationError';
+import { ValidationError } from '../errors/ValidationError.js';
 
-import { RecordAtBatCommand } from './RecordAtBatCommand';
-import { StartNewGameCommand } from './StartNewGameCommand';
-import { SubstitutePlayerCommand } from './SubstitutePlayerCommand';
+import { RecordAtBatCommand } from './RecordAtBatCommand.js';
+import { StartNewGameCommand } from './StartNewGameCommand.js';
+import { SubstitutePlayerCommand } from './SubstitutePlayerCommand.js';
 
 /**
  * Validation error for CompleteGameWorkflowCommand

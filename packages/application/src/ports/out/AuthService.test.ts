@@ -10,8 +10,8 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { AUTH_TEST_CONSTANTS, getTestBackupCodes } from '../../test-utils/auth-test-constants';
-import { SecureTestUtils } from '../../test-utils/secure-test-utils';
+import { AUTH_TEST_CONSTANTS, getTestBackupCodes } from '../../test-utils/auth-test-constants.js';
+import { SecureTestUtils } from '../../test-utils/secure-test-utils.js';
 
 import type {
   AuthService,
@@ -25,7 +25,7 @@ import type {
   AuthError,
   SecurityEvent,
   AuthContext,
-} from './AuthService';
+} from './AuthService.js';
 
 /**
  * Mock implementation of AuthService for testing interface contracts.

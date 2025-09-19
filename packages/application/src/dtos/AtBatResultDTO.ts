@@ -47,7 +47,7 @@
 
 import { PlayerId, AtBatResultType } from '@twsoftball/domain';
 
-import { RunnerAdvanceDTO } from './RunnerAdvanceDTO';
+import { RunnerAdvanceDTO } from './RunnerAdvanceDTO.js';
 
 /**
  * DTO representing an individual at-bat result with complete context.

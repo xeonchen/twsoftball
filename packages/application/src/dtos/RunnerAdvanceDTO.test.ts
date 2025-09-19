@@ -6,7 +6,7 @@
 import { PlayerId } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { RunnerAdvanceDTO } from './RunnerAdvanceDTO';
+import { RunnerAdvanceDTO } from './RunnerAdvanceDTO.js';
 
 describe('RunnerAdvanceDTO', () => {
   let playerId: PlayerId;

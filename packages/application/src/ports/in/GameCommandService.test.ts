@@ -21,17 +21,21 @@ import {
 } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { AtBatResult } from '../../dtos/AtBatResult';
-import { EndGameResult } from '../../dtos/EndGameResult';
-import { GameStartResult } from '../../dtos/GameStartResult';
-import { InningEndResult } from '../../dtos/InningEndResult';
-import { RedoResult } from '../../dtos/RedoResult';
-import { StartNewGameCommand } from '../../dtos/StartNewGameCommand';
-import { SubstitutionResult } from '../../dtos/SubstitutionResult';
-import { UndoResult } from '../../dtos/UndoResult';
-import { CommandTestBuilder, SecureTestUtils, createLineupDTO } from '../../test-factories';
+import { AtBatResult } from '../../dtos/AtBatResult.js';
+import { EndGameResult } from '../../dtos/EndGameResult.js';
+import { GameStartResult } from '../../dtos/GameStartResult.js';
+import { InningEndResult } from '../../dtos/InningEndResult.js';
+import { RedoResult } from '../../dtos/RedoResult.js';
+import { StartNewGameCommand } from '../../dtos/StartNewGameCommand.js';
+import { SubstitutionResult } from '../../dtos/SubstitutionResult.js';
+import { UndoResult } from '../../dtos/UndoResult.js';
+import {
+  CommandTestBuilder,
+  SecureTestUtils,
+  createLineupDTO,
+} from '../../test-factories/index.js';
 
-import { GameCommandService } from './GameCommandService';
+import { GameCommandService } from './GameCommandService.js';
 
 // Use factory function instead of local helper
 

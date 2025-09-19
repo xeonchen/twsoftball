@@ -13,7 +13,7 @@ import type {
   InningScoreDTO,
   SignificantGameEventDTO,
   GameMetricsDTO,
-} from './GameStatisticsDTO';
+} from './GameStatisticsDTO.js';
 
 describe('GameStatisticsDTO', () => {
   describe('GameStatisticsDTO interface', () => {

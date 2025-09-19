@@ -14,10 +14,10 @@ import {
 } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { BasesStateDTO } from './BasesStateDTO';
-import { GameScoreDTO } from './GameScoreDTO';
-import { GameStateDTO } from './GameStateDTO';
-import { TeamLineupDTO } from './TeamLineupDTO';
+import { BasesStateDTO } from './BasesStateDTO.js';
+import { GameScoreDTO } from './GameScoreDTO.js';
+import { GameStateDTO } from './GameStateDTO.js';
+import { TeamLineupDTO } from './TeamLineupDTO.js';
 
 describe('GameStateDTO', () => {
   let validGameStateData: GameStateDTO;

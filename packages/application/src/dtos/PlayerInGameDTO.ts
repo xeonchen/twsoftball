@@ -34,8 +34,8 @@
 
 import { PlayerId, JerseyNumber, FieldPosition } from '@twsoftball/domain';
 
-import { AtBatResultDTO } from './AtBatResultDTO';
-import { PlayerStatisticsDTO } from './PlayerStatisticsDTO';
+import { AtBatResultDTO } from './AtBatResultDTO.js';
+import { PlayerStatisticsDTO } from './PlayerStatisticsDTO.js';
 
 /**
  * DTO representing a player's complete in-game information and statistics.

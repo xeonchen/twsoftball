@@ -6,9 +6,9 @@
 import { PlayerId, JerseyNumber, FieldPosition, AtBatResultType } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { AtBatResultDTO } from './AtBatResultDTO';
-import { PlayerInGameDTO } from './PlayerInGameDTO';
-import { PlayerStatisticsDTO, FieldingStatisticsDTO } from './PlayerStatisticsDTO';
+import { AtBatResultDTO } from './AtBatResultDTO.js';
+import { PlayerInGameDTO } from './PlayerInGameDTO.js';
+import { PlayerStatisticsDTO, FieldingStatisticsDTO } from './PlayerStatisticsDTO.js';
 
 describe('PlayerInGameDTO', () => {
   let validPlayerData: PlayerInGameDTO;

@@ -6,8 +6,8 @@
 import { GameId } from '@twsoftball/domain';
 import { describe, it, expect } from 'vitest';
 
-import { GameStateDTO } from './GameStateDTO';
-import { UndoResult, UndoStackInfo, UndoneActionDetail } from './UndoResult';
+import { GameStateDTO } from './GameStateDTO.js';
+import { UndoResult, UndoStackInfo, UndoneActionDetail } from './UndoResult.js';
 
 describe('UndoResult', () => {
   const gameId = GameId.generate();

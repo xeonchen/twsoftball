@@ -18,9 +18,9 @@ import {
   CompleteAtBatSequenceCommandValidator,
   CompleteAtBatSequenceCommandValidationError,
   CompleteAtBatSequenceCommandFactory,
-} from './CompleteAtBatSequenceCommand';
-import { RecordAtBatCommand } from './RecordAtBatCommand';
-import { SubstitutePlayerCommand } from './SubstitutePlayerCommand';
+} from './CompleteAtBatSequenceCommand.js';
+import { RecordAtBatCommand } from './RecordAtBatCommand.js';
+import { SubstitutePlayerCommand } from './SubstitutePlayerCommand.js';
 
 describe('CompleteAtBatSequenceCommand', () => {
   let validCommand: CompleteAtBatSequenceCommand;

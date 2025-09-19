@@ -13,11 +13,11 @@ import {
 } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { BasesStateDTO } from './BasesStateDTO';
-import { GameScoreDTO } from './GameScoreDTO';
-import { GameStartResult } from './GameStartResult';
-import { GameStateDTO } from './GameStateDTO';
-import { TeamLineupDTO } from './TeamLineupDTO';
+import { BasesStateDTO } from './BasesStateDTO.js';
+import { GameScoreDTO } from './GameScoreDTO.js';
+import { GameStartResult } from './GameStartResult.js';
+import { GameStateDTO } from './GameStateDTO.js';
+import { TeamLineupDTO } from './TeamLineupDTO.js';
 
 describe('GameStartResult', () => {
   let validResult: GameStartResult;

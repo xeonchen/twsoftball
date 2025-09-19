@@ -45,10 +45,10 @@
 
 import { GameId } from '@twsoftball/domain';
 
-import { ValidationError } from '../errors/ValidationError';
+import { ValidationError } from '../errors/ValidationError.js';
 
-import { RecordAtBatCommand } from './RecordAtBatCommand';
-import { SubstitutePlayerCommand } from './SubstitutePlayerCommand';
+import { RecordAtBatCommand } from './RecordAtBatCommand.js';
+import { SubstitutePlayerCommand } from './SubstitutePlayerCommand.js';
 
 /**
  * Validation error for CompleteAtBatSequenceCommand

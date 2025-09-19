@@ -21,9 +21,9 @@ import {
   createMockGameId,
   createMockTeamLineupId,
   createMockInningStateId,
-} from '../../test-utils/event-store';
+} from '../../test-utils/event-store/index.js';
 
-import { EventStore, StoredEvent } from './EventStore';
+import { EventStore, StoredEvent } from './EventStore.js';
 
 // Import shared test utilities
 

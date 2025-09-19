@@ -11,7 +11,7 @@ import {
   EndInningCommandValidator,
   EndInningCommandValidationError,
   EndInningCommandFactory,
-} from './EndInningCommand';
+} from './EndInningCommand.js';
 
 describe('EndInningCommand', () => {
   let validCommand: EndInningCommand;

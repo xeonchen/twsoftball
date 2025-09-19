@@ -48,8 +48,8 @@
 
 import { GameId } from '@twsoftball/domain';
 
-import { ValidationError } from '../errors/ValidationError';
-import { CommonValidators } from '../utils/CommonValidators';
+import { ValidationError } from '../errors/ValidationError.js';
+import { CommonValidators } from '../utils/CommonValidators.js';
 
 /**
  * Validation error for UndoCommand

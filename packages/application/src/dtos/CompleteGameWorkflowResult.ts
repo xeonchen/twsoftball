@@ -21,8 +21,8 @@
 
 import { GameId } from '@twsoftball/domain';
 
-import { GameStartResult } from './GameStartResult';
-import { GameStateDTO } from './GameStateDTO';
+import { GameStartResult } from './GameStartResult.js';
+import { GameStateDTO } from './GameStateDTO.js';
 
 /**
  * Result of executing a complete game workflow from start to finish.

@@ -6,7 +6,7 @@
 import { PlayerId, AtBatResultType } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { AtBatResultDTO } from './AtBatResultDTO';
+import { AtBatResultDTO } from './AtBatResultDTO.js';
 
 describe('AtBatResultDTO', () => {
   let validAtBatResult: AtBatResultDTO;

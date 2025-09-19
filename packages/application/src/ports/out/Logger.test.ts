@@ -5,9 +5,9 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { AUTH_TEST_CONSTANTS } from '../../test-utils/auth-test-constants';
+import { AUTH_TEST_CONSTANTS } from '../../test-utils/auth-test-constants.js';
 
-import { Logger, LogLevel, LogContext, LogEntry } from './Logger';
+import { Logger, LogLevel, LogContext, LogEntry } from './Logger.js';
 
 // Mock implementation for testing the interface contract
 class MockLogger implements Logger {

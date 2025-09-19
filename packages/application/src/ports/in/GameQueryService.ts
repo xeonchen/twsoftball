@@ -52,10 +52,10 @@
 
 import { GameId, PlayerId } from '@twsoftball/domain';
 
-import { GameHistoryDTO } from '../../dtos/GameHistoryDTO';
-import { GameStateDTO } from '../../dtos/GameStateDTO';
-import { GameStatisticsDTO } from '../../dtos/GameStatisticsDTO';
-import { PlayerStatisticsDTO } from '../../dtos/PlayerStatisticsDTO';
+import { GameHistoryDTO } from '../../dtos/GameHistoryDTO.js';
+import { GameStateDTO } from '../../dtos/GameStateDTO.js';
+import { GameStatisticsDTO } from '../../dtos/GameStatisticsDTO.js';
+import { PlayerStatisticsDTO } from '../../dtos/PlayerStatisticsDTO.js';
 
 /**
  * Primary inbound port for all game query operations.
