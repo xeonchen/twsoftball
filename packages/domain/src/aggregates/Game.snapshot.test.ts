@@ -20,17 +20,17 @@
 
 import { describe, expect, it, beforeEach } from 'vitest';
 
-import { GameStatus } from '../constants/GameStatus';
-import { DomainError } from '../errors/DomainError';
-import { DomainEvent } from '../events/DomainEvent';
-import { GameCompleted } from '../events/GameCompleted';
-import { GameCreated } from '../events/GameCreated';
-import { GameStarted } from '../events/GameStarted';
-import { InningAdvanced } from '../events/InningAdvanced';
-import { ScoreUpdated } from '../events/ScoreUpdated';
-import { GameId } from '../value-objects/GameId';
+import { GameStatus } from '../constants/GameStatus.js';
+import { DomainError } from '../errors/DomainError.js';
+import { DomainEvent } from '../events/DomainEvent.js';
+import { GameCompleted } from '../events/GameCompleted.js';
+import { GameCreated } from '../events/GameCreated.js';
+import { GameStarted } from '../events/GameStarted.js';
+import { InningAdvanced } from '../events/InningAdvanced.js';
+import { ScoreUpdated } from '../events/ScoreUpdated.js';
+import { GameId } from '../value-objects/GameId.js';
 
-import { Game } from './Game';
+import { Game } from './Game.js';
 
 /**
  * Game snapshot data structure for testing.

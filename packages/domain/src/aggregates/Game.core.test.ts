@@ -1,10 +1,10 @@
-import { GameStatus } from '../constants/GameStatus';
-import { DomainError } from '../errors/DomainError';
-import { GameCompleted } from '../events/GameCompleted';
-import { GameId } from '../value-objects/GameId';
-import { GameScore } from '../value-objects/GameScore';
+import { GameStatus } from '../constants/GameStatus.js';
+import { DomainError } from '../errors/DomainError.js';
+import { GameCompleted } from '../events/GameCompleted.js';
+import { GameId } from '../value-objects/GameId.js';
+import { GameScore } from '../value-objects/GameScore.js';
 
-import { Game } from './Game';
+import { Game } from './Game.js';
 
 describe('Game Aggregate Root - Core Operations', () => {
   let gameId: GameId;
