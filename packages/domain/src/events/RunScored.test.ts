@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 
-import { DomainError } from '../errors/DomainError';
-import { GameId } from '../value-objects/GameId';
-import { PlayerId } from '../value-objects/PlayerId';
+import { DomainError } from '../errors/DomainError.js';
+import { GameId } from '../value-objects/GameId.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
-import { RunScored } from './RunScored';
+import { RunScored } from './RunScored.js';
 
 describe('RunScored', () => {
   const gameId = GameId.generate();

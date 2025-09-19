@@ -1,8 +1,8 @@
-import { DomainError } from '../errors/DomainError';
-import { GameId } from '../value-objects/GameId';
-import { InningStateId } from '../value-objects/InningStateId';
+import { DomainError } from '../errors/DomainError.js';
+import { GameId } from '../value-objects/GameId.js';
+import { InningStateId } from '../value-objects/InningStateId.js';
 
-import { DomainEvent } from './DomainEvent';
+import { DomainEvent } from './DomainEvent.js';
 
 /**
  * Domain event representing the creation of a new inning state aggregate.

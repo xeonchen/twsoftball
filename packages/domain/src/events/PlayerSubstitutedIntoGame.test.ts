@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
-import { FieldPosition } from '../constants/FieldPosition';
-import { GameId } from '../value-objects/GameId';
-import { PlayerId } from '../value-objects/PlayerId';
-import { TeamLineupId } from '../value-objects/TeamLineupId';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import { GameId } from '../value-objects/GameId.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
+import { TeamLineupId } from '../value-objects/TeamLineupId.js';
 
-import { PlayerSubstitutedIntoGame } from './PlayerSubstitutedIntoGame';
+import { PlayerSubstitutedIntoGame } from './PlayerSubstitutedIntoGame.js';
 
 describe('PlayerSubstitutedIntoGame', () => {
   const gameId = new GameId('test-game-123');

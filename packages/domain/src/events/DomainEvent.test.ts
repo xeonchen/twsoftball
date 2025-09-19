@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { GameId } from '../value-objects/GameId';
+import { GameId } from '../value-objects/GameId.js';
 
-import { DomainEvent } from './DomainEvent';
+import { DomainEvent } from './DomainEvent.js';
 
 // Test implementation of DomainEvent for testing
 class TestDomainEvent extends DomainEvent {

@@ -1,9 +1,9 @@
-import { DomainError } from '../errors/DomainError';
-import { EventDataValidator } from '../validators/EventDataValidator';
-import { ScoreValidator } from '../validators/ScoreValidator';
-import { GameId } from '../value-objects/GameId';
+import { DomainError } from '../errors/DomainError.js';
+import { EventDataValidator } from '../validators/EventDataValidator.js';
+import { ScoreValidator } from '../validators/ScoreValidator.js';
+import { GameId } from '../value-objects/GameId.js';
 
-import { DomainEvent } from './DomainEvent';
+import { DomainEvent } from './DomainEvent.js';
 
 /**
  * Domain event representing the completion of a softball game.

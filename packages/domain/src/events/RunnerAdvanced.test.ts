@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { TestPlayerFactory, EventTestHelper } from '../test-utils';
+import { TestPlayerFactory, EventTestHelper } from '../test-utils/index.js';
 import {
   createAdvanceEvent,
   baseToBaseScenarios,
@@ -8,11 +8,11 @@ import {
   runnerOutScenarios,
   validationErrorScenarios,
   advanceReasonScenarios,
-} from '../test-utils/RunnerAdvancedTestHelpers';
-import { Base } from '../value-objects/BasesState';
-import { PlayerId } from '../value-objects/PlayerId';
+} from '../test-utils/RunnerAdvancedTestHelpers.js';
+import { Base } from '../value-objects/BasesState.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
-import { RunnerAdvanced, AdvanceReason } from './RunnerAdvanced';
+import { RunnerAdvanced, AdvanceReason } from './RunnerAdvanced.js';
 
 describe('RunnerAdvanced', () => {
   // Use EventTestHelper for consistent test data

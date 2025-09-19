@@ -1,7 +1,7 @@
-import { DomainError } from '../errors/DomainError';
-import { GameId } from '../value-objects/GameId';
+import { DomainError } from '../errors/DomainError.js';
+import { GameId } from '../value-objects/GameId.js';
 
-import { DomainEvent } from './DomainEvent';
+import { DomainEvent } from './DomainEvent.js';
 
 /**
  * Domain event representing the completion of a half-inning in softball.
