@@ -3,10 +3,10 @@
  * Shared test utilities for RunnerAdvanced event testing
  */
 
-import { RunnerAdvanced, AdvanceReason } from '../events/RunnerAdvanced';
-import { Base } from '../value-objects/BasesState';
-import { GameId } from '../value-objects/GameId';
-import { PlayerId } from '../value-objects/PlayerId';
+import { RunnerAdvanced, AdvanceReason } from '../events/RunnerAdvanced.js';
+import { Base } from '../value-objects/BasesState.js';
+import { GameId } from '../value-objects/GameId.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
 /**
  * Test scenario interface for valid runner advancement patterns in softball games.

@@ -1,24 +1,24 @@
-import { Game } from '../aggregates/Game';
-import { InningState } from '../aggregates/InningState';
-import { TeamLineup } from '../aggregates/TeamLineup';
-import { FieldPosition } from '../constants/FieldPosition';
-import { GameStatus } from '../constants/GameStatus';
-import { DomainError } from '../errors/DomainError';
-import { DomainEvent } from '../events/DomainEvent';
-import { GameCompleted } from '../events/GameCompleted';
-import { GameCreated } from '../events/GameCreated';
-import { GameStarted } from '../events/GameStarted';
-import { InningAdvanced } from '../events/InningAdvanced';
-import { InningStateCreated } from '../events/InningStateCreated';
-import { PlayerAddedToLineup } from '../events/PlayerAddedToLineup';
-import { ScoreUpdated } from '../events/ScoreUpdated';
-import { TeamLineupCreated } from '../events/TeamLineupCreated';
-import { TestGameFactory } from '../test-utils/TestGameFactory';
-import { GameId } from '../value-objects/GameId';
-import { InningStateId } from '../value-objects/InningStateId';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
-import { PlayerId } from '../value-objects/PlayerId';
-import { TeamLineupId } from '../value-objects/TeamLineupId';
+import { Game } from '../aggregates/Game.js';
+import { InningState } from '../aggregates/InningState.js';
+import { TeamLineup } from '../aggregates/TeamLineup.js';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import { GameStatus } from '../constants/GameStatus.js';
+import { DomainError } from '../errors/DomainError.js';
+import { DomainEvent } from '../events/DomainEvent.js';
+import { GameCompleted } from '../events/GameCompleted.js';
+import { GameCreated } from '../events/GameCreated.js';
+import { GameStarted } from '../events/GameStarted.js';
+import { InningAdvanced } from '../events/InningAdvanced.js';
+import { InningStateCreated } from '../events/InningStateCreated.js';
+import { PlayerAddedToLineup } from '../events/PlayerAddedToLineup.js';
+import { ScoreUpdated } from '../events/ScoreUpdated.js';
+import { TeamLineupCreated } from '../events/TeamLineupCreated.js';
+import { TestGameFactory } from '../test-utils/TestGameFactory.js';
+import { GameId } from '../value-objects/GameId.js';
+import { InningStateId } from '../value-objects/InningStateId.js';
+import { JerseyNumber } from '../value-objects/JerseyNumber.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
+import { TeamLineupId } from '../value-objects/TeamLineupId.js';
 
 /**
  * Cross-aggregate event sourcing integration tests for Phase 4.1 completion.

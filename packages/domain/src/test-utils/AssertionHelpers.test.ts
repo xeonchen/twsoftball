@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 
-import { FieldPosition } from '../constants/FieldPosition';
-import { DomainError } from '../errors/DomainError';
-import { SimpleTeamStrategy } from '../strategies/SimpleTeamStrategy';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import { DomainError } from '../errors/DomainError.js';
+import { SimpleTeamStrategy } from '../strategies/SimpleTeamStrategy.js';
+import { JerseyNumber } from '../value-objects/JerseyNumber.js';
 
-import { AssertionHelpers } from './AssertionHelpers';
-import { TestLineupBuilder } from './TestLineupBuilder';
-import { TestPlayerFactory } from './TestPlayerFactory';
+import { AssertionHelpers } from './AssertionHelpers.js';
+import { TestLineupBuilder } from './TestLineupBuilder.js';
+import { TestPlayerFactory } from './TestPlayerFactory.js';
 
 describe('AssertionHelpers', () => {
   describe('expectPlayerInSlot', () => {

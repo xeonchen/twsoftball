@@ -5,11 +5,11 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { DomainError } from '../errors/DomainError';
-import { RunnerAdvanced, AdvanceReason } from '../events/RunnerAdvanced';
-import { Base } from '../value-objects/BasesState';
-import { GameId } from '../value-objects/GameId';
-import { PlayerId } from '../value-objects/PlayerId';
+import { DomainError } from '../errors/DomainError.js';
+import { RunnerAdvanced, AdvanceReason } from '../events/RunnerAdvanced.js';
+import { Base } from '../value-objects/BasesState.js';
+import { GameId } from '../value-objects/GameId.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
 import {
   createAdvanceEvent,
@@ -22,7 +22,7 @@ import {
   runValidationErrorTests,
   type RunnerAdvancementScenario,
   type ValidationScenario,
-} from './RunnerAdvancedTestHelpers';
+} from './RunnerAdvancedTestHelpers.js';
 
 describe('RunnerAdvancedTestHelpers', () => {
   // Test data setup

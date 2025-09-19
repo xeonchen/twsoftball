@@ -1,7 +1,7 @@
-import { FieldPosition } from '../constants/FieldPosition';
-import type { TeamPlayer, BattingSlotState } from '../strategies/TeamStrategy';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import type { TeamPlayer, BattingSlotState } from '../strategies/TeamStrategy.js';
 
-import { TestPlayerFactory } from './TestPlayerFactory';
+import { TestPlayerFactory } from './TestPlayerFactory.js';
 
 /**
  * Builder for creating test lineups with consistent patterns.

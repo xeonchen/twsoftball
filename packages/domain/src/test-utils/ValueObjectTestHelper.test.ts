@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 
-import { JerseyNumber } from '../value-objects/JerseyNumber';
-import { Score } from '../value-objects/Score';
+import { JerseyNumber } from '../value-objects/JerseyNumber.js';
+import { Score } from '../value-objects/Score.js';
 
-import { ValueObjectTestHelper } from './ValueObjectTestHelper';
+import { ValueObjectTestHelper } from './ValueObjectTestHelper.js';
 
 describe('ValueObjectTestHelper', () => {
   describe('createValidationScenarios', () => {

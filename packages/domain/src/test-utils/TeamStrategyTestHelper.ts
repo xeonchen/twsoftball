@@ -1,7 +1,7 @@
-import { FieldPosition } from '../constants/FieldPosition';
-import type { TeamPlayer, TeamStrategy, BattingSlotState } from '../strategies/TeamStrategy';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import type { TeamPlayer, TeamStrategy, BattingSlotState } from '../strategies/TeamStrategy.js';
 
-import { TestPlayerFactory } from './TestPlayerFactory';
+import { TestPlayerFactory } from './TestPlayerFactory.js';
 
 /**
  * Test helper for team strategy testing operations.

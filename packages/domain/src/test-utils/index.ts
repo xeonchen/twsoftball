@@ -20,7 +20,7 @@
  *   TeamStrategyTestHelper,
  *   EventTestHelper,
  *   ValueObjectTestHelper
- * } from '../test-utils';
+ * } from '../test-utils.js';
  *
  * // Create test data
  * const players = TestPlayerFactory.createPlayers(9);
@@ -39,39 +39,39 @@
  */
 
 // Player creation utilities
-export { TestPlayerFactory } from './TestPlayerFactory';
+export { TestPlayerFactory } from './TestPlayerFactory.js';
 
 // Team strategy testing utilities
-export { TeamStrategyTestHelper } from './TeamStrategyTestHelper';
+export { TeamStrategyTestHelper } from './TeamStrategyTestHelper.js';
 
 // Event and score testing utilities
-export { EventTestHelper } from './EventTestHelper';
+export { EventTestHelper } from './EventTestHelper.js';
 
 // Value object validation testing utilities
-export { ValueObjectTestHelper } from './ValueObjectTestHelper';
+export { ValueObjectTestHelper } from './ValueObjectTestHelper.js';
 
 // Lineup construction utilities
-export { TestLineupBuilder } from './TestLineupBuilder';
+export { TestLineupBuilder } from './TestLineupBuilder.js';
 
 // Game-related test data creation
-export { TestGameFactory } from './TestGameFactory';
+export { TestGameFactory } from './TestGameFactory.js';
 
 // Common assertion helpers
-export { AssertionHelpers } from './AssertionHelpers';
+export { AssertionHelpers } from './AssertionHelpers.js';
 
 /**
  * Re-export commonly used types for convenience in tests.
  * These are already part of the domain public API but grouped here
  * for easy access in test utilities.
  */
-export type { TeamPlayer, BattingSlotState } from '../strategies/TeamStrategy';
-export { FieldPosition } from '../constants/FieldPosition';
-export { DomainError } from '../errors/DomainError';
+export type { TeamPlayer, BattingSlotState } from '../strategies/TeamStrategy.js';
+export { FieldPosition } from '../constants/FieldPosition.js';
+export { DomainError } from '../errors/DomainError.js';
 
 // Re-export core value objects commonly used in tests
-export { PlayerId } from '../value-objects/PlayerId';
-export { JerseyNumber } from '../value-objects/JerseyNumber';
-export { GameId } from '../value-objects/GameId';
-export { Score } from '../value-objects/Score';
-export { GameScore } from '../value-objects/GameScore';
-export { SoftballRules } from '../rules/SoftballRules';
+export { PlayerId } from '../value-objects/PlayerId.js';
+export { JerseyNumber } from '../value-objects/JerseyNumber.js';
+export { GameId } from '../value-objects/GameId.js';
+export { Score } from '../value-objects/Score.js';
+export { GameScore } from '../value-objects/GameScore.js';
+export { SoftballRules } from '../rules/SoftballRules.js';

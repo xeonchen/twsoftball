@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { SoftballRules } from '../rules/SoftballRules';
-import { GameId } from '../value-objects/GameId';
-import { GameScore } from '../value-objects/GameScore';
-import { Score } from '../value-objects/Score';
+import { SoftballRules } from '../rules/SoftballRules.js';
+import { GameId } from '../value-objects/GameId.js';
+import { GameScore } from '../value-objects/GameScore.js';
+import { Score } from '../value-objects/Score.js';
 
-import { TestGameFactory } from './TestGameFactory';
+import { TestGameFactory } from './TestGameFactory.js';
 
 describe('TestGameFactory', () => {
   beforeEach(() => {
