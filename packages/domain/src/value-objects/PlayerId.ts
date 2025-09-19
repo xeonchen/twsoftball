@@ -1,4 +1,4 @@
-import { DomainId } from './DomainId';
+import { DomainId } from './DomainId.js';
 
 /**
  * Unique identifier for a player entity in the softball domain.

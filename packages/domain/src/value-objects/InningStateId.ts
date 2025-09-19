@@ -1,4 +1,4 @@
-import { DomainId } from './DomainId';
+import { DomainId } from './DomainId.js';
 
 /**
  * Unique identifier for an inning state aggregate in the softball domain.

@@ -1,6 +1,6 @@
-import { DomainError } from '../errors/DomainError';
+import { DomainError } from '../errors/DomainError.js';
 
-import { Score } from './Score';
+import { Score } from './Score.js';
 
 /**
  * Immutable value object representing the current score state for both teams in a softball game.

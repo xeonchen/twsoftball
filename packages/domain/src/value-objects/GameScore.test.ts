@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 
-import { DomainError } from '../errors/DomainError';
+import { DomainError } from '../errors/DomainError.js';
 
-import { GameScore } from './GameScore';
-import { Score } from './Score';
+import { GameScore } from './GameScore.js';
+import { Score } from './Score.js';
 
 describe('GameScore', () => {
   describe('Construction', () => {

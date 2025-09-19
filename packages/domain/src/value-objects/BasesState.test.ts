@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-import { BasesState } from './BasesState';
-import { PlayerId } from './PlayerId';
+import { BasesState } from './BasesState.js';
+import { PlayerId } from './PlayerId.js';
 
 describe('BasesState', () => {
   // Test data setup

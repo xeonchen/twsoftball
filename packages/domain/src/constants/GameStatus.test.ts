@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { GameStatus } from './GameStatus';
+import { GameStatus } from './GameStatus.js';
 
 describe('GameStatus', () => {
   describe('Game states', () => {

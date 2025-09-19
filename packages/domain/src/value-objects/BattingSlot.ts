@@ -1,6 +1,6 @@
-import { DomainError } from '../errors/DomainError';
+import { DomainError } from '../errors/DomainError.js';
 
-import { PlayerId } from './PlayerId';
+import { PlayerId } from './PlayerId.js';
 
 /**
  * Represents a single stint of a player in a specific batting slot during a game.

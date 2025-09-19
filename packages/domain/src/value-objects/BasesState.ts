@@ -1,4 +1,4 @@
-import { PlayerId } from './PlayerId';
+import { PlayerId } from './PlayerId.js';
 
 /**
  * Represents the three bases in softball/baseball where runners can be positioned.
