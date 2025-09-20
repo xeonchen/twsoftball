@@ -15,7 +15,7 @@
  *
  * @example
  * ```typescript
- * import { createLineupDTO, createGameStateDTO } from '../test-factories';
+ * import { createLineupDTO, createGameStateDTO } from '../test-factories/index.js';
  *
  * describe('Service Tests', () => {
  *   it('should handle lineup operations', () => {
@@ -37,11 +37,11 @@ import {
 } from '@twsoftball/domain';
 // Note: Using domain-established standard positions directly
 
-import { GameStateDTO } from '../dtos/GameStateDTO';
-import { PlayerInGameDTO } from '../dtos/PlayerInGameDTO';
-import { LineupPlayerDTO } from '../dtos/StartNewGameCommand';
-import { TeamLineupDTO } from '../dtos/TeamLineupDTO';
-import { SecureTestUtils } from '../test-utils/secure-test-utils';
+import { GameStateDTO } from '../dtos/GameStateDTO.js';
+import { PlayerInGameDTO } from '../dtos/PlayerInGameDTO.js';
+import { LineupPlayerDTO } from '../dtos/StartNewGameCommand.js';
+import { TeamLineupDTO } from '../dtos/TeamLineupDTO.js';
+import { SecureTestUtils } from '../test-utils/secure-test-utils.js';
 
 /**
  * Creates a TeamLineupDTO for testing team lineup scenarios.

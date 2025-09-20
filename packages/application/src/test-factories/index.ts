@@ -20,7 +20,7 @@
  *   CommandTestBuilder,
  *   setupSuccessfulAtBatScenario,
  *   setupRepositoryFailureScenario
- * } from '../test-factories';
+ * } from '../test-factories/index.js';
  *
  * describe('My Use Case', () => {
  *   it('should handle success case', async () => {
@@ -42,7 +42,7 @@ export {
   type EnhancedMockEventStore,
   type EnhancedMockLogger,
   type EnhancedMockNotificationService,
-} from './mock-factories';
+} from './mock-factories.js';
 
 // Export all test builders
 export {
@@ -55,7 +55,7 @@ export {
   UndoCommandBuilder,
   RedoCommandBuilder,
   EventTestBuilder,
-} from './test-builders';
+} from './test-builders.js';
 
 // Export all test scenarios
 export {
@@ -71,7 +71,7 @@ export {
   setupGameNotFoundScenario,
   setupCustomScenario,
   type TestScenario,
-} from './test-scenarios';
+} from './test-scenarios.js';
 
 // Export all event factories
 export {
@@ -82,7 +82,7 @@ export {
   createGameStartedEvent,
   createGameCompletedEvent,
   createEventSequence,
-} from './event-factories';
+} from './event-factories.js';
 
 // Export all DTO factories
 export {
@@ -91,7 +91,7 @@ export {
   createLineupPlayerDTO,
   createFullLineup,
   createRealisticLineup,
-} from './dto-factories';
+} from './dto-factories.js';
 
 // Export command factories
 export {
@@ -102,7 +102,7 @@ export {
   createRecordAtBatCommand,
   createSubstitutePlayerCommand,
   createEndInningCommand,
-} from './command-factories';
+} from './command-factories.js';
 
 // Export mock service factories
 export {
@@ -112,7 +112,10 @@ export {
   createUseCaseMocks,
   type MockedUseCases,
   type MockedPorts,
-} from './mock-service-factories';
+} from './mock-service-factories.js';
 
 // Re-export secure test utils for convenience
-export { SecureTestUtils } from '../test-utils/secure-test-utils';
+export { SecureTestUtils } from '../test-utils/secure-test-utils.js';
+
+// Export test infrastructure factory
+export { createTestInfrastructureFactory } from './test-infrastructure-factory.js';

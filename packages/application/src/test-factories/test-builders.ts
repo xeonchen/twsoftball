@@ -22,7 +22,7 @@
  *
  * @example
  * ```typescript
- * import { GameTestBuilder, CommandTestBuilder } from '../test-factories/test-builders';
+ * import { GameTestBuilder, CommandTestBuilder } from '../test-factories/test-builders.js';
  *
  * describe('Game Tests', () => {
  *   it('should handle completed games', () => {
@@ -55,14 +55,14 @@ import {
   FieldPosition,
 } from '@twsoftball/domain';
 
-import { EndInningCommand } from '../dtos/EndInningCommand';
-import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand';
-import { RedoCommand } from '../dtos/RedoCommand';
-import { RunnerAdvanceDTO } from '../dtos/RunnerAdvanceDTO';
-import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from '../dtos/StartNewGameCommand';
-import { SubstitutePlayerCommand } from '../dtos/SubstitutePlayerCommand';
-import { UndoCommand } from '../dtos/UndoCommand';
-import { SecureTestUtils } from '../test-utils/secure-test-utils';
+import { EndInningCommand } from '../dtos/EndInningCommand.js';
+import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand.js';
+import { RedoCommand } from '../dtos/RedoCommand.js';
+import { RunnerAdvanceDTO } from '../dtos/RunnerAdvanceDTO.js';
+import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from '../dtos/StartNewGameCommand.js';
+import { SubstitutePlayerCommand } from '../dtos/SubstitutePlayerCommand.js';
+import { UndoCommand } from '../dtos/UndoCommand.js';
+import { SecureTestUtils } from '../test-utils/secure-test-utils.js';
 
 /**
  * Builder for creating Game test instances with fluent API.

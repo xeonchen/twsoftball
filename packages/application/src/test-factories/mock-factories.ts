@@ -18,7 +18,7 @@
  *
  * @example
  * ```typescript
- * import { createMockGameRepository, createMockLogger } from '../test-factories/mock-factories';
+ * import { createMockGameRepository, createMockLogger } from '../test-factories/mock-factories.js';
  *
  * describe('MyUseCase', () => {
  *   let mockGameRepository: GameRepository;
@@ -49,10 +49,10 @@ import {
 } from '@twsoftball/domain';
 import { vi } from 'vitest';
 
-import { EventStore, StoredEvent } from '../ports/out/EventStore';
-import { GameRepository } from '../ports/out/GameRepository';
-import { Logger } from '../ports/out/Logger';
-import { NotificationService } from '../ports/out/NotificationService';
+import { EventStore, StoredEvent } from '../ports/out/EventStore.js';
+import { GameRepository } from '../ports/out/GameRepository.js';
+import { Logger } from '../ports/out/Logger.js';
+import { NotificationService } from '../ports/out/NotificationService.js';
 
 // Mock event interface for internal use
 interface MockDomainEvent {

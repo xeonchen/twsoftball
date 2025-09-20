@@ -25,7 +25,7 @@
  *
  * @example
  * ```typescript
- * import { setupSuccessfulAtBatScenario, setupRepositoryFailureScenario } from '../test-factories/test-scenarios';
+ * import { setupSuccessfulAtBatScenario, setupRepositoryFailureScenario } from '../test-factories/test-scenarios.js';
  *
  * describe('RecordAtBat', () => {
  *   it('should record at-bat successfully', async () => {
@@ -49,7 +49,7 @@ import { vi } from 'vitest';
 
 // Disable unbound-method rule for this file as vi.mocked() is designed to work with unbound methods
 
-import { SecureTestUtils } from '../test-utils/secure-test-utils';
+import { SecureTestUtils } from '../test-utils/secure-test-utils.js';
 
 import {
   createMockDependencies,
@@ -57,8 +57,8 @@ import {
   EnhancedMockEventStore,
   EnhancedMockLogger,
   EnhancedMockNotificationService,
-} from './mock-factories';
-import { GameTestBuilder, CommandTestBuilder } from './test-builders';
+} from './mock-factories.js';
+import { GameTestBuilder, CommandTestBuilder } from './test-builders.js';
 
 /**
  * Common scenario return type for consistency.

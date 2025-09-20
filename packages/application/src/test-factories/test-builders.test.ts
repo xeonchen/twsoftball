@@ -36,7 +36,7 @@ import {
   UndoCommandBuilder,
   RedoCommandBuilder,
   EventTestBuilder,
-} from './test-builders';
+} from './test-builders.js';
 
 describe('Test Builders', () => {
   afterEach(() => {

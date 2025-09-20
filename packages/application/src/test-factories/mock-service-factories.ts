@@ -12,29 +12,29 @@ import { GameId } from '@twsoftball/domain';
 import { vi, MockedFunction } from 'vitest';
 
 // Use case imports
-import { AtBatResult } from '../dtos/AtBatResult';
-import { GameStartResult } from '../dtos/GameStartResult';
-import { InningEndResult } from '../dtos/InningEndResult';
-import { RedoResult } from '../dtos/RedoResult';
-import { SubstitutionResult } from '../dtos/SubstitutionResult';
-import { UndoResult } from '../dtos/UndoResult';
-import { AuthService } from '../ports/out/AuthService';
-import { EventStore } from '../ports/out/EventStore';
-import { GameRepository } from '../ports/out/GameRepository';
-import { Logger, LogLevel, LogContext } from '../ports/out/Logger';
-import { NotificationService } from '../ports/out/NotificationService';
-import { EndInning } from '../use-cases/EndInning';
-import { RecordAtBat } from '../use-cases/RecordAtBat';
-import { RedoLastAction } from '../use-cases/RedoLastAction';
-import { StartNewGame } from '../use-cases/StartNewGame';
-import { SubstitutePlayer } from '../use-cases/SubstitutePlayer';
-import { UndoLastAction } from '../use-cases/UndoLastAction';
+import { AtBatResult } from '../dtos/AtBatResult.js';
+import { GameStartResult } from '../dtos/GameStartResult.js';
+import { InningEndResult } from '../dtos/InningEndResult.js';
+import { RedoResult } from '../dtos/RedoResult.js';
+import { SubstitutionResult } from '../dtos/SubstitutionResult.js';
+import { UndoResult } from '../dtos/UndoResult.js';
+import { AuthService } from '../ports/out/AuthService.js';
+import { EventStore } from '../ports/out/EventStore.js';
+import { GameRepository } from '../ports/out/GameRepository.js';
+import { Logger, LogLevel, LogContext } from '../ports/out/Logger.js';
+import { NotificationService } from '../ports/out/NotificationService.js';
+import { EndInning } from '../use-cases/EndInning.js';
+import { RecordAtBat } from '../use-cases/RecordAtBat.js';
+import { RedoLastAction } from '../use-cases/RedoLastAction.js';
+import { StartNewGame } from '../use-cases/StartNewGame.js';
+import { SubstitutePlayer } from '../use-cases/SubstitutePlayer.js';
+import { UndoLastAction } from '../use-cases/UndoLastAction.js';
 
 // Port imports
 
 // DTO imports
 
-import { createGameStateDTO } from './dto-factories';
+import { createGameStateDTO } from './dto-factories.js';
 
 /**
  * Interface defining all mocked use case execute functions.
