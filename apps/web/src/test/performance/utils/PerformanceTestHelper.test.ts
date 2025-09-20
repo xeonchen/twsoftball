@@ -420,6 +420,7 @@ describe('PerformanceTestHelper', () => {
     it('should respect environment variable overrides', async () => {
       process.env.PERF_THRESHOLD_MULTIPLIER = '3.0';
       process.env.PERF_MEASUREMENT_RUNS = '7';
+      process.env.PERF_WARMUP_RUNS = '1'; // Explicitly set to ensure consistent behavior
 
       const mockOperation = vi.fn().mockResolvedValue(undefined);
       const helper = createPerformanceTestHelper('env-override-test', 100);
@@ -428,7 +429,13 @@ describe('PerformanceTestHelper', () => {
 
       expect(helper.config.thresholdMultiplier).toBe(3.0);
       expect(helper.config.measurementRuns).toBe(7);
-      expect(mockOperation).toHaveBeenCalledTimes(8); // 1 warmup + 7 measurement (default warmup)
+      expect(helper.config.warmupRuns).toBe(1); // Verify warmup runs were set correctly
+      expect(mockOperation).toHaveBeenCalledTimes(8); // 1 warmup + 7 measurement = 8 total
+
+      // Clean up environment variables
+      delete process.env.PERF_THRESHOLD_MULTIPLIER;
+      delete process.env.PERF_MEASUREMENT_RUNS;
+      delete process.env.PERF_WARMUP_RUNS;
     });
   });
 });
