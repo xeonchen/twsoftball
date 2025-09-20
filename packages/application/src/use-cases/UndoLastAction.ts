@@ -73,19 +73,19 @@ import {
   GameId,
   GameStatus,
   DomainEvent,
-  DomainError,
   AtBatCompleted,
   PlayerSubstitutedIntoGame,
   HalfInningEnded,
   // Compensating event types (these would need to be created in domain layer)
 } from '@twsoftball/domain';
 
-import { GameStateDTO } from '../dtos/GameStateDTO';
-import { UndoCommand, UndoCommandValidator } from '../dtos/UndoCommand';
-import { UndoResult, UndoStackInfo, UndoneActionDetail } from '../dtos/UndoResult';
-import { EventStore, StoredEvent } from '../ports/out/EventStore';
-import { GameRepository } from '../ports/out/GameRepository';
-import { Logger } from '../ports/out/Logger';
+import { GameStateDTO } from '../dtos/GameStateDTO.js';
+import { UndoCommand, UndoCommandValidator } from '../dtos/UndoCommand.js';
+import { UndoResult, UndoStackInfo, UndoneActionDetail } from '../dtos/UndoResult.js';
+import { EventStore, StoredEvent } from '../ports/out/EventStore.js';
+import { GameRepository } from '../ports/out/GameRepository.js';
+import { Logger } from '../ports/out/Logger.js';
+import { UseCaseErrorHandler } from '../utils/UseCaseErrorHandler.js';
 
 /**
  * Use case for undoing the last action(s) in a softball game using event sourcing compensation.
@@ -132,7 +132,17 @@ export class UndoLastAction {
     private readonly gameRepository: GameRepository,
     private readonly eventStore: EventStore,
     private readonly logger: Logger
-  ) {}
+  ) {
+    if (!gameRepository) {
+      throw new Error('GameRepository is required');
+    }
+    if (!eventStore) {
+      throw new Error('EventStore is required');
+    }
+    if (!logger) {
+      throw new Error('Logger is required');
+    }
+  }
 
   /**
    * Executes the undo operation process with comprehensive error handling and safety checks.
@@ -323,59 +333,15 @@ export class UndoLastAction {
         compensatingEvents.map(e => e.type)
       );
     } catch (error) {
-      const duration = Date.now() - startTime;
-
-      this.logger.error(
-        'Undo operation failed',
-        error instanceof Error ? error : new Error(String(error)),
-        {
-          gameId: command.gameId.value,
-          duration,
-          stack: error instanceof Error ? error.stack : undefined,
-          operation: 'undoLastAction',
-        }
+      return UseCaseErrorHandler.handleError(
+        error,
+        command.gameId,
+        this.gameRepository,
+        this.logger,
+        'undoLastAction',
+        (_game, errors) => this.createFailureResult(command.gameId, errors),
+        { actionLimit: command.actionLimit }
       );
-
-      if (error instanceof DomainError) {
-        return this.createFailureResult(
-          command.gameId,
-          ['Cannot undo: would violate game rules', error.message],
-          ['Consider manual correction instead of undo']
-        );
-      }
-
-      if (error instanceof Error && error.name === 'ConcurrencyError') {
-        return this.createFailureResult(command.gameId, [
-          'Concurrency conflict: game state changed during undo',
-          error.message,
-        ]);
-      }
-
-      if (error instanceof Error && error.message.includes('Database connection failed')) {
-        return this.createFailureResult(command.gameId, [
-          'Infrastructure error: failed to save game state',
-          error.message,
-        ]);
-      }
-
-      if (error instanceof Error && error.message.includes('connection')) {
-        return this.createFailureResult(command.gameId, [
-          'Infrastructure error: failed to store compensating events',
-          error.message,
-        ]);
-      }
-
-      if (error instanceof Error && error.message.includes('Database')) {
-        return this.createFailureResult(command.gameId, [
-          'Infrastructure error: failed to save game state',
-          error.message,
-        ]);
-      }
-
-      return this.createFailureResult(command.gameId, [
-        'Unexpected error during undo operation',
-        error instanceof Error ? error.message : String(error),
-      ]);
     }
   }
 

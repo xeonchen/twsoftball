@@ -17,9 +17,9 @@ import {
   EndInning,
   UndoLastAction,
   RedoLastAction,
-} from '../index';
+} from '../index.js';
 
-import * as ServicesIndex from './index';
+import * as ServicesIndex from './index.js';
 
 // Mock interfaces for proper typing
 

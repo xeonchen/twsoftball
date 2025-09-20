@@ -4,6 +4,6 @@
  */
 
 // Local EventStore test utilities
-export * from './EventStoreTestInterfaces';
-export * from './MockEventCreators';
-export * from './EventStoreContractTests';
+export * from './EventStoreTestInterfaces.js';
+export * from './MockEventCreators.js';
+export * from './EventStoreContractTests.js';

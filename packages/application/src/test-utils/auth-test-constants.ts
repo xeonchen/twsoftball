@@ -12,7 +12,7 @@
  * @example
  * ```typescript
  * // Correct usage in test files
- * import { AUTH_TEST_CONSTANTS } from '../test-utils/auth-test-constants';
+ * import { AUTH_TEST_CONSTANTS } from '../test-utils/auth-test-constants.js';
  *
  * // Use in test data
  * const testUser = {

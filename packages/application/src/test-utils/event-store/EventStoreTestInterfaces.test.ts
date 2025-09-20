@@ -19,7 +19,7 @@ import {
   StoredEventMetadata,
   StoredEvent,
   EventStore,
-} from './';
+} from './EventStoreTestInterfaces.js';
 
 describe('EventStoreTestInterfaces', () => {
   describe('Domain Type Re-exports', () => {
@@ -278,8 +278,15 @@ describe('EventStoreTestInterfaces', () => {
         eventData: JSON.stringify(gameData),
       };
 
-      const parsedData = JSON.parse(event.eventData);
-      expect(parsedData.gameId).toBe('game-123');
+      const rawParsedData = JSON.parse(event.eventData);
+      const parsedData = rawParsedData as { gameId: string; homeTeam: string };
+
+      // Type guard to ensure proper typing
+      if (typeof parsedData.gameId === 'string') {
+        expect(parsedData.gameId).toBe('game-123');
+      } else {
+        throw new Error('gameId is not a string');
+      }
       expect(parsedData.homeTeam).toBe('Tigers');
     });
   });

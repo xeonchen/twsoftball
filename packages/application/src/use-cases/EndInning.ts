@@ -88,13 +88,13 @@ import {
   PlayerId,
 } from '@twsoftball/domain';
 
-import { EndInningCommand, EndInningCommandValidator } from '../dtos/EndInningCommand';
-import { GameStateDTO } from '../dtos/GameStateDTO';
-import { InningEndResult, InningHalfState } from '../dtos/InningEndResult';
-import { TeamLineupDTO } from '../dtos/TeamLineupDTO';
-import { EventStore } from '../ports/out/EventStore';
-import { GameRepository } from '../ports/out/GameRepository';
-import { Logger } from '../ports/out/Logger';
+import { EndInningCommand, EndInningCommandValidator } from '../dtos/EndInningCommand.js';
+import { GameStateDTO } from '../dtos/GameStateDTO.js';
+import { InningEndResult, InningHalfState } from '../dtos/InningEndResult.js';
+import { TeamLineupDTO } from '../dtos/TeamLineupDTO.js';
+import { EventStore } from '../ports/out/EventStore.js';
+import { GameRepository } from '../ports/out/GameRepository.js';
+import { Logger } from '../ports/out/Logger.js';
 
 /**
  * Use case for ending innings and half-innings with comprehensive state transitions.

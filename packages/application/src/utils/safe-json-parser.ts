@@ -11,7 +11,7 @@
  *
  * @example
  * ```typescript
- * import { SafeJsonParser } from '../utils/safe-json-parser';
+ * import { SafeJsonParser } from '../utils/safe-json-parser.js';
  *
  * // Safe parsing with validation
  * const result = SafeJsonParser.parseEventData(eventData);

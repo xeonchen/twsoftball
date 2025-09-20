@@ -14,7 +14,7 @@
  * @example
  * ```typescript
  * // In a DTO validator
- * import { CommonValidators } from '../utils/CommonValidators';
+ * import { CommonValidators } from '../utils/CommonValidators.js';
  *
  * validateBasicFields(command: MyCommand): void {
  *   if (command.notes !== undefined) {
@@ -27,7 +27,7 @@
  * ```
  */
 
-import { ValidationError } from '../errors/ValidationError';
+import { ValidationError } from '../errors/ValidationError.js';
 
 /**
  * Type for error factory functions that create ValidationError instances.

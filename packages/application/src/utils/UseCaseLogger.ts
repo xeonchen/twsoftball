@@ -39,7 +39,7 @@
 
 import { GameId } from '@twsoftball/domain';
 
-import { Logger } from '../ports/out/Logger';
+import { Logger } from '../ports/out/Logger.js';
 
 /**
  * Base context information for logging operations.

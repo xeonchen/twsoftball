@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { UseCaseErrorHandler, UseCaseLogger } from './index';
+import { UseCaseErrorHandler, UseCaseLogger } from './index.js';
 
 describe('utils/index', () => {
   it('should export UseCaseErrorHandler', () => {

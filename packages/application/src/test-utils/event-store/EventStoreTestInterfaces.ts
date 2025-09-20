@@ -6,7 +6,7 @@
 
 import { GameId, TeamLineupId, InningStateId, DomainEvent } from '@twsoftball/domain';
 
-import { AggregateType } from '../../ports/out/EventStore';
+import { AggregateType } from '../../ports/out/EventStore.js';
 
 // Re-export domain types for consistent usage across tests
 export { GameId, TeamLineupId, InningStateId, DomainEvent };

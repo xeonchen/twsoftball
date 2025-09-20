@@ -36,8 +36,8 @@
 
 import { GameId, Game, DomainError } from '@twsoftball/domain';
 
-import { GameRepository } from '../ports/out/GameRepository';
-import { Logger } from '../ports/out/Logger';
+import { GameRepository } from '../ports/out/GameRepository.js';
+import { Logger } from '../ports/out/Logger.js';
 
 /**
  * Context information for error handling operations.
@@ -185,18 +185,27 @@ export class UseCaseErrorHandler {
 
     if (error instanceof Error) {
       // Infrastructure or system errors - categorize by message content
-      const message = error.message.toLowerCase();
+      const message = (error.message || '').toLowerCase();
 
       if (message.includes('load') || message.includes('find')) {
-        return [`Failed to load game data: ${error.message}`];
+        return [`Failed to load game data: ${error.message || 'Unknown error'}`];
       }
 
       if (message.includes('database') || message.includes('save')) {
-        return [`Failed to save game state: ${error.message}`];
+        return [`Failed to save game state: ${error.message || 'Unknown error'}`];
       }
 
       if (message.includes('event store') || message.includes('store')) {
-        return [`Failed to store events: ${error.message}`];
+        return [`Failed to store events: ${error.message || 'Unknown error'}`];
+      }
+
+      if (message.includes('invalid batter')) {
+        return ['Invalid batter state'];
+      }
+
+      // Handle edge cases for empty or whitespace-only messages
+      if (!error.message || error.message.trim() === '') {
+        return ['An unexpected error occurred: '];
       }
 
       // Generic error with message

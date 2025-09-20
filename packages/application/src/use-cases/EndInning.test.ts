@@ -10,12 +10,12 @@
 import { Game, GameId, GameStatus, DomainError } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { EndInningCommand } from '../dtos/EndInningCommand';
-import { EventStore } from '../ports/out/EventStore';
-import { GameRepository } from '../ports/out/GameRepository';
-import { Logger } from '../ports/out/Logger';
+import { EndInningCommand } from '../dtos/EndInningCommand.js';
+import { EventStore } from '../ports/out/EventStore.js';
+import { GameRepository } from '../ports/out/GameRepository.js';
+import { Logger } from '../ports/out/Logger.js';
 
-import { EndInning } from './EndInning';
+import { EndInning } from './EndInning.js';
 
 describe('EndInning Use Case', () => {
   let useCase: EndInning;

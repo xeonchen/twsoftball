@@ -11,17 +11,17 @@
  */
 
 // Error handling utilities - architecture compliant
-export { UseCaseErrorHandler } from './UseCaseErrorHandler';
-export type { ErrorContext, ErrorResultBuilder } from './UseCaseErrorHandler';
+export { UseCaseErrorHandler } from './UseCaseErrorHandler.js';
+export type { ErrorContext, ErrorResultBuilder } from './UseCaseErrorHandler.js';
 
 // Logging utilities - architecture compliant
-export { UseCaseLogger } from './UseCaseLogger';
+export { UseCaseLogger } from './UseCaseLogger.js';
 export type {
   LogContext,
   OperationContext,
   ErrorContext as LogErrorContext,
   PerformanceMetrics,
-} from './UseCaseLogger';
+} from './UseCaseLogger.js';
 
 // Documentation utilities - architecture compliant
 export {
@@ -36,4 +36,4 @@ export {
   createServiceSetupExample,
   createResultHandlingExample,
   createUseCaseFileHeader,
-} from './documentation-constants';
+} from './documentation-constants.js';

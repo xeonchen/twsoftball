@@ -16,10 +16,10 @@
 import { GameId, PlayerId, JerseyNumber, FieldPosition } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from '../dtos/StartNewGameCommand';
-import { createGameApplicationServiceMocks } from '../test-factories';
+import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from '../dtos/StartNewGameCommand.js';
+import { createGameApplicationServiceMocks } from '../test-factories/index.js';
 
-import { StartNewGame } from './StartNewGame';
+import { StartNewGame } from './StartNewGame.js';
 
 describe('StartNewGame Validation', () => {
   let startNewGame: StartNewGame;

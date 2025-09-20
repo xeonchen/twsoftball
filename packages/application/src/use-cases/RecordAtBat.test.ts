@@ -34,9 +34,9 @@ import {
   EnhancedMockGameRepository,
   EnhancedMockEventStore,
   EnhancedMockLogger,
-} from '../test-factories';
+} from '../test-factories/index.js';
 
-import { RecordAtBat } from './RecordAtBat';
+import { RecordAtBat } from './RecordAtBat.js';
 
 describe('RecordAtBat Use Case', () => {
   // Test dependencies (mocks)
@@ -336,7 +336,7 @@ describe('RecordAtBat Use Case', () => {
 
       // Assert
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('An unexpected error occurred during at-bat processing');
+      expect(result.errors).toContain('An unexpected error occurred during operation');
     });
 
     it('should handle null thrown as exception', async () => {
@@ -354,7 +354,7 @@ describe('RecordAtBat Use Case', () => {
 
       // Assert
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('An unexpected error occurred during at-bat processing');
+      expect(result.errors).toContain('An unexpected error occurred during operation');
     });
 
     it('should handle undefined thrown as exception', async () => {
@@ -372,7 +372,7 @@ describe('RecordAtBat Use Case', () => {
 
       // Assert
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('An unexpected error occurred during at-bat processing');
+      expect(result.errors).toContain('An unexpected error occurred during operation');
     });
 
     it('should handle errors with generic messages that do not match specific patterns', async () => {
@@ -391,7 +391,9 @@ describe('RecordAtBat Use Case', () => {
 
       // Assert
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('An unexpected error occurred during at-bat processing');
+      expect(result.errors).toContain(
+        'An unexpected error occurred: Something went wrong unexpectedly'
+      );
     });
 
     it('should handle "Invalid batter" error messages', async () => {
@@ -492,19 +494,19 @@ describe('RecordAtBat Use Case', () => {
 
       // Assert
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('An unexpected error occurred during at-bat processing');
+      expect(result.errors).toContain('Failed to save game state: Primary database failure');
 
       // Should attempt to load game twice
       expect(mockGameRepository.findById).toHaveBeenCalledTimes(2);
 
       // Should log warning about failed game state loading
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        'Failed to load game state for error result',
-        expect.objectContaining({
+        'Failed to load game state for error result context',
+        {
           gameId: gameId.value,
-          originalError: initialError,
+          operation: 'recordAtBat',
           loadError: loadError,
-        })
+        }
       );
     });
   });

@@ -73,9 +73,9 @@ import {
   DomainEvent,
 } from '@twsoftball/domain';
 
-import { EventStore, StoredEvent } from '../ports/out/EventStore';
-import { Logger } from '../ports/out/Logger';
-import { SafeJsonParser } from '../utils/safe-json-parser';
+import { EventStore, StoredEvent } from '../ports/out/EventStore.js';
+import { Logger } from '../ports/out/Logger.js';
+import { SafeJsonParser } from '../utils/safe-json-parser.js';
 
 /**
  * Service interface for comprehensive event sourcing operations.
@@ -113,6 +113,8 @@ export class EventSourcingService {
   >();
   private readonly MAX_CACHE_SIZE = 1000;
   private readonly CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour TTL
+  private readonly MAX_MEMORY_USAGE_BYTES = 50 * 1024 * 1024; // 50MB cache limit
+  private readonly MEMORY_PRESSURE_THRESHOLD = 0.8; // Trigger cleanup at 80% memory usage
   private readonly minimumEventsForSnapshot = 2;
 
   /**
@@ -1068,6 +1070,175 @@ export class EventSourcingService {
   }
 
   /**
+   * Gets comprehensive cache statistics for monitoring and debugging.
+   *
+   * @remarks
+   * Provides detailed statistics about cache usage, memory consumption,
+   * hit rates, and entry distribution for performance monitoring and
+   * optimization.
+   *
+   * @returns Cache statistics including hit rates and memory usage
+   */
+  getCacheStatistics(): {
+    enabled: boolean;
+    size: number;
+    maxSize: number;
+    ttlMs: number;
+    hitRate: number;
+    memoryUsageEstimate: number;
+    maxMemoryUsage: number;
+    memoryPressureThreshold: number;
+    isMemoryPressureHigh: boolean;
+    oldestEntryAge?: number;
+    newestEntryAge?: number;
+  } {
+    if (!this.snapshotCacheEnabled) {
+      return {
+        enabled: false,
+        size: 0,
+        maxSize: this.MAX_CACHE_SIZE,
+        ttlMs: this.CACHE_TTL_MS,
+        hitRate: 0,
+        memoryUsageEstimate: 0,
+        maxMemoryUsage: this.MAX_MEMORY_USAGE_BYTES,
+        memoryPressureThreshold: this.MEMORY_PRESSURE_THRESHOLD,
+        isMemoryPressureHigh: false,
+      };
+    }
+
+    const now = new Date();
+    let oldestAge: number | undefined;
+    let newestAge: number | undefined;
+
+    // Calculate statistics from cache entries
+    for (const [, entry] of this.snapshotCache) {
+      const age = now.getTime() - entry.lastAccessed.getTime();
+      if (oldestAge === undefined || age > oldestAge) {
+        oldestAge = age;
+      }
+      if (newestAge === undefined || age < newestAge) {
+        newestAge = age;
+      }
+      // Memory estimation is now handled by calculateCacheMemoryUsage()
+    }
+
+    // Simple hit rate calculation based on cache size vs max size
+    const hitRate =
+      this.snapshotCache.size > 0
+        ? Math.min(this.snapshotCache.size / this.MAX_CACHE_SIZE, 1.0)
+        : 0;
+
+    // Use the improved memory calculation method
+    const estimatedMemory = this.calculateCacheMemoryUsage();
+    const isHighMemoryPressure = this.isMemoryPressureHigh();
+
+    return {
+      enabled: this.snapshotCacheEnabled,
+      size: this.snapshotCache.size,
+      maxSize: this.MAX_CACHE_SIZE,
+      ttlMs: this.CACHE_TTL_MS,
+      hitRate,
+      memoryUsageEstimate: estimatedMemory,
+      maxMemoryUsage: this.MAX_MEMORY_USAGE_BYTES,
+      memoryPressureThreshold: this.MEMORY_PRESSURE_THRESHOLD,
+      isMemoryPressureHigh: isHighMemoryPressure,
+      ...(oldestAge !== undefined && { oldestEntryAge: oldestAge }),
+      ...(newestAge !== undefined && { newestEntryAge: newestAge }),
+    };
+  }
+
+  /**
+   * Manually triggers cache cleanup to remove expired entries.
+   *
+   * @remarks
+   * Provides a way to manually trigger cache cleanup operations
+   * without waiting for automatic eviction. Useful for memory
+   * management and testing scenarios.
+   *
+   * @returns Cleanup results with statistics
+   */
+  cleanupCache(): {
+    entriesRemoved: number;
+    sizeBefore: number;
+    sizeAfter: number;
+    memoryFreed: number;
+  } {
+    if (!this.snapshotCacheEnabled) {
+      return {
+        entriesRemoved: 0,
+        sizeBefore: 0,
+        sizeAfter: 0,
+        memoryFreed: 0,
+      };
+    }
+
+    const sizeBefore = this.snapshotCache.size;
+    const memoryBefore = this.calculateCacheMemoryUsage();
+
+    // Trigger cleanup
+    this.evictStaleEntries();
+
+    const sizeAfter = this.snapshotCache.size;
+    const entriesRemoved = sizeBefore - sizeAfter;
+    const memoryAfter = this.calculateCacheMemoryUsage();
+    const memoryFreed = memoryBefore - memoryAfter;
+
+    this.logger.info('Manual cache cleanup completed', {
+      entriesRemoved,
+      sizeBefore,
+      sizeAfter,
+      memoryFreed,
+      operation: 'cleanupCache',
+    });
+
+    return {
+      entriesRemoved,
+      sizeBefore,
+      sizeAfter,
+      memoryFreed,
+    };
+  }
+
+  /**
+   * Clears all cache entries and resets cache state.
+   *
+   * @remarks
+   * Provides a way to completely clear the cache for memory management
+   * or troubleshooting purposes. This is more aggressive than cleanup
+   * as it removes all entries regardless of TTL.
+   *
+   * @returns Clear operation results
+   */
+  clearCache(): {
+    entriesRemoved: number;
+    memoryFreed: number;
+  } {
+    if (!this.snapshotCacheEnabled) {
+      return {
+        entriesRemoved: 0,
+        memoryFreed: 0,
+      };
+    }
+
+    const entriesRemoved = this.snapshotCache.size;
+    const memoryFreed = this.calculateCacheMemoryUsage();
+
+    // Clear the cache
+    this.snapshotCache.clear();
+
+    this.logger.info('Cache cleared manually', {
+      entriesRemoved,
+      memoryFreed,
+      operation: 'clearCache',
+    });
+
+    return {
+      entriesRemoved,
+      memoryFreed,
+    };
+  }
+
+  /**
    * Validates the consistency and integrity of an event stream.
    *
    * @remarks
@@ -1398,7 +1569,33 @@ export class EventSourcingService {
   }
 
   /**
-   * Evicts old cache entries to maintain size and TTL limits.
+   * Calculates the estimated memory usage of the cache.
+   *
+   * @private
+   * @returns Estimated memory usage in bytes
+   */
+  private calculateCacheMemoryUsage(): number {
+    let totalMemory = 0;
+    for (const [, entry] of this.snapshotCache) {
+      // Rough estimation: JSON string length * 2 for UTF-16 encoding
+      totalMemory += JSON.stringify(entry).length * 2;
+    }
+    return totalMemory;
+  }
+
+  /**
+   * Checks if the cache is under memory pressure and needs aggressive cleanup.
+   *
+   * @private
+   * @returns True if memory usage exceeds the pressure threshold
+   */
+  private isMemoryPressureHigh(): boolean {
+    const currentMemory = this.calculateCacheMemoryUsage();
+    return currentMemory > this.MAX_MEMORY_USAGE_BYTES * this.MEMORY_PRESSURE_THRESHOLD;
+  }
+
+  /**
+   * Evicts old cache entries to maintain size, TTL, and memory limits.
    *
    * @private
    */
@@ -1409,6 +1606,8 @@ export class EventSourcingService {
 
     const now = new Date();
     const entriesToEvict: string[] = [];
+    const initialMemory = this.calculateCacheMemoryUsage();
+    const isHighMemoryPressure = this.isMemoryPressureHigh();
 
     // Identify expired entries based on TTL
     for (const [key, entry] of this.snapshotCache.entries()) {
@@ -1427,19 +1626,62 @@ export class EventSourcingService {
       });
     }
 
-    // If still over size limit, evict least recently accessed entries
-    if (this.snapshotCache.size >= this.MAX_CACHE_SIZE) {
+    // Check if we need aggressive eviction due to size or memory pressure
+    const needsEviction =
+      this.snapshotCache.size >= this.MAX_CACHE_SIZE ||
+      isHighMemoryPressure ||
+      this.calculateCacheMemoryUsage() > this.MAX_MEMORY_USAGE_BYTES;
+
+    if (needsEviction) {
       const entriesByLastAccessed = Array.from(this.snapshotCache.entries()).sort(
         ([, a], [, b]) => a.lastAccessed.getTime() - b.lastAccessed.getTime()
       );
 
-      const numToEvict = this.snapshotCache.size - this.MAX_CACHE_SIZE + 1;
+      // Calculate how many to evict based on multiple criteria
+      let numToEvict = 0;
 
+      // Size-based eviction
+      if (this.snapshotCache.size >= this.MAX_CACHE_SIZE) {
+        numToEvict = Math.max(numToEvict, this.snapshotCache.size - this.MAX_CACHE_SIZE + 1);
+      }
+
+      // Memory pressure eviction (more aggressive)
+      if (isHighMemoryPressure) {
+        // Evict 25% of entries under high memory pressure
+        numToEvict = Math.max(numToEvict, Math.floor(this.snapshotCache.size * 0.25));
+        this.logger.warn('High memory pressure detected in cache', {
+          currentMemory: this.calculateCacheMemoryUsage(),
+          maxMemory: this.MAX_MEMORY_USAGE_BYTES,
+          memoryPressureThreshold: this.MEMORY_PRESSURE_THRESHOLD,
+          cacheSize: this.snapshotCache.size,
+          operation: 'evictStaleEntries',
+        });
+      }
+
+      // Perform the evictions
       for (let i = 0; i < numToEvict && i < entriesByLastAccessed.length; i++) {
         const [key] = entriesByLastAccessed[i]!;
         this.snapshotCache.delete(key);
-        this.logger.debug('Evicted LRU cache entry', {
+
+        const reason = isHighMemoryPressure ? 'memory-pressure' : 'size-limit';
+        this.logger.debug('Evicted cache entry', {
           cacheKey: key,
+          reason,
+          operation: 'evictStaleEntries',
+        });
+      }
+
+      // Log memory management results
+      const finalMemory = this.calculateCacheMemoryUsage();
+      const memoryFreed = initialMemory - finalMemory;
+
+      if (memoryFreed > 0) {
+        this.logger.info('Cache memory management completed', {
+          memoryFreed,
+          initialMemory,
+          finalMemory,
+          entriesEvicted: numToEvict,
+          finalCacheSize: this.snapshotCache.size,
           operation: 'evictStaleEntries',
         });
       }

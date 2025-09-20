@@ -85,13 +85,14 @@ import {
   AdvanceReason,
 } from '@twsoftball/domain';
 
-import { AtBatResult } from '../dtos/AtBatResult';
-import { GameStateDTO } from '../dtos/GameStateDTO';
-import { RecordAtBatCommand, RecordAtBatCommandValidator } from '../dtos/RecordAtBatCommand';
-import { RunnerAdvanceDTO } from '../dtos/RunnerAdvanceDTO';
-import { EventStore } from '../ports/out/EventStore';
-import { GameRepository } from '../ports/out/GameRepository';
-import { Logger } from '../ports/out/Logger';
+import { AtBatResult } from '../dtos/AtBatResult.js';
+import { GameStateDTO } from '../dtos/GameStateDTO.js';
+import { RecordAtBatCommand, RecordAtBatCommandValidator } from '../dtos/RecordAtBatCommand.js';
+import { RunnerAdvanceDTO } from '../dtos/RunnerAdvanceDTO.js';
+import { EventStore } from '../ports/out/EventStore.js';
+import { GameRepository } from '../ports/out/GameRepository.js';
+import { Logger } from '../ports/out/Logger.js';
+import { UseCaseErrorHandler } from '../utils/UseCaseErrorHandler.js';
 // Note: Reverted to direct logging to maintain architecture compliance
 
 /**
@@ -123,7 +124,6 @@ import { Logger } from '../ports/out/Logger';
  * and detailed audit logging for production monitoring and debugging.
  */
 export class RecordAtBat {
-  private currentBatterId?: PlayerId;
   /**
    * Creates a new RecordAtBat use case instance.
    *
@@ -143,7 +143,17 @@ export class RecordAtBat {
     private readonly gameRepository: GameRepository,
     private readonly eventStore: EventStore,
     private readonly logger: Logger
-  ) {}
+  ) {
+    if (!gameRepository) {
+      throw new Error('GameRepository is required');
+    }
+    if (!eventStore) {
+      throw new Error('EventStore is required');
+    }
+    if (!logger) {
+      throw new Error('Logger is required');
+    }
+  }
 
   /**
    * Executes the at-bat recording process with comprehensive error handling.
@@ -199,8 +209,6 @@ export class RecordAtBat {
    */
   async execute(command: RecordAtBatCommand): Promise<AtBatResult> {
     // Log start of operation
-    // Store batter ID for error context
-    this.currentBatterId = command.batterId;
 
     this.logger.debug('Starting at-bat processing', {
       gameId: command.gameId.value,
@@ -264,7 +272,15 @@ export class RecordAtBat {
 
       return this.createSuccessResult(game, result);
     } catch (error) {
-      return this.handleError(error, command.gameId);
+      return UseCaseErrorHandler.handleError(
+        error,
+        command.gameId,
+        this.gameRepository,
+        this.logger,
+        'recordAtBat',
+        (game, errors) => this.createFailureResult(game, errors),
+        { batterId: command.batterId.value, result: command.result }
+      );
     }
   }
 
@@ -727,71 +743,6 @@ export class RecordAtBat {
       gameEnded: false,
       errors,
     };
-  }
-
-  /**
-   * Handles unexpected errors during at-bat processing.
-   *
-   * @remarks
-   * Provides consistent error handling for exceptions that occur during
-   * processing. Translates technical errors into user-friendly messages
-   * while preserving detailed information for debugging.
-   *
-   * @param error - The caught error
-   * @param gameId - Game ID for context
-   * @returns Failure result with appropriate error messages
-   */
-  private async handleError(error: unknown, gameId: GameId): Promise<AtBatResult> {
-    this.logger.error('Failed to record at-bat', error as Error, {
-      gameId: gameId.value,
-      operation: 'recordAtBat',
-      batterId: this.currentBatterId?.value || 'unknown',
-    });
-
-    try {
-      // Try to load the game to build failure result with context
-      const game = await this.gameRepository.findById(gameId);
-      return this.createFailureResult(game, [this.categorizeError(error)]);
-    } catch (loadError) {
-      // If we can't load game, create minimal failure result
-      this.logger.warn('Failed to load game state for error result', {
-        gameId: gameId.value,
-        originalError: error,
-        loadError: loadError,
-      });
-      return this.createFailureResult(null, [this.categorizeError(error)]);
-    }
-  }
-
-  /**
-   * Categorizes different types of errors for appropriate user messaging.
-   *
-   * @param error - The error to categorize
-   * @returns User-friendly error message
-   */
-  private categorizeError(error: unknown): string {
-    if (error instanceof Error) {
-      if (error.message && error.message.includes('Database connection failed')) {
-        return `Failed to save game state: ${error.message}`;
-      }
-      if (error.message && error.message.includes('Event store unavailable')) {
-        return `Failed to store events: ${error.message}`;
-      }
-      if (error.message && error.message.includes('Invalid batter')) {
-        return 'Invalid batter state';
-      }
-      if (error.message && error.message.includes('Transaction compensation failed')) {
-        return error.message;
-      }
-      if (error.message && error.message.includes('Unexpected error occurred')) {
-        return `An unexpected error occurred: ${error.message}`;
-      }
-      if (!error.message || error.message.trim() === '') {
-        return 'An unexpected error occurred: ';
-      }
-      return 'An unexpected error occurred during at-bat processing';
-    }
-    return 'An unexpected error occurred during at-bat processing';
   }
 
   /**

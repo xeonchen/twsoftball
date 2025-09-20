@@ -20,10 +20,10 @@
 import { GameId, TeamLineupId, InningStateId } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
 
-import { EventStore, StoredEvent } from '../ports/out/EventStore';
-import { SnapshotStore, AggregateSnapshot } from '../ports/out/SnapshotStore';
+import { EventStore, StoredEvent } from '../ports/out/EventStore.js';
+import { SnapshotStore, AggregateSnapshot } from '../ports/out/SnapshotStore.js';
 
-import { SnapshotManager } from './SnapshotManager';
+import { SnapshotManager } from './SnapshotManager.js';
 
 // Mock aggregate interface for testing
 interface MockEventSourcedAggregate {

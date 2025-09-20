@@ -27,31 +27,31 @@ import { GameId, PlayerId, AtBatResultType, GameStatus } from '@twsoftball/domai
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // DTO imports
-import { AtBatResult } from '../dtos/AtBatResult';
-import { CompleteAtBatSequenceCommand } from '../dtos/CompleteAtBatSequenceCommand';
-import { InningEndResult } from '../dtos/InningEndResult';
-import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand';
+import { AtBatResult } from '../dtos/AtBatResult.js';
+import { CompleteAtBatSequenceCommand } from '../dtos/CompleteAtBatSequenceCommand.js';
+import { InningEndResult } from '../dtos/InningEndResult.js';
+import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand.js';
 // Port imports
 // Port imports
 // Port imports - removed unused imports
-import { createGameStateDTO } from '../test-factories/dto-factories';
-import { createGameApplicationServiceMocks } from '../test-factories/mock-service-factories';
+import { createGameStateDTO } from '../test-factories/dto-factories.js';
+import { createGameApplicationServiceMocks } from '../test-factories/mock-service-factories.js';
 // Use case imports
-import { EndInning } from '../use-cases/EndInning';
-import { RecordAtBat } from '../use-cases/RecordAtBat';
-import { RedoLastAction } from '../use-cases/RedoLastAction';
-import { StartNewGame } from '../use-cases/StartNewGame';
-import { SubstitutePlayer } from '../use-cases/SubstitutePlayer';
-import { UndoLastAction } from '../use-cases/UndoLastAction';
+import { EndInning } from '../use-cases/EndInning.js';
+import { RecordAtBat } from '../use-cases/RecordAtBat.js';
+import { RedoLastAction } from '../use-cases/RedoLastAction.js';
+import { StartNewGame } from '../use-cases/StartNewGame.js';
+import { SubstitutePlayer } from '../use-cases/SubstitutePlayer.js';
+import { UndoLastAction } from '../use-cases/UndoLastAction.js';
 // Note: These imports available for potential future test expansion
-// import { SubstitutePlayerCommand } from '../dtos/SubstitutePlayerCommand';
-// import { SubstitutionResult } from '../dtos/SubstitutionResult';
+// import { SubstitutePlayerCommand } from '../dtos/SubstitutePlayerCommand.js';
+// import { SubstitutionResult } from '../dtos/SubstitutionResult.js';
 // Test helper functions removed - not used in this test file
 // DTO imports
 
 // Port imports
 
-import { GameApplicationService } from './GameApplicationService';
+import { GameApplicationService } from './GameApplicationService.js';
 
 // Type definitions for test results
 interface TestResult {

@@ -38,36 +38,36 @@ import {
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // DTO imports
-import { AtBatResult } from '../dtos/AtBatResult';
-import { CompleteAtBatSequenceCommand } from '../dtos/CompleteAtBatSequenceCommand';
-import { CompleteGameWorkflowCommand } from '../dtos/CompleteGameWorkflowCommand';
-import { GameStartResult } from '../dtos/GameStartResult';
-import { GameStateDTO } from '../dtos/GameStateDTO';
-import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand';
-import { RedoResult } from '../dtos/RedoResult';
-import { StartNewGameCommand } from '../dtos/StartNewGameCommand';
-import { UndoResult } from '../dtos/UndoResult';
+import { AtBatResult } from '../dtos/AtBatResult.js';
+import { CompleteAtBatSequenceCommand } from '../dtos/CompleteAtBatSequenceCommand.js';
+import { CompleteGameWorkflowCommand } from '../dtos/CompleteGameWorkflowCommand.js';
+import { GameStartResult } from '../dtos/GameStartResult.js';
+import { GameStateDTO } from '../dtos/GameStateDTO.js';
+import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand.js';
+import { RedoResult } from '../dtos/RedoResult.js';
+import { StartNewGameCommand } from '../dtos/StartNewGameCommand.js';
+import { UndoResult } from '../dtos/UndoResult.js';
 // Port imports
 // Test factory imports
-import { createGameStateDTO } from '../test-factories/dto-factories';
-import { createGameApplicationServiceMocks } from '../test-factories/mock-service-factories';
+import { createGameStateDTO } from '../test-factories/dto-factories.js';
+import { createGameApplicationServiceMocks } from '../test-factories/mock-service-factories.js';
 // Test utility imports
-import { SecureTestUtils } from '../test-utils/secure-test-utils';
+import { SecureTestUtils } from '../test-utils/secure-test-utils.js';
 // Use case imports
-import { EndInning } from '../use-cases/EndInning';
-import { RecordAtBat } from '../use-cases/RecordAtBat';
-import { RedoLastAction } from '../use-cases/RedoLastAction';
-import { StartNewGame } from '../use-cases/StartNewGame';
-import { SubstitutePlayer } from '../use-cases/SubstitutePlayer';
-import { UndoLastAction } from '../use-cases/UndoLastAction';
+import { EndInning } from '../use-cases/EndInning.js';
+import { RecordAtBat } from '../use-cases/RecordAtBat.js';
+import { RedoLastAction } from '../use-cases/RedoLastAction.js';
+import { StartNewGame } from '../use-cases/StartNewGame.js';
+import { SubstitutePlayer } from '../use-cases/SubstitutePlayer.js';
+import { UndoLastAction } from '../use-cases/UndoLastAction.js';
 // Note: These imports available for potential future test expansion
-// import { SubstitutePlayerCommand } from '../dtos/SubstitutePlayerCommand';
-// import { SubstitutionResult } from '../dtos/SubstitutionResult';
+// import { SubstitutePlayerCommand } from '../dtos/SubstitutePlayerCommand.js';
+// import { SubstitutionResult } from '../dtos/SubstitutionResult.js';
 // DTO imports
 
 // Port imports
 
-import { GameApplicationService } from './GameApplicationService';
+import { GameApplicationService } from './GameApplicationService.js';
 
 // Type definitions for test results
 interface TestResult {

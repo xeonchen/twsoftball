@@ -17,9 +17,9 @@
  */
 
 // High-level orchestration services
-export * from './GameApplicationService';
-export * from './EventSourcingService';
-export * from './SnapshotManager';
+export * from './GameApplicationService.js';
+export * from './EventSourcingService.js';
+export * from './SnapshotManager.js';
 
 // Re-export service result types for convenience
 export type {
@@ -32,4 +32,4 @@ export type {
   EventMigrationResult,
   BatchOperationResult,
   StreamConsistencyResult,
-} from './EventSourcingService';
+} from './EventSourcingService.js';

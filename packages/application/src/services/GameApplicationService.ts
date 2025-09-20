@@ -63,30 +63,30 @@ import { GameId } from '@twsoftball/domain';
 // Use case imports
 
 // DTO imports
-import { AtBatResult } from '../dtos/AtBatResult';
-import { CompleteAtBatSequenceCommand } from '../dtos/CompleteAtBatSequenceCommand';
-import { CompleteAtBatSequenceResult } from '../dtos/CompleteAtBatSequenceResult';
-import { CompleteGameWorkflowCommand } from '../dtos/CompleteGameWorkflowCommand';
-import { CompleteGameWorkflowResult } from '../dtos/CompleteGameWorkflowResult';
-import { GameStartResult } from '../dtos/GameStartResult';
-import { InningEndResult } from '../dtos/InningEndResult';
-import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand';
-import { RedoCommand } from '../dtos/RedoCommand';
-import { RedoResult } from '../dtos/RedoResult';
-import { StartNewGameCommand } from '../dtos/StartNewGameCommand';
-import { SubstitutionResult } from '../dtos/SubstitutionResult';
-import { UndoCommand } from '../dtos/UndoCommand';
-import { UndoResult } from '../dtos/UndoResult';
+import { AtBatResult } from '../dtos/AtBatResult.js';
+import { CompleteAtBatSequenceCommand } from '../dtos/CompleteAtBatSequenceCommand.js';
+import { CompleteAtBatSequenceResult } from '../dtos/CompleteAtBatSequenceResult.js';
+import { CompleteGameWorkflowCommand } from '../dtos/CompleteGameWorkflowCommand.js';
+import { CompleteGameWorkflowResult } from '../dtos/CompleteGameWorkflowResult.js';
+import { GameStartResult } from '../dtos/GameStartResult.js';
+import { InningEndResult } from '../dtos/InningEndResult.js';
+import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand.js';
+import { RedoCommand } from '../dtos/RedoCommand.js';
+import { RedoResult } from '../dtos/RedoResult.js';
+import { StartNewGameCommand } from '../dtos/StartNewGameCommand.js';
+import { SubstitutionResult } from '../dtos/SubstitutionResult.js';
+import { UndoCommand } from '../dtos/UndoCommand.js';
+import { UndoResult } from '../dtos/UndoResult.js';
 // Port imports
-import { AuthService } from '../ports/out/AuthService';
-import { Logger } from '../ports/out/Logger';
-import { NotificationService } from '../ports/out/NotificationService';
-import { EndInning } from '../use-cases/EndInning';
-import { RecordAtBat } from '../use-cases/RecordAtBat';
-import { RedoLastAction } from '../use-cases/RedoLastAction';
-import { StartNewGame } from '../use-cases/StartNewGame';
-import { SubstitutePlayer } from '../use-cases/SubstitutePlayer';
-import { UndoLastAction } from '../use-cases/UndoLastAction';
+import { AuthService } from '../ports/out/AuthService.js';
+import { Logger } from '../ports/out/Logger.js';
+import { NotificationService } from '../ports/out/NotificationService.js';
+import { EndInning } from '../use-cases/EndInning.js';
+import { RecordAtBat } from '../use-cases/RecordAtBat.js';
+import { RedoLastAction } from '../use-cases/RedoLastAction.js';
+import { StartNewGame } from '../use-cases/StartNewGame.js';
+import { SubstitutePlayer } from '../use-cases/SubstitutePlayer.js';
+import { UndoLastAction } from '../use-cases/UndoLastAction.js';
 
 /**
  * High-level orchestration service for complex game workflows and multi-use-case coordination.

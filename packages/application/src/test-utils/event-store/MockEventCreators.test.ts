@@ -27,7 +27,7 @@ import {
   createMockTeamLineupId,
   createMockInningStateId,
   createMockEventBatch,
-} from './';
+} from './MockEventCreators.js';
 
 describe('MockEventCreators', () => {
   describe('createMockGameCreatedEvent', () => {
@@ -331,7 +331,7 @@ describe('MockEventCreators', () => {
       });
 
       it('should generate IDs with consistent format', () => {
-        const gameIds = Array.from({ length: 10 }, () => createMockGameId());
+        const gameIds: GameId[] = Array.from({ length: 10 }, () => createMockGameId());
 
         gameIds.forEach(gameId => {
           expect(gameId).toBeInstanceOf(GameId);
@@ -340,7 +340,7 @@ describe('MockEventCreators', () => {
         });
 
         // All IDs should be unique
-        const uniqueValues = new Set(gameIds.map(id => id.value));
+        const uniqueValues = new Set(gameIds.map((id: GameId): string => id.value));
         expect(uniqueValues.size).toBe(gameIds.length);
       });
     });
@@ -544,9 +544,9 @@ describe('MockEventCreators', () => {
       const events: DomainEvent[] = [];
 
       // Create a sequence of events as would happen in a game
-      events.push(createMockGameCreatedEvent(gameId));
-      events.push(createMockAtBatCompletedEvent(gameId));
-      events.push(createMockAtBatCompletedEvent(gameId));
+      events.push(createMockGameCreatedEvent(gameId) as DomainEvent);
+      events.push(createMockAtBatCompletedEvent(gameId) as DomainEvent);
+      events.push(createMockAtBatCompletedEvent(gameId) as DomainEvent);
 
       expect(events).toHaveLength(3);
 
