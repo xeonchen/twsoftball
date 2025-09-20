@@ -19,19 +19,14 @@
  * concerns such as database versioning, connection pooling, and browser compatibility.
  */
 
-import {
-  DomainEvent,
-  AggregateType,
-  createMockGameCreatedEvent,
-  createMockAtBatCompletedEvent,
-} from '@twsoftball/application';
-import type { EventStore } from '@twsoftball/application/ports/out/EventStore';
-import { GameId } from '@twsoftball/domain';
+import type { EventStore, AggregateType } from '@twsoftball/application/ports/out/EventStore';
+import { DomainEvent, GameId } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-// Import from shared package for EventStore interfaces and test utilities
-// Import domain objects from domain package
-
+import {
+  createMockGameCreatedEvent,
+  createMockAtBatCompletedEvent,
+} from '../../../application/src/test-utils/event-store';
 import { createMockIndexedDB, createMockIDBKeyRange } from '../test-utils/indexeddb';
 
 import { IndexedDBEventStore } from './IndexedDBEventStore';

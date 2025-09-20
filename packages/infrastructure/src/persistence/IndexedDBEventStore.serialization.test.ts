@@ -1,5 +1,4 @@
-import { DomainEvent } from '@twsoftball/application';
-import { GameId } from '@twsoftball/domain';
+import { DomainEvent, GameId } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { createMockIndexedDB, createMockIDBKeyRange } from '../test-utils/indexeddb';
@@ -53,7 +52,7 @@ describe('IndexedDBEventStore Serialization Validation', () => {
         aggregateVersion: 1,
         version: 1,
         gameId,
-        // eslint-disable-next-line no-console -- Testing serialization error with console statement
+
         callback: () => console.log('This should not be serialized'),
       };
 
@@ -90,7 +89,6 @@ describe('IndexedDBEventStore Serialization Validation', () => {
         gameId,
         data: {
           nested: {
-            // eslint-disable-next-line no-console -- Testing serialization error with nested console statement
             callback: () => console.log('Deep nested function'),
           },
         },
@@ -134,9 +132,8 @@ describe('IndexedDBEventStore Serialization Validation', () => {
         version: 1,
         gameId,
         handlers: [
-          // eslint-disable-next-line no-console -- Testing serialization error with console statements
           (): void => console.log('First handler'),
-          // eslint-disable-next-line no-console -- Testing serialization error with console statements
+
           (): void => console.log('Second handler'),
         ],
       };
@@ -159,7 +156,7 @@ describe('IndexedDBEventStore Serialization Validation', () => {
         mixed: [
           'valid string',
           Symbol('invalid-symbol'),
-          // eslint-disable-next-line no-console -- Testing serialization error with console statement
+
           (): void => console.log('invalid function'),
         ],
       };
@@ -336,7 +333,7 @@ describe('IndexedDBEventStore Serialization Validation', () => {
       }
 
       // Add a function at the deepest level
-      // eslint-disable-next-line no-console -- Testing serialization error with deep nested console statement
+
       current['invalidFunction'] = (): void => console.log('Deep function');
 
       const eventWithDeepNesting: DomainEvent & { data: Record<string, unknown> } = {

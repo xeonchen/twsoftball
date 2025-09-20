@@ -20,17 +20,18 @@
  * - Proper event committing after successful saves
  */
 
-import {
-  createMockGameCreatedEvent,
-  createMockGameStartedEvent,
-  createMockAtBatCompletedEvent,
-} from '@twsoftball/application';
 import type { EventStore } from '@twsoftball/application/ports/out/EventStore';
 import type { GameRepository } from '@twsoftball/application/ports/out/GameRepository';
 import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore';
 import { SnapshotManager } from '@twsoftball/application/services/SnapshotManager';
 import { GameId, Game, GameStatus, DomainEvent } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
+
+import {
+  createMockGameCreatedEvent,
+  createMockGameStartedEvent,
+  createMockAtBatCompletedEvent,
+} from '../../../application/src/test-utils/event-store';
 
 // Import the class we're testing (it doesn't exist yet - TDD!)
 import { EventSourcedGameRepository } from './EventSourcedGameRepository';

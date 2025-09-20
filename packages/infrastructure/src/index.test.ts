@@ -116,6 +116,16 @@ describe('Infrastructure Package Index', () => {
         'EventSourcedGameRepository',
         'EventSourcedTeamLineupRepository',
         'EventSourcedInningStateRepository',
+        'wizardToCommand',
+        'initializeRepositories',
+        'getGameRepository',
+        'getTeamLineupRepository',
+        'getInningStateRepository',
+        'getEventStore',
+        'resetRepositories',
+        'GameAdapter',
+        'createMemoryFactory',
+        'createIndexedDBFactory',
       ];
 
       exportKeys.forEach(exportKey => {

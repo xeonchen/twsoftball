@@ -10,6 +10,7 @@
  *
  * **Available Implementations:**
  * - Event Store: IndexedDB and In-Memory variants
+ * - Web Adapters: Repository initialization and DI container for web applications
  *
  * **Usage Examples:**
  * ```typescript
@@ -19,10 +20,17 @@
  * const eventStore = new InMemoryEventStore();
  * // or
  * const persistentEventStore = new IndexedDBEventStore();
+ *
+ * // Web adapter usage
+ * import { initializeContainer, getContainer } from '@twsoftball/infrastructure/web';
+ * await initializeContainer({ environment: 'development', useInMemoryStore: true });
+ * const container = getContainer();
  * ```
  */
 
 export * from './persistence';
+export * from './web';
 
-// Note: Config exports will be added when DependencyContainer is implemented
-// export * from './config';
+// Note: Self-registration modules (./web/register.js, ./memory/register.js) are not
+// automatically imported here to avoid side effects. They are imported by the
+// Application layer's BootstrapRegistry when needed.

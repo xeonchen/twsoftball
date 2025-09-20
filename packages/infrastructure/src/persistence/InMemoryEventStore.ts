@@ -286,7 +286,6 @@ export class InMemoryEventStore implements EventStore {
 
     // Log warning for large batches
     if (events.length > InMemoryEventStore.LARGE_BATCH_WARNING_THRESHOLD) {
-      // eslint-disable-next-line no-console, no-undef -- Development warning for memory management
       console.warn(
         `InMemoryEventStore: Large batch size detected (${events.length} events). Consider breaking into smaller batches for better performance.`
       );

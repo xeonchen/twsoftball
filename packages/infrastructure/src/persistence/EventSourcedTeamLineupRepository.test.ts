@@ -21,13 +21,14 @@
  * - TeamLineup-specific query operations (findByGameId, findByGameIdAndSide)
  */
 
-import { createMockTeamLineupCreatedEvent } from '@twsoftball/application';
 import type { EventStore } from '@twsoftball/application/ports/out/EventStore';
 import type { GameRepository } from '@twsoftball/application/ports/out/GameRepository';
 import type { TeamLineupRepository } from '@twsoftball/application/ports/out/TeamLineupRepository';
 // import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore'; // Commented out since snapshot tests are disabled
 import { TeamLineupId, TeamLineup, GameId, DomainEvent, Game } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
+
+import { createMockTeamLineupCreatedEvent } from '../../../application/src/test-utils/event-store';
 
 /**
  * Extended EventStore interface for testing that includes delete operations.
