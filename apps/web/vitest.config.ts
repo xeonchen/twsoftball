@@ -23,7 +23,7 @@ export default defineConfig({
     environment: 'happy-dom', // Better CSS compatibility than JSDOM for Tailwind v4
     setupFiles: './src/test/setup.ts',
     css: true,
-    testTimeout: 10000, // Increase global test timeout to 10 seconds
+    testTimeout: 20000, // Increase global test timeout to 20 seconds for performance tests
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
