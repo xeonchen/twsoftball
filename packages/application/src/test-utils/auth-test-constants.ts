@@ -1,3 +1,8 @@
+/* eslint-env node, browser -- Required for cross-platform environment detection */
+
+// Type declaration to avoid eslint no-undef errors
+declare const process: { env?: Record<string, string> } | undefined;
+
 /**
  * Test-only authentication constants for unit testing.
  *
@@ -21,11 +26,6 @@
  * };
  * ```
  */
-
-/* eslint-env node, browser -- Required for cross-platform environment detection */
-
-// Type declaration to avoid eslint no-undef errors
-declare const process: { env?: Record<string, string> } | undefined;
 
 /**
  * Generate secure random test values to avoid hardcoded credential security hotspots.

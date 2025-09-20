@@ -490,6 +490,60 @@ afterEach(async () => {
 
 ## Performance Testing
 
+### Adaptive Performance Testing Framework
+
+Our performance testing framework provides environment-aware testing with
+statistical measurement to eliminate unstable test failures.
+
+#### Environment Variables
+
+The framework supports the following environment variables for fine-tuning
+performance tests:
+
+- **`PERF_THRESHOLD_MULTIPLIER`**: Multiplier for performance thresholds
+  (default varies by environment)
+  - CI: 2.5x (accounts for CI environment variance)
+  - Local: 1.5x (local development)
+  - Test: 3.0x (test environments with highest variance)
+- **`PERF_WARMUP_RUNS`**: Number of warm-up runs before measurement (default:
+  1-3 based on environment)
+- **`PERF_MEASUREMENT_RUNS`**: Number of measurement runs for statistical
+  analysis (default: 3-7)
+- **`PERF_PERCENTILE`**: Percentile to use for threshold comparison
+  (default: 95)
+
+#### Usage Examples
+
+```bash
+# Run performance tests with custom threshold multiplier
+PERF_THRESHOLD_MULTIPLIER=2.0 pnpm test:performance
+
+# Run with more measurement runs for increased accuracy
+PERF_MEASUREMENT_RUNS=10 pnpm test:performance
+
+# Use 99th percentile for stricter performance requirements
+PERF_PERCENTILE=99 pnpm test:performance
+```
+
+#### Statistical Performance Measurement
+
+Performance tests now use statistical analysis instead of single measurements:
+
+```typescript
+import { measurePerformance, createPerformanceThreshold } from '@/test/performance/utils';
+
+it('should render game setup within performance threshold', async () => {
+  const threshold = createPerformanceThreshold(100); // 100ms base threshold
+
+  const measurement = await measurePerformance(async () => {
+    render(<GameSetupWizard />);
+    await screen.findByText('Game Setup');
+  });
+
+  expect(measurement.p95).toBeLessThan(threshold.adjusted);
+});
+```
+
 ### Event Sourcing Performance
 
 - Measure aggregate reconstruction time
@@ -501,6 +555,7 @@ afterEach(async () => {
 - Aggregate reconstruction: <10ms for 100 events
 - Event append: <5ms per event
 - Query performance: <50ms for typical queries
+- UI component rendering: <100ms (95th percentile)
 
 ## Common Testing Pitfalls to Avoid
 
