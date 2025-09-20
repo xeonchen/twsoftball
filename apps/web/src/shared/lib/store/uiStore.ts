@@ -150,10 +150,15 @@ const initialState: UIState = {
 };
 
 /**
- * Generate unique ID for notifications
+ * Generate unique ID for notifications using cryptographically secure random generation
  */
 const generateId = (): string => {
-  return `notification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  // Use crypto.randomUUID() for secure random generation
+  // This replaces Math.random() to address security concerns
+  const uuid = crypto.randomUUID();
+  // Extract first 9 characters to match original format
+  const randomPart = uuid.replace(/-/g, '').substring(0, 9);
+  return `notification-${Date.now()}-${randomPart}`;
 };
 
 /**
