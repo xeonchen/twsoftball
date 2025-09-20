@@ -18,7 +18,7 @@
     "lint:strict": "eslint --max-warnings 0 .",
     "format": "turbo run format",
     "format:check": "turbo run format:check",
-    "deps:check": "dependency-cruiser --config .dependency-cruiser.cjs packages",
+    "deps:check": "dependency-cruiser --config .dependency-cruiser.cjs packages apps",
     "clean": "turbo run clean && rm -rf node_modules/.cache"
   },
   "devDependencies": {
@@ -55,7 +55,7 @@
     "node": ">=18",
     "pnpm": ">=10"
   },
-  "packageManager": "pnpm@10.15.1",
+  "packageManager": "pnpm@10.17.0",
   "pnpm": {
     "overrides": {
       "micromatch@<4.0.8": ">=4.0.8",

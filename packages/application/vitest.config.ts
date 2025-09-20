@@ -50,5 +50,12 @@ export default defineConfig({
       clean: true,
       cleanOnRerun: true,
     },
+
+    // Mock infrastructure imports to avoid circular dependency issues
+    alias: {
+      '@twsoftball/infrastructure/memory':
+        '/src/test-factories/mocks/infrastructure-memory-mock.js',
+      '@twsoftball/infrastructure/web': '/src/test-factories/mocks/infrastructure-web-mock.js',
+    },
   },
 });

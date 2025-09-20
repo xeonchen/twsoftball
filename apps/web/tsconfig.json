@@ -16,20 +16,19 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "outDir": "./dist",
-    "declaration": true,
-    "declarationMap": true,
-    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+    "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*", "vite.config.ts", "vitest.config.ts"],
+  "include": ["src/**/*"],
   "exclude": [
     "node_modules",
     "dist",
     "**/*.test.ts",
     "**/*.test.tsx",
     "**/*.spec.ts",
-    "**/*.spec.tsx"
+    "**/*.spec.tsx",
+    "src/test/**/*",
+    "vite.config.ts",
+    "vitest.config.ts"
   ],
   "references": [
     {

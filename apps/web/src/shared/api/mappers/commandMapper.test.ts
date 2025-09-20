@@ -3,7 +3,7 @@
  * Tests for Command mapper that converts UI data to Application commands following TDD approach.
  */
 
-import { AtBatResultType } from '@twsoftball/domain';
+import { AtBatResultType } from '@twsoftball/application';
 import { describe, it, expect } from 'vitest';
 
 import {

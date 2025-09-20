@@ -41,31 +41,44 @@
  * ```
  */
 
+import {
+  GameId,
+  PlayerId,
+  JerseyNumber,
+  TeamLineupId,
+  FieldPosition,
+} from '@twsoftball/application';
 import type {
-  StartNewGame,
+  AtBatResultType,
+  AtBatResult,
+  EndInningCommand,
+  GameStartResult,
+  GameStateDTO,
+  InningEndResult,
+  RecordAtBatCommand,
+  RedoCommand,
+  RedoResult,
+  RunnerAdvanceDTO,
+  StartNewGameCommand,
+  SubstitutePlayerCommand,
+  SubstitutionResult,
+  UndoCommand,
+  UndoResult,
+  EventStore,
+  GameRepository,
+  Logger,
+  EndInning,
   RecordAtBat,
+  RedoLastAction,
+  StartNewGame,
   SubstitutePlayer,
   UndoLastAction,
-  RedoLastAction,
-  EndInning,
-  GameRepository,
-  EventStore,
-  Logger,
-  GameStartResult,
-  AtBatResult,
-  SubstitutionResult,
-  UndoResult,
-  RedoResult,
-  InningEndResult,
-  GameStateDTO,
-  StartNewGameCommand,
-  RecordAtBatCommand,
-  SubstitutePlayerCommand,
-  UndoCommand,
-  RedoCommand,
-  EndInningCommand,
-  RunnerAdvanceDTO,
 } from '@twsoftball/application';
+
+import type { SetupWizardState } from '../../lib/store/gameStore';
+
+// wizardToCommand is now passed as a dependency to avoid circular imports
+
 // Define local LineupPlayerDTO interface to match what StartNewGameCommand expects
 interface LineupPlayerDTO {
   readonly playerId: PlayerId;
@@ -75,14 +88,11 @@ interface LineupPlayerDTO {
   readonly fieldPosition: FieldPosition;
   readonly preferredPositions: FieldPosition[];
 }
-import {
-  GameId,
-  PlayerId,
-  JerseyNumber,
-  FieldPosition,
-  AtBatResultType,
-  TeamLineupId,
-} from '@twsoftball/domain';
+
+/**
+ * Wizard to command mapper function type.
+ */
+export type WizardToCommandMapper = (wizardData: SetupWizardState) => StartNewGameCommand;
 
 /**
  * Configuration interface for GameAdapter dependency injection.
@@ -97,10 +107,11 @@ export interface GameAdapterConfig {
   gameRepository: GameRepository;
   eventStore: EventStore;
   logger: Logger;
+  wizardToCommand: WizardToCommandMapper;
 }
 
 /**
- * UI data interface for starting a new game.
+ * UI data interface for starting a new game (legacy format).
  */
 export interface UIStartGameData {
   gameId: string;
@@ -205,7 +216,33 @@ export class GameAdapter {
   constructor(private readonly config: GameAdapterConfig) {}
 
   /**
-   * Starts a new game with the provided UI data.
+   * Starts a new game from wizard state data.
+   *
+   * @remarks
+   * This is the preferred method for starting new games from the setup wizard.
+   * It uses the wizardToCommand mapper to convert UI wizard state into a
+   * properly validated StartNewGameCommand with domain value objects.
+   *
+   * @param wizardData - Game setup data from the UI wizard
+   * @returns Promise resolving to game start result
+   * @throws Error for validation failures or infrastructure issues
+   */
+  async startNewGameFromWizard(wizardData: SetupWizardState): Promise<GameStartResult> {
+    try {
+      const command = this.config.wizardToCommand(wizardData);
+      return await this.config.startNewGame.execute(command);
+    } catch (error) {
+      this.config.logger.error(
+        'Game adapter: Failed to start new game from wizard',
+        error instanceof Error ? error : new Error(String(error)),
+        { wizardData }
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Starts a new game with the provided UI data (legacy format).
    *
    * @remarks
    * Converts UI data to a StartNewGameCommand and executes the StartNewGame

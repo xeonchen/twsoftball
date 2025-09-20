@@ -4,7 +4,7 @@
 
 This guide provides step-by-step implementation instructions for each phase of
 the TW Softball project, following our hexagonal architecture with domain-driven
-design and event sourcing.
+design, dependency injection container, and event sourcing.
 
 ## Phase-by-Phase Implementation
 
@@ -293,21 +293,39 @@ interface EventStoreSchema {
 
 ##### Step 3: Dependency Injection (Day 5)
 
-**Create DI Container**:
+**DI Container Implementation**:
 
 ```typescript
 export class DIContainer {
-  // Repositories
-  private gameRepository: GameRepository;
-  private eventStore: EventStore;
+  private services = new Map<string, any>();
+  private serviceDefinitions = new Map<string, ServiceDefinition<any>>();
 
-  // Use cases
-  private recordAtBatUseCase: RecordAtBatUseCase;
-
-  constructor(environment: 'development' | 'production' | 'test') {
-    this.setupAdapters(environment);
-    this.setupUseCases();
+  register<T>(
+    name: string,
+    factory: () => Promise<T>,
+    dependencies?: string[]
+  ): void {
+    this.serviceDefinitions.set(name, {
+      factory,
+      dependencies,
+      singleton: true,
+    });
   }
+
+  async resolve<T>(serviceName: string): Promise<T> {
+    // Service resolution with dependency injection
+    return this.resolveService<T>(serviceName);
+  }
+}
+
+// DI Container usage
+export async function createApplicationServicesWithContainer(
+  config: ApplicationConfig
+) {
+  const container = new DIContainer();
+  await registerInfrastructureServices(container, config);
+  await registerApplicationServices(container);
+  return await container.resolve<ApplicationServices>('applicationServices');
 }
 ```
 
@@ -316,14 +334,14 @@ export class DIContainer {
 - [ ] 80%+ test coverage achieved
 - [ ] IndexedDB integration working
 - [ ] In-memory adapters for testing
-- [ ] DI container properly configured
+- [ ] DI Container pattern implemented
 
 ### Phase 5: Web Application Implementation
 
 **Prerequisites**:
 
 - [x] Infrastructure layer complete
-- [x] DI container configured
+- [x] DI Container pattern implemented
 
 #### Implementation Steps
 
@@ -566,7 +584,7 @@ pnpm --filter @twsoftball/domain test:coverage
 - [ ] 80%+ test coverage
 - [ ] IndexedDB persistence working
 - [ ] In-memory testing adapters
-- [ ] DI container configured
+- [ ] DI Container pattern configured (primary)
 
 ### Phase 5 (Web)
 

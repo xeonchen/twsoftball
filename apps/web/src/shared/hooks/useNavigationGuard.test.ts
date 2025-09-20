@@ -28,7 +28,7 @@ const originalPushState = window.history.pushState;
 
 // Mock console.warn to prevent test noise
 const mockConsoleWarn = vi.fn();
-// eslint-disable-next-line no-console -- Test setup accessing original console
+
 const originalConsoleWarn = console.warn;
 
 describe('useNavigationGuard Hook', () => {
@@ -39,7 +39,7 @@ describe('useNavigationGuard Hook', () => {
     window.addEventListener = mockAddEventListener;
     window.removeEventListener = mockRemoveEventListener;
     window.history.pushState = mockPushState;
-    // eslint-disable-next-line no-console -- Test setup replacing console
+
     console.warn = mockConsoleWarn;
 
     // Mock location
@@ -57,7 +57,7 @@ describe('useNavigationGuard Hook', () => {
     window.addEventListener = originalAddEventListener;
     window.removeEventListener = originalRemoveEventListener;
     window.history.pushState = originalPushState;
-    // eslint-disable-next-line no-console -- Test cleanup restoring console
+
     console.warn = originalConsoleWarn;
   });
 
@@ -285,9 +285,9 @@ describe('useNavigationGuard Hook', () => {
     it('should handle errors in event listeners gracefully', () => {
       // Mock console.error to capture errors
       const mockConsoleError = vi.fn();
-      // eslint-disable-next-line no-console -- Test accessing original console for error handling
+
       const originalConsoleError = console.error;
-      // eslint-disable-next-line no-console -- Test replacing console for error handling
+
       console.error = mockConsoleError;
 
       // Mock pushState to throw error
@@ -309,7 +309,7 @@ describe('useNavigationGuard Hook', () => {
       }).not.toThrow();
 
       // Restore console.error
-      // eslint-disable-next-line no-console -- Test cleanup restoring console for error handling
+
       console.error = originalConsoleError;
     });
   });

@@ -42,15 +42,10 @@ import type {
   UndoCommand,
   RedoCommand,
   EndInningCommand,
-} from '@twsoftball/application';
-import {
-  GameId,
-  PlayerId,
-  JerseyNumber,
   AtBatResultType,
-  TeamLineupId,
   FieldPosition,
-} from '@twsoftball/domain';
+} from '@twsoftball/application';
+import { GameId, PlayerId, JerseyNumber, TeamLineupId } from '@twsoftball/application';
 
 /**
  * UI data structure for starting a new game.

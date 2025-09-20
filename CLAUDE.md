@@ -6,8 +6,8 @@ code in this repository.
 ## Project Overview
 
 **TW Softball** - A slow-pitch softball game recording Progressive Web App (PWA)
-with offline-first capabilities, built using Hexagonal Architecture and Event
-Sourcing patterns.
+with offline-first capabilities, built using Hexagonal Architecture, Dependency
+Injection Container, and Event Sourcing patterns.
 
 ## Quick Reference (AI: Read This First)
 
@@ -22,6 +22,7 @@ Sourcing patterns.
 - **NEVER compromise on code quality** - no shortcuts, quick fixes, or technical
   debt
 - **NEVER import infrastructure into application layer**
+- **ALWAYS use DI Container pattern** for dependency injection
 - **ALWAYS use orchestrator-worker pattern** for complex tasks (Main Agent
   coordinates, General Agent implements)
 
@@ -47,8 +48,8 @@ pnpm --filter @twsoftball/domain test    # Domain tests only
 
 ## Architecture
 
-**Hexagonal Architecture (Ports & Adapters) + Domain-Driven Design + SOLID
-Principles**
+**Hexagonal Architecture (Ports & Adapters) + Domain-Driven Design + DI
+Container + SOLID Principles**
 
 ```
 Domain Layer (Core Business Logic)
@@ -63,7 +64,7 @@ Domain Layer (Core Business Logic)
 Application Layer (Use Cases)
 ├── use-cases/    # RecordAtBat, StartGame, etc.
 ├── ports/        # Interface definitions
-├── services/     # Application services
+├── services/     # Application services (orchestration, event sourcing)
 ├── dtos/         # Data Transfer Objects
 ├── test-factories/ # Test utilities (mock-factories, test-builders, test-scenarios)
 └── test-utils/   # Core testing utilities
@@ -174,10 +175,29 @@ Web Layer (Presentation)
 
 ### Architecture Rules
 
-- Domain layer has NO dependencies on other layers
-- Application layer depends only on Domain
-- Infrastructure implements Application ports
-- Web layer depends on Application ports only
+- **Domain layer**: NO dependencies on other layers (pure business logic)
+- **Application layer**: Depends only on Domain + uses DI Container pattern
+- **Infrastructure layer**: Provides factory implementations for Application
+  layer
+- **Web layer**: Uses DI Container to access Application services, never imports
+  Infrastructure
+- **DI Container**: Enterprise-grade dependency injection with service registry,
+  lazy loading, and dynamic imports
+- **Zero Architecture Exceptions**: Clean dependency boundaries with no
+  workarounds needed
+
+**Critical Pattern: DI Container with Dynamic Import**
+
+```typescript
+// ✅ CORRECT: DI Container approach
+import { createApplicationServicesWithContainer } from '@twsoftball/application';
+const services = await createApplicationServicesWithContainer({
+  storage: 'indexeddb',
+});
+
+// ❌ FORBIDDEN: Web layer importing Infrastructure
+import { createIndexedDBFactory } from '@twsoftball/infrastructure/web';
+```
 
 ### Testing Strategy
 
@@ -267,11 +287,29 @@ When facing quality vs. speed pressure:
 - Perfect undo/redo support
 - Complete audit trail
 
-### Dependency Injection
+### Dependency Injection: DI Container with Dynamic Import
 
-- Ports defined in Application layer
-- Implementations in Infrastructure layer
-- Wired together in DI container
+**DI Container Implementation**
+
+- **Enterprise Features**: Service registry, lazy loading, circular dependency
+  detection
+- **Dynamic Imports**: Infrastructure loaded at runtime based on configuration
+- **Advanced Lifecycle**: Singleton management, parallel resolution, container
+  introspection
+- **Runtime Configuration**: Multiple implementations (memory, indexeddb,
+  sqlite)
+
+```typescript
+// DI Container approach
+export async function createApplicationServicesWithContainer(
+  config: ApplicationConfig
+) {
+  const container = new DIContainer();
+  await registerInfrastructureServices(container, config);
+  await registerApplicationServices(container);
+  return await container.resolve<ApplicationServices>('applicationServices');
+}
+```
 
 ### Error Handling
 
@@ -281,16 +319,24 @@ When facing quality vs. speed pressure:
 
 ## Important Notes
 
-- **Never** import infrastructure into application layer
+- **DI Container Pattern**: Enterprise-grade dependency injection with service
+  registry and lifecycle management
+- **Never** import Infrastructure directly into Web layer
+- **Never** bypass DI Container for dependency injection
 - **Never** compromise on architectural principles for convenience
 - **Never** skip testing phases or reduce coverage targets
 - **Never** use workarounds instead of proper solutions
+- **Always** use `createApplicationServicesWithContainer()` for dependency
+  injection
 - **Always** write tests before implementation (TDD)
 - **Always** maintain code quality standards regardless of complexity
 - **Always** use orchestrator-worker pattern for complex tasks
 - **Main agent coordinates, General-Purpose Agent implements everything**
 - **Always trigger commit-readiness-reviewer and summarize results**
 - **Delegate ALL git operations and fixes to General-Purpose Agent**
+
+**Architecture Reference**: See `/docs/architecture-patterns.md` for complete DI
+Container implementation details
 
 ---
 

@@ -104,6 +104,7 @@ export const HomePage = (): ReactElement => {
           size="large"
           variant="primary"
           data-testid="start-new-game-button"
+          aria-label="Start New Game"
         >
           START NEW GAME
         </Button>

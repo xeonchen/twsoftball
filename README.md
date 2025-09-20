@@ -41,7 +41,7 @@ Application Layer (Use Cases) ✅ COMPLETED
 Infrastructure Layer (Adapters) ✅ PHASE 4.4 COMPLETED
 ├── persistence/  # EventStore + Repositories + Snapshot Optimization ✅ COMPLETED
 ├── auth/         # Authentication adapters ⏳ PENDING
-└── config/       # Dependency injection ⏳ PENDING
+└── config/       # Dependency injection ✅ COMPLETED
 
 Web Layer (Presentation) ⏳ PENDING
 ├── adapters/     # Controllers, presenters

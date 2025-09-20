@@ -1,6 +1,7 @@
-import { type ReactElement } from 'react';
+import { type ReactElement, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { useGameSetup } from '../features/game-setup';
 import { useGameStore, type Player } from '../shared/lib/store/gameStore';
 import { Button } from '../shared/ui/button';
 
@@ -24,6 +25,7 @@ import { Button } from '../shared/ui/button';
 export function GameSetupConfirmPage(): ReactElement {
   const navigate = useNavigate();
   const { setupWizard, completeSetup, startActiveGame } = useGameStore();
+  const { startGame, isLoading, error, gameId, validationErrors, clearError } = useGameSetup();
 
   /**
    * Format current date and time
@@ -59,39 +61,51 @@ export function GameSetupConfirmPage(): ReactElement {
   };
 
   /**
-   * Handle back navigation
+   * Navigate to game recording when game is successfully created
    */
-  const handleBack = (): void => {
-    void navigate('/game/setup/lineup');
+  useEffect(() => {
+    if (gameId) {
+      // Complete the setup wizard
+      completeSetup();
+
+      // Create initial game data for the store
+      const gameData = {
+        id: gameId,
+        homeTeam: setupWizard.teams.home,
+        awayTeam: setupWizard.teams.away,
+        status: 'active' as const,
+        homeScore: 0,
+        awayScore: 0,
+        currentInning: 1,
+        isTopHalf: true,
+      };
+
+      // Start the active game in the store
+      startActiveGame(gameData);
+
+      // Navigate to game recording
+      void navigate(`/game/${gameId}/record`);
+    }
+  }, [gameId, completeSetup, startActiveGame, setupWizard, navigate]);
+
+  /**
+   * Handle starting the game using the useGameSetup hook
+   */
+  const handleStartGame = async (): Promise<void> => {
+    try {
+      await startGame(setupWizard);
+      // Navigation will happen automatically via gameId change in useEffect
+    } catch (_err) {
+      // Errors are handled by the hook
+    }
   };
 
   /**
-   * Handle starting the game
+   * Handle back navigation with error cleanup
    */
-  const handleStartGame = (): void => {
-    // Complete the setup wizard
-    completeSetup();
-
-    // Generate a new game ID
-    const gameId = `game-${Date.now()}`;
-
-    // Create initial game data
-    const gameData = {
-      id: gameId,
-      homeTeam: setupWizard.teams.home,
-      awayTeam: setupWizard.teams.away,
-      status: 'active' as const,
-      homeScore: 0,
-      awayScore: 0,
-      currentInning: 1,
-      isTopHalf: true,
-    };
-
-    // Start the active game
-    startActiveGame(gameData);
-
-    // Navigate to game recording
-    void navigate(`/game/${gameId}/record`);
+  const handleBackNavigation = (): void => {
+    clearError();
+    void navigate('/game/setup/lineup');
   };
 
   /**
@@ -113,7 +127,11 @@ export function GameSetupConfirmPage(): ReactElement {
   return (
     <div className="game-setup-confirm-page" data-testid="game-setup-confirm-page">
       <header className="setup-header">
-        <button className="back-button" onClick={handleBack} aria-label="Go back to lineup">
+        <button
+          className="back-button"
+          onClick={handleBackNavigation}
+          aria-label="Go back to lineup"
+        >
           ←
         </button>
         <h1>Review Setup</h1>
@@ -146,7 +164,7 @@ export function GameSetupConfirmPage(): ReactElement {
           </div>
 
           {validLineup.length < 9 && (
-            <div className="validation-error" role="alert">
+            <div className="validation-error" data-testid="validation-error" role="alert">
               ⚠️ Lineup incomplete: Need at least 9 players to start game
             </div>
           )}
@@ -161,12 +179,121 @@ export function GameSetupConfirmPage(): ReactElement {
             </div>
           </div>
         </section>
+
+        {/* Validation Errors Section */}
+        {validationErrors && (
+          <section className="validation-errors-section">
+            {validationErrors.teams && (
+              <div
+                className="validation-error teams-error"
+                data-testid="teams-validation-error"
+                role="alert"
+              >
+                🚫 {validationErrors.teams}
+              </div>
+            )}
+
+            {validationErrors.lineup && validationErrors.lineup.length > 0 && (
+              <div
+                className="validation-error lineup-errors"
+                data-testid="lineup-validation-errors"
+                role="alert"
+              >
+                <div className="error-title">Lineup Issues:</div>
+                <ul>
+                  {validationErrors.lineup.map((lineupError, index) => (
+                    <li key={index}>{lineupError}</li>
+                  ))}
+                </ul>
+                <Button
+                  onClick={() => void navigate('/game/setup/lineup')}
+                  variant="secondary"
+                  size="small"
+                  className="fix-lineup-button"
+                  data-testid="fix-lineup-button"
+                >
+                  Fix Lineup
+                </Button>
+              </div>
+            )}
+
+            {validationErrors.general && (
+              <div
+                className="validation-error general-error"
+                data-testid="general-validation-error"
+                role="alert"
+              >
+                ⚠️ {validationErrors.general}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Infrastructure Error Banner */}
+        {error && (
+          <section className="infrastructure-error-section">
+            <div className="error-banner" data-testid="infrastructure-error-banner" role="alert">
+              <div className="error-content">
+                <div className="error-icon">❌</div>
+                <div className="error-message" data-testid="error-message">
+                  {error}
+                </div>
+              </div>
+              <div className="error-actions">
+                <Button
+                  onClick={() => void handleStartGame()}
+                  variant="secondary"
+                  size="small"
+                  className="retry-button"
+                  data-testid="retry-button"
+                  disabled={isLoading}
+                >
+                  Retry
+                </Button>
+                <Button
+                  onClick={clearError}
+                  variant="secondary"
+                  size="small"
+                  className="dismiss-button"
+                  data-testid="dismiss-error-button"
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Success Transition */}
+        {gameId && (
+          <section className="success-transition-section">
+            <div className="success-banner" data-testid="success-transition">
+              <div className="success-content">
+                <div className="success-icon">✅</div>
+                <div className="success-message">
+                  <div className="success-title">Game {gameId} created successfully!</div>
+                  <div className="success-subtitle">Redirecting to game recording...</div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
       </main>
+
+      {/* Loading Spinner Overlay */}
+      {isLoading && (
+        <div className="loading-overlay" data-testid="loading-indicator">
+          <div className="loading-content">
+            <div className="spinner" />
+            <div className="loading-text">Creating game...</div>
+          </div>
+        </div>
+      )}
 
       <footer className="setup-footer">
         <div className="footer-actions">
           <Button
-            onClick={handleBack}
+            onClick={handleBackNavigation}
             variant="secondary"
             className="back-button-footer"
             data-testid="back-button"
@@ -174,13 +301,13 @@ export function GameSetupConfirmPage(): ReactElement {
             ← BACK
           </Button>
           <Button
-            onClick={handleStartGame}
-            disabled={!isSetupValid()}
+            onClick={() => void handleStartGame()}
+            disabled={!isSetupValid() || isLoading}
             className="start-game-button"
             size="large"
             data-testid="start-game-button"
           >
-            START GAME
+            {isLoading ? 'STARTING GAME...' : 'START GAME'}
           </Button>
         </div>
       </footer>

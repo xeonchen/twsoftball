@@ -20,6 +20,7 @@ import type {
   RedoResult,
   InningEndResult,
   GameStateDTO,
+  GameId,
 } from '@twsoftball/application';
 import { describe, it, expect, beforeEach, vi, type MockedFunction } from 'vitest';
 
@@ -72,12 +73,43 @@ const mockLogger = {
   debug: vi.fn(),
 } as unknown as Logger;
 
+const mockWizardToCommand = vi.fn();
+
 describe('GameAdapter', () => {
   let gameAdapter: GameAdapter;
   let config: GameAdapterConfig;
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Setup default mock for wizardToCommand with more realistic implementation
+    (mockWizardToCommand as MockedFunction<typeof mockWizardToCommand>).mockImplementation(
+      (wizardData: unknown) => {
+        const data = wizardData as {
+          teams: { home: string; away: string; ourTeam: 'home' | 'away' };
+          lineup?: { id: string; name: string; jerseyNumber: string; battingOrder: number }[];
+        };
+        return {
+          gameId: { value: `game-${Date.now()}` },
+          homeTeamName: data.teams.home,
+          awayTeamName: data.teams.away,
+          ourTeamSide: data.teams.ourTeam === 'home' ? 'HOME' : 'AWAY',
+          gameDate: new Date(),
+          initialLineup:
+            data.lineup?.map(
+              (
+                player: { id: string; name: string; jerseyNumber: string; battingOrder: number },
+                index: number
+              ) => ({
+                playerId: { value: player.id },
+                name: player.name,
+                jerseyNumber: { value: player.jerseyNumber },
+                battingOrderPosition: player.battingOrder || index + 1,
+              })
+            ) || [],
+        };
+      }
+    );
 
     config = {
       startNewGame: mockStartNewGame,
@@ -89,6 +121,7 @@ describe('GameAdapter', () => {
       gameRepository: mockGameRepository,
       eventStore: mockEventStore,
       logger: mockLogger,
+      wizardToCommand: mockWizardToCommand,
     };
 
     gameAdapter = new GameAdapter(config);
@@ -96,18 +129,41 @@ describe('GameAdapter', () => {
 
   describe('startNewGame', () => {
     it('should execute StartNewGame use case with UI data', async () => {
+      const mockGameId = {
+        value: 'test-game-id',
+        equals: vi.fn(),
+        equalsImpl: vi.fn(),
+      } as unknown as GameId;
       const mockResult: GameStartResult = {
         success: true,
-        gameId: { value: 'test-game-id' },
+        gameId: mockGameId,
         initialState: {
-          status: 'NOT_STARTED',
-          score: { homeScore: 0, awayScore: 0 },
+          gameId: mockGameId,
+          status: 'NOT_STARTED' as const,
+          score: { home: 0, away: 0, leader: 'TIE', difference: 0 },
+          gameStartTime: new Date(),
           currentInning: 1,
-          topOfInning: true,
-        },
-      } as GameStartResult;
+          isTopHalf: true,
+          battingTeam: 'AWAY',
+          outs: 0,
+          bases: {
+            first: null,
+            second: null,
+            third: null,
+            runnersInScoringPosition: [],
+            basesLoaded: false,
+          },
+          currentBatterSlot: 1,
+          homeLineup: { teamName: 'Home Team' } as Partial<GameStateDTO['homeLineup']>,
+          awayLineup: { teamName: 'Away Team' } as Partial<GameStateDTO['awayLineup']>,
+          currentBatter: null,
+          lastUpdated: new Date(),
+        } as GameStateDTO,
+      };
 
-      (mockStartNewGame.execute as MockedFunction<unknown>).mockResolvedValue(mockResult);
+      (
+        mockStartNewGame.execute as MockedFunction<typeof mockStartNewGame.execute>
+      ).mockResolvedValue(mockResult);
 
       const uiData = {
         gameId: 'test-game-id',
@@ -132,7 +188,9 @@ describe('GameAdapter', () => {
 
     it('should handle use case errors gracefully', async () => {
       const error = new Error('Game already exists');
-      (mockStartNewGame.execute as MockedFunction<unknown>).mockRejectedValue(error);
+      (
+        mockStartNewGame.execute as MockedFunction<typeof mockStartNewGame.execute>
+      ).mockRejectedValue(error);
 
       const uiData = {
         gameId: 'duplicate-game-id',
@@ -150,22 +208,37 @@ describe('GameAdapter', () => {
     it('should execute RecordAtBat use case with UI data', async () => {
       const mockResult: AtBatResult = {
         success: true,
-        atBatSequenceId: 'seq-1',
-        batterId: { value: 'player-1' },
-        result: 'SINGLE',
-        runsScored: 1,
-        updatedGameState: {
-          gameId: { value: 'game-1' },
-          status: 'IN_PROGRESS',
-          score: { home: 1, away: 0 },
+        gameState: {
+          gameId: { value: 'game-1', equals: vi.fn(), equalsImpl: vi.fn() } as unknown as GameId,
+          status: 'IN_PROGRESS' as const,
+          score: { home: 1, away: 0, leader: 'HOME', difference: 1 },
+          gameStartTime: new Date(),
           currentInning: 1,
           isTopHalf: false,
-          homeLineup: { teamName: 'Home Team' },
-          awayLineup: { teamName: 'Away Team' },
+          battingTeam: 'HOME',
+          outs: 0,
+          bases: {
+            first: null,
+            second: null,
+            third: null,
+            runnersInScoringPosition: [],
+            basesLoaded: false,
+          },
+          currentBatterSlot: 1,
+          homeLineup: { teamName: 'Home Team' } as Partial<GameStateDTO['homeLineup']>,
+          awayLineup: { teamName: 'Away Team' } as Partial<GameStateDTO['awayLineup']>,
+          currentBatter: null,
+          lastUpdated: new Date(),
         } as GameStateDTO,
+        runsScored: 1,
+        rbiAwarded: 1,
+        inningEnded: false,
+        gameEnded: false,
       };
 
-      (mockRecordAtBat.execute as MockedFunction<unknown>).mockResolvedValue(mockResult);
+      (mockRecordAtBat.execute as MockedFunction<typeof mockRecordAtBat.execute>).mockResolvedValue(
+        mockResult
+      );
 
       const uiData = {
         gameId: 'game-1',
@@ -191,11 +264,35 @@ describe('GameAdapter', () => {
     it('should execute SubstitutePlayer use case with UI data', async () => {
       const mockResult: SubstitutionResult = {
         success: true,
-        substitutionId: 'sub-1',
-        updatedLineup: [],
+        gameState: {
+          gameId: { value: 'game-1', equals: vi.fn(), equalsImpl: vi.fn() } as unknown as GameId,
+          status: 'IN_PROGRESS' as const,
+          score: { home: 0, away: 0, leader: 'TIE', difference: 0 },
+          gameStartTime: new Date(),
+          currentInning: 1,
+          isTopHalf: true,
+          battingTeam: 'AWAY',
+          outs: 0,
+          bases: {
+            first: null,
+            second: null,
+            third: null,
+            runnersInScoringPosition: [],
+            basesLoaded: false,
+          },
+          currentBatterSlot: 1,
+          homeLineup: { teamName: 'Home Team' } as Partial<GameStateDTO['homeLineup']>,
+          awayLineup: { teamName: 'Away Team' } as Partial<GameStateDTO['awayLineup']>,
+          currentBatter: null,
+          lastUpdated: new Date(),
+        } as GameStateDTO,
+        positionChanged: true,
+        reentryUsed: false,
       };
 
-      (mockSubstitutePlayer.execute as MockedFunction<unknown>).mockResolvedValue(mockResult);
+      (
+        mockSubstitutePlayer.execute as MockedFunction<typeof mockSubstitutePlayer.execute>
+      ).mockResolvedValue(mockResult);
 
       const uiData = {
         gameId: 'game-1',
@@ -222,19 +319,35 @@ describe('GameAdapter', () => {
     it('should execute UndoLastAction use case', async () => {
       const mockResult: UndoResult = {
         success: true,
-        actionUndone: 'AT_BAT',
-        updatedGameState: {
-          gameId: { value: 'game-1' },
-          status: 'IN_PROGRESS',
-          score: { home: 0, away: 1 },
+        gameId: { value: 'game-1', equals: vi.fn(), equalsImpl: vi.fn() } as unknown as GameId,
+        actionsUndone: 1,
+        restoredState: {
+          gameId: { value: 'game-1', equals: vi.fn(), equalsImpl: vi.fn() } as unknown as GameId,
+          status: 'IN_PROGRESS' as const,
+          score: { home: 0, away: 1, leader: 'AWAY', difference: 1 },
+          gameStartTime: new Date(),
           currentInning: 1,
           isTopHalf: true,
-          homeLineup: { teamName: 'Home Team' },
-          awayLineup: { teamName: 'Away Team' },
+          battingTeam: 'AWAY',
+          outs: 0,
+          bases: {
+            first: null,
+            second: null,
+            third: null,
+            runnersInScoringPosition: [],
+            basesLoaded: false,
+          },
+          currentBatterSlot: 1,
+          homeLineup: { teamName: 'Home Team' } as Partial<GameStateDTO['homeLineup']>,
+          awayLineup: { teamName: 'Away Team' } as Partial<GameStateDTO['awayLineup']>,
+          currentBatter: null,
+          lastUpdated: new Date(),
         } as GameStateDTO,
       };
 
-      (mockUndoLastAction.execute as MockedFunction<unknown>).mockResolvedValue(mockResult);
+      (
+        mockUndoLastAction.execute as MockedFunction<typeof mockUndoLastAction.execute>
+      ).mockResolvedValue(mockResult);
 
       const uiData = {
         gameId: 'game-1',
@@ -256,19 +369,35 @@ describe('GameAdapter', () => {
     it('should execute RedoLastAction use case', async () => {
       const mockResult: RedoResult = {
         success: true,
-        actionRedone: 'AT_BAT',
-        updatedGameState: {
-          gameId: { value: 'game-1' },
-          status: 'IN_PROGRESS',
-          score: { home: 1, away: 1 },
+        gameId: { value: 'game-1', equals: vi.fn(), equalsImpl: vi.fn() } as unknown as GameId,
+        actionsRedone: 1,
+        restoredState: {
+          gameId: { value: 'game-1', equals: vi.fn(), equalsImpl: vi.fn() } as unknown as GameId,
+          status: 'IN_PROGRESS' as const,
+          score: { home: 1, away: 1, leader: 'TIE', difference: 0 },
+          gameStartTime: new Date(),
           currentInning: 1,
           isTopHalf: false,
-          homeLineup: { teamName: 'Home Team' },
-          awayLineup: { teamName: 'Away Team' },
+          battingTeam: 'HOME',
+          outs: 0,
+          bases: {
+            first: null,
+            second: null,
+            third: null,
+            runnersInScoringPosition: [],
+            basesLoaded: false,
+          },
+          currentBatterSlot: 1,
+          homeLineup: { teamName: 'Home Team' } as Partial<GameStateDTO['homeLineup']>,
+          awayLineup: { teamName: 'Away Team' } as Partial<GameStateDTO['awayLineup']>,
+          currentBatter: null,
+          lastUpdated: new Date(),
         } as GameStateDTO,
       };
 
-      (mockRedoLastAction.execute as MockedFunction<unknown>).mockResolvedValue(mockResult);
+      (
+        mockRedoLastAction.execute as MockedFunction<typeof mockRedoLastAction.execute>
+      ).mockResolvedValue(mockResult);
 
       const uiData = {
         gameId: 'game-1',
@@ -290,20 +419,41 @@ describe('GameAdapter', () => {
     it('should execute EndInning use case', async () => {
       const mockResult: InningEndResult = {
         success: true,
-        inningNumber: 1,
-        finalScore: { homeScore: 3, awayScore: 2 },
-        updatedGameState: {
-          gameId: { value: 'game-1' },
-          status: 'IN_PROGRESS',
-          score: { home: 3, away: 2 },
+        transitionType: 'HALF_INNING' as const,
+        previousHalf: { inning: 1, isTopHalf: true },
+        newHalf: { inning: 1, isTopHalf: false },
+        gameEnded: false,
+        endingReason: 'THREE_OUTS' as const,
+        finalOuts: 3,
+        eventsGenerated: ['HalfInningEnded'],
+        finalScore: { home: 3, away: 2 },
+        gameState: {
+          gameId: { value: 'game-1' } as unknown as GameId,
+          status: 'IN_PROGRESS' as const,
+          score: { home: 3, away: 2, leader: 'HOME', difference: 1 },
+          gameStartTime: new Date(),
           currentInning: 2,
           isTopHalf: true,
-          homeLineup: { teamName: 'Home Team' },
-          awayLineup: { teamName: 'Away Team' },
+          battingTeam: 'AWAY',
+          outs: 0,
+          bases: {
+            first: null,
+            second: null,
+            third: null,
+            runnersInScoringPosition: [],
+            basesLoaded: false,
+          },
+          currentBatterSlot: 1,
+          homeLineup: { teamName: 'Home Team' } as Partial<GameStateDTO['homeLineup']>,
+          awayLineup: { teamName: 'Away Team' } as Partial<GameStateDTO['awayLineup']>,
+          currentBatter: null,
+          lastUpdated: new Date(),
         } as GameStateDTO,
       };
 
-      (mockEndInning.execute as MockedFunction<unknown>).mockResolvedValue(mockResult);
+      (mockEndInning.execute as MockedFunction<typeof mockEndInning.execute>).mockResolvedValue(
+        mockResult
+      );
 
       const uiData = {
         gameId: 'game-1',
@@ -369,10 +519,188 @@ describe('GameAdapter', () => {
     });
   });
 
+  describe('startNewGameFromWizard', () => {
+    it('should execute StartNewGame use case with wizard data', async () => {
+      const mockResult: GameStartResult = {
+        success: true,
+        gameId: { value: 'game-123', equals: vi.fn(), equalsImpl: vi.fn() } as unknown as GameId,
+        initialState: {
+          gameId: { value: 'game-123', equals: vi.fn(), equalsImpl: vi.fn() } as unknown as GameId,
+          status: 'IN_PROGRESS' as const,
+          score: { home: 0, away: 0, leader: 'TIE', difference: 0 },
+          gameStartTime: new Date(),
+          currentInning: 1,
+          isTopHalf: true,
+          battingTeam: 'AWAY',
+          outs: 0,
+          bases: {
+            first: null,
+            second: null,
+            third: null,
+            runnersInScoringPosition: [],
+            basesLoaded: false,
+          },
+          currentBatterSlot: 1,
+          homeLineup: { teamName: 'Eagles' } as Partial<GameStateDTO['homeLineup']>,
+          awayLineup: { teamName: 'Hawks' } as Partial<GameStateDTO['awayLineup']>,
+          currentBatter: null,
+          lastUpdated: new Date(),
+        } as GameStateDTO,
+      };
+
+      (
+        mockStartNewGame.execute as MockedFunction<typeof mockStartNewGame.execute>
+      ).mockResolvedValue(mockResult);
+
+      const wizardData = {
+        teams: {
+          home: 'Eagles',
+          away: 'Hawks',
+          ourTeam: 'home' as const,
+        },
+        lineup: [
+          {
+            id: 'player-1',
+            name: 'John Smith',
+            jerseyNumber: '1',
+            position: 'P',
+            battingOrder: 1,
+          },
+          {
+            id: 'player-2',
+            name: 'Jane Doe',
+            jerseyNumber: '2',
+            position: 'C',
+            battingOrder: 2,
+          },
+          {
+            id: 'player-3',
+            name: 'Bob Johnson',
+            jerseyNumber: '3',
+            position: '1B',
+            battingOrder: 3,
+          },
+          {
+            id: 'player-4',
+            name: 'Alice Brown',
+            jerseyNumber: '4',
+            position: '2B',
+            battingOrder: 4,
+          },
+          {
+            id: 'player-5',
+            name: 'Charlie Wilson',
+            jerseyNumber: '5',
+            position: '3B',
+            battingOrder: 5,
+          },
+          {
+            id: 'player-6',
+            name: 'Diana Davis',
+            jerseyNumber: '6',
+            position: 'SS',
+            battingOrder: 6,
+          },
+          {
+            id: 'player-7',
+            name: 'Frank Miller',
+            jerseyNumber: '7',
+            position: 'LF',
+            battingOrder: 7,
+          },
+          {
+            id: 'player-8',
+            name: 'Grace Taylor',
+            jerseyNumber: '8',
+            position: 'CF',
+            battingOrder: 8,
+          },
+          {
+            id: 'player-9',
+            name: 'Henry Anderson',
+            jerseyNumber: '9',
+            position: 'RF',
+            battingOrder: 9,
+          },
+        ],
+      };
+
+      const result = await gameAdapter.startNewGameFromWizard(wizardData);
+
+      expect(mockStartNewGame.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          gameId: expect.objectContaining({ value: expect.stringMatching(/^game-[a-f0-9-]+$/) }),
+          homeTeamName: 'Eagles',
+          awayTeamName: 'Hawks',
+          ourTeamSide: 'HOME',
+          gameDate: expect.any(Date),
+          initialLineup: expect.arrayContaining([
+            expect.objectContaining({
+              playerId: expect.objectContaining({ value: 'player-1' }),
+              name: 'John Smith',
+              jerseyNumber: expect.objectContaining({ value: '1' }),
+              battingOrderPosition: 1,
+            }),
+          ]),
+        })
+      );
+
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should handle validation errors from wizard mapper', async () => {
+      const wizardData = {
+        teams: {
+          home: 'Eagles',
+          away: 'Hawks',
+          ourTeam: null, // Invalid - should cause validation error
+        },
+        lineup: [], // Invalid - too few players
+      };
+
+      // Configure mock to throw error for this specific test case
+      (mockWizardToCommand as MockedFunction<typeof mockWizardToCommand>).mockImplementation(() => {
+        throw new Error('Our team side must be specified (home or away)');
+      });
+
+      await expect(gameAdapter.startNewGameFromWizard(wizardData)).rejects.toThrow(
+        'Our team side must be specified (home or away)'
+      );
+    });
+
+    it('should log errors appropriately when wizard mapper fails', async () => {
+      const wizardData = {
+        teams: {
+          home: '',
+          away: 'Hawks',
+          ourTeam: 'home' as const,
+        },
+        lineup: [],
+      };
+
+      // Configure mock to throw error for this test
+      (mockWizardToCommand as MockedFunction<typeof mockWizardToCommand>).mockImplementation(() => {
+        throw new Error('Home team name is required');
+      });
+
+      await expect(gameAdapter.startNewGameFromWizard(wizardData)).rejects.toThrow(
+        'Home team name is required'
+      );
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Game adapter: Failed to start new game from wizard',
+        expect.any(Error),
+        { wizardData }
+      );
+    });
+  });
+
   describe('error handling', () => {
     it('should propagate use case errors', async () => {
       const error = new Error('Domain validation error');
-      (mockStartNewGame.execute as MockedFunction<unknown>).mockRejectedValue(error);
+      (
+        mockStartNewGame.execute as MockedFunction<typeof mockStartNewGame.execute>
+      ).mockRejectedValue(error);
 
       const uiData = {
         gameId: 'invalid-game',
@@ -387,7 +715,9 @@ describe('GameAdapter', () => {
 
     it('should log errors appropriately', async () => {
       const error = new Error('Infrastructure error');
-      (mockRecordAtBat.execute as MockedFunction<unknown>).mockRejectedValue(error);
+      (mockRecordAtBat.execute as MockedFunction<typeof mockRecordAtBat.execute>).mockRejectedValue(
+        error
+      );
 
       const uiData = {
         gameId: 'game-1',

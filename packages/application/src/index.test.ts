@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import * as ApplicationLayer from './index';
+import * as ApplicationLayer from './index.js';
 
 describe('Application Layer - Exports Validation', () => {
   it('should export all use cases', () => {
