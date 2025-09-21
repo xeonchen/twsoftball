@@ -6,8 +6,11 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.{test,spec}.ts'],
     exclude: ['node_modules/**', 'dist/**', 'coverage/**'],
+
+    // Infrastructure layer coverage - adapters and external integrations
     coverage: {
-      reporter: ['text', 'json', 'html'],
+      provider: 'v8',
+      reporter: ['text', 'json', 'html', 'lcov'],
       include: ['src/**/*.ts'],
       exclude: [
         'node_modules/**',
@@ -18,6 +21,24 @@ export default defineConfig({
         '**/*.spec.ts',
         'src/index.ts',
       ],
+      // Infrastructure layer thresholds (adapters are harder to test)
+      thresholds: {
+        statements: 80,
+        branches: 75,
+        functions: 85,
+        lines: 80,
+        perFile: false, // Allow averaging for adapters
+      },
+      watermarks: {
+        statements: [75, 90],
+        branches: [70, 85],
+        functions: [80, 90],
+        lines: [75, 90],
+      },
+      all: true,
+      skipFull: false,
+      clean: true,
+      cleanOnRerun: true,
     },
   },
 });

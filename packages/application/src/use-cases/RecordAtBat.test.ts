@@ -474,6 +474,266 @@ describe('RecordAtBat Use Case', () => {
       expect(result.inningEnded).toBe(true); // Should end inning due to double play heuristic
     });
 
+    it('should not detect third out for non-ground out results', async () => {
+      // Arrange - Test isLikelyThirdOut with non-ground out result (line 465 branch)
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.HOME_RUN) // Non-ground out result
+        .withRunnerAdvances([
+          {
+            playerId: new PlayerId(SecureTestUtils.generatePlayerId('runner-1')),
+            fromBase: 'FIRST',
+            toBase: 'OUT',
+            advanceReason: 'FORCE_OUT',
+          },
+          {
+            playerId: batterId,
+            fromBase: null,
+            toBase: 'OUT',
+            advanceReason: 'HIT',
+          },
+        ])
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.inningEnded).toBe(false); // Should NOT end inning for home run with outs
+    });
+
+    it('should not detect third out for ground out with less than 2 outs', async () => {
+      // Arrange - Test isLikelyThirdOut with ground out but only 1 out (line 468 branch)
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.GROUND_OUT)
+        .withRunnerAdvances([
+          {
+            playerId: batterId,
+            fromBase: null,
+            toBase: 'OUT',
+            advanceReason: 'GROUND_OUT',
+          },
+        ])
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.inningEnded).toBe(false); // Should NOT end inning with only 1 out
+    });
+
+    it('should handle scenarios with no runner advances for ground out', async () => {
+      // Arrange - Test isLikelyThirdOut with ground out but no runner advances
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.GROUND_OUT)
+        .withRunnerAdvances([]) // No runner advances
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.inningEnded).toBe(false); // Should NOT end inning with no outs created
+    });
+  });
+
+  describe('Event Generation Edge Cases', () => {
+    it('should handle runner advances with mixed outcomes for event generation', async () => {
+      // Arrange - Test event generation with runners going to HOME, OUT, and bases (lines 534-542)
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const runnerId1 = new PlayerId(SecureTestUtils.generatePlayerId('runner-1'));
+      const runnerId2 = new PlayerId(SecureTestUtils.generatePlayerId('runner-2'));
+      const runnerId3 = new PlayerId(SecureTestUtils.generatePlayerId('runner-3'));
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.DOUBLE)
+        .withRunnerAdvances([
+          {
+            playerId: runnerId1,
+            fromBase: 'THIRD',
+            toBase: 'HOME', // Should generate RunScored event
+            advanceReason: 'HIT',
+          },
+          {
+            playerId: runnerId2,
+            fromBase: 'FIRST',
+            toBase: 'OUT', // Should NOT generate RunnerAdvanced event
+            advanceReason: 'FORCE_OUT',
+          },
+          {
+            playerId: runnerId3,
+            fromBase: 'SECOND',
+            toBase: 'THIRD', // Should generate RunnerAdvanced event
+            advanceReason: 'HIT',
+          },
+          {
+            playerId: batterId,
+            fromBase: null,
+            toBase: 'SECOND', // Should generate RunnerAdvanced event
+            advanceReason: 'HIT',
+          },
+        ])
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.runsScored).toBe(1); // Only runner from third scores
+      expect(result.rbiAwarded).toBe(1); // RBI for the run scored
+
+      // Verify event store was called (events were generated)
+      expect(mockEventStore.append).toHaveBeenCalled();
+    });
+
+    it('should handle scenario with only runners scoring (no base advances)', async () => {
+      // Arrange - Test filtering logic where all runners either score or get out
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const runnerId1 = new PlayerId(SecureTestUtils.generatePlayerId('runner-1'));
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.TRIPLE) // Changed to TRIPLE for consistency
+        .withRunnerAdvances([
+          {
+            playerId: runnerId1,
+            fromBase: 'THIRD',
+            toBase: 'HOME', // Should generate RunScored event
+            advanceReason: 'HIT',
+          },
+          {
+            playerId: batterId,
+            fromBase: null,
+            toBase: 'THIRD', // Should generate RunnerAdvanced event
+            advanceReason: 'HIT',
+          },
+        ])
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.runsScored).toBe(1); // Only runner from third scores
+      expect(result.rbiAwarded).toBe(1); // RBI for the run scored
+
+      // Verify event store was called (events were generated)
+      expect(mockEventStore.append).toHaveBeenCalled();
+    });
+
+    it('should handle scenario with only base advances (no scoring)', async () => {
+      // Arrange - Test filtering logic where runners only advance to bases
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const runnerId1 = new PlayerId(SecureTestUtils.generatePlayerId('runner-1'));
+      const runnerId2 = new PlayerId(SecureTestUtils.generatePlayerId('runner-2'));
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .withRunnerAdvances([
+          {
+            playerId: runnerId1,
+            fromBase: 'FIRST',
+            toBase: 'SECOND', // Should generate RunnerAdvanced event
+            advanceReason: 'HIT',
+          },
+          {
+            playerId: runnerId2,
+            fromBase: 'SECOND',
+            toBase: 'THIRD', // Should generate RunnerAdvanced event
+            advanceReason: 'HIT',
+          },
+          {
+            playerId: batterId,
+            fromBase: null,
+            toBase: 'FIRST', // Should generate RunnerAdvanced event
+            advanceReason: 'HIT',
+          },
+        ])
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.runsScored).toBe(0); // No runs scored
+      expect(result.rbiAwarded).toBe(0); // No RBIs
+
+      // Verify event store was called (events were generated)
+      expect(mockEventStore.append).toHaveBeenCalled();
+    });
+
+    it('should handle empty runner advances array for event generation', async () => {
+      // Arrange - Test event generation with no runner advances
+      const game = createTestGame();
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.STRIKEOUT)
+        .withRunnerAdvances([]) // Empty array to test filtering edge case
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.runsScored).toBe(0); // No runs scored
+      expect(result.rbiAwarded).toBe(0); // No RBIs
+
+      // Verify event store was called (even with empty events)
+      expect(mockEventStore.append).toHaveBeenCalled();
+    });
+  });
+
+  describe('Additional Edge Cases', () => {
     it('should handle failed game state loading during error handling', async () => {
       // Arrange - Mock both initial load and error recovery load to fail
       const initialError = new Error('Primary database failure');

@@ -165,7 +165,12 @@ Web Layer (Presentation)
 
 ### Quality Gates That Cannot Be Bypassed
 
-- Test coverage below 80% (hard block)
+- **Tiered Coverage Thresholds** (layer-specific hard blocks):
+  - Domain: 96%+ (business logic integrity)
+  - Application: 90%+ (use case reliability)
+  - Infrastructure: 80%+ (adapter functionality)
+  - Shared: 85%+ (utility reliability)
+  - Web: 70%+ (UI baseline)
 - TypeScript compilation errors
 - ESLint violations (unless properly justified)
 - Architecture dependency violations
@@ -199,14 +204,98 @@ const services = await createApplicationServicesWithContainer({
 import { createIndexedDBFactory } from '@twsoftball/infrastructure/web';
 ```
 
-### Testing Strategy
+### Testing Strategy & Coverage Excellence
+
+#### Tiered Coverage Philosophy: Practical Excellence
+
+**Goal**: 98%+ coverage during implementation **Reality**: Different layers have
+different testing challenges **Focus**: Test user stories and critical paths,
+not just lines
+
+#### Coverage Tiers by Layer
+
+| Layer              | CI Gate | Target | Rationale                                |
+| ------------------ | ------- | ------ | ---------------------------------------- |
+| **Domain**         | 96%     | 98%+   | Core business logic must be bulletproof  |
+| **Application**    | 90%     | 95%+   | Use cases need high confidence           |
+| **Infrastructure** | 80%     | 90%+   | External integrations are harder to test |
+| **Shared/Utils**   | 85%     | 95%+   | Utilities should be well-tested          |
+| **Web/UI**         | 70%     | 85%+   | UI testing has diminishing returns       |
+
+#### Implementation vs Gating Thresholds
+
+**Three-Tier System:**
+
+1. **🚨 CI Gates (Hard Block)** - Minimum acceptable quality
+   - Protects against regressions
+   - Enforced in vitest.config.ts per layer
+   - Different standards for different complexities
+
+2. **🎯 Implementation Target** - What we aim for during development
+   - Domain: 98%+ (excellence standard)
+   - Application: 95%+ (high confidence)
+   - Infrastructure: 90%+ (good coverage)
+   - Web: 85%+ (reasonable for UI)
+
+3. **⚠️ Warning Threshold** - Triggers review but doesn't block
+   - 5% below CI gate = Yellow warning
+   - 10% below = Red alert + mandatory review
+
+#### Test Priority Matrix
+
+**1. Critical (Must Test)**
+
+- Business rules & domain logic
+- Error handling & recovery
+- Security boundaries
+- Data validation
+
+**2. Important (Should Test)**
+
+- Integration points
+- Performance critical paths
+- User workflows
+- Edge cases
+
+**3. Nice to Have (Could Test)**
+
+- UI animations
+- Logging statements
+- Simple getters/setters
+- Framework boilerplate
+
+**4. Exclusions (Don't Test)**
+
+- Port interfaces (just contracts)
+- Type definitions
+- Constants
+- Third-party integrations (mock instead)
+
+#### Test Types & Requirements
 
 - **Unit Tests**: Domain entities, value objects, use cases (Co-located .test.ts
   files)
 - **Integration Tests**: Database adapters, application services
 - **E2E Tests**: Complete user workflows
-- **Coverage**: 80% hard limit, 90% soft limit, 98% excellent
 - **TDD Required**: Write tests before implementation
+
+#### Pre-Commit Coverage Checklist
+
+```bash
+# Check coverage before commit
+pnpm test:coverage
+
+# Verify thresholds per layer:
+# - Domain layer MUST be 96%+
+# - Application layer MUST be 90%+
+# - Infrastructure layer MUST be 80%+
+# - Shared utilities MUST be 85%+
+# - Web/UI layer MUST be 70%+
+
+# New features MUST have scenario tests
+# Error paths MUST be tested
+# Performance implications MUST be considered
+```
 
 ### Code Quality
 

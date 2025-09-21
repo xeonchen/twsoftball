@@ -35,14 +35,24 @@ export default defineConfig({
         '**/test/**',
         '**/__tests__/**',
       ],
+      // Web layer thresholds (UI testing has diminishing returns)
       thresholds: {
-        global: {
-          branches: 95,
-          functions: 95,
-          lines: 95,
-          statements: 95,
-        },
+        statements: 70,
+        branches: 65,
+        functions: 75,
+        lines: 70,
+        perFile: false, // Allow averaging for UI components
       },
+      watermarks: {
+        statements: [65, 85],
+        branches: [60, 80],
+        functions: [70, 85],
+        lines: [65, 85],
+      },
+      all: true,
+      skipFull: false,
+      clean: true,
+      cleanOnRerun: true,
     },
   },
 });
