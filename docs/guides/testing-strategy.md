@@ -557,6 +557,83 @@ it('should render game setup within performance threshold', async () => {
 - Query performance: <50ms for typical queries
 - UI component rendering: <100ms (95th percentile)
 
+### Performance Test Separation
+
+We maintain a clear separation between correctness tests and performance tests
+to ensure CI stability and clear test intent.
+
+#### Test Types and Naming Conventions
+
+- **`.test.ts` files**: Correctness tests that verify functionality
+  - Run in CI pipeline
+  - Required to pass for merging
+  - Test business logic, error handling, data validation
+  - Example: Verify RBI calculation produces correct results
+
+- **`.perf.test.ts` files**: Performance measurement tests
+  - Run locally only (`pnpm test:perf`)
+  - Used for optimization work
+  - Measure timing, throughput, memory usage
+  - Example: Measure aggregate reconstruction time under load
+
+#### When to Use Each Type
+
+**Use Correctness Tests (`.test.ts`) when:**
+
+- Testing business logic or functionality
+- Verifying error handling and edge cases
+- Testing configuration, setup, or utilities
+- Validating data transformations
+- Testing that performance utilities work correctly (not measuring actual
+  performance)
+
+**Use Performance Tests (`.perf.test.ts`) when:**
+
+- Measuring actual execution time or timing variance
+- Testing throughput or scalability under load
+- Comparing performance between different implementations
+- Validating performance thresholds with real timing measurements
+
+#### Running Tests
+
+```bash
+# Run correctness tests only (default for CI)
+pnpm test
+
+# Run performance tests only (local optimization)
+pnpm test:perf
+
+# Run all tests including performance
+pnpm test:all
+
+# Run with coverage (excludes performance tests from both execution and coverage calculation)
+pnpm test:coverage
+```
+
+#### Performance Test Guidelines
+
+When writing performance tests:
+
+- Use fixed thresholds appropriate for local development environment
+- Focus on relative performance comparisons rather than absolute timings
+- Include statistical analysis for stability (multiple runs, median timing)
+- Test realistic data sizes and scenarios
+- Document performance expectations in test comments
+
+Example performance test:
+
+```typescript
+// PerformanceBenchmark.perf.test.ts
+it('should maintain consistent timing variance', async () => {
+  const benchmark = new PerformanceBenchmark('timing-test');
+  const result1 = await benchmark.run(operation);
+  const result2 = await benchmark.run(operation);
+
+  const variance = calculateVariance(result1, result2);
+  expect(variance).toBeLessThan(0.5); // Fixed threshold for local testing
+});
+```
+
 ## Common Testing Pitfalls to Avoid
 
 1. **Testing Implementation Details**: Test behavior, not internal methods

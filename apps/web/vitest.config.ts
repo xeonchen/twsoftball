@@ -24,6 +24,7 @@ export default defineConfig({
     setupFiles: './src/test/setup.ts',
     css: true,
     testTimeout: 20000, // Increase global test timeout to 20 seconds for performance tests
+    include: ['src/**/*.test.{ts,tsx}', 'src/**/*.spec.{ts,tsx}', 'src/**/*.perf.test.{ts,tsx}'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -32,6 +33,7 @@ export default defineConfig({
         'dist/',
         '**/*.test.{ts,tsx}',
         '**/*.spec.{ts,tsx}',
+        '**/*.perf.test.{ts,tsx}',
         '**/test/**',
         '**/__tests__/**',
       ],
