@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    include: ['src/**/*.{test,spec}.ts'],
+    include: ['src/**/*.{test,spec}.ts', 'src/**/*.perf.test.ts'],
     exclude: ['node_modules/**', 'dist/**', 'coverage/**'],
 
     // Infrastructure layer coverage - adapters and external integrations

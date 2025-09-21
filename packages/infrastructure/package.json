@@ -28,9 +28,11 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
-    "test": "vitest run",
+    "test": "vitest run --exclude '**/*.perf.test.ts'",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test:perf": "vitest run --testNamePattern 'Infrastructure Performance Testing'",
+    "test:coverage": "vitest run --coverage --exclude '**/*.perf.test.ts'",
+    "test:all": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit && eslint 'src/**/*.{ts,tsx}' --max-warnings 0",
     "lint:eslint": "eslint 'src/**/*.{ts,tsx}' --max-warnings 0",
