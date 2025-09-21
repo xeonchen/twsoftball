@@ -10,6 +10,7 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
+    "test:perf": "turbo run test:perf",
     "test:coverage": "turbo run test:coverage && node tools/scripts/merge-coverage.js",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",

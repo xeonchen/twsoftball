@@ -15,6 +15,7 @@
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
     "test:coverage": "vitest --config vitest.config.ts --coverage",
+    "test:perf": "echo 'No performance tests in this package'",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

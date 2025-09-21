@@ -31,6 +31,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:perf": "echo 'No performance tests in this package'",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit && eslint 'src/**/*.{ts,tsx}' --max-warnings 0",
     "lint:eslint": "eslint 'src/**/*.{ts,tsx}' --max-warnings 0",
