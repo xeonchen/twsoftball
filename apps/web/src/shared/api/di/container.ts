@@ -131,6 +131,7 @@ let applicationServices: ApplicationServices | null = null;
  * the container with the new configuration.
  *
  * @param config - Container configuration options
+ * @param serviceCreator - Optional service creator function for testing (internal use)
  * @throws Error if container initialization fails
  *
  * @example
@@ -150,7 +151,12 @@ let applicationServices: ApplicationServices | null = null;
  * });
  * ```
  */
-export async function initializeContainer(config: ContainerConfig): Promise<void> {
+export async function initializeContainer(
+  config: ContainerConfig,
+  serviceCreator: (
+    config: ApplicationConfig
+  ) => Promise<ApplicationServices> = createApplicationServicesWithContainer
+): Promise<void> {
   try {
     // Step 1: Validate configuration
     validateConfiguration(config);
@@ -163,7 +169,7 @@ export async function initializeContainer(config: ContainerConfig): Promise<void
     };
 
     // Step 3: Create application services using DIContainer with dynamic imports
-    applicationServices = await createApplicationServicesWithContainer(applicationConfig);
+    applicationServices = await serviceCreator(applicationConfig);
 
     // Step 4: Create GameAdapter configuration
     const gameAdapterConfig: GameAdapterConfig = {

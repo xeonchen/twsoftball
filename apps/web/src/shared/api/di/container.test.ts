@@ -242,34 +242,34 @@ describe('Dependency Injection Container', () => {
       expect(inningStateRepo1).toBeDefined();
     });
 
-    it.skip('should handle initialization errors gracefully', async () => {
-      // NOTE: This test is skipped due to complex module mocking issues.
-      // The initializeContainer function correctly handles errors (as proven by validation tests),
-      // but mocking createApplicationServicesWithContainer for error scenarios has module resolution complexity.
+    it('should handle initialization errors gracefully', async () => {
       // Arrange
       const config = {
         environment: 'production' as const,
         storage: 'indexeddb' as const,
       };
 
-      // Create a failing mock for DIContainer
-      vi.doMock('@twsoftball/application/services/DIContainer', () => ({
-        createApplicationServicesWithContainer: vi
-          .fn()
-          .mockRejectedValue(new Error('Storage initialization failed')),
-        DIContainer: vi.fn(),
-      }));
-
-      // Re-import the container module to get the version with the failing mock
-      const { initializeContainer: testInitializeContainer } = await import('./container');
+      // Create a failing service creator function
+      const failingServiceCreator = vi
+        .fn()
+        .mockRejectedValue(new Error('Storage initialization failed'));
 
       // Act & Assert
-      await expect(testInitializeContainer(config)).rejects.toThrow(
-        'Failed to initialize dependency container'
+      await expect(initializeContainer(config, failingServiceCreator)).rejects.toThrow(
+        'Failed to initialize dependency container: Storage initialization failed'
       );
 
-      // Clean up the mock
-      vi.doUnmock('@twsoftball/application/services/DIContainer');
+      // Verify the service creator was called with correct config
+      expect(failingServiceCreator).toHaveBeenCalledWith({
+        environment: 'production',
+        storage: 'indexeddb',
+        debug: false,
+      });
+
+      // Verify container remains uninitialized
+      expect(() => getContainer()).toThrow(
+        'Dependency container not initialized. Call initializeContainer first.'
+      );
     });
 
     it('should provide logger implementation', async () => {
@@ -613,74 +613,69 @@ describe('Dependency Injection Container', () => {
       );
     });
 
-    it.skip('should handle service creation failures gracefully', async () => {
-      // NOTE: This test is skipped due to complex module mocking issues.
-      // The initializeContainer function correctly handles errors (as proven by validation tests),
-      // but mocking createApplicationServicesWithContainer for error scenarios has module resolution complexity.
-      const { createApplicationServicesWithContainer } = await import(
-        '@twsoftball/application/services/DIContainer'
-      );
-
-      // Store original implementation to restore later
-      const originalMock = vi
-        .mocked(createApplicationServicesWithContainer)
-        .getMockImplementation();
-
-      // Mock a service creation failure
-      vi.mocked(createApplicationServicesWithContainer).mockImplementation(() => {
-        return Promise.reject(new Error('Service creation failed'));
-      });
-
+    it('should handle service creation failures gracefully', async () => {
+      // Arrange
       const config = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
 
-      await expect(initializeContainer(config)).rejects.toThrow(
+      // Create a failing service creator function
+      const failingServiceCreator = vi.fn().mockRejectedValue(new Error('Service creation failed'));
+
+      // Act & Assert
+      await expect(initializeContainer(config, failingServiceCreator)).rejects.toThrow(
         'Failed to initialize dependency container: Service creation failed'
       );
 
-      // Restore original mock
-      if (originalMock) {
-        vi.mocked(createApplicationServicesWithContainer).mockImplementation(originalMock);
-      }
-    });
-
-    it.skip('should clean up properly on initialization failure', async () => {
-      // NOTE: This test is skipped due to complex module mocking issues.
-      // The initializeContainer function correctly handles errors (as proven by validation tests),
-      // but mocking createApplicationServicesWithContainer for error scenarios has module resolution complexity.
-      const { createApplicationServicesWithContainer } = await import(
-        '@twsoftball/application/services/DIContainer'
-      );
-
-      // Store original implementation to restore later
-      const originalMock = vi
-        .mocked(createApplicationServicesWithContainer)
-        .getMockImplementation();
-
-      // Mock failure
-      vi.mocked(createApplicationServicesWithContainer).mockImplementation(() => {
-        return Promise.reject(new Error('Initialization failed'));
+      // Verify the service creator was called with correct config
+      expect(failingServiceCreator).toHaveBeenCalledWith({
+        environment: 'development',
+        storage: 'memory',
+        debug: false,
       });
 
-      const config = {
+      // Verify container remains uninitialized
+      expect(() => getContainer()).toThrow(
+        'Dependency container not initialized. Call initializeContainer first.'
+      );
+    });
+
+    it('should clean up properly on initialization failure', async () => {
+      // Arrange - First initialize the container successfully to ensure it exists
+      const validConfig = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
+      await initializeContainer(validConfig);
 
-      // Attempt initialization (should fail)
-      await expect(initializeContainer(config)).rejects.toThrow();
+      // Verify container is initialized
+      expect(() => getContainer()).not.toThrow();
 
-      // Container should remain uninitialized
+      // Create a failing service creator function
+      const failingServiceCreator = vi.fn().mockRejectedValue(new Error('Initialization failed'));
+
+      const failingConfig = {
+        environment: 'production' as const,
+        storage: 'indexeddb' as const,
+      };
+
+      // Act - Attempt re-initialization with failing service creator (should fail)
+      await expect(initializeContainer(failingConfig, failingServiceCreator)).rejects.toThrow(
+        'Failed to initialize dependency container: Initialization failed'
+      );
+
+      // Assert - Container should remain uninitialized after failure
       expect(() => getContainer()).toThrow(
         'Dependency container not initialized. Call initializeContainer first.'
       );
 
-      // Restore original mock
-      if (originalMock) {
-        vi.mocked(createApplicationServicesWithContainer).mockImplementation(originalMock);
-      }
+      // Verify cleanup happened - both container and application services should be null
+      expect(failingServiceCreator).toHaveBeenCalledWith({
+        environment: 'production',
+        storage: 'indexeddb',
+        debug: false,
+      });
     });
   });
 
