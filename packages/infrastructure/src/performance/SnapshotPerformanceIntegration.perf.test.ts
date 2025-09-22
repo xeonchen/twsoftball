@@ -33,6 +33,7 @@ import type {
   AggregateSnapshot,
 } from '@twsoftball/application/ports/out/SnapshotStore';
 import { GameId } from '@twsoftball/domain';
+import { SecureRandom } from '@twsoftball/shared/utils/SecureRandom';
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 
 import { createMockGameCreatedEvent } from '../../../application/src/test-utils/event-store';
@@ -341,7 +342,7 @@ describe('IndexedDB Snapshot Performance Integration', () => {
       const eventAppendMetrics = await measureOperationTime(async () => {
         const newEvent = createMockGameCreatedEvent(gameId);
         Object.defineProperty(newEvent, 'eventId', {
-          value: `consistency-test-${Date.now()}-${Math.random()}`,
+          value: `consistency-test-${Date.now()}-${SecureRandom.randomFloat()}`,
           writable: false,
           configurable: true,
         });
