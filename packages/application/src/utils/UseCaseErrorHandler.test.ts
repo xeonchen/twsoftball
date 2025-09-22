@@ -6,10 +6,10 @@
 import { GameId, Game, DomainError } from '@twsoftball/domain';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { GameRepository } from '../ports/out/GameRepository';
-import { Logger } from '../ports/out/Logger';
+import { GameRepository } from '../ports/out/GameRepository.js';
+import { Logger } from '../ports/out/Logger.js';
 
-import { UseCaseErrorHandler, ErrorResultBuilder } from './UseCaseErrorHandler';
+import { UseCaseErrorHandler, ErrorResultBuilder } from './UseCaseErrorHandler.js';
 
 // Mock interfaces for testing
 interface TestResult {

@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { FieldPosition } from '../constants/FieldPosition';
-import { SimpleTeamStrategy } from '../strategies/SimpleTeamStrategy';
-import type { TeamStrategy } from '../strategies/TeamStrategy';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import { SimpleTeamStrategy } from '../strategies/SimpleTeamStrategy.js';
+import type { TeamStrategy } from '../strategies/TeamStrategy.js';
 
-import { TeamStrategyTestHelper } from './TeamStrategyTestHelper';
+import { TeamStrategyTestHelper } from './TeamStrategyTestHelper.js';
 
 describe('TeamStrategyTestHelper', () => {
   let strategy: TeamStrategy;

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { AtBatResultType } from './AtBatResultType';
+import { AtBatResultType } from './AtBatResultType.js';
 
 describe('AtBatResultType', () => {
   describe('Hits', () => {

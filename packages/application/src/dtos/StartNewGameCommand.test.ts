@@ -13,7 +13,7 @@ import {
   StartNewGameCommandValidator,
   StartNewGameCommandValidationError,
   StartNewGameCommandFactory,
-} from './StartNewGameCommand';
+} from './StartNewGameCommand.js';
 
 describe('StartNewGameCommand', () => {
   let validCommand: StartNewGameCommand;

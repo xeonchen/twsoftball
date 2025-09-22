@@ -62,8 +62,8 @@
 
 import { GameId, TeamLineupId, InningStateId } from '@twsoftball/domain';
 
-import { EventStore, StoredEvent } from '../ports/out/EventStore';
-import { SnapshotStore, AggregateSnapshot } from '../ports/out/SnapshotStore';
+import { EventStore, StoredEvent } from '../ports/out/EventStore.js';
+import { SnapshotStore, AggregateSnapshot } from '../ports/out/SnapshotStore.js';
 
 /**
  * Interface for event-sourced aggregates that can be managed by SnapshotManager.

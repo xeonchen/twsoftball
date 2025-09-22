@@ -1,6 +1,6 @@
-import { GameId } from '../value-objects/GameId';
+import { GameId } from '../value-objects/GameId.js';
 
-import { DomainEvent } from './DomainEvent';
+import { DomainEvent } from './DomainEvent.js';
 
 /**
  * Domain event representing the start of active gameplay in a softball game.

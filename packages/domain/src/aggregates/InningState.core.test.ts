@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 
-import { AtBatResultType } from '../constants/AtBatResultType';
-import { DomainError } from '../errors/DomainError';
-import { GameId } from '../value-objects/GameId';
-import { InningStateId } from '../value-objects/InningStateId';
-import { PlayerId } from '../value-objects/PlayerId';
+import { AtBatResultType } from '../constants/AtBatResultType.js';
+import { DomainError } from '../errors/DomainError.js';
+import { GameId } from '../value-objects/GameId.js';
+import { InningStateId } from '../value-objects/InningStateId.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
-import { InningState } from './InningState';
+import { InningState } from './InningState.js';
 
 describe('InningState - Core Operations', () => {
   const inningStateId = new InningStateId('inning-state-1');

@@ -45,10 +45,10 @@
 
 import { GameId, PlayerId, AtBatResultType } from '@twsoftball/domain';
 
-import { ValidationError } from '../errors/ValidationError';
-import { CommonValidators } from '../utils/CommonValidators';
+import { ValidationError } from '../errors/ValidationError.js';
+import { CommonValidators } from '../utils/CommonValidators.js';
 
-import { RunnerAdvanceDTO } from './RunnerAdvanceDTO';
+import { RunnerAdvanceDTO } from './RunnerAdvanceDTO.js';
 
 /**
  * Validation error for RecordAtBatCommand

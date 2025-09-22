@@ -6,7 +6,7 @@
 import { GameId, GameStatus, Game } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { GameRepository } from './GameRepository';
+import { GameRepository } from './GameRepository.js';
 
 // Mock implementation for testing the interface contract
 class MockGameRepository implements GameRepository {

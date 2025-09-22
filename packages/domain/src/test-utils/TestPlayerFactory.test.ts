@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 
-import { DomainError } from '../errors/DomainError';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
-import { PlayerId } from '../value-objects/PlayerId';
+import { DomainError } from '../errors/DomainError.js';
+import { JerseyNumber } from '../value-objects/JerseyNumber.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
-import { TestPlayerFactory } from './TestPlayerFactory';
+import { TestPlayerFactory } from './TestPlayerFactory.js';
 
 describe('TestPlayerFactory', () => {
   describe('createPlayer', () => {

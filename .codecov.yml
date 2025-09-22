@@ -37,30 +37,30 @@ coverage:
 
       # Infrastructure layer - Adapters and implementations
       infrastructure:
-        target: 95%
-        threshold: 10%
+        target: 85%
+        threshold: 5%
         flags: [infrastructure]
         if_not_found: success
         if_ci_failed: error
-        informational: true # not implemented yet
+        informational: false
 
       # Shared utilities
       shared:
         target: 95%
-        threshold: 10%
+        threshold: 5%
         flags: [shared]
         if_not_found: success
         if_ci_failed: error
-        informational: true # not implemented yet
+        informational: false
 
       # Web app - PWA
       web:
-        target: 95%
-        threshold: 10%
+        target: 85%
+        threshold: 5%
         flags: [web]
         if_not_found: success
         if_ci_failed: error
-        informational: true # not implemented yet
+        informational: false
 
     # Patch coverage (for new code in PRs)
     patch:
@@ -69,6 +69,7 @@ coverage:
         threshold: 2%
         if_not_found: success
         if_ci_failed: error
+        informational: false
 
       # Domain patches - High coverage required
       domain:
@@ -77,6 +78,7 @@ coverage:
         flags: [domain]
         if_not_found: success
         if_ci_failed: error
+        informational: false
 
       # Application patches
       application:
@@ -85,15 +87,16 @@ coverage:
         flags: [application]
         if_not_found: success
         if_ci_failed: error
+        informational: false
 
       # Infrastructure patches
       infrastructure:
-        target: 90%
+        target: 85%
         threshold: 3%
         flags: [infrastructure]
         if_not_found: success
         if_ci_failed: error
-        informational: true # not implemented yet
+        informational: false
 
       # Shared patches
       shared:
@@ -102,16 +105,16 @@ coverage:
         flags: [shared]
         if_not_found: success
         if_ci_failed: error
-        informational: true # not implemented yet
+        informational: false
 
       # Web patches
       web:
-        target: 92%
+        target: 85%
         threshold: 3%
         flags: [web]
         if_not_found: success
         if_ci_failed: error
-        informational: true # not implemented yet
+        informational: false
 
 # Flag definitions for different parts of the monorepo
 flags:

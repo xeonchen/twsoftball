@@ -1,12 +1,12 @@
-import { GameStatus } from '../constants/GameStatus';
-import { DomainEvent } from '../events/DomainEvent';
-import { GameCreated } from '../events/GameCreated';
-import { GameStarted } from '../events/GameStarted';
-import { InningAdvanced } from '../events/InningAdvanced';
-import { ScoreUpdated } from '../events/ScoreUpdated';
-import { GameId } from '../value-objects/GameId';
+import { GameStatus } from '../constants/GameStatus.js';
+import { DomainEvent } from '../events/DomainEvent.js';
+import { GameCreated } from '../events/GameCreated.js';
+import { GameStarted } from '../events/GameStarted.js';
+import { InningAdvanced } from '../events/InningAdvanced.js';
+import { ScoreUpdated } from '../events/ScoreUpdated.js';
+import { GameId } from '../value-objects/GameId.js';
 
-import { Game } from './Game';
+import { Game } from './Game.js';
 
 describe('Game Aggregate Root - Event Management and Validation', () => {
   let gameId: GameId;

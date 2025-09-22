@@ -184,7 +184,7 @@ describe('IndexedDBEventStore Database Lifecycle Events', () => {
       // Set up the error handler like IndexedDBEventStore does
       mockDb.onerror = (event: Event): void => {
         // This is the actual handler code from lines 270-273
-        // eslint-disable-next-line no-console -- Development warning for IndexedDB connection issues
+
         console.warn('IndexedDB connection error:', event);
       };
 
@@ -341,7 +341,6 @@ describe('IndexedDBEventStore Database Lifecycle Events', () => {
 
       // Set up error handler
       mockDb.onerror = (event: Event): void => {
-        // eslint-disable-next-line no-console -- Intentional console usage in error handler test
         console.warn('IndexedDB connection error:', event);
       };
 

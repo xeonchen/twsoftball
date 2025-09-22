@@ -6,12 +6,12 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { EventStoreContractTests } from './EventStoreContractTests';
-
 // Import individual modules to compare
-import * as EventStoreTestInterfaces from './';
-import * as MockEventCreators from './';
-import * as EventStoreTestUtils from './index';
+import { EventStoreContractTests } from './EventStoreContractTests.js';
+import * as EventStoreTestInterfaces from './EventStoreTestInterfaces.js';
+import * as MockEventCreators from './MockEventCreators.js';
+
+import * as EventStoreTestUtils from './index.js';
 
 describe('EventStore Test Utils Index', () => {
   describe('Module Structure', () => {
@@ -279,8 +279,8 @@ describe('EventStore Test Utils Index', () => {
   describe('Export Completeness', () => {
     it('should not miss any exports from source modules', () => {
       // Get all exports from source modules
-      const interfaceKeys = Object.keys(EventStoreTestInterfaces);
-      const mockKeys = Object.keys(MockEventCreators);
+      const interfaceKeys = Object.keys(EventStoreTestInterfaces as Record<string, unknown>);
+      const mockKeys = Object.keys(MockEventCreators as Record<string, unknown>);
       const contractTestsKey = 'EventStoreContractTests';
 
       const allExpectedKeys = [...interfaceKeys, ...mockKeys, contractTestsKey];
@@ -294,9 +294,9 @@ describe('EventStore Test Utils Index', () => {
     });
 
     it('should not have extra unexpected exports', () => {
-      const indexKeys = Object.keys(EventStoreTestUtils);
-      const interfaceKeys = Object.keys(EventStoreTestInterfaces);
-      const mockKeys = Object.keys(MockEventCreators);
+      const indexKeys = Object.keys(EventStoreTestUtils as Record<string, unknown>);
+      const interfaceKeys = Object.keys(EventStoreTestInterfaces as Record<string, unknown>);
+      const mockKeys = Object.keys(MockEventCreators as Record<string, unknown>);
       const allExpectedKeys = [...interfaceKeys, ...mockKeys, 'EventStoreContractTests'];
 
       // Every index key should be expected

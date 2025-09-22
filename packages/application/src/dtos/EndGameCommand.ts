@@ -58,7 +58,7 @@
 
 import { GameId } from '@twsoftball/domain';
 
-import { ValidationError } from '../errors/ValidationError';
+import { ValidationError } from '../errors/ValidationError.js';
 
 /**
  * Validation error for EndGameCommand

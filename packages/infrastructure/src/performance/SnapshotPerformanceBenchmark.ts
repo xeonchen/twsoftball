@@ -60,6 +60,8 @@ import type { TeamLineupRepository } from '@twsoftball/application/ports/out/Tea
 import { GameId, TeamLineupId, InningStateId, Game } from '@twsoftball/domain';
 import { SecureRandom } from '@twsoftball/shared';
 
+import { getEffectiveImprovementThreshold } from './utils/config';
+
 /// <reference path="./eslint-disable.d.ts" />
 
 /**
@@ -189,7 +191,6 @@ export class SnapshotPerformanceBenchmark {
   private readonly TARGET_LOAD_TIME_MS = 100;
   private readonly TARGET_MEMORY_LIMIT_MB = 60;
   // private readonly TARGET_SNAPSHOT_TIME_MS = 50; // Reserved for future snapshot timing validation
-  private readonly TARGET_IMPROVEMENT_PERCENTAGE = 70;
   private readonly MIN_TEST_RUNS = 10;
   private readonly WARMUP_RUNS = 3;
 
@@ -283,7 +284,7 @@ export class SnapshotPerformanceBenchmark {
       withoutSnapshots,
       improvementMs,
       improvementPercentage,
-      significantImprovement: improvementPercentage >= this.TARGET_IMPROVEMENT_PERCENTAGE,
+      significantImprovement: improvementPercentage >= getEffectiveImprovementThreshold(),
     };
   }
 

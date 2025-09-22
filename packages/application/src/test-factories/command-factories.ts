@@ -18,18 +18,18 @@ import {
   AtBatResultType,
 } from '@twsoftball/domain';
 
-import { CompleteAtBatSequenceCommand } from '../dtos/CompleteAtBatSequenceCommand';
-import { CompleteGameWorkflowCommand } from '../dtos/CompleteGameWorkflowCommand';
+import { CompleteAtBatSequenceCommand } from '../dtos/CompleteAtBatSequenceCommand.js';
+import { CompleteGameWorkflowCommand } from '../dtos/CompleteGameWorkflowCommand.js';
 import {
   EndGameCommand,
   GameEndReason,
   WeatherConditionsDTO,
   ForfeitDetailsDTO,
-} from '../dtos/EndGameCommand';
-import { EndInningCommand } from '../dtos/EndInningCommand';
-import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand';
-import { StartNewGameCommand } from '../dtos/StartNewGameCommand';
-import { SubstitutePlayerCommand } from '../dtos/SubstitutePlayerCommand';
+} from '../dtos/EndGameCommand.js';
+import { EndInningCommand } from '../dtos/EndInningCommand.js';
+import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand.js';
+import { StartNewGameCommand } from '../dtos/StartNewGameCommand.js';
+import { SubstitutePlayerCommand } from '../dtos/SubstitutePlayerCommand.js';
 
 /**
  * Creates an EndGameCommand with preset configurations for different scenarios.
@@ -160,7 +160,7 @@ export function createCompleteGameWorkflowCommand(
       homeTeamName: 'Tigers',
       awayTeamName: 'Lions',
       ourTeamSide: 'HOME',
-      gameDate: new Date('2024-06-15T19:00:00Z'),
+      gameDate: new Date('2025-12-15T19:00:00Z'),
       location: 'Memorial Stadium',
       initialLineup: [
         {
@@ -303,7 +303,7 @@ export const createStartNewGameCommand = {
     homeTeamName: 'Tigers',
     awayTeamName: 'Lions',
     ourTeamSide: 'HOME',
-    gameDate: new Date('2024-06-15T19:00:00Z'),
+    gameDate: new Date('2025-12-15T19:00:00Z'),
     location: 'Memorial Stadium',
     initialLineup: [
       {

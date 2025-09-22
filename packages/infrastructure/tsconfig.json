@@ -11,18 +11,27 @@
     "baseUrl": ".",
     "paths": {
       "@twsoftball/domain": ["../domain/src/index"],
-      "@twsoftball/application": ["../application/src/index"],
-      "@twsoftball/shared": ["../shared/src/index"]
+      "@twsoftball/shared": ["../shared/src/index"],
+      "@twsoftball/application": ["../application/src/index"]
     }
   },
   "include": ["src/**/*"],
-  "exclude": [],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "src/test-utils/**/*",
+    "node_modules",
+    "dist"
+  ],
   "references": [
     {
-      "path": "../application"
+      "path": "../domain"
     },
     {
       "path": "../shared"
+    },
+    {
+      "path": "../application"
     }
   ]
 }

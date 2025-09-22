@@ -16,6 +16,11 @@
       "outputs": ["coverage/**"],
       "cache": true
     },
+    "test:perf": {
+      "dependsOn": ["build"],
+      "outputs": [],
+      "cache": false
+    },
     "test:watch": {
       "cache": false,
       "persistent": true

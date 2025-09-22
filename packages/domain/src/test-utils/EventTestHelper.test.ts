@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 
-import { AtBatResultType } from '../constants/AtBatResultType';
-import { DomainError } from '../errors/DomainError';
-import { AtBatCompleted } from '../events/AtBatCompleted';
-import { GameId } from '../value-objects/GameId';
-import { PlayerId } from '../value-objects/PlayerId';
+import { AtBatResultType } from '../constants/AtBatResultType.js';
+import { DomainError } from '../errors/DomainError.js';
+import { AtBatCompleted } from '../events/AtBatCompleted.js';
+import { GameId } from '../value-objects/GameId.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
-import { EventTestHelper } from './EventTestHelper';
+import { EventTestHelper } from './EventTestHelper.js';
 
 describe('EventTestHelper', () => {
   describe('createValidScore', () => {

@@ -297,24 +297,49 @@ describe('IndexedDBGameRepository', () => {
 
 ## Dependency Flow
 
-```
-Presentation Layer (Web UI)
-         ↓ (calls)
-Application Layer (Use Cases)
-         ↓ (calls)
-Domain Layer (Business Logic)
-         ↑ (implements)
-Application Layer (Ports)
-         ↑ (implements)
-Infrastructure Layer (Adapters)
+Dependencies flow in a single direction: **inward**. Outer layers depend on
+inner layers, but inner layers know nothing about the outside world.
+
+```mermaid
+graph TD
+    subgraph " "
+        direction LR
+        A["Web Layer<br/>e.g., React Components, Hooks"]
+    end
+
+    subgraph " "
+        direction LR
+        B["Application Layer<br/>Use Cases + DI Container"]
+    end
+
+    subgraph " "
+        direction LR
+        C["Domain Layer<br/>Business Logic"]
+    end
+
+    subgraph " "
+        direction LR
+        D["Infrastructure Layer<br/>Adapters + Implementations"]
+    end
+
+    A -- "calls only" --> B
+    B -- "depends on" --> C
+    B -. "dynamic import at runtime" .-> D
 ```
 
 **Key Rules:**
 
-1. Dependencies always point inward
-2. Inner layers never depend on outer layers
-3. Domain has NO external dependencies
-4. All dependencies are on interfaces, not implementations
+1.  **Web Layer**: Only calls Application layer services, never imports
+    Infrastructure directly
+2.  **Application Layer**: Uses **DI Container with Dynamic Import** pattern to
+    load Infrastructure at runtime
+3.  **Domain Is Independent**: The `Domain` layer has **zero** dependencies on
+    any other layer
+4.  **Infrastructure Layer**: Provides factory implementations that Application
+    dynamically imports
+
+**For complete architectural patterns and DI Container implementation details,
+see [Architecture Patterns](../architecture-patterns.md)**
 
 ## Architecture Enforcement Rules
 
@@ -363,7 +388,8 @@ import { ApiResponse } from '../../web/types'; // ERROR
 
 #### 3. Infrastructure Layer Restrictions (`infrastructure-layer-restrictions`)
 
-- **Rule**: Infrastructure can only depend on domain and application layers
+- **Rule**: Infrastructure can only depend on domain, application, and shared
+  layers
 - **Severity**: ERROR
 - **Rationale**: Infrastructure implements application ports and uses domain
   objects
@@ -373,25 +399,32 @@ import { ApiResponse } from '../../web/types'; // ERROR
 import { Game } from '@twsoftball/domain';
 import { GameRepository } from '@twsoftball/application';
 
-// ❌ FORBIDDEN: Web or shared dependencies
-import { HttpClient } from '@twsoftball/shared'; // ERROR
+// ✅ ALLOWED: Shared utilities for Infrastructure
+import { SecureRandom } from '@twsoftball/shared';
+
+// ❌ FORBIDDEN: Web dependencies
 import { WebConfig } from '../../web/config'; // ERROR
 ```
 
 #### 4. Web Layer Restrictions (`web-layer-restrictions`)
 
-- **Rule**: Web layer can only depend on application layer via ports
+- **Rule**: Web layer can only depend on application layer via DI Container
 - **Severity**: ERROR
-- **Rationale**: Web should only call use cases, not directly access
-  infrastructure
+- **Rationale**: Web uses DI Container pattern - never imports Infrastructure
+  directly
 
 ```javascript
-// ✅ ALLOWED: Application ports and shared utilities
-import { RecordAtBatUseCase } from '@twsoftball/application';
-import { ValidationUtils } from '@twsoftball/shared';
+// ✅ ALLOWED: DI Container pattern
+import { createApplicationServicesWithContainer } from '@twsoftball/application';
+
+const services = await createApplicationServicesWithContainer({
+  environment: 'production',
+  storage: 'indexeddb',
+});
 
 // ❌ FORBIDDEN: Direct infrastructure access
 import { IndexedDBRepository } from '../../infrastructure/persistence'; // ERROR
+import { createIndexedDBFactory } from '@twsoftball/infrastructure/web'; // ERROR
 ```
 
 #### 5. Shared Layer Isolation (`shared-layer-isolation`)
@@ -399,15 +432,16 @@ import { IndexedDBRepository } from '../../infrastructure/persistence'; // ERROR
 - **Rule**: Shared utilities must not depend on application or infrastructure
   layers
 - **Severity**: ERROR
-- **Rationale**: Shared code can use domain types for test utilities, but should
-  not depend on higher architectural layers
+- **Rationale**: Shared code must remain completely independent to maintain
+  architectural integrity. Test utilities needing domain types should be placed
+  within the domain package itself.
 
 ```javascript
-// ✅ ALLOWED: Standard libraries, domain types for test utilities
+// ✅ ALLOWED: Standard libraries only
 import { v4 as uuidv4 } from 'uuid';
-import { PlayerId } from '@twsoftball/domain'; // OK for test utilities
 
-// ❌ FORBIDDEN: Application or infrastructure dependencies
+// ❌ FORBIDDEN: Any project layer dependencies
+import { PlayerId } from '@twsoftball/domain'; // ERROR - violates independence
 import { GameRepository } from '@twsoftball/application'; // ERROR
 import { IndexedDBRepository } from '@twsoftball/infrastructure'; // ERROR
 ```
@@ -455,8 +489,8 @@ import-level enforcement:
   rules: [
     { from: 'domain', allow: ['domain'] },                    // Domain isolation
     { from: 'application', allow: ['domain', 'application'] }, // App + Domain only
-    { from: 'infrastructure', allow: ['domain', 'application', 'infrastructure'] },
-    { from: 'web', allow: ['domain', 'application', 'shared'] }, // No infrastructure
+    { from: 'infrastructure', allow: ['domain', 'application', 'infrastructure', 'shared'] },
+    { from: 'web', allow: ['application'] }, // DI Container only
     { from: 'shared', allow: ['shared'] },                   // Shared isolation
   ],
 }]
@@ -492,7 +526,7 @@ Example violation message:
 error infrastructure-layer-restrictions:
   packages/infrastructure/persistence/GameRepository.ts → packages/shared/utils/HttpClient.ts
 
-Infrastructure layer can only depend on domain and application layers.
+Infrastructure layer can only depend on domain, application, and shared layers.
 Move HTTP client to application ports or use dependency injection.
 ```
 

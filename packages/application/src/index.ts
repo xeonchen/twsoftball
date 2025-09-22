@@ -15,6 +15,8 @@ export type { GameQueryService } from './ports/in/GameQueryService';
 
 // Ports - Output (Driven) Interfaces
 export type { GameRepository } from './ports/out/GameRepository';
+export type { TeamLineupRepository } from './ports/out/TeamLineupRepository';
+export type { InningStateRepository } from './ports/out/InningStateRepository';
 export type { EventStore, StoredEvent, StoredEventMetadata } from './ports/out/EventStore';
 export type {
   SnapshotStore,
@@ -23,7 +25,7 @@ export type {
   TeamLineupSnapshot,
   InningStateSnapshot,
 } from './ports/out/SnapshotStore';
-export type { Logger } from './ports/out/Logger';
+export type { Logger, LogLevel, LogContext } from './ports/out/Logger';
 export type { NotificationService } from './ports/out/NotificationService';
 export type { AuthService } from './ports/out/AuthService';
 
@@ -31,8 +33,21 @@ export type { AuthService } from './ports/out/AuthService';
 export * from './services/GameApplicationService';
 export * from './services/EventSourcingService';
 
-// Test Utilities - EventStore testing support
-export * from './test-utils/event-store';
+// Application Types
+export type { ApplicationConfig, ApplicationServices } from './types/ApplicationTypes';
+
+// Dependency Injection Container
+export * from './services/DIContainer';
+
+// Infrastructure Factory Interface
+export type {
+  InfrastructureFactory,
+  InfrastructureConfig,
+  InfrastructureServices,
+} from './services/InfrastructureFactory';
+
+// Test Utilities - EventStore testing support (not exported in production build)
+// Import directly: import { ... } from '@twsoftball/application/test-utils/event-store'
 
 // DTOs - Data Transfer Objects
 export type { AtBatResult } from './dtos/AtBatResult';
@@ -59,3 +74,6 @@ export type { CompleteAtBatSequenceCommand } from './dtos/CompleteAtBatSequenceC
 export type { CompleteAtBatSequenceResult } from './dtos/CompleteAtBatSequenceResult';
 export type { CompleteGameWorkflowCommand } from './dtos/CompleteGameWorkflowCommand';
 export type { CompleteGameWorkflowResult } from './dtos/CompleteGameWorkflowResult';
+
+// Domain type exports for presentation layer
+export * from './types/domain-exports';

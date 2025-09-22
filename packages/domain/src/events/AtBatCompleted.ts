@@ -1,9 +1,9 @@
-import { AtBatResultType } from '../constants/AtBatResultType';
-import { DomainError } from '../errors/DomainError';
-import { GameId } from '../value-objects/GameId';
-import { PlayerId } from '../value-objects/PlayerId';
+import { AtBatResultType } from '../constants/AtBatResultType.js';
+import { DomainError } from '../errors/DomainError.js';
+import { GameId } from '../value-objects/GameId.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
-import { DomainEvent } from './DomainEvent';
+import { DomainEvent } from './DomainEvent.js';
 
 export class AtBatCompleted extends DomainEvent {
   readonly type = 'AtBatCompleted';

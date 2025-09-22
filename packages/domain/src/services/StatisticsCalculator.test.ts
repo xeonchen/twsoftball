@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 
-import { AtBatResultType } from '../constants/AtBatResultType';
-import { DomainError } from '../errors/DomainError';
+import { AtBatResultType } from '../constants/AtBatResultType.js';
+import { DomainError } from '../errors/DomainError.js';
 
-import { StatisticsCalculator, AtBatResult } from './StatisticsCalculator';
+import { StatisticsCalculator, AtBatResult } from './StatisticsCalculator.js';
 
 describe('StatisticsCalculator', () => {
   describe('calculateBattingAverage', () => {

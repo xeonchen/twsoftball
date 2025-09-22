@@ -44,11 +44,11 @@ import {
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Port imports
-import { EventStore, StoredEvent } from '../ports/out/EventStore';
-import { Logger } from '../ports/out/Logger';
-import { SecureTestUtils } from '../test-utils/secure-test-utils';
+import { EventStore, StoredEvent } from '../ports/out/EventStore.js';
+import { Logger } from '../ports/out/Logger.js';
+import { SecureTestUtils } from '../test-utils/secure-test-utils.js';
 
-import { EventSourcingService } from './EventSourcingService';
+import { EventSourcingService } from './EventSourcingService.js';
 
 // Domain imports
 

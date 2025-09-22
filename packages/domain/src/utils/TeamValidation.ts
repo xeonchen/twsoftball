@@ -1,4 +1,4 @@
-import { DomainError } from '../errors/DomainError';
+import { DomainError } from '../errors/DomainError.js';
 
 /**
  * Utility class for team designation validation across the domain layer.

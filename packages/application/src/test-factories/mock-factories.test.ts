@@ -35,7 +35,7 @@ import {
   EnhancedMockEventStore,
   EnhancedMockLogger,
   EnhancedMockNotificationService,
-} from './mock-factories';
+} from './mock-factories.js';
 
 // Test utilities
 function createTestGame(): Game {

@@ -37,7 +37,7 @@
 
 import { GameId, PlayerId, TeamLineupId, FieldPosition } from '@twsoftball/domain';
 
-import { PlayerInGameDTO } from './PlayerInGameDTO';
+import { PlayerInGameDTO } from './PlayerInGameDTO.js';
 
 /**
  * DTO representing a team's complete lineup state.

@@ -1,16 +1,16 @@
-import { FieldPosition } from '../constants/FieldPosition';
-import { DomainError } from '../errors/DomainError';
-import { DomainEvent } from '../events/DomainEvent';
-import { FieldPositionChanged } from '../events/FieldPositionChanged';
-import { PlayerAddedToLineup } from '../events/PlayerAddedToLineup';
-import { PlayerSubstitutedIntoGame } from '../events/PlayerSubstitutedIntoGame';
-import { TeamLineupCreated } from '../events/TeamLineupCreated';
-import { SoftballRules } from '../rules/SoftballRules';
-import { BattingSlot } from '../value-objects/BattingSlot';
-import { GameId } from '../value-objects/GameId';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
-import { PlayerId } from '../value-objects/PlayerId';
-import { TeamLineupId } from '../value-objects/TeamLineupId';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import { DomainError } from '../errors/DomainError.js';
+import { DomainEvent } from '../events/DomainEvent.js';
+import { FieldPositionChanged } from '../events/FieldPositionChanged.js';
+import { PlayerAddedToLineup } from '../events/PlayerAddedToLineup.js';
+import { PlayerSubstitutedIntoGame } from '../events/PlayerSubstitutedIntoGame.js';
+import { TeamLineupCreated } from '../events/TeamLineupCreated.js';
+import { SoftballRules } from '../rules/SoftballRules.js';
+import { BattingSlot } from '../value-objects/BattingSlot.js';
+import { GameId } from '../value-objects/GameId.js';
+import { JerseyNumber } from '../value-objects/JerseyNumber.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
+import { TeamLineupId } from '../value-objects/TeamLineupId.js';
 
 /**
  * Information about a player in the team roster.

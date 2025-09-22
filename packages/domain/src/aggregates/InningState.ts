@@ -1,17 +1,17 @@
-import { AtBatResultType } from '../constants/AtBatResultType';
-import { DomainError } from '../errors/DomainError';
-import { AtBatCompleted } from '../events/AtBatCompleted';
-import { CurrentBatterChanged } from '../events/CurrentBatterChanged';
-import { DomainEvent } from '../events/DomainEvent';
-import { HalfInningEnded } from '../events/HalfInningEnded';
-import { InningAdvanced } from '../events/InningAdvanced';
-import { InningStateCreated } from '../events/InningStateCreated';
-import { RunnerAdvanced, AdvanceReason } from '../events/RunnerAdvanced';
-import { RunScored } from '../events/RunScored';
-import { BasesState, Base } from '../value-objects/BasesState';
-import { GameId } from '../value-objects/GameId';
-import { InningStateId } from '../value-objects/InningStateId';
-import { PlayerId } from '../value-objects/PlayerId';
+import { AtBatResultType } from '../constants/AtBatResultType.js';
+import { DomainError } from '../errors/DomainError.js';
+import { AtBatCompleted } from '../events/AtBatCompleted.js';
+import { CurrentBatterChanged } from '../events/CurrentBatterChanged.js';
+import { DomainEvent } from '../events/DomainEvent.js';
+import { HalfInningEnded } from '../events/HalfInningEnded.js';
+import { InningAdvanced } from '../events/InningAdvanced.js';
+import { InningStateCreated } from '../events/InningStateCreated.js';
+import { RunnerAdvanced, AdvanceReason } from '../events/RunnerAdvanced.js';
+import { RunScored } from '../events/RunScored.js';
+import { BasesState, Base } from '../value-objects/BasesState.js';
+import { GameId } from '../value-objects/GameId.js';
+import { InningStateId } from '../value-objects/InningStateId.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
 /**
  * Type-safe interface for InningStateCreated event data extraction.

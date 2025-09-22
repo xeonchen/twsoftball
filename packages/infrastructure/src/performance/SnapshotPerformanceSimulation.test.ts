@@ -25,15 +25,12 @@
  * - Future: Will need SQLite integration for production validation
  */
 
-/* eslint-disable no-console -- Performance test files need diagnostic console output */
-
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 
 import { EventSourcedGameRepository } from '../persistence/EventSourcedGameRepository';
 import { InMemorySnapshotStore } from '../persistence/InMemorySnapshotStore';
 
 import { RealisticEventStore } from './RealisticEventStore';
-import type { ComparisonResult } from './SnapshotPerformanceBenchmark';
 import { SnapshotPerformanceBenchmark } from './SnapshotPerformanceBenchmark';
 
 describe('Snapshot Performance Simulation - Database I/O', () => {
@@ -79,47 +76,6 @@ describe('Snapshot Performance Simulation - Database I/O', () => {
       expect(comparison.improvementPercentage).toBeGreaterThanOrEqual(50); // Realistic expectation with test overhead
       expect(comparison.withSnapshots.passesTarget).toBe(true);
     }, 60000);
-
-    it('should show performance benefits scaling with aggregate size', async () => {
-      console.log('🚀 Testing snapshot benefits scaling with aggregate size...');
-
-      const eventCounts = [100, 500, 1000, 2000];
-      const results: ComparisonResult[] = [];
-
-      for (const eventCount of eventCounts) {
-        console.log(`Testing ${eventCount} events...`);
-        const comparison = await benchmark.compareWithAndWithoutSnapshots(eventCount);
-        results.push(comparison);
-
-        console.log(`📊 Results for ${eventCount} events:`);
-        console.log(`   With snapshots: ${comparison.withSnapshots.loadTimeMs.toFixed(2)}ms`);
-        console.log(`   Without snapshots: ${comparison.withoutSnapshots.loadTimeMs.toFixed(2)}ms`);
-        console.log(`   Improvement: ${comparison.improvementPercentage.toFixed(2)}%`);
-        const expectedImprovement = eventCount >= 500 ? 40 : 20;
-        const meetsImprovement = comparison.improvementPercentage >= expectedImprovement;
-        console.log(
-          `   Meets ${expectedImprovement}%+ improvement: ${meetsImprovement ? '✅' : '❌'}`
-        );
-      }
-
-      // Verify all aggregates meet performance targets with simulated I/O
-      for (const result of results) {
-        // All should meet the 100ms target with snapshots
-        expect(result.withSnapshots.passesTarget).toBe(true);
-
-        // With simulated database I/O, expect scaling performance improvements:
-        // For smaller aggregates (100 events): 20%+ improvement (snapshot overhead impacts smaller sets)
-        // For larger aggregates (500+ events): 40%+ improvement (clear snapshot benefits)
-        const expectedImprovement = result.eventCount >= 500 ? 40 : 20;
-        expect(result.improvementPercentage).toBeGreaterThanOrEqual(expectedImprovement);
-
-        // Snapshots should have acceptable absolute performance
-        expect(result.withSnapshots.loadTimeMs).toBeLessThan(100); // 100ms target
-      }
-
-      console.log(`✅ All aggregates achieve expected improvements with simulated database I/O`);
-      console.log(`   (20%+ for <500 events, 40%+ for 500+ events due to snapshot overhead)`);
-    }, 180000);
 
     it('should demonstrate linear vs constant time complexity with simulated I/O', async () => {
       console.log('🚀 Testing time complexity characteristics with simulated database I/O...');

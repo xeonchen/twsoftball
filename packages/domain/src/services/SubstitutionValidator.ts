@@ -1,6 +1,6 @@
-import { DomainError } from '../errors/DomainError';
-import { BattingSlot, SlotHistory } from '../value-objects/BattingSlot';
-import { PlayerId } from '../value-objects/PlayerId';
+import { DomainError } from '../errors/DomainError.js';
+import { BattingSlot, SlotHistory } from '../value-objects/BattingSlot.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
 /**
  * Domain service responsible for validating player substitutions and re-entry rules in softball.

@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global 48px touch targets */
+@layer base {
+  button,
+  input[type='button'],
+  input[type='submit'],
+  input[type='reset'],
+  [role='button'] {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  input,
+  select,
+  textarea {
+    min-height: 48px;
+  }
+}

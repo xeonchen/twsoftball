@@ -11,7 +11,7 @@ import {
   SubstitutePlayerCommandValidator,
   SubstitutePlayerCommandValidationError,
   SubstitutePlayerCommandFactory,
-} from './SubstitutePlayerCommand';
+} from './SubstitutePlayerCommand.js';
 
 describe('SubstitutePlayerCommand', () => {
   // Test data factories

@@ -49,7 +49,7 @@
 
 import { GameId, PlayerId, JerseyNumber, FieldPosition } from '@twsoftball/domain';
 
-import { ValidationError } from '../errors/ValidationError';
+import { ValidationError } from '../errors/ValidationError.js';
 
 /**
  * Validation error for StartNewGameCommand

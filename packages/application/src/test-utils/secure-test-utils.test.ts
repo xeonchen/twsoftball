@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { SecureTestUtils } from './secure-test-utils';
+import { SecureTestUtils } from './secure-test-utils.js';
 
 describe('SecureTestUtils', () => {
   describe('generateTestId', () => {

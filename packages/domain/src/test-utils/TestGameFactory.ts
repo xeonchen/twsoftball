@@ -1,8 +1,8 @@
-import { SoftballRules } from '../rules/SoftballRules';
-import type { MercyRuleTier } from '../rules/SoftballRules';
-import { GameId } from '../value-objects/GameId';
-import { GameScore } from '../value-objects/GameScore';
-import { Score } from '../value-objects/Score';
+import { SoftballRules } from '../rules/SoftballRules.js';
+import type { MercyRuleTier } from '../rules/SoftballRules.js';
+import { GameId } from '../value-objects/GameId.js';
+import { GameScore } from '../value-objects/GameScore.js';
+import { Score } from '../value-objects/Score.js';
 
 /**
  * Factory for creating test game-related objects with consistent patterns.

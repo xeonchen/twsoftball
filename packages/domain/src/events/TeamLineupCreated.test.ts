@@ -1,7 +1,7 @@
-import { GameId } from '../value-objects/GameId';
-import { TeamLineupId } from '../value-objects/TeamLineupId';
+import { GameId } from '../value-objects/GameId.js';
+import { TeamLineupId } from '../value-objects/TeamLineupId.js';
 
-import { TeamLineupCreated } from './TeamLineupCreated';
+import { TeamLineupCreated } from './TeamLineupCreated.js';
 
 describe('TeamLineupCreated', () => {
   let teamLineupId: TeamLineupId;

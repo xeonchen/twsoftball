@@ -16,12 +16,12 @@ import {
 } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { SubstitutePlayerCommand } from '../dtos/SubstitutePlayerCommand';
-import { EventStore } from '../ports/out/EventStore';
-import { GameRepository } from '../ports/out/GameRepository';
-import { Logger } from '../ports/out/Logger';
+import { SubstitutePlayerCommand } from '../dtos/SubstitutePlayerCommand.js';
+import { EventStore } from '../ports/out/EventStore.js';
+import { GameRepository } from '../ports/out/GameRepository.js';
+import { Logger } from '../ports/out/Logger.js';
 
-import { SubstitutePlayer } from './SubstitutePlayer';
+import { SubstitutePlayer } from './SubstitutePlayer.js';
 
 // Test data helpers
 

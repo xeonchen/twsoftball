@@ -6,8 +6,8 @@
 import { GameId, PlayerId, TeamLineupId, FieldPosition, GameStatus } from '@twsoftball/domain';
 import { describe, it, expect } from 'vitest';
 
-import { GameStateDTO } from './GameStateDTO';
-import { SubstitutionResult, SubstitutionDetailsDTO } from './SubstitutionResult';
+import { GameStateDTO } from './GameStateDTO.js';
+import { SubstitutionResult, SubstitutionDetailsDTO } from './SubstitutionResult.js';
 
 describe('SubstitutionResult', () => {
   // Test data factories

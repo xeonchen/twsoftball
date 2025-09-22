@@ -1,4 +1,4 @@
-import { DomainError } from '../errors/DomainError';
+import { DomainError } from '../errors/DomainError.js';
 
 /**
  * Value object representing a player's jersey number in softball.

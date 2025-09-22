@@ -40,7 +40,7 @@
 
 import { GameId } from '@twsoftball/domain';
 
-import { GameStateDTO } from './GameStateDTO';
+import { GameStateDTO } from './GameStateDTO.js';
 
 /**
  * Result DTO returned after attempting to start a new game.

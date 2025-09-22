@@ -1,4 +1,4 @@
-import { StringValidation } from '../utils/StringValidation';
+import { StringValidation } from '../utils/StringValidation.js';
 
 /**
  * Abstract base class for all domain identifier value objects.

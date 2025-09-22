@@ -1,4 +1,4 @@
-import { DomainError } from '../errors/DomainError';
+import { DomainError } from '../errors/DomainError.js';
 
 /**
  * Immutable value object representing a non-negative run count in softball.

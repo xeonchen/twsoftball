@@ -20,17 +20,17 @@
  * implementations must satisfy.
  */
 
-export type { AuthService } from './AuthService';
-export type { EventStore, StoredEvent, StoredEventMetadata } from './EventStore';
-export type { GameRepository } from './GameRepository';
-export type { InningStateRepository } from './InningStateRepository';
-export type { Logger } from './Logger';
-export type { NotificationService } from './NotificationService';
+export type { AuthService } from './AuthService.js';
+export type { EventStore, StoredEvent, StoredEventMetadata } from './EventStore.js';
+export type { GameRepository } from './GameRepository.js';
+export type { InningStateRepository } from './InningStateRepository.js';
+export type { Logger, LogLevel, LogContext, LogEntry } from './Logger.js';
+export type { NotificationService } from './NotificationService.js';
 export type {
   SnapshotStore,
   AggregateSnapshot,
   GameSnapshot,
   TeamLineupSnapshot,
   InningStateSnapshot,
-} from './SnapshotStore';
-export type { TeamLineupRepository } from './TeamLineupRepository';
+} from './SnapshotStore.js';
+export type { TeamLineupRepository } from './TeamLineupRepository.js';

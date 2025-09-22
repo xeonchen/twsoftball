@@ -1,4 +1,4 @@
-import { DomainError } from '../errors/DomainError';
+import { DomainError } from '../errors/DomainError.js';
 
 /**
  * Represents a single mercy rule tier with differential and inning threshold.

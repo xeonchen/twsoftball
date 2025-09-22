@@ -96,15 +96,15 @@ import {
   FieldPosition,
 } from '@twsoftball/domain';
 
-import { GameStateDTO } from '../dtos/GameStateDTO';
+import { GameStateDTO } from '../dtos/GameStateDTO.js';
 import {
   SubstitutePlayerCommand,
   SubstitutePlayerCommandValidator,
-} from '../dtos/SubstitutePlayerCommand';
-import { SubstitutionResult, SubstitutionDetailsDTO } from '../dtos/SubstitutionResult';
-import { EventStore } from '../ports/out/EventStore';
-import { GameRepository } from '../ports/out/GameRepository';
-import { Logger } from '../ports/out/Logger';
+} from '../dtos/SubstitutePlayerCommand.js';
+import { SubstitutionResult, SubstitutionDetailsDTO } from '../dtos/SubstitutionResult.js';
+import { EventStore } from '../ports/out/EventStore.js';
+import { GameRepository } from '../ports/out/GameRepository.js';
+import { Logger } from '../ports/out/Logger.js';
 
 /**
  * Use case for substituting players in softball games with comprehensive rule validation.
@@ -161,7 +161,17 @@ export class SubstitutePlayer {
     private readonly gameRepository: GameRepository,
     private readonly eventStore: EventStore,
     private readonly logger: Logger
-  ) {}
+  ) {
+    if (!gameRepository) {
+      throw new Error('GameRepository is required');
+    }
+    if (!eventStore) {
+      throw new Error('EventStore is required');
+    }
+    if (!logger) {
+      throw new Error('Logger is required');
+    }
+  }
 
   /**
    * Executes the player substitution process with comprehensive rule validation.

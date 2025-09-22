@@ -238,7 +238,6 @@ export class IndexedDBSnapshotStore implements SnapshotStore {
         };
 
         db.onerror = (event): void => {
-          // eslint-disable-next-line no-console, no-undef -- Development warning for IndexedDB connection issues
           console.warn('IndexedDB snapshot connection error:', event);
         };
 

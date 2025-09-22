@@ -18,11 +18,11 @@ import {
   AtBatResultValidator,
   AtBatResultValidationError,
   AtBatResultFactory,
-} from './AtBatResult';
-import { BasesStateDTO } from './BasesStateDTO';
-import { GameScoreDTO } from './GameScoreDTO';
-import { GameStateDTO } from './GameStateDTO';
-import { TeamLineupDTO } from './TeamLineupDTO';
+} from './AtBatResult.js';
+import { BasesStateDTO } from './BasesStateDTO.js';
+import { GameScoreDTO } from './GameScoreDTO.js';
+import { GameStateDTO } from './GameStateDTO.js';
+import { TeamLineupDTO } from './TeamLineupDTO.js';
 
 describe('AtBatResult', () => {
   let validResult: AtBatResult;
@@ -742,11 +742,15 @@ describe('AtBatResult', () => {
       };
 
       expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-        new AtBatResultValidationError(
-          'Error at index 1 must be a non-empty string',
-          'errors[1]',
-          ''
-        )
+        expect.objectContaining({
+          message: 'Error at index 1 must be a non-empty string',
+          errorType: 'AtBatResultValidationError',
+          validationContext: {
+            field: 'errors[1]',
+            value: '',
+          },
+          name: 'AtBatResultValidationError',
+        }) as Error
       );
     });
 

@@ -1,6 +1,6 @@
-import { DomainError } from '../errors/DomainError';
+import { DomainError } from '../errors/DomainError.js';
 
-import { SoftballRules, SoftballRulesConfig } from './SoftballRules';
+import { SoftballRules, SoftballRulesConfig } from './SoftballRules.js';
 
 /**
  * Factory for creating predefined softball rule configurations for different leagues and contexts.

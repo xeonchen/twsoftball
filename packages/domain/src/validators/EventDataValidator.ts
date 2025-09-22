@@ -1,4 +1,4 @@
-import { GameId } from '../value-objects/GameId';
+import { GameId } from '../value-objects/GameId.js';
 
 /**
  * Utility validator for common domain event data patterns.

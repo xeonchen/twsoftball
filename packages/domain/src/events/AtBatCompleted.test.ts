@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
-import { AtBatResultType } from '../constants/AtBatResultType';
-import { DomainError } from '../errors/DomainError';
-import { GameId } from '../value-objects/GameId';
-import { PlayerId } from '../value-objects/PlayerId';
+import { AtBatResultType } from '../constants/AtBatResultType.js';
+import { DomainError } from '../errors/DomainError.js';
+import { GameId } from '../value-objects/GameId.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
-import { AtBatCompleted } from './AtBatCompleted';
+import { AtBatCompleted } from './AtBatCompleted.js';
 
 describe('AtBatCompleted', () => {
   const gameId = new GameId('test-game-123');

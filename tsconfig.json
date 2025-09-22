@@ -5,9 +5,13 @@
     "baseUrl": ".",
     "paths": {
       "@twsoftball/domain": ["packages/domain/src/index"],
+      "@twsoftball/domain/*": ["packages/domain/src/*"],
       "@twsoftball/application": ["packages/application/src/index"],
+      "@twsoftball/application/*": ["packages/application/src/*"],
       "@twsoftball/infrastructure": ["packages/infrastructure/src/index"],
-      "@twsoftball/shared": ["packages/shared/src/index"]
+      "@twsoftball/infrastructure/*": ["packages/infrastructure/src/*"],
+      "@twsoftball/shared": ["packages/shared/src/index"],
+      "@twsoftball/shared/*": ["packages/shared/src/*"]
     }
   },
   "include": [

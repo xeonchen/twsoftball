@@ -1,4 +1,4 @@
-import { GameId } from '../value-objects/GameId';
+import { GameId } from '../value-objects/GameId.js';
 
 /**
  * Abstract base class for all domain events in the softball event sourcing system.

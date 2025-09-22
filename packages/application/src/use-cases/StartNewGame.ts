@@ -90,19 +90,19 @@ import {
   SoftballRules,
 } from '@twsoftball/domain';
 
-import { GameStartResult } from '../dtos/GameStartResult';
-import { GameStateDTO } from '../dtos/GameStateDTO';
-import { PlayerStatisticsDTO, FieldingStatisticsDTO } from '../dtos/PlayerStatisticsDTO';
+import { GameStartResult } from '../dtos/GameStartResult.js';
+import { GameStateDTO } from '../dtos/GameStateDTO.js';
+import { PlayerStatisticsDTO, FieldingStatisticsDTO } from '../dtos/PlayerStatisticsDTO.js';
 import {
   StartNewGameCommand,
   LineupPlayerDTO,
   GameRulesDTO,
   StartNewGameCommandValidator,
-} from '../dtos/StartNewGameCommand';
-import { TeamLineupDTO, BattingSlotDTO } from '../dtos/TeamLineupDTO';
-import { EventStore } from '../ports/out/EventStore';
-import { GameRepository } from '../ports/out/GameRepository';
-import { Logger } from '../ports/out/Logger';
+} from '../dtos/StartNewGameCommand.js';
+import { TeamLineupDTO, BattingSlotDTO } from '../dtos/TeamLineupDTO.js';
+import { EventStore } from '../ports/out/EventStore.js';
+import { GameRepository } from '../ports/out/GameRepository.js';
+import { Logger } from '../ports/out/Logger.js';
 // Note: Reverted to direct error handling to maintain architecture compliance
 
 /**
@@ -153,7 +153,17 @@ export class StartNewGame {
     private readonly gameRepository: GameRepository,
     private readonly eventStore: EventStore,
     private readonly logger: Logger
-  ) {}
+  ) {
+    if (!gameRepository) {
+      throw new Error('GameRepository is required');
+    }
+    if (!eventStore) {
+      throw new Error('EventStore is required');
+    }
+    if (!logger) {
+      throw new Error('Logger is required');
+    }
+  }
 
   /**
    * Executes the complete game creation process with comprehensive error handling.

@@ -4,7 +4,11 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { AUTH_TEST_CONSTANTS, getTestBackupCodes, LEGACY_TEST_VALUES } from './auth-test-constants';
+import {
+  AUTH_TEST_CONSTANTS,
+  getTestBackupCodes,
+  LEGACY_TEST_VALUES,
+} from './auth-test-constants.js';
 
 describe('auth-test-constants', () => {
   describe('AUTH_TEST_CONSTANTS structure', () => {

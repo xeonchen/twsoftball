@@ -6,9 +6,9 @@
 import { GameId } from '@twsoftball/domain';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { Logger } from '../ports/out/Logger';
+import { Logger } from '../ports/out/Logger.js';
 
-import { UseCaseLogger } from './UseCaseLogger';
+import { UseCaseLogger } from './UseCaseLogger.js';
 
 describe('UseCaseLogger', () => {
   let mockLogger: Logger;

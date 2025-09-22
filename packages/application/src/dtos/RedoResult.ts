@@ -51,7 +51,7 @@
 
 import { GameId } from '@twsoftball/domain';
 
-import { GameStateDTO } from './GameStateDTO';
+import { GameStateDTO } from './GameStateDTO.js';
 
 /**
  * Information about the undo/redo stack state after the redo operation.

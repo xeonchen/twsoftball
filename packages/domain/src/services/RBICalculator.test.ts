@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
-import { AtBatResultType } from '../constants/AtBatResultType';
-import { DomainError } from '../errors/DomainError';
-import { BasesState } from '../value-objects/BasesState';
-import { PlayerId } from '../value-objects/PlayerId';
+import { AtBatResultType } from '../constants/AtBatResultType.js';
+import { DomainError } from '../errors/DomainError.js';
+import { BasesState } from '../value-objects/BasesState.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
-import { RBICalculator } from './RBICalculator';
+import { RBICalculator } from './RBICalculator.js';
 
 describe('RBICalculator', () => {
   // Test data

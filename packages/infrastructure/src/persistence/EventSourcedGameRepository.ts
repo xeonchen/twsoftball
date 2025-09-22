@@ -18,7 +18,7 @@ import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotSt
 import { SnapshotManager } from '@twsoftball/application/services/SnapshotManager';
 import { GameId, Game, GameStatus } from '@twsoftball/domain';
 
-import { deserializeEvent } from './utils/EventDeserializer';
+import { deserializeEvent } from './utils/EventDeserializer.js';
 
 interface EventSourcedAggregate {
   getId(): GameId;

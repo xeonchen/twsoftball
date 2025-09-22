@@ -12,7 +12,7 @@ import { SecureRandom } from '@twsoftball/shared';
  *
  * @example
  * ```typescript
- * import { SecureTestUtils } from '../test-utils/secure-test-utils';
+ * import { SecureTestUtils } from '../test-utils/secure-test-utils.js';
  *
  * // Replace Math.random() usage
  * const gameId = `test-game-${SecureTestUtils.generateTestId()}`;

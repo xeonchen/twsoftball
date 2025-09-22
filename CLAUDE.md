@@ -6,8 +6,8 @@ code in this repository.
 ## Project Overview
 
 **TW Softball** - A slow-pitch softball game recording Progressive Web App (PWA)
-with offline-first capabilities, built using Hexagonal Architecture and Event
-Sourcing patterns.
+with offline-first capabilities, built using Hexagonal Architecture, Dependency
+Injection Container, and Event Sourcing patterns.
 
 ## Quick Reference (AI: Read This First)
 
@@ -22,6 +22,7 @@ Sourcing patterns.
 - **NEVER compromise on code quality** - no shortcuts, quick fixes, or technical
   debt
 - **NEVER import infrastructure into application layer**
+- **ALWAYS use DI Container pattern** for dependency injection
 - **ALWAYS use orchestrator-worker pattern** for complex tasks (Main Agent
   coordinates, General Agent implements)
 
@@ -47,8 +48,8 @@ pnpm --filter @twsoftball/domain test    # Domain tests only
 
 ## Architecture
 
-**Hexagonal Architecture (Ports & Adapters) + Domain-Driven Design + SOLID
-Principles**
+**Hexagonal Architecture (Ports & Adapters) + Domain-Driven Design + DI
+Container + SOLID Principles**
 
 ```
 Domain Layer (Core Business Logic)
@@ -63,7 +64,7 @@ Domain Layer (Core Business Logic)
 Application Layer (Use Cases)
 ├── use-cases/    # RecordAtBat, StartGame, etc.
 ├── ports/        # Interface definitions
-├── services/     # Application services
+├── services/     # Application services (orchestration, event sourcing)
 ├── dtos/         # Data Transfer Objects
 ├── test-factories/ # Test utilities (mock-factories, test-builders, test-scenarios)
 └── test-utils/   # Core testing utilities
@@ -164,7 +165,12 @@ Web Layer (Presentation)
 
 ### Quality Gates That Cannot Be Bypassed
 
-- Test coverage below 80% (hard block)
+- **Tiered Coverage Thresholds** (layer-specific hard blocks):
+  - Domain: 96%+ (business logic integrity)
+  - Application: 90%+ (use case reliability)
+  - Infrastructure: 80%+ (adapter functionality)
+  - Shared: 85%+ (utility reliability)
+  - Web: 70%+ (UI baseline)
 - TypeScript compilation errors
 - ESLint violations (unless properly justified)
 - Architecture dependency violations
@@ -174,19 +180,122 @@ Web Layer (Presentation)
 
 ### Architecture Rules
 
-- Domain layer has NO dependencies on other layers
-- Application layer depends only on Domain
-- Infrastructure implements Application ports
-- Web layer depends on Application ports only
+- **Domain layer**: NO dependencies on other layers (pure business logic)
+- **Application layer**: Depends only on Domain + uses DI Container pattern
+- **Infrastructure layer**: Provides factory implementations for Application
+  layer
+- **Web layer**: Uses DI Container to access Application services, never imports
+  Infrastructure
+- **DI Container**: Enterprise-grade dependency injection with service registry,
+  lazy loading, and dynamic imports
+- **Zero Architecture Exceptions**: Clean dependency boundaries with no
+  workarounds needed
 
-### Testing Strategy
+**Critical Pattern: DI Container with Dynamic Import**
+
+```typescript
+// ✅ CORRECT: DI Container approach
+import { createApplicationServicesWithContainer } from '@twsoftball/application';
+const services = await createApplicationServicesWithContainer({
+  storage: 'indexeddb',
+});
+
+// ❌ FORBIDDEN: Web layer importing Infrastructure
+import { createIndexedDBFactory } from '@twsoftball/infrastructure/web';
+```
+
+### Testing Strategy & Coverage Excellence
+
+#### Tiered Coverage Philosophy: Practical Excellence
+
+**Goal**: 98%+ coverage during implementation **Reality**: Different layers have
+different testing challenges **Focus**: Test user stories and critical paths,
+not just lines
+
+#### Coverage Tiers by Layer
+
+| Layer              | CI Gate | Target | Rationale                                |
+| ------------------ | ------- | ------ | ---------------------------------------- |
+| **Domain**         | 96%     | 98%+   | Core business logic must be bulletproof  |
+| **Application**    | 90%     | 95%+   | Use cases need high confidence           |
+| **Infrastructure** | 80%     | 90%+   | External integrations are harder to test |
+| **Shared/Utils**   | 85%     | 95%+   | Utilities should be well-tested          |
+| **Web/UI**         | 70%     | 85%+   | UI testing has diminishing returns       |
+
+#### Implementation vs Gating Thresholds
+
+**Three-Tier System:**
+
+1. **🚨 CI Gates (Hard Block)** - Minimum acceptable quality
+   - Protects against regressions
+   - Enforced in vitest.config.ts per layer
+   - Different standards for different complexities
+
+2. **🎯 Implementation Target** - What we aim for during development
+   - Domain: 98%+ (excellence standard)
+   - Application: 95%+ (high confidence)
+   - Infrastructure: 90%+ (good coverage)
+   - Web: 85%+ (reasonable for UI)
+
+3. **⚠️ Warning Threshold** - Triggers review but doesn't block
+   - 5% below CI gate = Yellow warning
+   - 10% below = Red alert + mandatory review
+
+#### Test Priority Matrix
+
+**1. Critical (Must Test)**
+
+- Business rules & domain logic
+- Error handling & recovery
+- Security boundaries
+- Data validation
+
+**2. Important (Should Test)**
+
+- Integration points
+- Performance critical paths
+- User workflows
+- Edge cases
+
+**3. Nice to Have (Could Test)**
+
+- UI animations
+- Logging statements
+- Simple getters/setters
+- Framework boilerplate
+
+**4. Exclusions (Don't Test)**
+
+- Port interfaces (just contracts)
+- Type definitions
+- Constants
+- Third-party integrations (mock instead)
+
+#### Test Types & Requirements
 
 - **Unit Tests**: Domain entities, value objects, use cases (Co-located .test.ts
   files)
 - **Integration Tests**: Database adapters, application services
 - **E2E Tests**: Complete user workflows
-- **Coverage**: 80% hard limit, 90% soft limit, 98% excellent
 - **TDD Required**: Write tests before implementation
+
+#### Pre-Commit Coverage Checklist
+
+```bash
+# Check coverage before commit
+pnpm test:coverage
+
+# Verify thresholds per layer:
+# - Domain layer MUST be 96%+
+# - Application layer MUST be 90%+
+# - Infrastructure layer MUST be 80%+
+# - Shared utilities MUST be 85%+
+# - Web/UI layer MUST be 70%+
+
+# New features MUST have scenario tests
+# Error paths MUST be tested
+# Performance implications MUST be considered
+```
 
 ### Code Quality
 
@@ -267,11 +376,29 @@ When facing quality vs. speed pressure:
 - Perfect undo/redo support
 - Complete audit trail
 
-### Dependency Injection
+### Dependency Injection: DI Container with Dynamic Import
 
-- Ports defined in Application layer
-- Implementations in Infrastructure layer
-- Wired together in DI container
+**DI Container Implementation**
+
+- **Enterprise Features**: Service registry, lazy loading, circular dependency
+  detection
+- **Dynamic Imports**: Infrastructure loaded at runtime based on configuration
+- **Advanced Lifecycle**: Singleton management, parallel resolution, container
+  introspection
+- **Runtime Configuration**: Multiple implementations (memory, indexeddb,
+  sqlite)
+
+```typescript
+// DI Container approach
+export async function createApplicationServicesWithContainer(
+  config: ApplicationConfig
+) {
+  const container = new DIContainer();
+  await registerInfrastructureServices(container, config);
+  await registerApplicationServices(container);
+  return await container.resolve<ApplicationServices>('applicationServices');
+}
+```
 
 ### Error Handling
 
@@ -281,16 +408,24 @@ When facing quality vs. speed pressure:
 
 ## Important Notes
 
-- **Never** import infrastructure into application layer
+- **DI Container Pattern**: Enterprise-grade dependency injection with service
+  registry and lifecycle management
+- **Never** import Infrastructure directly into Web layer
+- **Never** bypass DI Container for dependency injection
 - **Never** compromise on architectural principles for convenience
 - **Never** skip testing phases or reduce coverage targets
 - **Never** use workarounds instead of proper solutions
+- **Always** use `createApplicationServicesWithContainer()` for dependency
+  injection
 - **Always** write tests before implementation (TDD)
 - **Always** maintain code quality standards regardless of complexity
 - **Always** use orchestrator-worker pattern for complex tasks
 - **Main agent coordinates, General-Purpose Agent implements everything**
 - **Always trigger commit-readiness-reviewer and summarize results**
 - **Delegate ALL git operations and fixes to General-Purpose Agent**
+
+**Architecture Reference**: See `/docs/architecture-patterns.md` for complete DI
+Container implementation details
 
 ---
 

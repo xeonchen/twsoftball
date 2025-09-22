@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { SafeJsonParser, JsonValidationUtils, safeParseJson } from './safe-json-parser';
+import { SafeJsonParser, JsonValidationUtils, safeParseJson } from './safe-json-parser.js';
 
 describe('SafeJsonParser', () => {
   describe('safeParse', () => {

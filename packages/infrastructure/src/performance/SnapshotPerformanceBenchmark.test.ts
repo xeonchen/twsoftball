@@ -174,7 +174,10 @@ describe('SnapshotPerformanceBenchmark', () => {
     it('should determine significant improvement based on threshold', async () => {
       const comparison = await benchmark.compareWithAndWithoutSnapshots(1000);
 
-      const expectSignificant = comparison.improvementPercentage >= 80;
+      // Import the same function used by the implementation
+      const { getEffectiveImprovementThreshold } = await import('./utils/config');
+      const expectedThreshold = getEffectiveImprovementThreshold();
+      const expectSignificant = comparison.improvementPercentage >= expectedThreshold;
       expect(comparison.significantImprovement).toBe(expectSignificant);
     });
   });

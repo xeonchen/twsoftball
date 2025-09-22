@@ -113,7 +113,19 @@ describe('Infrastructure Package Index', () => {
       const allowedExports = [
         'InMemoryEventStore',
         'IndexedDBEventStore',
-        // Add other valid exports here as they're implemented
+        'EventSourcedGameRepository',
+        'EventSourcedTeamLineupRepository',
+        'EventSourcedInningStateRepository',
+        'wizardToCommand',
+        'initializeRepositories',
+        'getGameRepository',
+        'getTeamLineupRepository',
+        'getInningStateRepository',
+        'getEventStore',
+        'resetRepositories',
+        'GameAdapter',
+        'createMemoryFactory',
+        'createIndexedDBFactory',
       ];
 
       exportKeys.forEach(exportKey => {

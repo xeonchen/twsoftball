@@ -22,8 +22,6 @@
  * - Future: Will need real database testing for production validation
  */
 
-/* eslint-disable no-console -- Performance test files need diagnostic console output */
-
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 
 import { EventSourcedGameRepository } from '../persistence/EventSourcedGameRepository';

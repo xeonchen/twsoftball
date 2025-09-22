@@ -9,9 +9,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   CompleteGameWorkflowResult,
   WorkflowPerformanceMetrics,
-} from './CompleteGameWorkflowResult';
-import { GameStartResult } from './GameStartResult';
-import { GameStateDTO } from './GameStateDTO';
+} from './CompleteGameWorkflowResult.js';
+import { GameStartResult } from './GameStartResult.js';
+import { GameStateDTO } from './GameStateDTO.js';
 
 describe('CompleteGameWorkflowResult', () => {
   let mockGameId: GameId;

@@ -1,13 +1,13 @@
-import { Game } from '../aggregates/Game';
-import { InningState, RunnerMovement } from '../aggregates/InningState';
-import { TeamLineup } from '../aggregates/TeamLineup';
-import { AtBatResultType } from '../constants/AtBatResultType';
-import { DomainError } from '../errors/DomainError';
-import { SoftballRules } from '../rules/SoftballRules';
-import { BasesState, Base } from '../value-objects/BasesState';
-import { PlayerId } from '../value-objects/PlayerId';
+import { Game } from '../aggregates/Game.js';
+import { InningState, RunnerMovement } from '../aggregates/InningState.js';
+import { TeamLineup } from '../aggregates/TeamLineup.js';
+import { AtBatResultType } from '../constants/AtBatResultType.js';
+import { DomainError } from '../errors/DomainError.js';
+import { SoftballRules } from '../rules/SoftballRules.js';
+import { BasesState, Base } from '../value-objects/BasesState.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
-import { RBICalculator } from './RBICalculator';
+import { RBICalculator } from './RBICalculator.js';
 
 /**
  * Represents the movement of a runner from one position to another.

@@ -11,7 +11,7 @@ import {
   RedoCommandValidator,
   RedoCommandValidationError,
   RedoCommandFactory,
-} from './RedoCommand';
+} from './RedoCommand.js';
 
 describe('RedoCommand', () => {
   const mockGameId = new GameId('test-game-123');

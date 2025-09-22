@@ -1,5 +1,5 @@
-import { DomainError } from '../errors/DomainError';
-import { SoftballRules } from '../rules/SoftballRules';
+import { DomainError } from '../errors/DomainError.js';
+import { SoftballRules } from '../rules/SoftballRules.js';
 
 /**
  * Utility class for batting slot validation operations across the domain layer.

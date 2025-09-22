@@ -15,7 +15,14 @@
     }
   },
   "include": ["src/**/*"],
-  "exclude": [],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "src/test-factories/**/*",
+    "src/test-utils/**/*",
+    "node_modules",
+    "dist"
+  ],
   "references": [
     {
       "path": "../domain"

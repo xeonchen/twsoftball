@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
 
-import { FieldPosition } from '../constants/FieldPosition';
-import { DomainError } from '../errors/DomainError';
-import { SoftballRules } from '../rules/SoftballRules';
-import { TestPlayerFactory } from '../test-utils';
-import { BattingSlot } from '../value-objects/BattingSlot';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
-import { PlayerId } from '../value-objects/PlayerId';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import { DomainError } from '../errors/DomainError.js';
+import { SoftballRules } from '../rules/SoftballRules.js';
+import { TestPlayerFactory } from '../test-utils/index.js';
+import { BattingSlot } from '../value-objects/BattingSlot.js';
+import { JerseyNumber } from '../value-objects/JerseyNumber.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
-import { LineupValidator, LineupEntry } from './LineupValidator';
+import { LineupValidator, LineupEntry } from './LineupValidator.js';
 
 describe('LineupValidator', () => {
   // Test data helpers using test utilities

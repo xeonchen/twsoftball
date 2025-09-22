@@ -1,6 +1,6 @@
-import { GameId } from '../value-objects/GameId';
+import { GameId } from '../value-objects/GameId.js';
 
-import { GameStarted } from './GameStarted';
+import { GameStarted } from './GameStarted.js';
 
 describe('GameStarted Domain Event', () => {
   let gameId: GameId;

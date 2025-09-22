@@ -73,16 +73,16 @@ import {
   GameId,
   GameStatus,
   DomainEvent,
-  DomainError,
   // Restoration event types (these would need to be created in domain layer)
 } from '@twsoftball/domain';
 
-import { GameStateDTO } from '../dtos/GameStateDTO';
-import { RedoCommand, RedoCommandValidator } from '../dtos/RedoCommand';
-import { RedoResult, RedoStackInfo, RedoneActionDetail } from '../dtos/RedoResult';
-import { EventStore, StoredEvent } from '../ports/out/EventStore';
-import { GameRepository } from '../ports/out/GameRepository';
-import { Logger } from '../ports/out/Logger';
+import { GameStateDTO } from '../dtos/GameStateDTO.js';
+import { RedoCommand, RedoCommandValidator } from '../dtos/RedoCommand.js';
+import { RedoResult, RedoStackInfo, RedoneActionDetail } from '../dtos/RedoResult.js';
+import { EventStore, StoredEvent } from '../ports/out/EventStore.js';
+import { GameRepository } from '../ports/out/GameRepository.js';
+import { Logger } from '../ports/out/Logger.js';
+import { UseCaseErrorHandler } from '../utils/UseCaseErrorHandler.js';
 
 /**
  * Use case for redoing the last undone action(s) in a softball game using event sourcing restoration.
@@ -327,56 +327,15 @@ export class RedoLastAction {
         restorationEvents.map(e => e.type)
       );
     } catch (error) {
-      const duration = Date.now() - startTime;
-
-      this.logger.error('Redo operation failed', error instanceof Error ? error : undefined, {
-        gameId: command.gameId.value,
-        error: error instanceof Error ? error.message : String(error),
-        duration,
-        stack: error instanceof Error ? error.stack : undefined,
-        operation: 'redoLastAction',
-      });
-
-      if (error instanceof DomainError) {
-        return this.createFailureResult(
-          command.gameId,
-          ['Cannot redo: would violate game rules', error.message],
-          ['Consider manual correction instead of redo']
-        );
-      }
-
-      if (error instanceof Error && error.name === 'ConcurrencyError') {
-        return this.createFailureResult(command.gameId, [
-          'Concurrency conflict: game state changed during redo',
-          error.message,
-        ]);
-      }
-
-      if (error instanceof Error && error.message.includes('connection')) {
-        return this.createFailureResult(command.gameId, [
-          'Infrastructure error: failed to store restoration events',
-          error.message,
-        ]);
-      }
-
-      if (error instanceof Error && error.message.includes('Database')) {
-        return this.createFailureResult(command.gameId, [
-          'Infrastructure error: failed to save game state',
-          error.message,
-        ]);
-      }
-
-      if (error instanceof Error && error.message.includes('EventStore')) {
-        return this.createFailureResult(command.gameId, [
-          'Infrastructure error: failed to load undo events',
-          error.message,
-        ]);
-      }
-
-      return this.createFailureResult(command.gameId, [
-        'Unexpected error during redo operation',
-        error instanceof Error ? error.message : String(error),
-      ]);
+      return UseCaseErrorHandler.handleError(
+        error,
+        command.gameId,
+        this.gameRepository,
+        this.logger,
+        'redoLastAction',
+        (_game, errors) => this.createFailureResult(command.gameId, errors),
+        { actionLimit: command.actionLimit }
+      );
     }
   }
 

@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 
-import { DomainError } from '../errors/DomainError';
-import { GameId } from '../value-objects/GameId';
+import { DomainError } from '../errors/DomainError.js';
+import { GameId } from '../value-objects/GameId.js';
 
-import { HalfInningEnded } from './HalfInningEnded';
+import { HalfInningEnded } from './HalfInningEnded.js';
 
 describe('HalfInningEnded', () => {
   const gameId = new GameId('test-game-123');

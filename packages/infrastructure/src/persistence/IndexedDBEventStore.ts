@@ -267,7 +267,6 @@ export class IndexedDBEventStore implements EventStore {
         };
 
         db.onerror = (event): void => {
-          // eslint-disable-next-line no-console, no-undef -- Development warning for IndexedDB connection issues
           console.warn('IndexedDB connection error:', event);
         };
 

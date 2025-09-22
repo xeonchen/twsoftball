@@ -10,6 +10,7 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
+    "test:perf": "turbo run test:perf",
     "test:coverage": "turbo run test:coverage && node tools/scripts/merge-coverage.js",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
@@ -18,7 +19,7 @@
     "lint:strict": "eslint --max-warnings 0 .",
     "format": "turbo run format",
     "format:check": "turbo run format:check",
-    "deps:check": "dependency-cruiser --config .dependency-cruiser.cjs packages",
+    "deps:check": "dependency-cruiser --config .dependency-cruiser.cjs packages apps",
     "clean": "turbo run clean && rm -rf node_modules/.cache"
   },
   "devDependencies": {
@@ -35,6 +36,8 @@
     "eslint-plugin-boundaries": "^5.0.1",
     "eslint-plugin-eslint-comments": "^3.2.0",
     "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
     "eslint-plugin-security": "^3.0.1",
     "glob": "^11.0.3",
     "husky": "^9.1.7",
@@ -53,7 +56,7 @@
     "node": ">=18",
     "pnpm": ">=10"
   },
-  "packageManager": "pnpm@10.15.1",
+  "packageManager": "pnpm@10.17.0",
   "pnpm": {
     "overrides": {
       "micromatch@<4.0.8": ">=4.0.8",

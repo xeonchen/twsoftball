@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { FieldPosition } from './FieldPosition';
+import { FieldPosition } from './FieldPosition.js';
 
 describe('FieldPosition', () => {
   describe('Infield positions', () => {

@@ -71,7 +71,7 @@
  * ```
  */
 
-import { GameStateDTO } from './GameStateDTO';
+import { GameStateDTO } from './GameStateDTO.js';
 
 /**
  * Represents the inning/half-inning state before and after transition.

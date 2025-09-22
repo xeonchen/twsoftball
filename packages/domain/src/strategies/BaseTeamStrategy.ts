@@ -1,9 +1,9 @@
-import { FieldPosition } from '../constants/FieldPosition';
-import { SoftballRules } from '../rules/SoftballRules';
-import { BattingSlotValidation } from '../utils/BattingSlotValidation';
-import { PlayerId } from '../value-objects/PlayerId';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import { SoftballRules } from '../rules/SoftballRules.js';
+import { BattingSlotValidation } from '../utils/BattingSlotValidation.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
-import type { TeamStrategy, TeamPlayer, BattingSlotState } from './TeamStrategy';
+import type { TeamStrategy, TeamPlayer, BattingSlotState } from './TeamStrategy.js';
 
 /**
  * Abstract base class providing shared functionality for team strategy implementations.

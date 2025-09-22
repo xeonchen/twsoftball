@@ -31,7 +31,7 @@
 import { GameId, TeamLineupId, InningStateId } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import type { SnapshotStore, AggregateSnapshot } from './SnapshotStore';
+import type { SnapshotStore, AggregateSnapshot } from './SnapshotStore.js';
 
 // Mock implementations for testing interface contracts
 class MockSnapshotStore implements SnapshotStore {

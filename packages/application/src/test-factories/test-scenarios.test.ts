@@ -18,11 +18,11 @@
 import { Game, GameId, GameStatus, AtBatResultType, DomainError } from '@twsoftball/domain';
 import { vi, describe, it, expect, afterEach } from 'vitest';
 
-import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand';
-import { RedoCommand } from '../dtos/RedoCommand';
-import { StartNewGameCommand } from '../dtos/StartNewGameCommand';
-import { SubstitutePlayerCommand } from '../dtos/SubstitutePlayerCommand';
-import { UndoCommand } from '../dtos/UndoCommand';
+import { RecordAtBatCommand } from '../dtos/RecordAtBatCommand.js';
+import { RedoCommand } from '../dtos/RedoCommand.js';
+import { StartNewGameCommand } from '../dtos/StartNewGameCommand.js';
+import { SubstitutePlayerCommand } from '../dtos/SubstitutePlayerCommand.js';
+import { UndoCommand } from '../dtos/UndoCommand.js';
 
 import {
   setupSuccessfulAtBatScenario,
@@ -36,7 +36,7 @@ import {
   setupConcurrencyConflictScenario,
   setupGameNotFoundScenario,
   setupCustomScenario,
-} from './test-scenarios';
+} from './test-scenarios.js';
 
 describe('Test Scenarios', () => {
   afterEach(() => {

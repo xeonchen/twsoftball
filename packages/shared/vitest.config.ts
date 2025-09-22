@@ -6,8 +6,11 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.{test,spec}.ts'],
     exclude: ['node_modules/**', 'dist/**', 'coverage/**'],
+
+    // Shared utilities coverage configuration
     coverage: {
-      reporter: ['text', 'json', 'html'],
+      provider: 'v8',
+      reporter: ['text', 'json', 'html', 'lcov'],
       include: ['src/**/*.ts'],
       exclude: [
         'node_modules/**',
@@ -18,6 +21,24 @@ export default defineConfig({
         '**/*.spec.ts',
         'src/index.ts',
       ],
+      // Shared utilities thresholds (utilities should be well-tested)
+      thresholds: {
+        statements: 85,
+        branches: 80,
+        functions: 90,
+        lines: 85,
+        perFile: true, // Utilities should be consistently tested
+      },
+      watermarks: {
+        statements: [80, 95],
+        branches: [75, 90],
+        functions: [85, 95],
+        lines: [80, 95],
+      },
+      all: true,
+      skipFull: false,
+      clean: true,
+      cleanOnRerun: true,
     },
   },
 });

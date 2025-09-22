@@ -1,7 +1,7 @@
-import { DomainError } from '../errors/DomainError';
-import { GameId } from '../value-objects/GameId';
+import { DomainError } from '../errors/DomainError.js';
+import { GameId } from '../value-objects/GameId.js';
 
-import { ScoreUpdated } from './ScoreUpdated';
+import { ScoreUpdated } from './ScoreUpdated.js';
 
 describe('ScoreUpdated Domain Event', () => {
   let gameId: GameId;

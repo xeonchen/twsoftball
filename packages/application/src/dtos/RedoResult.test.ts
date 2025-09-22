@@ -6,8 +6,8 @@
 import { GameId } from '@twsoftball/domain';
 import { describe, it, expect } from 'vitest';
 
-import { GameStateDTO } from './GameStateDTO';
-import { RedoResult, RedoStackInfo, RedoneActionDetail } from './RedoResult';
+import { GameStateDTO } from './GameStateDTO.js';
+import { RedoResult, RedoStackInfo, RedoneActionDetail } from './RedoResult.js';
 
 describe('RedoResult', () => {
   const mockGameId = new GameId('test-game-123');

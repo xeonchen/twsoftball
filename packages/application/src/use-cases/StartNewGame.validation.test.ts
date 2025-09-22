@@ -16,10 +16,15 @@
 import { GameId, PlayerId, JerseyNumber, FieldPosition } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from '../dtos/StartNewGameCommand';
-import { createGameApplicationServiceMocks } from '../test-factories';
+import {
+  StartNewGameCommand,
+  LineupPlayerDTO,
+  GameRulesDTO,
+  StartNewGameCommandValidator,
+} from '../dtos/StartNewGameCommand.js';
+import { createGameApplicationServiceMocks } from '../test-factories/index.js';
 
-import { StartNewGame } from './StartNewGame';
+import { StartNewGame } from './StartNewGame.js';
 
 describe('StartNewGame Validation', () => {
   let startNewGame: StartNewGame;
@@ -329,7 +334,7 @@ describe('StartNewGame Validation', () => {
   });
 
   describe('Lineup Validation Scenarios', () => {
-    it('should reject duplicate jersey numbers', async () => {
+    it('should reject duplicate jersey numbers via DTO validation', async () => {
       const lineup = createValidLineup();
       const modifiedLineup = lineup.map((player, index) =>
         index === 1 ? { ...player, jerseyNumber: lineup[0]!.jerseyNumber } : player
@@ -340,6 +345,46 @@ describe('StartNewGame Validation', () => {
 
       expect(result.success).toBe(false);
       expect(result.errors).toContain('All players must have unique jersey numbers');
+    });
+
+    it('should handle duplicate jersey number validation in use case logic', async () => {
+      // Mock the DTO validator to pass validation but create a scenario
+      // where the use case's internal validation logic encounters duplicates
+      const originalValidate = StartNewGameCommandValidator.validate;
+      const lineup = createValidLineup();
+
+      // Create a lineup that would pass initial checks but trigger use case validation
+      const modifiedLineup = lineup.map((player, index) => {
+        if (index === 1) {
+          // Create duplicate jersey number that might slip through
+          return {
+            ...player,
+            jerseyNumber: lineup[0]!.jerseyNumber,
+            playerId: new PlayerId('unique-player-2'), // Keep player ID unique
+          };
+        }
+        return player;
+      });
+
+      // Temporarily mock the validator to skip the duplicate check
+      StartNewGameCommandValidator.validate = vi.fn();
+
+      try {
+        const command = createValidCommand({ initialLineup: modifiedLineup });
+        const result = await startNewGame.execute(command);
+
+        expect(result.success).toBe(false);
+        expect(
+          result.errors.some(
+            error =>
+              error.includes('Duplicate jersey numbers:') &&
+              error.includes('#' + lineup[0]!.jerseyNumber.value)
+          )
+        ).toBe(true);
+      } finally {
+        // Restore original validator
+        StartNewGameCommandValidator.validate = originalValidate;
+      }
     });
 
     it('should reject duplicate player IDs', async () => {
@@ -451,6 +496,77 @@ describe('StartNewGame Validation', () => {
       );
     });
 
+    it('should handle validation edge cases for player names and preferred positions', async () => {
+      // Mock the DTO validator to test internal validation logic
+      const originalValidate = StartNewGameCommandValidator.validate;
+      const lineup = createValidLineup();
+
+      const modifiedLineup = lineup.map((player, index) => {
+        if (index === 0) {
+          // Test empty name after trim
+          return { ...player, name: '   ' }; // Only whitespace
+        }
+        if (index === 1) {
+          // Test undefined preferred positions
+          return { ...player, preferredPositions: undefined as unknown as FieldPosition[] };
+        }
+        return player;
+      });
+
+      // Mock validator to bypass DTO validation and test use case logic
+      StartNewGameCommandValidator.validate = vi.fn();
+
+      try {
+        const command = createValidCommand({ initialLineup: modifiedLineup });
+        const result = await startNewGame.execute(command);
+
+        expect(result.success).toBe(false);
+        expect(result.errors).toEqual(
+          expect.arrayContaining([
+            'Player name cannot be empty',
+            'Player must have at least one preferred position',
+          ])
+        );
+      } finally {
+        // Restore original validator
+        StartNewGameCommandValidator.validate = originalValidate;
+      }
+    });
+
+    it('should handle validation edge cases for empty name fields', async () => {
+      // Mock the DTO validator to test internal validation logic
+      const originalValidate = StartNewGameCommandValidator.validate;
+      const lineup = createValidLineup();
+
+      const modifiedLineup = lineup.map((player, index) => {
+        if (index === 0) {
+          // Test null name
+          return { ...player, name: null as unknown as string };
+        }
+        if (index === 1) {
+          // Test undefined name
+          return { ...player, name: undefined as unknown as string };
+        }
+        return player;
+      });
+
+      // Mock validator to bypass DTO validation and test use case logic
+      StartNewGameCommandValidator.validate = vi.fn();
+
+      try {
+        const command = createValidCommand({ initialLineup: modifiedLineup });
+        const result = await startNewGame.execute(command);
+
+        expect(result.success).toBe(false);
+        expect(result.errors).toEqual(
+          expect.arrayContaining(['Player name cannot be empty', 'Player name cannot be empty'])
+        );
+      } finally {
+        // Restore original validator
+        StartNewGameCommandValidator.validate = originalValidate;
+      }
+    });
+
     it('should accept reasonable number of preferred positions', async () => {
       // Setup mocks for successful execution
       mocks.functions.gameRepositoryExists.mockResolvedValue(false);
@@ -509,6 +625,85 @@ describe('StartNewGame Validation', () => {
       expect(result.errors).toContain('Missing required field position: C');
     });
 
+    it('should validate that all required infield positions are covered', async () => {
+      const lineup = createValidLineup();
+
+      // Test missing first base position specifically
+      const modifiedLineup = lineup.map(player =>
+        player.fieldPosition === FieldPosition.FIRST_BASE
+          ? { ...player, fieldPosition: FieldPosition.RIGHT_FIELD }
+          : player
+      );
+      const command = createValidCommand({ initialLineup: modifiedLineup });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('Missing required field position: 1B');
+    });
+
+    it('should validate missing required shortstop position', async () => {
+      const lineup = createValidLineup();
+
+      // Test missing shortstop position specifically
+      const modifiedLineup = lineup.map(player =>
+        player.fieldPosition === FieldPosition.SHORTSTOP
+          ? { ...player, fieldPosition: FieldPosition.CENTER_FIELD }
+          : player
+      );
+      const command = createValidCommand({ initialLineup: modifiedLineup });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('Missing required field position: SS');
+    });
+
+    it('should validate missing required outfield positions', async () => {
+      const lineup = createValidLineup();
+
+      // Test missing left field position specifically
+      const modifiedLineup = lineup.map(player =>
+        player.fieldPosition === FieldPosition.LEFT_FIELD
+          ? { ...player, fieldPosition: FieldPosition.CENTER_FIELD }
+          : player
+      );
+      const command = createValidCommand({ initialLineup: modifiedLineup });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toContain('Missing required field position: LF');
+    });
+
+    it('should handle multiple missing required positions', async () => {
+      const lineup = createValidLineup();
+
+      // Remove multiple required positions to test comprehensive validation
+      const modifiedLineup = lineup.map(player => {
+        if (
+          player.fieldPosition === FieldPosition.PITCHER ||
+          player.fieldPosition === FieldPosition.SECOND_BASE ||
+          player.fieldPosition === FieldPosition.THIRD_BASE
+        ) {
+          return { ...player, fieldPosition: FieldPosition.RIGHT_FIELD };
+        }
+        return player;
+      });
+      const command = createValidCommand({ initialLineup: modifiedLineup });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          'Missing required field position: P',
+          'Missing required field position: 2B',
+          'Missing required field position: 3B',
+        ])
+      );
+    });
+
     it('should enforce jersey number range limits', () => {
       // This test verifies that invalid jersey numbers are caught by domain validation
       expect(() => {
@@ -532,6 +727,33 @@ describe('StartNewGame Validation', () => {
       expect(result.success).toBe(false);
       // DTO validator will catch the first error (negative mercy rule inning 4)
       expect(result.errors).toContain('mercyRuleInning4 must be between 0 and 50');
+    });
+
+    it('should handle game rules validation edge cases via use case logic', async () => {
+      // Test use case validation for game rules by bypassing DTO validation
+      const originalValidate = StartNewGameCommandValidator.validate;
+      const invalidRules: GameRulesDTO = {
+        mercyRuleEnabled: true,
+        mercyRuleInning4: -1, // Negative - should be caught by use case
+        mercyRuleInning5: 10,
+        timeLimitMinutes: -30, // Negative time - should be caught by use case
+        extraPlayerAllowed: true,
+        maxPlayersInLineup: 8, // Too few - should be caught by use case
+      };
+
+      // Mock validator to bypass DTO validation and test use case logic
+      StartNewGameCommandValidator.validate = vi.fn();
+
+      try {
+        const command = createValidCommand({ gameRules: invalidRules });
+        const result = await startNewGame.execute(command);
+
+        expect(result.success).toBe(false);
+        expect(result.errors).toEqual(expect.arrayContaining(['Invalid game rules configuration']));
+      } finally {
+        // Restore original validator
+        StartNewGameCommandValidator.validate = originalValidate;
+      }
     });
 
     it('should reject negative mercy rule inning 4 differential', async () => {

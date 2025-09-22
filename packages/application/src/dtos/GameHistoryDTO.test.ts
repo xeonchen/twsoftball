@@ -18,7 +18,7 @@ import type {
   InningHistoryDTO,
   AdministrativeActionDTO,
   GameOutcomeDTO,
-} from './GameHistoryDTO';
+} from './GameHistoryDTO.js';
 
 describe('GameHistoryDTO', () => {
   describe('GameHistoryDTO interface', () => {

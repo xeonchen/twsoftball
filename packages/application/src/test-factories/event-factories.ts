@@ -16,7 +16,7 @@
  *
  * @example
  * ```typescript
- * import { createActionUndoneEvent, createAtBatCompletedEvent } from '../test-factories';
+ * import { createActionUndoneEvent, createAtBatCompletedEvent } from '../test-factories/index.js';
  *
  * describe('Redo Tests', () => {
  *   it('should redo undone actions', () => {
@@ -30,7 +30,7 @@
 
 import { GameId, PlayerId, DomainEvent, AtBatResultType } from '@twsoftball/domain';
 
-import { SecureTestUtils } from '../test-utils/secure-test-utils';
+import { SecureTestUtils } from '../test-utils/secure-test-utils.js';
 
 /**
  * Creates an ActionUndone event for testing undo/redo scenarios.

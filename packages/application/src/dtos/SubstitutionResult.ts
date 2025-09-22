@@ -60,7 +60,7 @@
 
 import { FieldPosition } from '@twsoftball/domain';
 
-import { GameStateDTO } from './GameStateDTO';
+import { GameStateDTO } from './GameStateDTO.js';
 
 /**
  * Result DTO returned after attempting to substitute a player in a game.

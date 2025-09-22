@@ -6,8 +6,8 @@
 import { GameId, GameStatus, TeamLineupId, FieldPosition, PlayerId } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { GameStateDTO } from './GameStateDTO';
-import { InningEndResult, InningHalfState } from './InningEndResult';
+import { GameStateDTO } from './GameStateDTO.js';
+import { InningEndResult, InningHalfState } from './InningEndResult.js';
 
 describe('InningEndResult', () => {
   let mockGameState: GameStateDTO;

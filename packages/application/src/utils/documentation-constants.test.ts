@@ -18,7 +18,7 @@ import {
   createServiceSetupExample,
   createResultHandlingExample,
   createUseCaseFileHeader,
-} from './documentation-constants';
+} from './documentation-constants.js';
 
 describe('documentation-constants', () => {
   describe('String Constants', () => {

@@ -6,18 +6,17 @@
 
 import { GameId, TeamLineupId, InningStateId, DomainEvent } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { MockedFunction } from 'vitest';
+import type { MockedFunction as _MockedFunction } from 'vitest';
 
-import { EventStoreContractTests } from './EventStoreContractTests';
-
+import { EventStoreContractTests } from './EventStoreContractTests.js';
+import type { EventStore } from './EventStoreTestInterfaces.js';
 import {
   createMockGameCreatedEvent,
   createMockTeamLineupCreatedEvent,
   createMockInningStateCreatedEvent,
   createMockGameId,
   createMockEventBatch,
-} from './';
-import type { EventStore } from './';
+} from './MockEventCreators.js';
 
 // Test implementation of EventStoreContractTests
 class TestEventStoreContractTests extends EventStoreContractTests {
@@ -238,10 +237,8 @@ describe('EventStoreContractTests', () => {
     });
 
     it('should call EventStore methods during contract testing', async () => {
-      const appendMock = mockEventStore.append as MockedFunction<typeof mockEventStore.append>;
-      const getEventsMock = mockEventStore.getEvents as MockedFunction<
-        typeof mockEventStore.getEvents
-      >;
+      const appendMock = mockEventStore.append;
+      const getEventsMock = mockEventStore.getEvents;
 
       // Mock return values for contract tests
       appendMock.mockResolvedValue(undefined);
@@ -266,7 +263,7 @@ describe('EventStoreContractTests', () => {
       const gameId = contractTests.getGameId();
 
       // Verify mock events can be used with EventStore
-      const appendMock = mockEventStore.append as MockedFunction<typeof mockEventStore.append>;
+      const appendMock = mockEventStore.append;
       appendMock.mockResolvedValue(undefined);
 
       await expect(mockEventStore.append(gameId, 'Game', mockEvents)).resolves.not.toThrow();

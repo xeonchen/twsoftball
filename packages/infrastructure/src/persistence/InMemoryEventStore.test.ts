@@ -9,17 +9,16 @@
  * but full implementation will come in Phase 2.
  */
 
+import type { EventStore, StoredEvent } from '@twsoftball/application/ports/out/EventStore';
+import { DomainEvent, DomainId, GameId, TeamLineupId, InningStateId } from '@twsoftball/domain';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
 import {
-  DomainEvent,
-  DomainId,
   createMockGameCreatedEvent,
   createMockAtBatCompletedEvent,
   createMockTeamLineupCreatedEvent,
   createMockInningStateCreatedEvent,
-} from '@twsoftball/application';
-import type { EventStore, StoredEvent } from '@twsoftball/application/ports/out/EventStore';
-import { GameId, TeamLineupId, InningStateId } from '@twsoftball/domain';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+} from '../../../application/src/test-utils/event-store';
 
 // Import from shared package for EventStore interfaces and test utilities
 // Import domain objects from domain package
@@ -1158,7 +1157,7 @@ describe('InMemoryEventStore', () => {
     describe('Error Handling Coverage', () => {
       it('should handle errors in getGameEvents catch block (lines 519-520)', async () => {
         // Create an invalid gameId that will cause an error in validation
-        const invalidGameId = null as unknown as DomainId;
+        const invalidGameId = null as unknown as GameId;
 
         // This should trigger the catch block at lines 519-520
         await expect(eventStore.getGameEvents(invalidGameId)).rejects.toThrow();

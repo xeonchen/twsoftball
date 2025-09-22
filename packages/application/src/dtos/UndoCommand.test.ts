@@ -11,7 +11,7 @@ import {
   UndoCommandValidator,
   UndoCommandValidationError,
   UndoCommandFactory,
-} from './UndoCommand';
+} from './UndoCommand.js';
 
 describe('UndoCommand', () => {
   const gameId = GameId.generate();

@@ -1,6 +1,6 @@
-import { FieldPosition } from '../constants/FieldPosition';
-import { DomainError } from '../errors/DomainError';
-import type { TeamPlayer, BattingSlotState, TeamStrategy } from '../strategies/TeamStrategy';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import { DomainError } from '../errors/DomainError.js';
+import type { TeamPlayer, BattingSlotState, TeamStrategy } from '../strategies/TeamStrategy.js';
 
 /**
  * Collection of common assertion helpers to eliminate duplication in test files.
@@ -12,7 +12,7 @@ import type { TeamPlayer, BattingSlotState, TeamStrategy } from '../strategies/T
  *
  * @example
  * ```typescript
- * import { AssertionHelpers } from '../test-utils';
+ * import { AssertionHelpers } from '../test-utils.js';
  *
  * // Validate lineup structure
  * AssertionHelpers.expectPlayerInSlot(lineup, 1, expectedPlayer);

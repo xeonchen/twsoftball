@@ -19,9 +19,9 @@
  * the sequence, enabling proper error handling and audit logging.
  */
 
-import { AtBatResult } from './AtBatResult';
-import { InningEndResult } from './InningEndResult';
-import { SubstitutionResult } from './SubstitutionResult';
+import { AtBatResult } from './AtBatResult.js';
+import { InningEndResult } from './InningEndResult.js';
+import { SubstitutionResult } from './SubstitutionResult.js';
 
 /**
  * Result of executing a complete at-bat sequence with orchestrated follow-up actions.

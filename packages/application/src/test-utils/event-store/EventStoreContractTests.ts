@@ -7,7 +7,7 @@
 import { GameId, TeamLineupId, InningStateId, DomainEvent } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { EventStore } from '../../ports/out/EventStore';
+import { EventStore } from '../../ports/out/EventStore.js';
 
 import {
   createMockGameCreatedEvent,
@@ -18,7 +18,7 @@ import {
   createMockTeamLineupId,
   createMockInningStateId,
   createMockEventBatch,
-} from './MockEventCreators';
+} from './MockEventCreators.js';
 
 /**
  * Abstract test suite providing comprehensive contract tests for EventStore implementations.

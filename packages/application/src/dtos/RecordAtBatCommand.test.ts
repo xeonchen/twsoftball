@@ -12,8 +12,8 @@ import {
   RecordAtBatCommandValidator,
   RecordAtBatCommandValidationError,
   RecordAtBatCommandFactory,
-} from './RecordAtBatCommand';
-import { RunnerAdvanceDTO } from './RunnerAdvanceDTO';
+} from './RecordAtBatCommand.js';
+import { RunnerAdvanceDTO } from './RunnerAdvanceDTO.js';
 
 describe('RecordAtBatCommand', () => {
   let validCommand: RecordAtBatCommand;

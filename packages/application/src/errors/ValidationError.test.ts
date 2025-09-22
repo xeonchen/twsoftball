@@ -9,7 +9,7 @@ import {
   ValidationContext,
   ValidationErrorUtils,
   ValidationErrorFactory,
-} from './ValidationError';
+} from './ValidationError.js';
 
 describe('ValidationError', () => {
   describe('Constructor and Basic Properties', () => {

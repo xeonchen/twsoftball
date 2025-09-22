@@ -52,9 +52,9 @@
  * ```
  */
 
-import { ValidationError } from '../errors/ValidationError';
+import { ValidationError } from '../errors/ValidationError.js';
 
-import { GameStateDTO } from './GameStateDTO';
+import { GameStateDTO } from './GameStateDTO.js';
 
 /**
  * Validation error for AtBatResult

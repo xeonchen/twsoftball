@@ -7,6 +7,7 @@
 export { InMemoryEventStore } from './InMemoryEventStore';
 export { IndexedDBEventStore } from './IndexedDBEventStore';
 
-// Note: Game Repository implementations will be exported when available
-// export { IndexedDBGameRepository } from './IndexedDBGameRepository';
-// export { InMemoryGameRepository } from './InMemoryGameRepository';
+// EventSourced Repository implementations
+export { EventSourcedGameRepository } from './EventSourcedGameRepository';
+export { EventSourcedTeamLineupRepository } from './EventSourcedTeamLineupRepository';
+export { EventSourcedInningStateRepository } from './EventSourcedInningStateRepository';

@@ -51,20 +51,20 @@
  * ```
  */
 
-import { AtBatResult } from '../../dtos/AtBatResult';
-import { EndGameCommand } from '../../dtos/EndGameCommand';
-import { EndGameResult } from '../../dtos/EndGameResult';
-import { EndInningCommand } from '../../dtos/EndInningCommand';
-import { GameStartResult } from '../../dtos/GameStartResult';
-import { InningEndResult } from '../../dtos/InningEndResult';
-import { RecordAtBatCommand } from '../../dtos/RecordAtBatCommand';
-import { RedoCommand } from '../../dtos/RedoCommand';
-import { RedoResult } from '../../dtos/RedoResult';
-import { StartNewGameCommand } from '../../dtos/StartNewGameCommand';
-import { SubstitutePlayerCommand } from '../../dtos/SubstitutePlayerCommand';
-import { SubstitutionResult } from '../../dtos/SubstitutionResult';
-import { UndoCommand } from '../../dtos/UndoCommand';
-import { UndoResult } from '../../dtos/UndoResult';
+import { AtBatResult } from '../../dtos/AtBatResult.js';
+import { EndGameCommand } from '../../dtos/EndGameCommand.js';
+import { EndGameResult } from '../../dtos/EndGameResult.js';
+import { EndInningCommand } from '../../dtos/EndInningCommand.js';
+import { GameStartResult } from '../../dtos/GameStartResult.js';
+import { InningEndResult } from '../../dtos/InningEndResult.js';
+import { RecordAtBatCommand } from '../../dtos/RecordAtBatCommand.js';
+import { RedoCommand } from '../../dtos/RedoCommand.js';
+import { RedoResult } from '../../dtos/RedoResult.js';
+import { StartNewGameCommand } from '../../dtos/StartNewGameCommand.js';
+import { SubstitutePlayerCommand } from '../../dtos/SubstitutePlayerCommand.js';
+import { SubstitutionResult } from '../../dtos/SubstitutionResult.js';
+import { UndoCommand } from '../../dtos/UndoCommand.js';
+import { UndoResult } from '../../dtos/UndoResult.js';
 
 /**
  * Primary inbound port for all game command operations.

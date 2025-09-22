@@ -490,6 +490,60 @@ afterEach(async () => {
 
 ## Performance Testing
 
+### Adaptive Performance Testing Framework
+
+Our performance testing framework provides environment-aware testing with
+statistical measurement to eliminate unstable test failures.
+
+#### Environment Variables
+
+The framework supports the following environment variables for fine-tuning
+performance tests:
+
+- **`PERF_THRESHOLD_MULTIPLIER`**: Multiplier for performance thresholds
+  (default varies by environment)
+  - CI: 2.5x (accounts for CI environment variance)
+  - Local: 1.5x (local development)
+  - Test: 3.0x (test environments with highest variance)
+- **`PERF_WARMUP_RUNS`**: Number of warm-up runs before measurement (default:
+  1-3 based on environment)
+- **`PERF_MEASUREMENT_RUNS`**: Number of measurement runs for statistical
+  analysis (default: 3-7)
+- **`PERF_PERCENTILE`**: Percentile to use for threshold comparison
+  (default: 95)
+
+#### Usage Examples
+
+```bash
+# Run performance tests with custom threshold multiplier
+PERF_THRESHOLD_MULTIPLIER=2.0 pnpm test:performance
+
+# Run with more measurement runs for increased accuracy
+PERF_MEASUREMENT_RUNS=10 pnpm test:performance
+
+# Use 99th percentile for stricter performance requirements
+PERF_PERCENTILE=99 pnpm test:performance
+```
+
+#### Statistical Performance Measurement
+
+Performance tests now use statistical analysis instead of single measurements:
+
+```typescript
+import { measurePerformance, createPerformanceThreshold } from '@/test/performance/utils';
+
+it('should render game setup within performance threshold', async () => {
+  const threshold = createPerformanceThreshold(100); // 100ms base threshold
+
+  const measurement = await measurePerformance(async () => {
+    render(<GameSetupWizard />);
+    await screen.findByText('Game Setup');
+  });
+
+  expect(measurement.p95).toBeLessThan(threshold.adjusted);
+});
+```
+
 ### Event Sourcing Performance
 
 - Measure aggregate reconstruction time
@@ -501,6 +555,84 @@ afterEach(async () => {
 - Aggregate reconstruction: <10ms for 100 events
 - Event append: <5ms per event
 - Query performance: <50ms for typical queries
+- UI component rendering: <100ms (95th percentile)
+
+### Performance Test Separation
+
+We maintain a clear separation between correctness tests and performance tests
+to ensure CI stability and clear test intent.
+
+#### Test Types and Naming Conventions
+
+- **`.test.ts` files**: Correctness tests that verify functionality
+  - Run in CI pipeline
+  - Required to pass for merging
+  - Test business logic, error handling, data validation
+  - Example: Verify RBI calculation produces correct results
+
+- **`.perf.test.ts` files**: Performance measurement tests
+  - Run locally only (`pnpm test:perf`)
+  - Used for optimization work
+  - Measure timing, throughput, memory usage
+  - Example: Measure aggregate reconstruction time under load
+
+#### When to Use Each Type
+
+**Use Correctness Tests (`.test.ts`) when:**
+
+- Testing business logic or functionality
+- Verifying error handling and edge cases
+- Testing configuration, setup, or utilities
+- Validating data transformations
+- Testing that performance utilities work correctly (not measuring actual
+  performance)
+
+**Use Performance Tests (`.perf.test.ts`) when:**
+
+- Measuring actual execution time or timing variance
+- Testing throughput or scalability under load
+- Comparing performance between different implementations
+- Validating performance thresholds with real timing measurements
+
+#### Running Tests
+
+```bash
+# Run correctness tests only (default for CI)
+pnpm test
+
+# Run performance tests only (local optimization)
+pnpm test:perf
+
+# Run all tests including performance
+pnpm test:all
+
+# Run with coverage (excludes performance tests from both execution and coverage calculation)
+pnpm test:coverage
+```
+
+#### Performance Test Guidelines
+
+When writing performance tests:
+
+- Use fixed thresholds appropriate for local development environment
+- Focus on relative performance comparisons rather than absolute timings
+- Include statistical analysis for stability (multiple runs, median timing)
+- Test realistic data sizes and scenarios
+- Document performance expectations in test comments
+
+Example performance test:
+
+```typescript
+// PerformanceBenchmark.perf.test.ts
+it('should maintain consistent timing variance', async () => {
+  const benchmark = new PerformanceBenchmark('timing-test');
+  const result1 = await benchmark.run(operation);
+  const result2 = await benchmark.run(operation);
+
+  const variance = calculateVariance(result1, result2);
+  expect(variance).toBeLessThan(0.5); // Fixed threshold for local testing
+});
+```
 
 ## Common Testing Pitfalls to Avoid
 

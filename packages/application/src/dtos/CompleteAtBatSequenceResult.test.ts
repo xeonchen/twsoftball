@@ -6,10 +6,10 @@
 import { PlayerId, GameId, GameStatus, TeamLineupId, FieldPosition } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { AtBatResult } from './AtBatResult';
-import { CompleteAtBatSequenceResult } from './CompleteAtBatSequenceResult';
-import { InningEndResult } from './InningEndResult';
-import { SubstitutionResult } from './SubstitutionResult';
+import { AtBatResult } from './AtBatResult.js';
+import { CompleteAtBatSequenceResult } from './CompleteAtBatSequenceResult.js';
+import { InningEndResult } from './InningEndResult.js';
+import { SubstitutionResult } from './SubstitutionResult.js';
 
 describe('CompleteAtBatSequenceResult', () => {
   let mockAtBatResult: AtBatResult;

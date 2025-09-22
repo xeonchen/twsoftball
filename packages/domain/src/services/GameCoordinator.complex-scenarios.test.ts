@@ -1,18 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { Game } from '../aggregates/Game';
-import { InningState } from '../aggregates/InningState';
-import { TeamLineup } from '../aggregates/TeamLineup';
-import { AtBatResultType } from '../constants/AtBatResultType';
-import { FieldPosition } from '../constants/FieldPosition';
-import { SoftballRules } from '../rules/SoftballRules';
-import { GameId } from '../value-objects/GameId';
-import { InningStateId } from '../value-objects/InningStateId';
-import { JerseyNumber } from '../value-objects/JerseyNumber';
-import { PlayerId } from '../value-objects/PlayerId';
-import { TeamLineupId } from '../value-objects/TeamLineupId';
+import { Game } from '../aggregates/Game.js';
+import { InningState } from '../aggregates/InningState.js';
+import { TeamLineup } from '../aggregates/TeamLineup.js';
+import { AtBatResultType } from '../constants/AtBatResultType.js';
+import { FieldPosition } from '../constants/FieldPosition.js';
+import { SoftballRules } from '../rules/SoftballRules.js';
+import { GameId } from '../value-objects/GameId.js';
+import { InningStateId } from '../value-objects/InningStateId.js';
+import { JerseyNumber } from '../value-objects/JerseyNumber.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
+import { TeamLineupId } from '../value-objects/TeamLineupId.js';
 
-import { GameCoordinator } from './GameCoordinator';
+import { GameCoordinator } from './GameCoordinator.js';
 
 describe('GameCoordinator - Complex Scenarios', () => {
   // Test data helpers

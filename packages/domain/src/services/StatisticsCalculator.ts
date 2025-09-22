@@ -1,5 +1,5 @@
-import { AtBatResultType } from '../constants/AtBatResultType';
-import { DomainError } from '../errors/DomainError';
+import { AtBatResultType } from '../constants/AtBatResultType.js';
+import { DomainError } from '../errors/DomainError.js';
 
 /**
  * Represents an at-bat result with its count for statistical aggregation.

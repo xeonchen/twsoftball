@@ -1,5 +1,5 @@
 /// <reference types="vitest/globals" />
-import { DomainError } from '../errors/DomainError';
+import { DomainError } from '../errors/DomainError.js';
 
 /**
  * Test helper for value object validation testing.
