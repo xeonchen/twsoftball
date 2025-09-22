@@ -24,7 +24,12 @@ import type {
 } from '@twsoftball/application';
 import { describe, it, expect, beforeEach, vi, type MockedFunction } from 'vitest';
 
-import { GameAdapter, type GameAdapterConfig } from './gameAdapter';
+import {
+  GameAdapter,
+  type GameAdapterConfig,
+  type UIPlayerData,
+  type UIRunnerAdvanceData,
+} from './gameAdapter';
 
 // Mock all use cases
 const mockStartNewGame = {
@@ -727,6 +732,715 @@ describe('GameAdapter', () => {
       };
 
       await expect(gameAdapter.recordAtBat(uiData)).rejects.toThrow('Infrastructure error');
+    });
+
+    it('should handle non-Error objects gracefully', async () => {
+      const nonErrorObject = { code: 500, message: 'Server error' };
+      (
+        mockStartNewGame.execute as MockedFunction<typeof mockStartNewGame.execute>
+      ).mockRejectedValue(nonErrorObject);
+
+      const uiData = {
+        gameId: 'test-game',
+        homeTeamName: 'Home Team',
+        awayTeamName: 'Away Team',
+        homeLineup: [{ playerId: 'p1', name: 'Player 1', position: 'P', jerseyNumber: 1 }],
+        awayLineup: [{ playerId: 'p2', name: 'Player 2', position: 'C', jerseyNumber: 2 }],
+      };
+
+      await expect(gameAdapter.startNewGame(uiData)).rejects.toBe(nonErrorObject);
+
+      // Should log with Error wrapper
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Game adapter: Failed to start new game',
+        expect.any(Error),
+        { uiData }
+      );
+    });
+
+    it('should handle string errors', async () => {
+      const stringError = 'Something went wrong';
+      (mockRecordAtBat.execute as MockedFunction<typeof mockRecordAtBat.execute>).mockRejectedValue(
+        stringError
+      );
+
+      const uiData = {
+        gameId: 'game-1',
+        batterId: 'player-1',
+        result: 'SINGLE',
+        runnerAdvances: [],
+      };
+
+      await expect(gameAdapter.recordAtBat(uiData)).rejects.toBe(stringError);
+
+      // Should log with Error wrapper
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Game adapter: Failed to record at-bat',
+        expect.any(Error),
+        { uiData }
+      );
+    });
+
+    it('should handle null/undefined errors', async () => {
+      (
+        mockSubstitutePlayer.execute as MockedFunction<typeof mockSubstitutePlayer.execute>
+      ).mockRejectedValue(null);
+
+      const uiData = {
+        gameId: 'game-1',
+        outgoingPlayerId: 'player-1',
+        incomingPlayerId: 'player-2',
+        newPosition: 'RF',
+      };
+
+      await expect(gameAdapter.substitutePlayer(uiData)).rejects.toBe(null);
+
+      // Should log with Error wrapper
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Game adapter: Failed to substitute player',
+        expect.any(Error),
+        { uiData }
+      );
+    });
+  });
+
+  describe('Input Validation', () => {
+    describe('startNewGame validation', () => {
+      it('should reject missing gameId', async () => {
+        const uiData = {
+          gameId: '',
+          homeTeamName: 'Home Team',
+          awayTeamName: 'Away Team',
+          homeLineup: [{ playerId: 'p1', name: 'Player 1', position: 'P', jerseyNumber: 1 }],
+          awayLineup: [{ playerId: 'p2', name: 'Player 2', position: 'C', jerseyNumber: 2 }],
+        };
+
+        await expect(gameAdapter.startNewGame(uiData)).rejects.toThrow(
+          'Missing required game data: gameId, homeTeamName, and awayTeamName are required'
+        );
+      });
+
+      it('should reject missing homeTeamName', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          homeTeamName: '',
+          awayTeamName: 'Away Team',
+          homeLineup: [{ playerId: 'p1', name: 'Player 1', position: 'P', jerseyNumber: 1 }],
+          awayLineup: [{ playerId: 'p2', name: 'Player 2', position: 'C', jerseyNumber: 2 }],
+        };
+
+        await expect(gameAdapter.startNewGame(uiData)).rejects.toThrow(
+          'Missing required game data: gameId, homeTeamName, and awayTeamName are required'
+        );
+      });
+
+      it('should reject missing awayTeamName', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          homeTeamName: 'Home Team',
+          awayTeamName: '',
+          homeLineup: [{ playerId: 'p1', name: 'Player 1', position: 'P', jerseyNumber: 1 }],
+          awayLineup: [{ playerId: 'p2', name: 'Player 2', position: 'C', jerseyNumber: 2 }],
+        };
+
+        await expect(gameAdapter.startNewGame(uiData)).rejects.toThrow(
+          'Missing required game data: gameId, homeTeamName, and awayTeamName are required'
+        );
+      });
+
+      it('should reject missing homeLineup', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          homeTeamName: 'Home Team',
+          awayTeamName: 'Away Team',
+          homeLineup: undefined as unknown as UIPlayerData[],
+          awayLineup: [{ playerId: 'p2', name: 'Player 2', position: 'C', jerseyNumber: 2 }],
+        };
+
+        await expect(gameAdapter.startNewGame(uiData)).rejects.toThrow(
+          'Home lineup is required and must contain at least one player'
+        );
+      });
+
+      it('should reject empty homeLineup', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          homeTeamName: 'Home Team',
+          awayTeamName: 'Away Team',
+          homeLineup: [],
+          awayLineup: [{ playerId: 'p2', name: 'Player 2', position: 'C', jerseyNumber: 2 }],
+        };
+
+        await expect(gameAdapter.startNewGame(uiData)).rejects.toThrow(
+          'Home lineup is required and must contain at least one player'
+        );
+      });
+
+      it('should reject non-array homeLineup', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          homeTeamName: 'Home Team',
+          awayTeamName: 'Away Team',
+          homeLineup: 'not an array' as unknown as UIPlayerData[],
+          awayLineup: [{ playerId: 'p2', name: 'Player 2', position: 'C', jerseyNumber: 2 }],
+        };
+
+        await expect(gameAdapter.startNewGame(uiData)).rejects.toThrow(
+          'Home lineup is required and must contain at least one player'
+        );
+      });
+
+      it('should reject missing awayLineup', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          homeTeamName: 'Home Team',
+          awayTeamName: 'Away Team',
+          homeLineup: [{ playerId: 'p1', name: 'Player 1', position: 'P', jerseyNumber: 1 }],
+          awayLineup: undefined as unknown as UIPlayerData[],
+        };
+
+        await expect(gameAdapter.startNewGame(uiData)).rejects.toThrow(
+          'Away lineup is required and must contain at least one player'
+        );
+      });
+
+      it('should reject empty awayLineup', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          homeTeamName: 'Home Team',
+          awayTeamName: 'Away Team',
+          homeLineup: [{ playerId: 'p1', name: 'Player 1', position: 'P', jerseyNumber: 1 }],
+          awayLineup: [],
+        };
+
+        await expect(gameAdapter.startNewGame(uiData)).rejects.toThrow(
+          'Away lineup is required and must contain at least one player'
+        );
+      });
+
+      it('should reject non-array awayLineup', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          homeTeamName: 'Home Team',
+          awayTeamName: 'Away Team',
+          homeLineup: [{ playerId: 'p1', name: 'Player 1', position: 'P', jerseyNumber: 1 }],
+          awayLineup: 'not an array' as unknown as UIPlayerData[],
+        };
+
+        await expect(gameAdapter.startNewGame(uiData)).rejects.toThrow(
+          'Away lineup is required and must contain at least one player'
+        );
+      });
+    });
+
+    describe('recordAtBat validation', () => {
+      it('should reject missing gameId', async () => {
+        const uiData = {
+          gameId: '',
+          batterId: 'player-1',
+          result: 'SINGLE',
+          runnerAdvances: [],
+        };
+
+        await expect(gameAdapter.recordAtBat(uiData)).rejects.toThrow(
+          'Missing required at-bat data: gameId, batterId, and result are required'
+        );
+      });
+
+      it('should reject missing batterId', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          batterId: '',
+          result: 'SINGLE',
+          runnerAdvances: [],
+        };
+
+        await expect(gameAdapter.recordAtBat(uiData)).rejects.toThrow(
+          'Missing required at-bat data: gameId, batterId, and result are required'
+        );
+      });
+
+      it('should reject missing result', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          batterId: 'player-1',
+          result: '',
+          runnerAdvances: [],
+        };
+
+        await expect(gameAdapter.recordAtBat(uiData)).rejects.toThrow(
+          'Missing required at-bat data: gameId, batterId, and result are required'
+        );
+      });
+
+      it('should reject missing runnerAdvances', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          batterId: 'player-1',
+          result: 'SINGLE',
+          runnerAdvances: undefined as unknown as UIRunnerAdvanceData[],
+        };
+
+        await expect(gameAdapter.recordAtBat(uiData)).rejects.toThrow(
+          'Runner advances must be an array (can be empty)'
+        );
+      });
+
+      it('should reject non-array runnerAdvances', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          batterId: 'player-1',
+          result: 'SINGLE',
+          runnerAdvances: 'not an array' as unknown as UIRunnerAdvanceData[],
+        };
+
+        await expect(gameAdapter.recordAtBat(uiData)).rejects.toThrow(
+          'Runner advances must be an array (can be empty)'
+        );
+      });
+    });
+
+    describe('substitutePlayer validation', () => {
+      it('should reject missing gameId', async () => {
+        const uiData = {
+          gameId: '',
+          outgoingPlayerId: 'player-1',
+          incomingPlayerId: 'player-2',
+          newPosition: 'RF',
+        };
+
+        await expect(gameAdapter.substitutePlayer(uiData)).rejects.toThrow(
+          'Missing required substitution data: gameId, outgoingPlayerId, incomingPlayerId, and newPosition are required'
+        );
+      });
+
+      it('should reject missing outgoingPlayerId', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          outgoingPlayerId: '',
+          incomingPlayerId: 'player-2',
+          newPosition: 'RF',
+        };
+
+        await expect(gameAdapter.substitutePlayer(uiData)).rejects.toThrow(
+          'Missing required substitution data: gameId, outgoingPlayerId, incomingPlayerId, and newPosition are required'
+        );
+      });
+
+      it('should reject missing incomingPlayerId', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          outgoingPlayerId: 'player-1',
+          incomingPlayerId: '',
+          newPosition: 'RF',
+        };
+
+        await expect(gameAdapter.substitutePlayer(uiData)).rejects.toThrow(
+          'Missing required substitution data: gameId, outgoingPlayerId, incomingPlayerId, and newPosition are required'
+        );
+      });
+
+      it('should reject missing newPosition', async () => {
+        const uiData = {
+          gameId: 'game-1',
+          outgoingPlayerId: 'player-1',
+          incomingPlayerId: 'player-2',
+          newPosition: '',
+        };
+
+        await expect(gameAdapter.substitutePlayer(uiData)).rejects.toThrow(
+          'Missing required substitution data: gameId, outgoingPlayerId, incomingPlayerId, and newPosition are required'
+        );
+      });
+    });
+
+    describe('undoLastAction validation', () => {
+      it('should reject missing gameId', async () => {
+        const uiData = {
+          gameId: '',
+        };
+
+        await expect(gameAdapter.undoLastAction(uiData)).rejects.toThrow(
+          'Missing required undo data: gameId is required'
+        );
+      });
+    });
+
+    describe('redoLastAction validation', () => {
+      it('should reject missing gameId', async () => {
+        const uiData = {
+          gameId: '',
+        };
+
+        await expect(gameAdapter.redoLastAction(uiData)).rejects.toThrow(
+          'Missing required redo data: gameId is required'
+        );
+      });
+    });
+
+    describe('endInning validation', () => {
+      it('should reject missing gameId', async () => {
+        const uiData = {
+          gameId: '',
+        };
+
+        await expect(gameAdapter.endInning(uiData)).rejects.toThrow(
+          'Missing required end inning data: gameId is required'
+        );
+      });
+    });
+  });
+
+  describe('Data Transformation', () => {
+    describe('recordAtBat runner advance conversion', () => {
+      it('should convert runner advances with different base numbers', async () => {
+        const mockResult: AtBatResult = {
+          success: true,
+          gameState: {} as GameStateDTO,
+          runsScored: 0,
+          rbiAwarded: 0,
+          inningEnded: false,
+          gameEnded: false,
+        };
+
+        (
+          mockRecordAtBat.execute as MockedFunction<typeof mockRecordAtBat.execute>
+        ).mockResolvedValue(mockResult);
+
+        const uiData = {
+          gameId: 'game-1',
+          batterId: 'player-1',
+          result: 'TRIPLE',
+          runnerAdvances: [
+            { runnerId: 'runner-1', fromBase: 1, toBase: 2 }, // First to second
+            { runnerId: 'runner-2', fromBase: 2, toBase: 3 }, // Second to third
+            { runnerId: 'runner-3', fromBase: 3, toBase: 0 }, // Third to home
+            { runnerId: 'runner-4', fromBase: 1, toBase: -1 }, // First to out (invalid toBase)
+          ],
+        };
+
+        await gameAdapter.recordAtBat(uiData);
+
+        expect(mockRecordAtBat.execute).toHaveBeenCalledWith(
+          expect.objectContaining({
+            runnerAdvances: [
+              expect.objectContaining({
+                playerId: expect.objectContaining({ value: 'runner-1' }),
+                fromBase: 'FIRST',
+                toBase: 'SECOND',
+                advanceReason: 'BATTED_BALL',
+              }),
+              expect.objectContaining({
+                playerId: expect.objectContaining({ value: 'runner-2' }),
+                fromBase: 'SECOND',
+                toBase: 'THIRD',
+                advanceReason: 'BATTED_BALL',
+              }),
+              expect.objectContaining({
+                playerId: expect.objectContaining({ value: 'runner-3' }),
+                fromBase: 'THIRD',
+                toBase: 'HOME',
+                advanceReason: 'BATTED_BALL',
+              }),
+              expect.objectContaining({
+                playerId: expect.objectContaining({ value: 'runner-4' }),
+                fromBase: 'FIRST',
+                toBase: 'OUT', // Invalid toBase converted to OUT
+                advanceReason: 'BATTED_BALL',
+              }),
+            ],
+          })
+        );
+      });
+
+      it('should convert runner advances with invalid fromBase numbers', async () => {
+        const mockResult: AtBatResult = {
+          success: true,
+          gameState: {} as GameStateDTO,
+          runsScored: 0,
+          rbiAwarded: 0,
+          inningEnded: false,
+          gameEnded: false,
+        };
+
+        (
+          mockRecordAtBat.execute as MockedFunction<typeof mockRecordAtBat.execute>
+        ).mockResolvedValue(mockResult);
+
+        const uiData = {
+          gameId: 'game-1',
+          batterId: 'player-1',
+          result: 'SINGLE',
+          runnerAdvances: [
+            { runnerId: 'runner-1', fromBase: 0, toBase: 1 }, // Invalid fromBase (home)
+            { runnerId: 'runner-2', fromBase: 4, toBase: 0 }, // Invalid fromBase (beyond third)
+            { runnerId: 'runner-3', fromBase: -1, toBase: 1 }, // Invalid fromBase (negative)
+          ],
+        };
+
+        await gameAdapter.recordAtBat(uiData);
+
+        expect(mockRecordAtBat.execute).toHaveBeenCalledWith(
+          expect.objectContaining({
+            runnerAdvances: [
+              expect.objectContaining({
+                playerId: expect.objectContaining({ value: 'runner-1' }),
+                fromBase: null, // Invalid fromBase converted to null
+                toBase: 'FIRST',
+                advanceReason: 'BATTED_BALL',
+              }),
+              expect.objectContaining({
+                playerId: expect.objectContaining({ value: 'runner-2' }),
+                fromBase: null, // Invalid fromBase converted to null
+                toBase: 'HOME',
+                advanceReason: 'BATTED_BALL',
+              }),
+              expect.objectContaining({
+                playerId: expect.objectContaining({ value: 'runner-3' }),
+                fromBase: null, // Invalid fromBase converted to null
+                toBase: 'FIRST',
+                advanceReason: 'BATTED_BALL',
+              }),
+            ],
+          })
+        );
+      });
+    });
+
+    describe('toUIGameState with missing data', () => {
+      it('should handle missing gameId', () => {
+        const applicationState = {
+          gameId: undefined,
+          status: 'IN_PROGRESS',
+          score: { home: 5, away: 3 },
+          currentInning: 7,
+          isTopHalf: false,
+          homeLineup: { teamName: 'Home Team' },
+          awayLineup: { teamName: 'Away Team' },
+        } as GameStateDTO;
+
+        const uiState = gameAdapter.toUIGameState(applicationState);
+
+        expect(uiState.gameId).toBe('');
+      });
+
+      it('should handle missing status', () => {
+        const applicationState = {
+          gameId: { value: 'game-1' },
+          status: undefined,
+          score: { home: 5, away: 3 },
+          currentInning: 7,
+          isTopHalf: false,
+          homeLineup: { teamName: 'Home Team' },
+          awayLineup: { teamName: 'Away Team' },
+        } as GameStateDTO;
+
+        const uiState = gameAdapter.toUIGameState(applicationState);
+
+        expect(uiState.status).toBe('');
+      });
+
+      it('should handle missing score', () => {
+        const applicationState = {
+          gameId: { value: 'game-1' },
+          status: 'IN_PROGRESS',
+          score: undefined,
+          currentInning: 7,
+          isTopHalf: false,
+          homeLineup: { teamName: 'Home Team' },
+          awayLineup: { teamName: 'Away Team' },
+        } as GameStateDTO;
+
+        const uiState = gameAdapter.toUIGameState(applicationState);
+
+        expect(uiState.score).toEqual({ home: 0, away: 0 });
+      });
+
+      it('should handle missing partial score data', () => {
+        const applicationState = {
+          gameId: { value: 'game-1' },
+          status: 'IN_PROGRESS',
+          score: { home: undefined, away: 3 } as unknown as { home: number; away: number },
+          currentInning: 7,
+          isTopHalf: false,
+          homeLineup: { teamName: 'Home Team' },
+          awayLineup: { teamName: 'Away Team' },
+        } as GameStateDTO;
+
+        const uiState = gameAdapter.toUIGameState(applicationState);
+
+        expect(uiState.score).toEqual({ home: 0, away: 3 });
+      });
+
+      it('should handle missing currentInning', () => {
+        const applicationState = {
+          gameId: { value: 'game-1' },
+          status: 'IN_PROGRESS',
+          score: { home: 5, away: 3 },
+          currentInning: undefined,
+          isTopHalf: false,
+          homeLineup: { teamName: 'Home Team' },
+          awayLineup: { teamName: 'Away Team' },
+        } as GameStateDTO;
+
+        const uiState = gameAdapter.toUIGameState(applicationState);
+
+        expect(uiState.inning.number).toBe(1);
+      });
+
+      it('should handle missing homeLineup', () => {
+        const applicationState = {
+          gameId: { value: 'game-1' },
+          status: 'IN_PROGRESS',
+          score: { home: 5, away: 3 },
+          currentInning: 7,
+          isTopHalf: false,
+          homeLineup: undefined,
+          awayLineup: { teamName: 'Away Team' },
+        } as GameStateDTO;
+
+        const uiState = gameAdapter.toUIGameState(applicationState);
+
+        expect(uiState.teams.home.name).toBe('');
+      });
+
+      it('should handle missing awayLineup', () => {
+        const applicationState = {
+          gameId: { value: 'game-1' },
+          status: 'IN_PROGRESS',
+          score: { home: 5, away: 3 },
+          currentInning: 7,
+          isTopHalf: false,
+          homeLineup: { teamName: 'Home Team' },
+          awayLineup: undefined,
+        } as GameStateDTO;
+
+        const uiState = gameAdapter.toUIGameState(applicationState);
+
+        expect(uiState.teams.away.name).toBe('');
+      });
+
+      it('should handle missing team names in lineups', () => {
+        const applicationState = {
+          gameId: { value: 'game-1' },
+          status: 'IN_PROGRESS',
+          score: { home: 5, away: 3 },
+          currentInning: 7,
+          isTopHalf: false,
+          homeLineup: { teamName: undefined } as unknown as {
+            teamName: string;
+            players: UIPlayerData[];
+          },
+          awayLineup: { teamName: undefined } as unknown as {
+            teamName: string;
+            players: UIPlayerData[];
+          },
+        } as GameStateDTO;
+
+        const uiState = gameAdapter.toUIGameState(applicationState);
+
+        expect(uiState.teams.home.name).toBe('');
+        expect(uiState.teams.away.name).toBe('');
+      });
+    });
+  });
+
+  describe('Complex Scenarios', () => {
+    it('should handle complex runner advancement scenarios', async () => {
+      const mockResult: AtBatResult = {
+        success: true,
+        gameState: {} as GameStateDTO,
+        runsScored: 2,
+        rbiAwarded: 2,
+        inningEnded: false,
+        gameEnded: false,
+      };
+
+      (mockRecordAtBat.execute as MockedFunction<typeof mockRecordAtBat.execute>).mockResolvedValue(
+        mockResult
+      );
+
+      const uiData = {
+        gameId: 'game-1',
+        batterId: 'batter-1',
+        result: 'DOUBLE',
+        runnerAdvances: [
+          { runnerId: 'runner-1', fromBase: 3, toBase: 0 }, // Third to home
+          { runnerId: 'runner-2', fromBase: 2, toBase: 0 }, // Second to home
+          { runnerId: 'runner-3', fromBase: 1, toBase: 3 }, // First to third
+          { runnerId: 'batter-1', fromBase: 0, toBase: 2 }, // Batter to second (fromBase 0 = null)
+        ],
+      };
+
+      const result = await gameAdapter.recordAtBat(uiData);
+
+      expect(mockRecordAtBat.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          runnerAdvances: [
+            expect.objectContaining({
+              playerId: expect.objectContaining({ value: 'runner-1' }),
+              fromBase: 'THIRD',
+              toBase: 'HOME',
+            }),
+            expect.objectContaining({
+              playerId: expect.objectContaining({ value: 'runner-2' }),
+              fromBase: 'SECOND',
+              toBase: 'HOME',
+            }),
+            expect.objectContaining({
+              playerId: expect.objectContaining({ value: 'runner-3' }),
+              fromBase: 'FIRST',
+              toBase: 'THIRD',
+            }),
+            expect.objectContaining({
+              playerId: expect.objectContaining({ value: 'batter-1' }),
+              fromBase: null, // fromBase 0 converted to null
+              toBase: 'SECOND',
+            }),
+          ],
+        })
+      );
+
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should handle logging errors for all operation types', async () => {
+      const error = new Error('Infrastructure failure');
+
+      // Test each operation type for error logging
+      const operations = [
+        {
+          method: 'undoLastAction',
+          uiData: { gameId: 'game-1' },
+          mock: mockUndoLastAction.execute,
+          logMessage: 'Game adapter: Failed to undo last action',
+        },
+        {
+          method: 'redoLastAction',
+          uiData: { gameId: 'game-1' },
+          mock: mockRedoLastAction.execute,
+          logMessage: 'Game adapter: Failed to redo last action',
+        },
+        {
+          method: 'endInning',
+          uiData: { gameId: 'game-1' },
+          mock: mockEndInning.execute,
+          logMessage: 'Game adapter: Failed to end inning',
+        },
+      ];
+
+      for (const operation of operations) {
+        vi.clearAllMocks();
+        (operation.mock as MockedFunction<unknown>).mockRejectedValue(error);
+
+        await expect(
+          (gameAdapter as Record<string, unknown>)[operation.method](operation.uiData)
+        ).rejects.toThrow('Infrastructure failure');
+
+        expect(mockLogger.error).toHaveBeenCalledWith(operation.logMessage, error, {
+          uiData: operation.uiData,
+        });
+      }
     });
   });
 });
