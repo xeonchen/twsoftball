@@ -20,5 +20,8 @@ export { GameId, PlayerId, JerseyNumber, TeamLineupId } from '@twsoftball/domain
 // Enums and Constants - Business rules exposed to presentation
 export { FieldPosition, AtBatResultType } from '@twsoftball/domain';
 
+// Error Classes - Domain errors for proper error handling in presentation
+export { DomainError } from '@twsoftball/domain';
+
 // Note: Complex domain entities (Game, TeamLineup, etc.) are intentionally NOT re-exported
 // as presentation layers should work with DTOs and commands, not domain objects directly

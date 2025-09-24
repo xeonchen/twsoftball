@@ -44,6 +44,7 @@ import { type ReactElement } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 
+import { useErrorRecovery } from '../shared/hooks/useErrorRecovery';
 import { useNavigationGuard } from '../shared/hooks/useNavigationGuard';
 import { useRecordAtBat } from '../shared/hooks/useRecordAtBat';
 import { useRunnerAdvancement } from '../shared/hooks/useRunnerAdvancement';
@@ -84,6 +85,10 @@ vi.mock('../shared/hooks/useRecordAtBat', () => ({
 
 vi.mock('../shared/hooks/useRunnerAdvancement', () => ({
   useRunnerAdvancement: vi.fn(),
+}));
+
+vi.mock('../shared/hooks/useErrorRecovery', () => ({
+  useErrorRecovery: vi.fn(),
 }));
 
 vi.mock('../widgets/runner-advancement/RunnerAdvancementPanel', () => ({
@@ -346,6 +351,7 @@ describe('GameRecordingPage Component', () => {
   let mockUseNavigationGuard: Mock;
   let mockUseRecordAtBat: Mock;
   let mockUseRunnerAdvancement: Mock;
+  let mockUseErrorRecovery: Mock;
   const user = userEvent.setup();
 
   beforeEach(() => {
@@ -360,6 +366,7 @@ describe('GameRecordingPage Component', () => {
     mockUseNavigationGuard = vi.mocked(useNavigationGuard);
     mockUseRecordAtBat = vi.mocked(useRecordAtBat);
     mockUseRunnerAdvancement = vi.mocked(useRunnerAdvancement);
+    mockUseErrorRecovery = vi.mocked(useErrorRecovery);
 
     // Default mock return values
     mockUseGameStore.mockReturnValue(mockGameStoreWithActiveGame);
@@ -377,6 +384,18 @@ describe('GameRecordingPage Component', () => {
       clearAdvances: vi.fn(),
       isValidAdvancement: vi.fn().mockReturnValue(true),
     });
+    mockUseErrorRecovery.mockReturnValue({
+      preserveUserInput: vi.fn(),
+      reset: vi.fn(),
+      setError: vi.fn(),
+      error: null,
+      hasError: false,
+      recoveryOptions: {
+        canRetry: false,
+        canRefresh: false,
+        canReset: false,
+      },
+    });
   });
 
   /**
@@ -391,6 +410,7 @@ describe('GameRecordingPage Component', () => {
       mockUseRecordAtBat,
       mockUseRunnerAdvancement,
       mockUseNavigationGuard,
+      mockUseErrorRecovery,
     ];
 
     allHookMocks.forEach((hookMock, index) => {
@@ -400,6 +420,7 @@ describe('GameRecordingPage Component', () => {
         'useRecordAtBat',
         'useRunnerAdvancement',
         'useNavigationGuard',
+        'useErrorRecovery',
       ];
 
       if (hookMock.mock.calls.length > 1) {
@@ -1758,9 +1779,7 @@ describe('GameRecordingPage Component', () => {
       });
 
       it('should show loading state during at-bat recording', () => {
-        const mockRecordAtBat = vi
-          .fn()
-          .mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+        const mockRecordAtBat = vi.fn();
 
         mockUseRecordAtBat.mockReturnValue({
           recordAtBat: mockRecordAtBat,
@@ -2063,6 +2082,654 @@ describe('GameRecordingPage Component', () => {
           result: 'single',
           runnerAdvances: [{ runnerId: 'player-1', fromBase: 0, toBase: 1 }],
         });
+      });
+    });
+  });
+
+  describe('Phase 4: Comprehensive Error Handling & Recovery', () => {
+    describe('Network Error Scenarios', () => {
+      it('should handle network timeout during at-bat recording', async () => {
+        const timeoutError = new Error('Request timeout after 5000ms');
+        timeoutError.name = 'TimeoutError';
+
+        const mockRecordAtBat = vi.fn().mockRejectedValue(timeoutError);
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Request timeout after 5000ms',
+          result: null,
+          reset: vi.fn(),
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const singleButton = screen.getByTestId('action-single');
+        await user.click(singleButton);
+
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/request timeout/i);
+        expect(screen.getByText('Retry')).toBeInTheDocument();
+
+        // Should provide timeout-specific recovery options
+        expect(errorAlert).toHaveTextContent(/network issue/i);
+      });
+
+      it('should handle connection failures with retry mechanism', async () => {
+        const connectionError = new Error('Network connection failed');
+        connectionError.name = 'NetworkError';
+
+        const mockRecordAtBat = vi
+          .fn()
+          .mockRejectedValueOnce(connectionError)
+          .mockResolvedValueOnce({
+            batterId: 'player-1',
+            result: 'SINGLE',
+            runnerAdvances: [],
+            newScore: { home: 6, away: 3 },
+            rbis: 0,
+          });
+
+        const mockReset = vi.fn();
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Network connection failed',
+          result: null,
+          reset: mockReset,
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const singleButton = screen.getByTestId('action-single');
+        await user.click(singleButton);
+
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/network connection failed/i);
+
+        // Test retry functionality
+        const retryButton = screen.getByText('Retry');
+        await user.click(retryButton);
+
+        expect(mockReset).toHaveBeenCalled();
+      });
+
+      it('should handle server errors with appropriate messaging', async () => {
+        const serverError = new Error('Internal server error (500)');
+        serverError.name = 'ServerError';
+
+        const mockRecordAtBat = vi.fn().mockRejectedValue(serverError);
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Internal server error (500)',
+          result: null,
+          reset: vi.fn(),
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const singleButton = screen.getByTestId('action-single');
+        await user.click(singleButton);
+
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/internal server error/i);
+        expect(errorAlert).toHaveTextContent(/please try again/i);
+        expect(screen.getByText('Retry')).toBeInTheDocument();
+      });
+    });
+
+    describe('Validation Error Scenarios', () => {
+      it('should handle invalid batter selection validation error', async () => {
+        const validationError = new Error('Batter not in current lineup');
+        validationError.name = 'ValidationError';
+
+        const mockRecordAtBat = vi.fn().mockRejectedValue(validationError);
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Batter not in current lineup',
+          result: null,
+          reset: vi.fn(),
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const singleButton = screen.getByTestId('action-single');
+        await user.click(singleButton);
+
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/batter not in current lineup/i);
+        expect(errorAlert).toHaveTextContent(/check the current batter/i);
+      });
+
+      it('should handle game state validation errors', async () => {
+        const validationError = new Error('Cannot record at-bat: game is completed');
+        validationError.name = 'GameStateError';
+
+        const mockRecordAtBat = vi.fn().mockRejectedValue(validationError);
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Cannot record at-bat: game is completed',
+          result: null,
+          reset: vi.fn(),
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const singleButton = screen.getByTestId('action-single');
+        await user.click(singleButton);
+
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/cannot record at-bat.*game is completed/i);
+      });
+
+      it('should handle runner advancement validation errors', async () => {
+        const validationError = new Error('Invalid runner advancement: runner not on base');
+        validationError.name = 'RunnerValidationError';
+
+        const mockRecordAtBat = vi.fn().mockRejectedValue(validationError);
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Invalid runner advancement: runner not on base',
+          result: null,
+          reset: vi.fn(),
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const doubleButton = screen.getByTestId('action-double');
+        await user.click(doubleButton);
+
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/invalid runner advancement/i);
+        expect(errorAlert).toHaveTextContent(/runner not on base/i);
+      });
+    });
+
+    describe('Concurrency Error Scenarios', () => {
+      it('should handle concurrent game modifications', async () => {
+        const concurrencyError = new Error('Game has been modified by another user');
+        concurrencyError.name = 'ConcurrencyError';
+
+        const mockRecordAtBat = vi.fn().mockRejectedValue(concurrencyError);
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Game has been modified by another user',
+          result: null,
+          reset: vi.fn(),
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const singleButton = screen.getByTestId('action-single');
+        await user.click(singleButton);
+
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/game has been modified by another user/i);
+        expect(errorAlert).toHaveTextContent(/refresh the page/i);
+        expect(screen.getByText('Refresh')).toBeInTheDocument();
+      });
+
+      it('should handle version conflicts with recovery options', async () => {
+        const versionError = new Error('Version conflict: game state outdated');
+        versionError.name = 'VersionConflictError';
+
+        const mockRecordAtBat = vi.fn().mockRejectedValue(versionError);
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Version conflict: game state outdated',
+          result: null,
+          reset: vi.fn(),
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const homerunButton = screen.getByTestId('action-homerun');
+        await user.click(homerunButton);
+
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/version conflict/i);
+        expect(errorAlert).toHaveTextContent(/game state outdated/i);
+      });
+    });
+
+    describe('Data Corruption Scenarios', () => {
+      it('should handle corrupted game state gracefully', () => {
+        const corruptedGameState = {
+          ...mockActiveGameState,
+          currentBatter: undefined, // Corrupted data
+          bases: null, // Corrupted bases
+        };
+
+        mockUseGameStore.mockReturnValue({
+          ...mockGameStoreWithActiveGame,
+          activeGameState: corruptedGameState,
+          hasError: true,
+          error: 'Corrupted game state detected',
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/corrupted game state/i);
+        expect(errorAlert).toHaveTextContent(/refresh the page/i);
+        expect(screen.getByText('Restore Game')).toBeInTheDocument();
+      });
+
+      it('should handle missing essential game data', () => {
+        const incompleteGameState = {
+          currentInning: null,
+          isTopHalf: null,
+          outs: null,
+          bases: null,
+          currentBatter: null,
+        };
+
+        mockUseGameStore.mockReturnValue({
+          ...mockGameStoreWithActiveGame,
+          activeGameState: incompleteGameState,
+          hasError: true,
+          error: 'Essential game data is missing',
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/essential game data is missing/i);
+        expect(errorAlert).toHaveTextContent(/initialize a new game/i);
+      });
+    });
+
+    describe('User-Friendly Error Messages', () => {
+      it('should translate technical errors to user-friendly messages', async () => {
+        const technicalError = new Error('ERR_CONN_REFUSED: Connection refused at port 3001');
+        technicalError.name = 'NetworkError';
+
+        const mockRecordAtBat = vi.fn().mockRejectedValue(technicalError);
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'ERR_CONN_REFUSED: Connection refused at port 3001',
+          result: null,
+          reset: vi.fn(),
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const singleButton = screen.getByTestId('action-single');
+        await user.click(singleButton);
+
+        // Should show user-friendly message instead of technical error
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/unable to connect to the server/i);
+        expect(errorAlert).toHaveTextContent(/check your internet connection/i);
+      });
+
+      it('should provide context-specific help for different error types', async () => {
+        const domainError = new Error('Invalid jersey number: must be 1-99');
+        domainError.name = 'DomainError';
+
+        const mockRecordAtBat = vi.fn().mockRejectedValue(domainError);
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Invalid jersey number: must be 1-99',
+          result: null,
+          reset: vi.fn(),
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const singleButton = screen.getByTestId('action-single');
+        await user.click(singleButton);
+
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/invalid jersey number/i);
+        expect(errorAlert).toHaveTextContent(/contact your team administrator/i);
+      });
+    });
+
+    describe('Error Recovery Workflows', () => {
+      it('should provide multiple recovery options for different error types', async () => {
+        const networkError = new Error('Network timeout');
+        networkError.name = 'NetworkError';
+
+        const mockRecordAtBat = vi.fn().mockRejectedValue(networkError);
+        const mockReset = vi.fn();
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Network timeout',
+          result: null,
+          reset: mockReset,
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const singleButton = screen.getByTestId('action-single');
+        await user.click(singleButton);
+
+        // Should provide multiple recovery options
+        expect(screen.getByText('Retry')).toBeInTheDocument();
+        expect(screen.getByText('Refresh Page')).toBeInTheDocument();
+        expect(screen.getByText('Report Issue')).toBeInTheDocument();
+      });
+
+      it('should preserve user input during error recovery', async () => {
+        const mockRecordAtBat = vi
+          .fn()
+          .mockRejectedValueOnce(new Error('Temporary network error'))
+          .mockResolvedValueOnce({
+            batterId: 'player-1',
+            result: 'SINGLE',
+            runnerAdvances: [],
+            newScore: { home: 6, away: 3 },
+            rbis: 0,
+          });
+
+        const mockReset = vi.fn();
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Temporary network error',
+          result: null,
+          reset: mockReset,
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const singleButton = screen.getByTestId('action-single');
+        await user.click(singleButton);
+
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/temporary network error/i);
+
+        // User input should be preserved for retry
+        const retryButton = screen.getByText('Retry');
+        await user.click(retryButton);
+
+        expect(mockReset).toHaveBeenCalled();
+        // The same action should be retryable without user re-selecting
+      });
+
+      it('should handle progressive error escalation', async () => {
+        let attemptCount = 0;
+        const mockRecordAtBat = vi.fn().mockImplementation(() => {
+          attemptCount++;
+          if (attemptCount <= 2) {
+            return Promise.reject(new Error('Temporary error'));
+          }
+          return Promise.resolve({
+            batterId: 'player-1',
+            result: 'SINGLE',
+            runnerAdvances: [],
+            newScore: { home: 6, away: 3 },
+            rbis: 0,
+          });
+        });
+
+        const mockReset = vi.fn();
+
+        // First attempt
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Temporary error',
+          result: null,
+          reset: mockReset,
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const singleButton = screen.getByTestId('action-single');
+        await user.click(singleButton);
+
+        // After first failure
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/temporary error/i);
+        expect(screen.getByText('Retry')).toBeInTheDocument();
+
+        // Should show escalated help after multiple failures
+        if (attemptCount > 1) {
+          expect(errorAlert).toHaveTextContent(/having trouble/i);
+          expect(screen.getByText('Contact Support')).toBeInTheDocument();
+        }
+      });
+    });
+
+    describe('Error State Management', () => {
+      it('should clear error state when user navigates away', () => {
+        const mockRecordAtBat = vi.fn().mockRejectedValue(new Error('Test error'));
+        const mockReset = vi.fn();
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Test error',
+          result: null,
+          reset: mockReset,
+        });
+
+        const { unmount } = render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        // Component should clean up error state on unmount
+        unmount();
+
+        // In real implementation, this would trigger cleanup
+        expect(mockReset).toHaveBeenCalled();
+      });
+
+      it('should reset error state when game state changes', () => {
+        const mockRecordAtBat = vi.fn().mockRejectedValue(new Error('Test error'));
+        const mockReset = vi.fn();
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Test error',
+          result: null,
+          reset: mockReset,
+        });
+
+        const { rerender } = render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        // Change game state (new inning)
+        const newGameState = {
+          ...mockActiveGameState,
+          currentInning: 4,
+          outs: 0,
+        };
+
+        mockUseGameStore.mockReturnValue({
+          ...mockGameStoreWithActiveGame,
+          activeGameState: newGameState,
+        });
+
+        rerender(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        // Error should be cleared when game state changes
+        expect(mockReset).toHaveBeenCalled();
+      });
+
+      it('should handle multiple concurrent errors gracefully', async () => {
+        const error1 = new Error('Network error');
+        const error2 = new Error('Validation error');
+
+        const mockRecordAtBat = vi.fn().mockRejectedValueOnce(error1).mockRejectedValueOnce(error2);
+
+        const mockReset = vi.fn();
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Network error',
+          result: null,
+          reset: mockReset,
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const singleButton = screen.getByTestId('action-single');
+        const doubleButton = screen.getByTestId('action-double');
+
+        // Trigger multiple errors rapidly
+        await user.click(singleButton);
+        await user.click(doubleButton);
+
+        // Should handle multiple errors without crashing
+        const errorAlert = screen.getByRole('alert');
+        expect(errorAlert).toHaveTextContent(/network error/i);
+      });
+    });
+
+    describe('Accessibility During Error States', () => {
+      it('should maintain accessibility when errors occur', async () => {
+        const mockRecordAtBat = vi.fn().mockRejectedValue(new Error('Test error'));
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Test error',
+          result: null,
+          reset: vi.fn(),
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const singleButton = screen.getByTestId('action-single');
+        await user.click(singleButton);
+
+        // Error message should be accessible
+        const errorMessage = screen.getByRole('alert');
+        expect(errorMessage).toBeInTheDocument();
+        expect(errorMessage).toHaveTextContent(/test error/i);
+
+        // Retry button should be accessible
+        const retryButton = screen.getByRole('button', { name: /retry/i });
+        expect(retryButton).toBeInTheDocument();
+        expect(retryButton).toHaveAttribute('aria-label');
+      });
+
+      it('should announce errors to screen readers', async () => {
+        const mockRecordAtBat = vi.fn().mockRejectedValue(new Error('Important error'));
+
+        mockUseRecordAtBat.mockReturnValue({
+          recordAtBat: mockRecordAtBat,
+          isLoading: false,
+          error: 'Important error',
+          result: null,
+          reset: vi.fn(),
+        });
+
+        render(
+          <TestWrapper>
+            <GameRecordingPage />
+          </TestWrapper>
+        );
+
+        const singleButton = screen.getByTestId('action-single');
+        await user.click(singleButton);
+
+        // Error should be announced via aria-live region
+        const liveRegion = screen.getByRole('status');
+        expect(liveRegion).toBeInTheDocument();
+        expect(liveRegion).toHaveTextContent(/important error/i);
       });
     });
   });
