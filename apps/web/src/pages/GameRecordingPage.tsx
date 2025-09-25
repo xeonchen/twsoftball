@@ -1,5 +1,12 @@
 import { AtBatResultType } from '@twsoftball/application';
-import { type ReactElement, useState, useCallback, useEffect, type ErrorInfo } from 'react';
+import {
+  type ReactElement,
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  type ErrorInfo,
+} from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 import { useErrorRecovery } from '../shared/hooks/useErrorRecovery';
@@ -9,6 +16,7 @@ import { useRunnerAdvancement } from '../shared/hooks/useRunnerAdvancement';
 import { useGameStore } from '../shared/lib/store/gameStore';
 import { useUIStore } from '../shared/lib/store/uiStore';
 import { Button } from '../shared/ui/button';
+import { debounce } from '../shared/utils/debounce';
 import { ErrorBoundary } from '../widgets/error-boundary';
 import { RunnerAdvancementPanel } from '../widgets/runner-advancement/RunnerAdvancementPanel';
 
@@ -34,7 +42,7 @@ export function GameRecordingPage(): ReactElement {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
   const { currentGame, activeGameState, isGameActive, updateScore } = useGameStore();
-  const { showNavigationWarning } = useUIStore();
+  const { showNavigationWarning, showInfo } = useUIStore();
 
   // Browser navigation protection
   useNavigationGuard(
@@ -235,9 +243,9 @@ export function GameRecordingPage(): ReactElement {
   );
 
   /**
-   * Handle action button clicks with integration logic
+   * Handle action button clicks with integration logic (internal implementation)
    */
-  const handleAction = useCallback(
+  const handleActionInternal = useCallback(
     async (actionType: string): Promise<void> => {
       // Action recording started
       // eslint-disable-next-line no-console -- Development action logging
@@ -275,6 +283,21 @@ export function GameRecordingPage(): ReactElement {
       getAutomaticAdvances,
     ]
   );
+
+  /**
+   * Debounced version of handleAction to prevent rapid-fire button clicks
+   * Performance target: 100ms debounce to prevent duplicate submissions
+   */
+  const handleAction = useMemo(() => {
+    return debounce(handleActionInternal as (...args: unknown[]) => unknown, 100);
+  }, [handleActionInternal]);
+
+  // Cleanup debounced function on component unmount
+  useEffect(() => {
+    return (): void => {
+      handleAction.cancel();
+    };
+  }, [handleAction]);
 
   /**
    * Handle completion of runner advancement
@@ -317,18 +340,16 @@ export function GameRecordingPage(): ReactElement {
    * Handle undo action (placeholder for future undo/redo hook integration)
    */
   const handleUndo = (): void => {
-    // TODO: Integrate with useUndoRedo hook when available
-    // eslint-disable-next-line no-console -- Development placeholder logging
-    console.log('Undo last action');
+    // Show user-friendly notification for upcoming feature
+    showInfo('Undo functionality will be available in the next release', 'Feature Coming Soon');
   };
 
   /**
    * Handle redo action (placeholder for future undo/redo hook integration)
    */
   const handleRedo = (): void => {
-    // TODO: Integrate with useUndoRedo hook when available
-    // eslint-disable-next-line no-console -- Development placeholder logging
-    console.log('Redo last action');
+    // Show user-friendly notification for upcoming feature
+    showInfo('Redo functionality will be available in the next release', 'Feature Coming Soon');
   };
 
   /**

@@ -178,6 +178,10 @@ vi.mock('../shared/api/mappers', () => ({
 vi.mock('@twsoftball/infrastructure/web', () => ({}));
 vi.mock('@twsoftball/infrastructure/memory', () => ({}));
 
+// Global debounce mock removed - using selective mocking per test file instead
+// This allows debounce utility tests to test the real implementation
+// while component tests can use mocked versions as needed
+
 // Mock interfaces for proper typing
 interface MockUseCases {
   startNewGame: { execute: ReturnType<typeof vi.fn> };

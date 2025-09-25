@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { type ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
+import { vi } from 'vitest';
 
 import { AppRouter } from './router';
 
@@ -62,14 +63,19 @@ describe('Enhanced Router Configuration', () => {
       expect(screen.getByTestId('home-page')).toBeInTheDocument();
     });
 
-    it('should render settings route correctly', () => {
+    it('should render settings route correctly', async () => {
       render(
         <MemoryRouter initialEntries={['/settings']}>
           <AppRouter />
         </MemoryRouter>
       );
 
-      expect(screen.getByTestId('settings-page')).toBeInTheDocument();
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('settings-page')).toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
     });
 
     it('should render not found page for invalid routes', () => {
@@ -84,56 +90,81 @@ describe('Enhanced Router Configuration', () => {
   });
 
   describe('Game Setup Wizard Routes', () => {
-    it('should handle teams setup route', () => {
+    it('should handle teams setup route', async () => {
       render(
         <MemoryRouter initialEntries={['/game/setup/teams']}>
           <AppRouter />
         </MemoryRouter>
       );
 
-      expect(screen.getByTestId('game-setup-teams-page')).toBeInTheDocument();
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('game-setup-teams-page')).toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
     });
 
-    it('should handle lineup setup route', () => {
+    it('should handle lineup setup route', async () => {
       render(
         <MemoryRouter initialEntries={['/game/setup/lineup']}>
           <AppRouter />
         </MemoryRouter>
       );
 
-      expect(screen.getByTestId('game-setup-lineup-page')).toBeInTheDocument();
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('game-setup-lineup-page')).toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
     });
 
-    it('should handle confirm setup route', () => {
+    it('should handle confirm setup route', async () => {
       render(
         <MemoryRouter initialEntries={['/game/setup/confirm']}>
           <AppRouter />
         </MemoryRouter>
       );
 
-      expect(screen.getByTestId('game-setup-confirm-page')).toBeInTheDocument();
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('game-setup-confirm-page')).toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
     });
   });
 
   describe('Game Recording Routes', () => {
-    it('should handle game recording route with game ID', () => {
+    it('should handle game recording route with game ID', async () => {
       render(
         <MemoryRouter initialEntries={['/game/test-game-id/record']}>
           <AppRouter />
         </MemoryRouter>
       );
 
-      expect(screen.getByTestId('game-recording-page')).toBeInTheDocument();
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('game-recording-page')).toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
     });
 
-    it('should handle game stats route with game ID', () => {
+    it('should handle game stats route with game ID', async () => {
       render(
         <MemoryRouter initialEntries={['/game/test-game-id/stats']}>
           <AppRouter />
         </MemoryRouter>
       );
 
-      expect(screen.getByTestId('game-stats-page')).toBeInTheDocument();
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('game-stats-page')).toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
     });
 
     it('should handle different game IDs correctly', () => {

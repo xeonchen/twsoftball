@@ -65,5 +65,21 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor libraries chunk - largest dependencies
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          // UI libraries chunk - component libraries
+          ui: ['@headlessui/react', '@tanstack/react-query'],
+          // Form and validation libraries chunk
+          forms: ['react-hook-form', '@hookform/resolvers', 'zod'],
+          // Utility libraries chunk
+          utils: ['clsx', 'tailwind-merge', 'uuid', 'zustand'],
+          // PWA and service worker chunk
+          pwa: ['workbox-window'],
+        },
+      },
+    },
   },
 });

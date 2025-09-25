@@ -14,7 +14,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run --config vitest.config.ts --exclude '**/*.perf.test.{ts,tsx}'",
     "test:watch": "vitest --config vitest.config.ts --exclude '**/*.perf.test.{ts,tsx}'",
-    "test:coverage": "vitest --config vitest.config.ts --coverage --exclude '**/*.perf.test.{ts,tsx}'",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage --exclude '**/*.perf.test.{ts,tsx}'",
     "test:perf": "vitest run --config vitest.config.ts --reporter=verbose src/test/performance/**/*.perf.test.*",
     "test:all": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit"
