@@ -2,28 +2,28 @@ import { ReactNode, type ReactElement, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 // Eager load essential pages for immediate navigation
-import { HomePage } from '../../pages/HomePage';
-import { NotFoundPage } from '../../pages/NotFoundPage';
+import { HomePage } from '../../pages/home';
+import { NotFoundPage } from '../../pages/not-found';
 
 // Lazy load large and less frequently used pages
-const GamePage = lazy(() => import('../../pages/GamePage').then(m => ({ default: m.GamePage })));
+const GamePage = lazy(() => import('../../pages/game').then(m => ({ default: m.GamePage })));
 const GameRecordingPage = lazy(() =>
-  import('../../pages/GameRecordingPage').then(m => ({ default: m.GameRecordingPage }))
+  import('../../pages/game-recording').then(m => ({ default: m.GameRecordingPage }))
 );
 const GameSetupConfirmPage = lazy(() =>
-  import('../../pages/GameSetupConfirmPage').then(m => ({ default: m.GameSetupConfirmPage }))
+  import('../../pages/game-setup').then(m => ({ default: m.GameSetupConfirmPage }))
 );
 const GameSetupLineupPage = lazy(() =>
-  import('../../pages/GameSetupLineupPage').then(m => ({ default: m.GameSetupLineupPage }))
+  import('../../pages/game-setup').then(m => ({ default: m.GameSetupLineupPage }))
 );
 const GameSetupTeamsPage = lazy(() =>
-  import('../../pages/GameSetupTeamsPage').then(m => ({ default: m.GameSetupTeamsPage }))
+  import('../../pages/game-setup').then(m => ({ default: m.GameSetupTeamsPage }))
 );
 const GameStatsPage = lazy(() =>
-  import('../../pages/GameStatsPage').then(m => ({ default: m.GameStatsPage }))
+  import('../../pages/game-stats').then(m => ({ default: m.GameStatsPage }))
 );
 const SettingsPage = lazy(() =>
-  import('../../pages/SettingsPage').then(m => ({ default: m.SettingsPage }))
+  import('../../pages/settings').then(m => ({ default: m.SettingsPage }))
 );
 
 /**

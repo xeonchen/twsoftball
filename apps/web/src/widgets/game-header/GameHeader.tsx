@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
-import { useTimerManager } from '../../shared/hooks/useTimerManager';
+import { useTimerManager } from '../../shared/lib/hooks/useTimerManager';
 
 /**
  * Props interface for GameHeader component

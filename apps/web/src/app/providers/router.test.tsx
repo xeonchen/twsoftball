@@ -6,48 +6,48 @@ import { vi } from 'vitest';
 import { AppRouter } from './router';
 
 // Mock the route components since we're just testing routing logic
-vi.mock('../../pages/HomePage', () => ({
+vi.mock('../../pages/home/HomePage', () => ({
   HomePage: (): ReactElement => <div data-testid="home-page">Home Page</div>,
 }));
 
-vi.mock('../../pages/GamePage', () => ({
+vi.mock('../../pages/game/GamePage', () => ({
   GamePage: (): ReactElement => <div data-testid="game-page">Game Page</div>,
 }));
 
-vi.mock('../../pages/NotFoundPage', () => ({
+vi.mock('../../pages/not-found/NotFoundPage', () => ({
   NotFoundPage: (): ReactElement => <div data-testid="not-found-page">Page Not Found</div>,
 }));
 
 // Mock new page components for Phase 2
-vi.mock('../../pages/SettingsPage', () => ({
+vi.mock('../../pages/settings/SettingsPage', () => ({
   SettingsPage: (): ReactElement => <div data-testid="settings-page">Settings Page</div>,
 }));
 
-vi.mock('../../pages/GameSetupTeamsPage', () => ({
+vi.mock('../../pages/game-setup/GameSetupTeamsPage', () => ({
   GameSetupTeamsPage: (): ReactElement => (
     <div data-testid="game-setup-teams-page">Game Setup Teams</div>
   ),
 }));
 
-vi.mock('../../pages/GameSetupLineupPage', () => ({
+vi.mock('../../pages/game-setup/GameSetupLineupPage', () => ({
   GameSetupLineupPage: (): ReactElement => (
     <div data-testid="game-setup-lineup-page">Game Setup Lineup</div>
   ),
 }));
 
-vi.mock('../../pages/GameSetupConfirmPage', () => ({
+vi.mock('../../pages/game-setup/GameSetupConfirmPage', () => ({
   GameSetupConfirmPage: (): ReactElement => (
     <div data-testid="game-setup-confirm-page">Game Setup Confirm</div>
   ),
 }));
 
-vi.mock('../../pages/GameRecordingPage', () => ({
+vi.mock('../../pages/game-recording/GameRecordingPage', () => ({
   GameRecordingPage: (): ReactElement => (
     <div data-testid="game-recording-page">Game Recording Page</div>
   ),
 }));
 
-vi.mock('../../pages/GameStatsPage', () => ({
+vi.mock('../../pages/game-stats/GameStatsPage', () => ({
   GameStatsPage: (): ReactElement => <div data-testid="game-stats-page">Game Stats Page</div>,
 }));
 

@@ -29,6 +29,9 @@
  * ```
  */
 
-// Hooks and related types
-export { useGameSetup } from './hooks';
-export type { ValidationErrors, UseGameSetupReturn } from './hooks';
+// Hooks and related types (from model layer)
+export { useGameSetup } from './model';
+export type { ValidationErrors, UseGameSetupReturn } from './model';
+
+// Validation utilities (from lib layer)
+export * from './lib';

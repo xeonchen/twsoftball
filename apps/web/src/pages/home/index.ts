@@ -1,2 +1,2 @@
-// Placeholder for home page
-export {};
+export { HomePage } from './HomePage';
+export { HomePage as default } from './HomePage';

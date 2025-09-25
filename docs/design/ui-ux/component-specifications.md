@@ -743,7 +743,7 @@ interface VirtualListProps {
 
 #### Performance Hook
 
-- **File**: `/apps/web/src/shared/hooks/usePerformanceOptimization.ts`
+- **File**: `/apps/web/src/shared/lib/hooks/usePerformanceOptimization.ts`
 - **Purpose**: Centralized performance management with debouncing and memory
   monitoring
 - **Features**: Configurable debounce delays, memory pressure detection, bundle
