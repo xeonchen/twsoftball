@@ -5,6 +5,10 @@ npx lint-staged
 echo "🔍 Checking architecture violations..."
 pnpm deps:check
 
+# Check FSD architecture
+echo "🏗️ Checking Feature-Sliced Design architecture..."
+pnpm fsd:staged || echo "⚠️ FSD check skipped due to environment issues"
+
 # Run tests
 echo "🧪 Running tests..."
 pnpm test

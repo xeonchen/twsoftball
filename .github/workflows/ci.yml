@@ -149,6 +149,49 @@ jobs:
       - name: Check architecture violations
         run: pnpm deps:check
 
+  fsd-architecture:
+    runs-on: ubuntu-latest
+    name: FSD Architecture Check
+    timeout-minutes: 5
+    needs: [setup]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Restore pnpm store
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+
+      - name: Restore dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            apps/*/node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Check Feature-Sliced Design architecture
+        run: pnpm fsd:check
+
   security-audit:
     runs-on: ubuntu-latest
     name: Security Audit
@@ -249,7 +292,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Test & Coverage
     timeout-minutes: 15
-    needs: [setup, lint, architecture]
+    needs: [setup, lint, architecture, fsd-architecture]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
