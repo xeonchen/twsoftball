@@ -17,6 +17,8 @@
 
 import { useState, useCallback, useRef, useEffect, useReducer } from 'react';
 
+import { useTimerManager } from './useTimerManager';
+
 /**
  * Web layer ValidationError interface (no dependency on application layer)
  * Property-based detection instead of instanceof checks
@@ -352,6 +354,8 @@ function errorRecoveryReducer(
  * Comprehensive error handling and recovery hook
  */
 export const useErrorRecovery = (): UseErrorRecoveryReturn => {
+  const timers = useTimerManager();
+
   // Use reducer for atomic state management
   const [state, dispatch] = useReducer(errorRecoveryReducer, initialErrorRecoveryState);
 
@@ -476,12 +480,12 @@ export const useErrorRecovery = (): UseErrorRecoveryReturn => {
           // Exponential backoff delay - avoid fake timer issues
           const delay = initialDelay * Math.pow(backoffMultiplier, currentAttempt - 1);
           if (delay > 0) {
-            await new Promise(resolve => setTimeout(resolve, delay));
+            await new Promise(resolve => timers.setTimeout(() => resolve(undefined), delay));
           }
         }
       }
     },
-    []
+    [timers]
   );
 
   /**
@@ -492,7 +496,7 @@ export const useErrorRecovery = (): UseErrorRecoveryReturn => {
       const { timeout = 5000 } = options;
 
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
+        timers.setTimeout(() => {
           const timeoutError = new Error(`Operation timed out after ${timeout}ms`);
           timeoutError.name = 'TimeoutError';
           reject(timeoutError);
@@ -507,7 +511,7 @@ export const useErrorRecovery = (): UseErrorRecoveryReturn => {
         throw error;
       }
     },
-    []
+    [timers]
   );
 
   /**

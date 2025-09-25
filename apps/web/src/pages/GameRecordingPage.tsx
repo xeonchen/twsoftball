@@ -13,6 +13,7 @@ import { useErrorRecovery } from '../shared/hooks/useErrorRecovery';
 import { useNavigationGuard } from '../shared/hooks/useNavigationGuard';
 import { useRecordAtBat } from '../shared/hooks/useRecordAtBat';
 import { useRunnerAdvancement } from '../shared/hooks/useRunnerAdvancement';
+import { useTimerManager } from '../shared/hooks/useTimerManager';
 import { useGameStore } from '../shared/lib/store/gameStore';
 import { useUIStore } from '../shared/lib/store/uiStore';
 import { Button } from '../shared/ui/button';
@@ -43,6 +44,7 @@ export function GameRecordingPage(): ReactElement {
   const navigate = useNavigate();
   const { currentGame, activeGameState, isGameActive, updateScore } = useGameStore();
   const { showNavigationWarning, showInfo } = useUIStore();
+  const timers = useTimerManager();
 
   // Browser navigation protection
   useNavigationGuard(
@@ -360,7 +362,7 @@ export function GameRecordingPage(): ReactElement {
       // Show RBI notification if applicable
       if (result.rbiAwarded && result.rbiAwarded > 0) {
         setRbiNotification(result.rbiAwarded);
-        setTimeout(() => setRbiNotification(null), 3000); // Hide after 3 seconds
+        timers.setTimeout(() => setRbiNotification(null), 3000); // Hide after 3 seconds
       }
 
       // Update game state through store
@@ -374,7 +376,7 @@ export function GameRecordingPage(): ReactElement {
       // Reset recording state
       reset();
     }
-  }, [result, reset, updateScore]);
+  }, [result, reset, updateScore, timers]);
 
   /**
    * Handle retry after error with enhanced recovery

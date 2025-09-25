@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, type ReactElement } from 'reac
 import { useNavigate } from 'react-router-dom';
 
 import { validateTeamNames, type TeamValidationResult } from '../features/game-setup/validation';
+import { useTimerManager } from '../shared/hooks/useTimerManager';
 import { useGameStore } from '../shared/lib/store/gameStore';
 import { Button } from '../shared/ui/button';
 import { Input } from '../shared/ui/input';
@@ -25,6 +26,7 @@ import { Input } from '../shared/ui/input';
 export function GameSetupTeamsPage(): ReactElement {
   const navigate = useNavigate();
   const { setupWizard, setTeams } = useGameStore();
+  const timers = useTimerManager();
 
   // Local form state
   const [homeTeam, setHomeTeam] = useState(setupWizard.teams.home);
@@ -117,9 +119,9 @@ export function GameSetupTeamsPage(): ReactElement {
    * Debounced validation effect
    */
   useEffect(() => {
-    const timeoutId = setTimeout(validateTeams, 300);
-    return (): void => window.clearTimeout(timeoutId);
-  }, [validateTeams]);
+    const timeoutId = timers.setTimeout(validateTeams, 300);
+    return (): void => timers.clearTimeout(timeoutId);
+  }, [validateTeams, timers]);
 
   /**
    * Check if form is valid
@@ -189,11 +191,11 @@ export function GameSetupTeamsPage(): ReactElement {
    * Handle input blur with delay to allow suggestion clicks (memoized for performance)
    */
   const handleInputBlur = useCallback((): void => {
-    setTimeout(() => {
+    timers.setTimeout(() => {
       setShowSuggestions(false);
       setFocusedInput(null);
     }, 200);
-  }, []);
+  }, [timers]);
 
   /**
    * Handle back navigation

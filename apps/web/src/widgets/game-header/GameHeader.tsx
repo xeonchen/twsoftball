@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
+import { useTimerManager } from '../../shared/hooks/useTimerManager';
+
 /**
  * Props interface for GameHeader component
  */
@@ -97,31 +99,28 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
   'aria-label': ariaLabel,
   className = '',
 }) => {
+  const timers = useTimerManager();
   const [animateHomeScore, setAnimateHomeScore] = useState(false);
   const [animateAwayScore, setAnimateAwayScore] = useState(false);
   const [prevHomeScore, setPrevHomeScore] = useState(homeScore);
   const [prevAwayScore, setPrevAwayScore] = useState(awayScore);
 
   // Animate score changes
-  useEffect((): (() => void) => {
+  useEffect(() => {
     if (homeScore !== prevHomeScore) {
       setAnimateHomeScore(true);
       setPrevHomeScore(homeScore);
-      const timer = setTimeout((): void => setAnimateHomeScore(false), 1000);
-      return (): void => window.clearTimeout(timer);
+      timers.setTimeout(() => setAnimateHomeScore(false), 1000);
     }
-    return (): void => {}; // Explicit return for else case
-  }, [homeScore, prevHomeScore]);
+  }, [homeScore, prevHomeScore, timers]);
 
-  useEffect((): (() => void) => {
+  useEffect(() => {
     if (awayScore !== prevAwayScore) {
       setAnimateAwayScore(true);
       setPrevAwayScore(awayScore);
-      const timer = setTimeout((): void => setAnimateAwayScore(false), 1000);
-      return (): void => window.clearTimeout(timer);
+      timers.setTimeout(() => setAnimateAwayScore(false), 1000);
     }
-    return (): void => {}; // Explicit return for else case
-  }, [awayScore, prevAwayScore]);
+  }, [awayScore, prevAwayScore, timers]);
 
   // Helper function to format ordinal numbers
   const getOrdinalSuffix = (num: number): string => {

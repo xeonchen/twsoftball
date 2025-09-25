@@ -10,6 +10,7 @@ import {
   type FieldPositionValidationResult,
   type LineupValidationResult,
 } from '../features/game-setup/validation/domainValidation';
+import { useTimerManager } from '../shared/hooks/useTimerManager';
 import { useGameStore, type Player } from '../shared/lib/store/gameStore';
 import { Button } from '../shared/ui/button';
 
@@ -212,6 +213,7 @@ const AvailablePlayerItem = memo(function AvailablePlayerItem({
 export function GameSetupLineupPage(): ReactElement {
   const navigate = useNavigate();
   const { setupWizard, setLineup } = useGameStore();
+  const timers = useTimerManager();
 
   /**
    * Generate empty lineup slots (memoized to prevent recreating on every render)
@@ -334,7 +336,7 @@ export function GameSetupLineupPage(): ReactElement {
       } as Player;
       setLocalLineup(newLineup);
       if (realTimeValidation) {
-        setTimeout(() => {
+        timers.setTimeout(() => {
           const result = validateFieldPosition(newPosition);
           setPositionValidations(prev => {
             const newValidations = [...prev];
@@ -347,7 +349,7 @@ export function GameSetupLineupPage(): ReactElement {
         }, 300);
       }
     },
-    [lineup, realTimeValidation]
+    [lineup, realTimeValidation, timers]
   );
 
   /**
@@ -362,13 +364,13 @@ export function GameSetupLineupPage(): ReactElement {
       } as Player;
       setLocalLineup(newLineup);
       if (realTimeValidation) {
-        setTimeout(() => {
+        timers.setTimeout(() => {
           const result = validateLineup(newLineup);
           setLineupValidation(result);
         }, 300);
       }
     },
-    [lineup, realTimeValidation]
+    [lineup, realTimeValidation, timers]
   );
 
   /**
@@ -383,7 +385,7 @@ export function GameSetupLineupPage(): ReactElement {
       } as Player;
       setLocalLineup(newLineup);
       if (realTimeValidation) {
-        setTimeout(() => {
+        timers.setTimeout(() => {
           const usedJerseys = newLineup
             .filter((_, i) => i !== playerIndex)
             .map(p => p.jerseyNumber)
@@ -401,7 +403,7 @@ export function GameSetupLineupPage(): ReactElement {
         }, 300);
       }
     },
-    [lineup, realTimeValidation]
+    [lineup, realTimeValidation, timers]
   );
 
   /**
@@ -463,7 +465,7 @@ export function GameSetupLineupPage(): ReactElement {
    */
   const handleJerseyBlur = (): void => {
     // Delay hiding suggestions to allow clicking on them
-    setTimeout(() => {
+    timers.setTimeout(() => {
       setFocusedJerseyInput(null);
       setShowJerseySuggestions(false);
     }, 200);

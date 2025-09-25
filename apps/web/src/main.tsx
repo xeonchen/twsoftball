@@ -5,6 +5,7 @@ import { registerSW } from 'virtual:pwa-register';
 
 import { App } from './app';
 import './index.css';
+import { timerManager, setupTimerCleanup } from './timer-manager';
 
 // Add TypeScript types for PWA events
 declare global {
@@ -17,6 +18,9 @@ declare global {
     prompt(): Promise<void>;
   }
 }
+
+// Initialize timer cleanup handlers
+setupTimerCleanup();
 
 registerSW({
   onNeedRefresh() {
@@ -101,7 +105,7 @@ function showUpdateNotification(): void {
   });
 
   // Auto-dismiss after 10 seconds if no action
-  setTimeout(() => {
+  timerManager.setTimeout(() => {
     const notification = document.getElementById('update-notification');
     if (notification) {
       notification.remove();
@@ -136,12 +140,12 @@ function showOfflineReadyNotification(): void {
   document.body.appendChild(offlineNotification);
 
   // Auto-dismiss after 5 seconds
-  setTimeout(() => {
+  timerManager.setTimeout(() => {
     const notification = document.getElementById('offline-notification');
     if (notification) {
       notification.style.transition = 'opacity 0.3s ease';
       notification.style.opacity = '0';
-      setTimeout(() => notification.remove(), 300);
+      timerManager.setTimeout(() => notification.remove(), 300);
     }
   }, 5000);
 }
@@ -161,7 +165,7 @@ function showInstallPrompt(): void {
     deferredPrompt = e as BeforeInstallPromptEvent;
 
     // Show custom install prompt after a delay
-    setTimeout(() => {
+    timerManager.setTimeout(() => {
       if (deferredPrompt && !window.matchMedia('(display-mode: standalone)').matches) {
         showCustomInstallPrompt(deferredPrompt);
       }
@@ -241,7 +245,7 @@ function showCustomInstallPrompt(deferredPrompt: BeforeInstallPromptEvent): void
   });
 
   // Auto-dismiss after 15 seconds if no action
-  setTimeout(() => {
+  timerManager.setTimeout(() => {
     const notification = document.getElementById('install-notification');
     if (notification) {
       notification.remove();
@@ -254,3 +258,11 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>
 );
+
+// Export for testing
+export {
+  showUpdateNotification,
+  showOfflineReadyNotification,
+  showInstallPrompt,
+  showCustomInstallPrompt,
+};
