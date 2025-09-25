@@ -137,10 +137,9 @@ export const RunnerAdvanceDropdown: React.FC<RunnerAdvanceDropdownProps> = ({
 
       try {
         isDisabled = !canAdvanceToBase(runnerId, fromBase, base);
-      } catch (error) {
+      } catch (_error) {
         // Handle validation function errors gracefully
-        // eslint-disable-next-line no-console -- Console warning for validation errors in development
-        console.warn('Error in canAdvanceToBase validation:', error);
+        // Error would be logged via DI container logger in full implementation
         isDisabled = true;
       }
 

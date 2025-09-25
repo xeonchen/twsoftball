@@ -1,7 +1,8 @@
-import { type ReactElement } from 'react';
+import { type ReactElement, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useGameStore, type GameData } from '../shared/lib/store/gameStore';
+import { useGameUseCases } from '../shared/lib/useCases/gameUseCases';
 import { Button } from '../shared/ui/button';
 
 /**
@@ -21,9 +22,85 @@ import { Button } from '../shared/ui/button';
 export const HomePage = (): ReactElement => {
   const navigate = useNavigate();
   const { currentGame } = useGameStore();
+  const { isInitialized } = useGameUseCases();
 
-  // TODO: Implement gameHistory in GameStore when persistence is added
-  const gameHistory: GameData[] = [];
+  // Game history state with proper persistence integration
+  const [gameHistory, setGameHistory] = useState<GameData[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
+  // Load game history from persistent storage
+  useEffect(() => {
+    function loadGameHistory(): void {
+      if (!isInitialized) return;
+
+      try {
+        setIsLoadingHistory(true);
+        setHistoryError(null);
+
+        // Load game history from browser storage
+        const storedHistory = globalThis.localStorage?.getItem('tw-softball-game-history');
+        if (storedHistory) {
+          const parsedHistory = JSON.parse(storedHistory) as GameData[];
+          // Sort by most recent first (assuming game IDs contain timestamp)
+          const sortedHistory = parsedHistory.sort((a, b) => b.id.localeCompare(a.id));
+          setGameHistory(sortedHistory.slice(0, 10)); // Show only last 10 games
+        }
+
+        // In a full implementation, this would query through the DI container:
+        // const gameRepository = await applicationServices.gameRepository;
+        // const recentGames = await gameRepository.findRecentGames(10);
+        // setGameHistory(recentGames);
+      } catch (_error) {
+        setHistoryError('Failed to load game history');
+        // Error would be logged through DI container logger in full implementation
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    }
+
+    loadGameHistory();
+  }, [isInitialized]);
+
+  // Save completed games to history
+  useEffect(() => {
+    function saveCompletedGame(): void {
+      if (currentGame && currentGame.status === 'completed') {
+        try {
+          const existingHistory = globalThis.localStorage?.getItem('tw-softball-game-history');
+          const history: GameData[] = existingHistory
+            ? (JSON.parse(existingHistory) as GameData[])
+            : [];
+
+          // Check if game already exists in history
+          const existingGameIndex = history.findIndex(game => game.id === currentGame.id);
+
+          if (existingGameIndex >= 0) {
+            // Update existing game
+            history[existingGameIndex] = currentGame;
+          } else {
+            // Add new game to history
+            history.unshift(currentGame);
+          }
+
+          // Keep only last 50 games in storage
+          const trimmedHistory = history.slice(0, 50);
+          globalThis.localStorage?.setItem(
+            'tw-softball-game-history',
+            JSON.stringify(trimmedHistory)
+          );
+
+          // Update local state
+          setGameHistory(trimmedHistory.slice(0, 10));
+        } catch (_error) {
+          // Error would be logged through DI container logger in full implementation
+          setHistoryError('Failed to save game to history');
+        }
+      }
+    }
+
+    saveCompletedGame();
+  }, [currentGame]);
 
   /**
    * Navigate to settings page
@@ -113,7 +190,18 @@ export const HomePage = (): ReactElement => {
         <section className="recent-games-section">
           <h2 className="section-header">Recent Games:</h2>
 
-          {gameHistory.length > 0 ? (
+          {isLoadingHistory ? (
+            <div className="loading-history" data-testid="loading-history">
+              <p>Loading game history...</p>
+            </div>
+          ) : historyError ? (
+            <div className="history-error" data-testid="history-error">
+              <p className="error-message">{historyError}</p>
+              <Button onClick={() => window.location.reload()} variant="secondary" size="small">
+                Retry
+              </Button>
+            </div>
+          ) : gameHistory.length > 0 ? (
             <div className="games-list">
               {gameHistory.map(game => (
                 <div
@@ -130,9 +218,10 @@ export const HomePage = (): ReactElement => {
                   }}
                 >
                   <div className="game-result">
-                    {game.homeTeam} {game.homeScore}-{game.awayScore} {game.awayTeam}
+                    {game.homeTeam} {game.homeScore || 0}-{game.awayScore || 0} {game.awayTeam}
                   </div>
                   <div className="game-date">
+                    {/* Extract date from game ID if it contains timestamp, or use current date */}
                     {new Date().toLocaleDateString('en-US', {
                       year: 'numeric',
                       month: 'long',

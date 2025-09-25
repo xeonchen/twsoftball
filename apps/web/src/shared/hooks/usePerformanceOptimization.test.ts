@@ -68,21 +68,21 @@ vi.mock('../lib/store/gameStore', () => ({
   useGameStore: vi.fn(() => mockGameStoreData),
 }));
 
-vi.mock('../api/di/container', () => ({
-  getContainer: vi.fn().mockReturnValue({
-    gameAdapter: {
-      recordAtBat: vi.fn().mockResolvedValue({
-        success: true,
-        gameState: { score: { home: 2, away: 1 } },
-        rbiAwarded: 1,
-      }),
-      getNextBatter: vi.fn().mockResolvedValue({
-        id: 'player-3',
-        name: 'Next Batter',
-        jerseyNumber: 7,
-      }),
-    },
-  }),
+vi.mock('../lib/useCases/gameUseCases', () => ({
+  useGameUseCases: vi.fn(() => ({
+    startGame: vi.fn(),
+    recordAtBat: vi.fn(),
+    substitutePlayer: vi.fn(),
+    getCurrentBatter: vi.fn().mockReturnValue(null),
+    getNextBatter: vi.fn().mockReturnValue({
+      id: 'next-batter',
+      name: 'Next Player',
+      jerseyNumber: '7',
+    }),
+    validateSubstitution: vi.fn().mockReturnValue(true),
+    processDomainEvents: vi.fn(),
+    isInitialized: true,
+  })),
 }));
 
 vi.mock('./useRecordAtBat', () => ({
@@ -197,6 +197,7 @@ describe('usePerformanceOptimization', () => {
       expect(result.current.prefetchedData.nextBatter).toEqual({
         id: 'next-batter',
         name: 'Next Player',
+        jerseyNumber: '7',
       });
     });
 

@@ -247,8 +247,8 @@ export function GameRecordingPage(): ReactElement {
    */
   const handleActionInternal = useCallback(
     async (actionType: string): Promise<void> => {
-      // Action recording started
-      // eslint-disable-next-line no-console -- Development action logging
+      // Action recording started - would be logged via DI container logger in full implementation
+      // eslint-disable-next-line no-console -- Required for action logging in tests
       console.log(`Recording action: ${actionType}`);
 
       if (isLoading || !activeGameState?.currentBatter) return;

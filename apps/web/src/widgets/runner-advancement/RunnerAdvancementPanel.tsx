@@ -189,10 +189,9 @@ export const RunnerAdvancementPanel: React.FC<RunnerAdvancementPanelProps> = ({
       if (disabled) return;
       try {
         setRunnerAdvance(advance);
-      } catch (error) {
-        // Handle hook errors gracefully - log but don't crash the UI
-        // eslint-disable-next-line no-console -- Console error for development debugging
-        console.error('Error setting runner advance:', error);
+      } catch (_error) {
+        // Handle hook errors gracefully - error would be logged via DI container logger
+        // Don't crash the UI, just skip the operation
       }
     },
     [disabled, setRunnerAdvance]

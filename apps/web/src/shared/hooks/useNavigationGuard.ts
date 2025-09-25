@@ -166,15 +166,13 @@ export function useAdvancedNavigationGuard(options: NavigationGuardOptions): Nav
   // State for controlling guard behavior
   const isBlocked = isActive;
   const allowNavigation = useCallback(() => {
-    // Implementation for bypassing guard
-    // eslint-disable-next-line no-console -- Development placeholder logging
-    console.log('Navigation allowed');
+    // Implementation for bypassing guard - would be logged via DI container logger
+    // This would implement navigation bypass logic in full implementation
   }, []);
 
   const resetGuard = useCallback(() => {
-    // Implementation for resetting guard state
-    // eslint-disable-next-line no-console -- Development placeholder logging
-    console.log('Guard reset');
+    // Implementation for resetting guard state - would be logged via DI container logger
+    // This would implement guard reset logic in full implementation
   }, []);
 
   // Use the basic navigation guard

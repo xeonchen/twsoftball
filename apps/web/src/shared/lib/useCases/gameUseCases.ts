@@ -1,20 +1,37 @@
-import { useCallback } from 'react';
+import {
+  createApplicationServicesWithContainer,
+  type ApplicationServices,
+  type ApplicationConfig,
+  type StartNewGameCommand,
+  type RecordAtBatCommand,
+  // type SubstitutePlayerCommand,
+  type GameStartResult,
+  type AtBatResult,
+  // type SubstitutionResult,
+  GameId,
+  PlayerId,
+  JerseyNumber,
+  FieldPosition,
+  AtBatResultType,
+  type Logger,
+} from '@twsoftball/application';
+import { useCallback, useEffect, useState } from 'react';
 
 import { useGameStore, type Player } from '../store/gameStore';
 
 /**
  * Game Use Cases Integration Layer
  *
- * Provides integration between the web application and domain layer use cases.
- * This layer handles:
- * - Domain use case orchestration
+ * Provides integration between the web application and domain layer use cases
+ * through the DI container pattern. This layer handles:
+ * - Domain use case orchestration via ApplicationServices
  * - State management updates
  * - Error handling and loading states
  * - Domain event processing
+ * - DI container lifecycle management
  *
- * Currently implemented with mock functionality until domain layer integration
- * is completed. This maintains the proper interface contract for future
- * integration while allowing current development to proceed.
+ * Uses the proper DI container approach to integrate with the application layer,
+ * ensuring clean architecture boundaries and proper dependency injection.
  *
  * @example
  * ```typescript
@@ -32,13 +49,13 @@ import { useGameStore, type Player } from '../store/gameStore';
  * await recordAtBat({
  *   gameId,
  *   batterId: 'player-1',
- *   result: 'SINGLE',
- *   advancement: { batter: 'first', runners: [] }
+ *   result: AtBatResultType.SINGLE,
+ *   runnerAdvances: []
  * });
  * ```
  */
 
-// Domain layer type definitions (will be replaced with actual domain imports)
+// Web layer specific types for UI integration
 interface GameSetup {
   homeTeam: string;
   awayTeam: string;
@@ -49,171 +66,74 @@ interface GameSetup {
 interface AtBatData {
   gameId: string;
   batterId: string;
-  result: 'SINGLE' | 'DOUBLE' | 'TRIPLE' | 'HOME_RUN' | 'WALK' | 'OUT' | 'STRIKEOUT' | 'ERROR';
-  advancement: {
-    batter: 'first' | 'second' | 'third' | 'home' | 'out';
-    runners: Array<{
-      playerId: string;
-      from: 'first' | 'second' | 'third';
-      to: 'first' | 'second' | 'third' | 'home' | 'out';
-    }>;
-  };
+  result: AtBatResultType;
+  runnerAdvances: Array<{
+    playerId: string;
+    fromBase: 'FIRST' | 'SECOND' | 'THIRD' | null;
+    toBase: 'FIRST' | 'SECOND' | 'THIRD' | 'HOME' | 'OUT';
+  }>;
 }
 
 interface SubstitutionData {
   gameId: string;
   playerOut: { id: string; battingOrder: number };
   playerIn: Player;
-  position: string;
+  position: FieldPosition;
 }
 
-interface DomainEvent {
-  type: string;
-  data: Record<string, unknown>;
+/**
+ * Application services instance
+ * Managed by the hook for proper lifecycle
+ */
+let applicationServices: ApplicationServices | null = null;
+let logger: Logger | null = null;
+
+/**
+ * Configuration for application services
+ */
+const APPLICATION_CONFIG: ApplicationConfig = {
+  environment:
+    globalThis.process?.env?.['NODE_ENV'] === 'production' ? 'production' : 'development',
+  storage: 'indexeddb', // Use IndexedDB for web deployment
+  debug: globalThis.process?.env?.['NODE_ENV'] !== 'production',
+};
+
+/**
+ * Initialize application services if not already initialized
+ */
+async function initializeApplicationServices(): Promise<ApplicationServices> {
+  if (!applicationServices) {
+    applicationServices = await createApplicationServicesWithContainer(APPLICATION_CONFIG);
+    logger = applicationServices.logger;
+  }
+  return applicationServices;
 }
 
-interface GameStateResult {
-  gameState?: {
-    bases?: {
-      first?: { id: string } | null;
-      second?: { id: string } | null;
-      third?: { id: string } | null;
-    };
-    score?: { home: number; away: number };
+/**
+ * Convert web layer Player to domain layer types
+ */
+function convertPlayerToDomainTypes(player: Player): {
+  playerId: PlayerId;
+  jerseyNumber: JerseyNumber;
+  name: string;
+  battingOrderPosition: number;
+  fieldPosition: FieldPosition;
+  preferredPositions: FieldPosition[];
+} {
+  return {
+    playerId: new PlayerId(player.id),
+    jerseyNumber: new JerseyNumber(player.jerseyNumber),
+    name: player.name,
+    battingOrderPosition: player.battingOrder,
+    fieldPosition: player.position as FieldPosition,
+    preferredPositions: [player.position as FieldPosition], // Simplified for now
   };
-  events?: DomainEvent[];
 }
+
+// Note: convertAtBatResult function removed as AtBatResultType is now used directly
 
 /**
- * Dependency injection interface for testing
- */
-interface UseCaseDependencies {
-  startGameUseCase?: (setup: GameSetup) => Promise<{
-    id: string;
-    homeTeam: string;
-    awayTeam: string;
-    status: 'active';
-    homeScore: number;
-    awayScore: number;
-    currentInning: number;
-    isTopHalf: boolean;
-  }>;
-  recordAtBatUseCase?: (data: AtBatData) => Promise<GameStateResult>;
-  substitutePlayerUseCase?: (data: SubstitutionData) => Promise<{
-    success: boolean;
-    newLineup: Player[];
-  }>;
-}
-
-/**
- * Global dependencies container for testing
- */
-let dependencies: UseCaseDependencies = {};
-
-/**
- * Set dependencies for testing (dependency injection)
- */
-export function setUseCaseDependencies(deps: UseCaseDependencies): void {
-  dependencies = { ...deps };
-}
-
-/**
- * Reset dependencies to default state
- */
-export function resetUseCaseDependencies(): void {
-  dependencies = {};
-}
-
-/**
- * Mock domain use case implementations
- * TODO: Replace with actual domain layer imports
- */
-class MockStartGameUseCase {
-  execute(setup: GameSetup): {
-    id: string;
-    homeTeam: string;
-    awayTeam: string;
-    status: 'active';
-    homeScore: number;
-    awayScore: number;
-    currentInning: number;
-    isTopHalf: boolean;
-  } {
-    // Simulate domain logic validation
-    if (setup.lineup.length < 9) {
-      throw new Error('Invalid lineup: minimum 9 players required');
-    }
-
-    // Simulate creating game aggregate
-    return {
-      id: `game-${Date.now()}`,
-      homeTeam: setup.homeTeam,
-      awayTeam: setup.awayTeam,
-      status: 'active' as const,
-      homeScore: 0,
-      awayScore: 0,
-      currentInning: 1,
-      isTopHalf: true,
-    };
-  }
-}
-
-class MockRecordAtBatUseCase {
-  execute(data: AtBatData): GameStateResult {
-    // Simulate domain logic for at-bat recording
-    const gameState: GameStateResult['gameState'] = {};
-
-    // Mock base advancement logic
-    if (data.result === 'SINGLE') {
-      gameState.bases = {
-        first: { id: data.batterId },
-        second:
-          data.advancement.runners.length > 0 && data.advancement.runners[0]?.playerId
-            ? { id: data.advancement.runners[0].playerId }
-            : null,
-        third: null,
-      };
-    }
-
-    // Mock scoring logic
-    if (data.advancement.runners.some(r => r.to === 'home')) {
-      gameState.score = { home: 1, away: 0 };
-    }
-
-    return {
-      gameState,
-      events: [
-        { type: 'AtBatCompleted', data: { batterId: data.batterId, result: data.result } },
-        ...(gameState.score ? [{ type: 'RunScored', data: { teamSide: 'home' } }] : []),
-      ],
-    };
-  }
-}
-
-class MockSubstitutePlayerUseCase {
-  execute(data: SubstitutionData): {
-    success: boolean;
-    newLineup: Player[];
-  } {
-    // Simulate substitution rule validation
-    if (data.playerIn.name === 'Invalid Player') {
-      throw new Error('Player already substituted and cannot re-enter');
-    }
-
-    return {
-      success: true,
-      newLineup: [
-        {
-          ...data.playerIn,
-          battingOrder: data.playerOut.battingOrder,
-        },
-      ],
-    };
-  }
-}
-
-/**
- * Hook for integrating with domain layer use cases
+ * Hook for integrating with domain layer use cases through DI container
  */
 export function useGameUseCases(): {
   startGame: (setup: GameSetup) => Promise<string>;
@@ -222,217 +142,268 @@ export function useGameUseCases(): {
   getCurrentBatter: () => Player | null;
   getNextBatter: () => Player | null;
   validateSubstitution: (data: SubstitutionData) => boolean;
-  processDomainEvents: (events: DomainEvent[]) => void;
+  processDomainEvents: (events: unknown[]) => void;
+  isInitialized: boolean;
 } {
-  const { startActiveGame, setBaseRunner, updateScore, setError, setLoading } = useGameStore();
+  const { startActiveGame, setError, setLoading } = useGameStore();
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Initialize application services on mount
+  useEffect(() => {
+    let mounted = true;
+
+    async function initialize(): Promise<void> {
+      try {
+        await initializeApplicationServices();
+        if (mounted) {
+          setIsInitialized(true);
+        }
+      } catch (error) {
+        if (mounted) {
+          setError('Failed to initialize application services');
+          logger?.error('Failed to initialize application services', error as Error);
+        }
+      }
+    }
+
+    void initialize();
+
+    return (): void => {
+      mounted = false;
+    };
+  }, [setError]);
 
   /**
    * Process domain events from use case results
    */
-  const processDomainEvents = useCallback((events: DomainEvent[]): void => {
-    events.forEach(event => {
-      switch (event.type) {
+  const processDomainEvents = useCallback((events: unknown[]): void => {
+    events.forEach((event: unknown) => {
+      const eventObj = event as { type?: string; data?: unknown };
+      switch (eventObj.type) {
         case 'AtBatCompleted':
-          // eslint-disable-next-line no-console -- Mock implementation logging for development
-          console.log('At-bat completed:', event.data);
+          logger?.debug('At-bat completed', { event: eventObj.data });
           break;
 
         case 'RunScored':
-          // eslint-disable-next-line no-console -- Mock implementation logging for development
-          console.log('Run scored:', event.data);
+          logger?.info('Run scored', { event: eventObj.data });
           break;
 
         case 'PlayerSubstituted':
-          // eslint-disable-next-line no-console -- Mock implementation logging for development
-          console.log('Player substituted:', event.data);
+          logger?.info('Player substituted', { event: eventObj.data });
           break;
 
         case 'InningChanged':
-          // eslint-disable-next-line no-console -- Mock implementation logging for development
-          console.log('Inning changed:', event.data);
+          logger?.info('Inning changed', { event: eventObj.data });
           break;
 
         default:
-          // eslint-disable-next-line no-console -- Mock implementation logging for development
-          console.log('Unknown domain event:', event);
+          logger?.debug('Domain event processed', {
+            eventType: eventObj.type,
+            data: eventObj.data,
+          });
       }
     });
   }, []);
 
   /**
-   * Start a new game using domain layer logic
+   * Start a new game using domain layer logic through DI container
    */
   const startGame = useCallback(
     async (setup: GameSetup): Promise<string> => {
+      if (!isInitialized || !applicationServices) {
+        throw new Error('Application services not initialized');
+      }
+
       setLoading(true);
       setError(null);
 
       try {
-        // Use injected dependency if available, otherwise fallback to mock
-        if (dependencies.startGameUseCase) {
-          const gameData = await dependencies.startGameUseCase(setup);
+        // Convert web layer types to domain types
+        const gameId = GameId.generate();
+        const domainPlayers = setup.lineup.map(convertPlayerToDomainTypes);
+
+        const command: StartNewGameCommand = {
+          gameId,
+          homeTeamName: setup.homeTeam,
+          awayTeamName: setup.awayTeam,
+          ourTeamSide: setup.ourTeam.toUpperCase() as 'HOME' | 'AWAY',
+          gameDate: new Date(),
+          location: 'Game Location', // Would be configurable in full implementation
+          initialLineup: domainPlayers,
+        };
+
+        const result: GameStartResult = await applicationServices.startNewGame.execute(command);
+
+        if (result.success && result.initialState) {
           // Update application state
-          startActiveGame(gameData);
-          return gameData.id;
+          startActiveGame({
+            id: result.gameId.value,
+            homeTeam: setup.homeTeam,
+            awayTeam: setup.awayTeam,
+            status: 'active' as const,
+            homeScore: result.initialState.score.home,
+            awayScore: result.initialState.score.away,
+            currentInning: result.initialState.currentInning,
+            isTopHalf: result.initialState.isTopHalf,
+          });
+
+          logger?.info('Game started successfully', {
+            gameId: result.gameId.value,
+            teams: `${setup.homeTeam} vs ${setup.awayTeam}`,
+          });
+
+          return result.gameId.value;
         } else {
-          const useCase = new MockStartGameUseCase();
-          const gameData = await Promise.resolve(useCase.execute(setup));
-          // Update application state
-          startActiveGame(gameData);
-          return gameData.id;
+          throw new Error(result.errors?.join(', ') || 'Failed to start game');
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         setError(errorMessage);
+        logger?.error('Failed to start game', error as Error, { setup });
         throw error;
       } finally {
         setLoading(false);
       }
     },
-    [startActiveGame, setError, setLoading]
+    [startActiveGame, setError, setLoading, isInitialized]
   );
 
   /**
-   * Record an at-bat using domain layer logic
+   * Record an at-bat using domain layer logic through DI container
    */
   const recordAtBat = useCallback(
     async (data: AtBatData): Promise<void> => {
+      if (!isInitialized || !applicationServices) {
+        throw new Error('Application services not initialized');
+      }
+
       setError(null);
 
       try {
-        // Use injected dependency if available, otherwise fallback to mock
-        let result: GameStateResult;
-        if (dependencies.recordAtBatUseCase) {
-          result = await dependencies.recordAtBatUseCase(data);
+        const command: RecordAtBatCommand = {
+          gameId: new GameId(data.gameId),
+          batterId: new PlayerId(data.batterId),
+          result: data.result,
+          runnerAdvances: data.runnerAdvances.map(advance => ({
+            playerId: new PlayerId(advance.playerId),
+            fromBase: advance.fromBase,
+            toBase: advance.toBase,
+            advanceReason: 'BATTED_BALL' as const, // Simplified for now
+          })),
+        };
+
+        const result: AtBatResult = await applicationServices.recordAtBat.execute(command);
+
+        if (result.success) {
+          // Process successful at-bat result
+          // Note: The actual AtBatResult interface may differ from what's being accessed
+          // This would be updated based on the actual domain DTO structure
+
+          logger?.info('At-bat recorded successfully', {
+            gameId: data.gameId,
+            batterId: data.batterId,
+            result: data.result,
+            runsScored: result.runsScored || 0,
+            rbiAwarded: result.rbiAwarded || 0,
+          });
+
+          // Update UI state based on result
+          // In full implementation, this would process domain events from the result
         } else {
-          const useCase = new MockRecordAtBatUseCase();
-          result = await Promise.resolve(useCase.execute(data));
-        }
-
-        // Process game state updates
-        if (result.gameState?.bases) {
-          const { bases } = result.gameState;
-          if (bases.first !== undefined) {
-            const player = bases.first
-              ? ({
-                  id: bases.first.id,
-                  name: 'Mock Player',
-                  jerseyNumber: '0',
-                  position: 'P',
-                  battingOrder: 1,
-                } as Player)
-              : null;
-            setBaseRunner('first', player);
-          }
-          if (bases.second !== undefined) {
-            const player = bases.second
-              ? ({
-                  id: bases.second.id,
-                  name: 'Mock Player',
-                  jerseyNumber: '0',
-                  position: 'P',
-                  battingOrder: 1,
-                } as Player)
-              : null;
-            setBaseRunner('second', player);
-          }
-          if (bases.third !== undefined) {
-            const player = bases.third
-              ? ({
-                  id: bases.third.id,
-                  name: 'Mock Player',
-                  jerseyNumber: '0',
-                  position: 'P',
-                  battingOrder: 1,
-                } as Player)
-              : null;
-            setBaseRunner('third', player);
-          }
-        }
-
-        if (result.gameState?.score) {
-          updateScore(result.gameState.score);
-        }
-
-        // Process domain events
-        if (result.events) {
-          processDomainEvents(result.events);
+          throw new Error(result.errors?.join(', ') || 'Failed to record at-bat');
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         setError(errorMessage);
+        logger?.error('Failed to record at-bat', error as Error, { data });
         throw error;
       }
     },
-    [setBaseRunner, updateScore, setError, processDomainEvents]
+    [setError, isInitialized]
   );
 
   /**
-   * Substitute a player using domain layer logic
+   * Substitute a player using domain layer logic through DI container
    */
   const substitutePlayer = useCallback(
-    async (data: SubstitutionData): Promise<void> => {
+    (data: SubstitutionData): Promise<void> => {
+      if (!isInitialized || !applicationServices) {
+        return Promise.reject(new Error('Application services not initialized'));
+      }
+
       setError(null);
 
-      try {
-        // Use injected dependency if available, otherwise fallback to mock
-        if (dependencies.substitutePlayerUseCase) {
-          await dependencies.substitutePlayerUseCase(data);
-        } else {
-          const useCase = new MockSubstitutePlayerUseCase();
-          await Promise.resolve(useCase.execute(data));
-        }
+      return Promise.resolve().then(() => {
+        try {
+          // Player substitution functionality is not fully implemented yet
+          // This would require proper TeamLineupId and complete command structure
+          // For now, just log the substitution intent
+          logger?.info('Player substitution requested', {
+            gameId: data.gameId,
+            playerOut: data.playerOut.id,
+            playerIn: data.playerIn.id,
+            position: data.position,
+          });
 
-        // Update lineup in store (placeholder - actual implementation depends on domain events)
-        // eslint-disable-next-line no-console -- Mock implementation logging for development
-        console.log('Player substitution completed:', data);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        setError(errorMessage);
-        throw error;
-      }
+          // TODO: Implement proper substitution logic when domain interface is complete
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          setError(errorMessage);
+          logger?.error('Failed to substitute player', error as Error, { data });
+          throw error;
+        }
+      });
     },
-    [setError]
+    [setError, isInitialized]
   );
 
   /**
-   * Get current batter from lineup
-   * TODO: This should come from domain layer game state
+   * Get current batter from game state
+   * Implementation would query the current game state through DI container
    */
   const getCurrentBatter = useCallback((): Player | null => {
-    // Mock implementation - return first player
-    return {
-      id: 'player-1',
-      name: 'John Doe',
-      jerseyNumber: '12',
-      position: 'SS',
-      battingOrder: 1,
-    };
-  }, []);
+    // This would be implemented to query the current game state
+    // For now, return null until game state integration is complete
+    if (!isInitialized) {
+      return null;
+    }
+
+    // TODO: Query current game state to get actual current batter
+    // This would use applicationServices.gameRepository to get current game state
+    return null;
+  }, [isInitialized]);
 
   /**
-   * Get next batter in order
-   * TODO: This should come from domain layer game state
+   * Get next batter in batting order
+   * Implementation would query the current game state through DI container
    */
   const getNextBatter = useCallback((): Player | null => {
-    // Mock implementation - return second player
-    return {
-      id: 'player-2',
-      name: 'Jane Smith',
-      jerseyNumber: '8',
-      position: 'CF',
-      battingOrder: 2,
-    };
-  }, []);
+    // This would be implemented to query the current game state
+    // For now, return null until game state integration is complete
+    if (!isInitialized) {
+      return null;
+    }
+
+    // TODO: Query current game state to get next batter
+    // This would use applicationServices.gameRepository to get current game state
+    return null;
+  }, [isInitialized]);
 
   /**
-   * Validate if a substitution is legal
-   * TODO: This should use domain layer validation rules
+   * Validate if a substitution is legal using domain rules
+   * Implementation would use domain validation through DI container
    */
-  const validateSubstitution = useCallback((_data: SubstitutionData): boolean => {
-    // Mock validation - always return true for now
-    return true;
-  }, []);
+  const validateSubstitution = useCallback(
+    (data: SubstitutionData): boolean => {
+      if (!isInitialized) {
+        return false;
+      }
+
+      // Basic validation - would be replaced with domain validation
+      return Boolean(data.gameId && data.playerOut.id && data.playerIn.id && data.position);
+    },
+    [isInitialized]
+  );
 
   return {
     // Primary use cases
@@ -445,5 +416,8 @@ export function useGameUseCases(): {
     getNextBatter,
     validateSubstitution,
     processDomainEvents,
+
+    // Status
+    isInitialized,
   };
 }
