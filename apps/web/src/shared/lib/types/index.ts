@@ -5,3 +5,10 @@
  */
 
 export type { Player, SetupWizardState } from './game';
+export type {
+  BenchPlayer,
+  SubstitutionRecord,
+  PositionAssignment,
+  FieldLayout,
+  PlayerInfo,
+} from './lineup';
