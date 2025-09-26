@@ -133,7 +133,7 @@ const validPositionResult = {
 
 const invalidPositionResult = {
   isValid: false,
-  error: 'Position is required',
+  error: 'Field position is required',
   suggestions: ['P', 'C', '1B'],
 };
 
@@ -404,7 +404,7 @@ describe('GameSetupLineupPage Component', () => {
       await waitFor(
         () => {
           expect(screen.getByTestId('position-validation-error-0')).toHaveTextContent(
-            'Position is required'
+            'Field position is required'
           );
           expect(screen.getByTestId('position-suggestions-0')).toHaveTextContent(
             'Suggestions: P, C, 1B'

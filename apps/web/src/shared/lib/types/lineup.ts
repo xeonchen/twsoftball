@@ -104,6 +104,8 @@ export interface FieldLayout {
   centerField: PositionAssignment;
   /** Right fielder position assignment */
   rightField: PositionAssignment;
-  /** Optional extra hitter assignment (bats only, doesn't play defense) */
-  extraHitter?: PositionAssignment;
+  /** Short fielder position assignment (10th defensive player) */
+  shortFielder: PositionAssignment;
+  /** Optional extra player assignment (bats only, doesn't play defense) */
+  extraPlayer?: PositionAssignment;
 }
