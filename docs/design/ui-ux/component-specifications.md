@@ -743,7 +743,8 @@ interface VirtualListProps {
 
 #### Performance Hook
 
-- **File**: `/apps/web/src/shared/lib/hooks/usePerformanceOptimization.ts`
+- **File**:
+  `/apps/web/src/features/game-core/model/hooks/usePerformanceOptimization.ts`
 - **Purpose**: Centralized performance management with debouncing and memory
   monitoring
 - **Features**: Configurable debounce delays, memory pressure detection, bundle
@@ -751,7 +752,7 @@ interface VirtualListProps {
 
 #### Debounce Utility
 
-- **File**: `/apps/web/src/shared/utils/debounce.ts`
+- **File**: `/apps/web/src/shared/lib/utils/debounce.ts`
 - **Purpose**: Prevent rapid-fire button clicks and optimize user interactions
 - **Features**: Configurable delays, immediate execution option, proper cleanup
 

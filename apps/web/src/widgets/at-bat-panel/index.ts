@@ -1,2 +1,2 @@
-export { AtBatActionPanel } from './AtBatActionPanel';
-export type { AtBatActionPanelProps, AtBatResult, AtBatResultType } from './AtBatActionPanel';
+export { AtBatActionPanel } from './ui/AtBatActionPanel';
+export type { AtBatActionPanelProps, AtBatResult, AtBatResultType } from './ui/AtBatActionPanel';

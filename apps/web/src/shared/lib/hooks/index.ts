@@ -5,7 +5,7 @@
 
 export { useErrorRecovery } from './useErrorRecovery';
 export { useNavigationGuard } from './useNavigationGuard';
-export { usePerformanceOptimization } from './usePerformanceOptimization';
-export { useRecordAtBat } from './useRecordAtBat';
-export { useRunnerAdvancement } from './useRunnerAdvancement';
 export { useTimerManager } from './useTimerManager';
+
+// Note: useRecordAtBat, useRunnerAdvancement, and usePerformanceOptimization
+// have been moved to features/game-core/ to comply with FSD architecture

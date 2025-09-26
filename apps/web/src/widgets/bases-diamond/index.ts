@@ -1,2 +1,2 @@
-export { BasesDiamond } from './BasesDiamond';
-export type { BasesDiamondProps } from './BasesDiamond';
+export { BasesDiamond } from './ui/BasesDiamond';
+export type { BasesDiamondProps } from './ui/BasesDiamond';

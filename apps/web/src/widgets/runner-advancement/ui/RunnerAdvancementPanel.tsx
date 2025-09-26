@@ -32,8 +32,8 @@
 import { AtBatResultType } from '@twsoftball/application';
 import React, { useCallback, useEffect, useMemo } from 'react';
 
-import { useRunnerAdvancement } from '../../../shared/lib/hooks/useRunnerAdvancement';
-import type { RunnerAdvance, ForcedAdvance } from '../../../shared/lib/hooks/useRunnerAdvancement';
+import { useRunnerAdvancement } from '../../../features/game-core';
+import type { RunnerAdvance, ForcedAdvance } from '../../../features/game-core';
 
 import { RunnerAdvanceDropdown } from './RunnerAdvanceDropdown';
 

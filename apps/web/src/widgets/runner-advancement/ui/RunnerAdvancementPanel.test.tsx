@@ -24,13 +24,13 @@ import userEvent from '@testing-library/user-event';
 import { AtBatResultType } from '@twsoftball/application';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
-import type { RunnerAdvance, ForcedAdvance } from '../../../shared/lib/hooks/useRunnerAdvancement';
+import type { RunnerAdvance, ForcedAdvance } from '../../../features/game-core';
 
 import { RunnerAdvancementPanel } from './RunnerAdvancementPanel';
 
 // Mock the useRunnerAdvancement hook
 const mockUseRunnerAdvancement = vi.fn();
-vi.mock('../../../shared/lib/hooks/useRunnerAdvancement', () => ({
+vi.mock('../../../features/game-core', () => ({
   useRunnerAdvancement: (): unknown => mockUseRunnerAdvancement(),
 }));
 
@@ -189,7 +189,8 @@ describe('RunnerAdvancementPanel', () => {
 
       // Should show validation error summary
       expect(screen.getByText(/some advances are invalid/i)).toBeInTheDocument();
-      expect(screen.getAllByText(/cannot move backwards/i)).toHaveLength(2); // Dropdown error + summary
+      // The validation logic generates "cannot move backwards to 1st base" message (appears in both dropdown and summary)
+      expect(screen.getAllByText(/cannot move backwards to 1st base/i)).toHaveLength(2);
     });
 
     it('should prevent backwards movement', () => {
@@ -212,11 +213,12 @@ describe('RunnerAdvancementPanel', () => {
         />
       );
 
-      // For a runner on 2nd base, should call canAdvanceToBase for 3rd base and HOME
+      // For a runner on 2nd base, should call canAdvanceToBase for valid advances (3rd base and HOME)
+      // The component only offers forward advancement options, not backwards
       expect(mockCanAdvance).toHaveBeenCalledWith('runner-2', 2, 3);
       expect(mockCanAdvance).toHaveBeenCalledWith('runner-2', 2, 0);
 
-      // Should not offer 1st base as an option (no backwards movement)
+      // Should not call for 1st base since backwards movement is not offered as an option
       expect(mockCanAdvance).not.toHaveBeenCalledWith('runner-2', 2, 1);
     });
 

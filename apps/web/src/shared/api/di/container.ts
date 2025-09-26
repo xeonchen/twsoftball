@@ -54,10 +54,35 @@ import {
   createApplicationServicesWithContainer,
   type ApplicationServices,
   type ApplicationConfig,
+  type StartNewGameCommand,
 } from '@twsoftball/application';
 
-import { GameAdapter, type GameAdapterConfig } from '../adapters';
+import type { SetupWizardState } from '../../lib/types/game';
 import { wizardToCommand } from '../mappers/wizardToCommand';
+
+// Interface definitions to avoid forbidden imports from entities layer
+interface GameAdapter {
+  startNewGame(command: unknown): Promise<unknown>;
+  startNewGameFromWizard(wizardData: unknown): Promise<unknown>;
+  recordAtBat(command: unknown): Promise<unknown>;
+  endInning(command: unknown): Promise<unknown>;
+  substitutePlayer(command: unknown): Promise<unknown>;
+  undoLastAction(command: unknown): Promise<unknown>;
+  redoLastAction(command: unknown): Promise<unknown>;
+}
+
+interface GameAdapterConfig {
+  startNewGame: ApplicationServices['startNewGame'];
+  recordAtBat: ApplicationServices['recordAtBat'];
+  substitutePlayer: ApplicationServices['substitutePlayer'];
+  undoLastAction: ApplicationServices['undoLastAction'];
+  redoLastAction: ApplicationServices['redoLastAction'];
+  endInning: ApplicationServices['endInning'];
+  gameRepository: ApplicationServices['gameRepository'];
+  eventStore: ApplicationServices['eventStore'];
+  logger: ApplicationServices['logger'];
+  wizardToCommand: (wizardData: SetupWizardState) => StartNewGameCommand; // WizardToCommandMapper function type
+}
 
 /**
  * Configuration interface for dependency container initialization.
@@ -185,7 +210,8 @@ export async function initializeContainer(
       wizardToCommand,
     };
 
-    // Step 5: Create GameAdapter
+    // Step 5: Create GameAdapter using dynamic import
+    const { GameAdapter } = await import('../../../entities/game');
     const gameAdapter = new GameAdapter(gameAdapterConfig);
 
     // Step 6: Assemble final container

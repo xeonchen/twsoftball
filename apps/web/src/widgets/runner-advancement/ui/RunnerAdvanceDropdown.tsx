@@ -36,7 +36,7 @@
 
 import React, { useCallback, useMemo } from 'react';
 
-import type { RunnerAdvance } from '../../../shared/lib/hooks/useRunnerAdvancement';
+import type { RunnerAdvance } from '../../../features/game-core';
 
 /**
  * Props interface for RunnerAdvanceDropdown component

@@ -16,8 +16,8 @@ export default defineConfig([
     root: './apps/web/src',
 
     rules: {
-      // Disable public-api rule for shared layer (common pattern in this project)
-      'fsd/public-api': 'off',
+      // Enable public-api rule globally (standard FSD)
+      'fsd/public-api': 'error',
     },
 
     // Ignore patterns for files that don't need FSD validation
@@ -51,5 +51,34 @@ export default defineConfig([
       '**/dist/**',
       '**/build/**',
     ],
+  },
+
+  // Configuration for pending Phase 5.3.D-F integrations and single-reference slices
+  {
+    // Disable insignificant-slice rule for documented pending features and acceptable single-reference slices
+    files: [
+      './apps/web/src/widgets/at-bat-panel/**',
+      './apps/web/src/widgets/bases-diamond/**',
+      './apps/web/src/widgets/game-header/**',
+      './apps/web/src/features/lineup-management/**',
+      './apps/web/src/features/record-at-bat/**',
+      './apps/web/src/entities/player/**',
+      './apps/web/src/features/game-setup/**', // Single reference in pages/game-setup - acceptable
+      './apps/web/src/features/game-core/**', // Single reference in pages/game-recording - acceptable
+      './apps/web/src/widgets/error-boundary/**', // Single reference in pages/game-recording - acceptable
+      './apps/web/src/widgets/runner-advancement/**', // Single reference in pages/game-recording - acceptable
+    ],
+    rules: {
+      'fsd/insignificant-slice': 'off', // Pending integration or acceptable single-reference patterns
+    },
+  },
+
+  // Temporary architectural exception for DI Container
+  {
+    // Allow DI container to import from entities layer - architectural debt to be refactored
+    files: ['./apps/web/src/shared/api/di/container.ts'],
+    rules: {
+      'fsd/forbidden-imports': 'off', // Documented architectural debt - needs refactoring to features layer
+    },
   },
 ]);

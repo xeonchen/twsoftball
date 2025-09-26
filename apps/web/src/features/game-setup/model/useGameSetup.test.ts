@@ -25,9 +25,8 @@ import { renderHook, act } from '@testing-library/react';
 import { GameId } from '@twsoftball/application';
 import { vi, describe, it, expect, beforeEach, afterEach, type MockedFunction } from 'vitest';
 
-import { getContainer } from '../../../shared/api/di';
-import { wizardToCommand } from '../../../shared/api/mappers';
-import type { SetupWizardState } from '../../../shared/lib/store/gameStore';
+import { getContainer, wizardToCommand } from '../../../shared/api';
+import type { SetupWizardState } from '../../../shared/lib/types';
 
 import { useGameSetup } from './useGameSetup';
 

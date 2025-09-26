@@ -6,48 +6,48 @@ import { vi } from 'vitest';
 import { AppRouter } from './router';
 
 // Mock the route components since we're just testing routing logic
-vi.mock('../../pages/home/HomePage', () => ({
+vi.mock('../../pages/home/ui/HomePage', () => ({
   HomePage: (): ReactElement => <div data-testid="home-page">Home Page</div>,
 }));
 
-vi.mock('../../pages/game/GamePage', () => ({
+vi.mock('../../pages/game/ui/GamePage', () => ({
   GamePage: (): ReactElement => <div data-testid="game-page">Game Page</div>,
 }));
 
-vi.mock('../../pages/not-found/NotFoundPage', () => ({
+vi.mock('../../pages/not-found/ui/NotFoundPage', () => ({
   NotFoundPage: (): ReactElement => <div data-testid="not-found-page">Page Not Found</div>,
 }));
 
 // Mock new page components for Phase 2
-vi.mock('../../pages/settings/SettingsPage', () => ({
+vi.mock('../../pages/settings/ui/SettingsPage', () => ({
   SettingsPage: (): ReactElement => <div data-testid="settings-page">Settings Page</div>,
 }));
 
-vi.mock('../../pages/game-setup/GameSetupTeamsPage', () => ({
+vi.mock('../../pages/game-setup/ui/GameSetupTeamsPage', () => ({
   GameSetupTeamsPage: (): ReactElement => (
     <div data-testid="game-setup-teams-page">Game Setup Teams</div>
   ),
 }));
 
-vi.mock('../../pages/game-setup/GameSetupLineupPage', () => ({
+vi.mock('../../pages/game-setup/ui/GameSetupLineupPage', () => ({
   GameSetupLineupPage: (): ReactElement => (
     <div data-testid="game-setup-lineup-page">Game Setup Lineup</div>
   ),
 }));
 
-vi.mock('../../pages/game-setup/GameSetupConfirmPage', () => ({
+vi.mock('../../pages/game-setup/ui/GameSetupConfirmPage', () => ({
   GameSetupConfirmPage: (): ReactElement => (
     <div data-testid="game-setup-confirm-page">Game Setup Confirm</div>
   ),
 }));
 
-vi.mock('../../pages/game-recording/GameRecordingPage', () => ({
+vi.mock('../../pages/game-recording/ui/GameRecordingPage', () => ({
   GameRecordingPage: (): ReactElement => (
     <div data-testid="game-recording-page">Game Recording Page</div>
   ),
 }));
 
-vi.mock('../../pages/game-stats/GameStatsPage', () => ({
+vi.mock('../../pages/game-stats/ui/GameStatsPage', () => ({
   GameStatsPage: (): ReactElement => <div data-testid="game-stats-page">Game Stats Page</div>,
 }));
 

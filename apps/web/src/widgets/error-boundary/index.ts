@@ -4,5 +4,5 @@
  * Export the ErrorBoundary component for use throughout the application.
  */
 
-export { ErrorBoundary } from './ErrorBoundary';
-export type { ErrorReportData, ErrorBoundaryState, ErrorBoundaryProps } from './ErrorBoundary';
+export { ErrorBoundary } from './ui/ErrorBoundary';
+export type { ErrorReportData, ErrorBoundaryState, ErrorBoundaryProps } from './ui/ErrorBoundary';

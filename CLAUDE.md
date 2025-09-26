@@ -43,6 +43,8 @@ pnpm test                     # Run all tests
 pnpm typecheck                # TypeScript check
 pnpm lint                     # ESLint check
 pnpm format:check             # Format files
+pnpm deps:check               # Check dependency graph violations
+pnpm fsd:staged               # Check FSD architecture on staged files
 pnpm --filter @twsoftball/domain test    # Domain tests only
 ```
 
@@ -74,10 +76,17 @@ Infrastructure Layer (Adapters)
 ├── auth/         # Authentication adapters
 └── config/       # Dependency injection
 
-Web Layer (Presentation)
-├── adapters/     # Controllers, presenters
-├── components/   # UI components
-└── hooks/        # React hooks
+Web Layer (Presentation) - Feature-Sliced Design (FSD)
+├── app/          # Application layer (providers, routing, global config)
+├── pages/        # Page components (route targets)
+│   └── */ui/     # Page UI components (moved to ui/ subfolders)
+├── widgets/      # Complex composite UI blocks
+│   └── */ui/     # Widget UI components (moved to ui/ subfolders)
+├── features/     # Business logic features and user scenarios
+│   ├── game-core/ # Game hooks (moved from shared layer)
+│   └── */ui/     # Feature UI components
+├── entities/     # Business entities UI representations
+└── shared/       # Reusable infrastructure (UI kit, utils, API)
 ```
 
 ## Technology Stack
@@ -90,6 +99,61 @@ Web Layer (Presentation)
 - **Testing**: Vitest (unit/integration), Playwright (E2E)
 - **Build**: Vite
 - **CI/CD**: GitHub Actions
+- **Architecture Validation**: Steiger with Feature-Sliced Design plugin
+
+## Feature-Sliced Design (FSD) Architecture
+
+The web layer follows Feature-Sliced Design methodology for scalable frontend
+architecture:
+
+### FSD Layer Hierarchy (Bottom-Up Dependencies)
+
+```
+app/         # Application initialization (Level 6)
+pages/       # Complete screen implementations (Level 5)
+widgets/     # Complex UI blocks (Level 4)
+features/    # Business logic features (Level 3)
+entities/    # Business entities (Level 2)
+shared/      # Reusable infrastructure (Level 1)
+```
+
+### Key FSD Changes Made
+
+- **UI Structure**: All components moved to `ui/` subfolders for FSD compliance
+- **Public API**: Each slice exports through `index.ts` files
+- **Game Hooks Migration**: Moved from `shared/` to `features/game-core/`
+- **Layer Index Removal**: Deleted layer-level index files (entities/index.ts,
+  etc.)
+- **Steiger Validation**: Enabled FSD linting with documented exceptions
+
+### Steiger Configuration
+
+Architecture compliance validated via `steiger.config.ts`:
+
+- **Enabled Rules**: `fsd/public-api` enforced globally
+- **Pending Exceptions**: Phase 5.3.D-F features temporarily exempt from
+  `insignificant-slice` rule
+- **Single-Reference Slices**: Acceptable for specific use cases (game-setup,
+  game-core)
+- **Architectural Debt**: DI container import warnings documented for future
+  refactoring
+
+### FSD Import Rules
+
+```typescript
+// ✅ CORRECT: Higher layers import from lower layers
+// pages/game-recording/ui/GameRecordingPage.tsx
+import { AtBatPanel } from 'widgets/at-bat-panel'; // widgets (4) → pages (5)
+import { useRecordAtBat } from 'features/record-at-bat'; // features (3) → pages (5)
+
+// ❌ FORBIDDEN: Lower layers cannot import from higher layers
+// shared/ui/Button.tsx
+import { PlayerCard } from 'entities/player'; // ❌ shared (1) cannot import entities (2)
+
+// ❌ FORBIDDEN: Same-level direct imports (use shared instead)
+// features/record-at-bat/ui/Form.tsx
+import { useLineup } from 'features/lineup-management'; // ❌ features → features
+```
 
 ## Development Workflow: Orchestrator-Worker Pattern
 
@@ -180,16 +244,30 @@ Web Layer (Presentation)
 
 ### Architecture Rules
 
+#### Hexagonal Architecture (Domain/Application/Infrastructure)
+
 - **Domain layer**: NO dependencies on other layers (pure business logic)
 - **Application layer**: Depends only on Domain + uses DI Container pattern
 - **Infrastructure layer**: Provides factory implementations for Application
   layer
-- **Web layer**: Uses DI Container to access Application services, never imports
-  Infrastructure
 - **DI Container**: Enterprise-grade dependency injection with service registry,
   lazy loading, and dynamic imports
 - **Zero Architecture Exceptions**: Clean dependency boundaries with no
   workarounds needed
+
+#### Feature-Sliced Design (Web Layer)
+
+- **FSD Layer Dependencies**: Higher layers
+  (app→pages→widgets→features→entities→shared) can import from lower layers only
+- **No Reverse Dependencies**: Lower layers cannot import from higher layers
+  (enforced by steiger)
+- **No Sibling Imports**: Same-level layers cannot directly import from each
+  other (use shared layer)
+- **Public API Required**: All slices must export through `index.ts` files
+  (`fsd/public-api` rule)
+- **UI Structure**: Components organized in `ui/` subfolders for FSD compliance
+- **Web-Infrastructure Boundary**: Web layer uses DI Container to access
+  Application services, never imports Infrastructure directly
 
 **Critical Pattern: DI Container with Dynamic Import**
 

@@ -74,9 +74,8 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-import { getContainer } from '../../../shared/api/di';
-import { wizardToCommand } from '../../../shared/api/mappers';
-import type { SetupWizardState } from '../../../shared/lib/store/gameStore';
+import { getContainer, wizardToCommand } from '../../../shared/api';
+import type { SetupWizardState } from '../../../shared/lib/types';
 
 /**
  * Validation errors categorized by type for UI-friendly display.
