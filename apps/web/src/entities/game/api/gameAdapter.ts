@@ -75,7 +75,7 @@ import type {
   UndoLastAction,
 } from '@twsoftball/application';
 
-import type { SetupWizardState } from '../model/gameStore';
+import type { SetupWizardState } from '../../../shared/lib/types';
 
 // wizardToCommand is now passed as a dependency to avoid circular imports
 

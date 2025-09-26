@@ -55,6 +55,12 @@ import {
   type ApplicationServices,
   type ApplicationConfig,
   type StartNewGameCommand,
+  type AtBatResult,
+  type GameStartResult,
+  type InningEndResult,
+  type SubstitutionResult,
+  type UndoResult,
+  type RedoResult,
 } from '@twsoftball/application';
 
 import type { SetupWizardState } from '../../lib/types/game';
@@ -62,13 +68,13 @@ import { wizardToCommand } from '../mappers/wizardToCommand';
 
 // Interface definitions to avoid forbidden imports from entities layer
 interface GameAdapter {
-  startNewGame(command: unknown): Promise<unknown>;
-  startNewGameFromWizard(wizardData: unknown): Promise<unknown>;
-  recordAtBat(command: unknown): Promise<unknown>;
-  endInning(command: unknown): Promise<unknown>;
-  substitutePlayer(command: unknown): Promise<unknown>;
-  undoLastAction(command: unknown): Promise<unknown>;
-  redoLastAction(command: unknown): Promise<unknown>;
+  startNewGame(command: unknown): Promise<GameStartResult>;
+  startNewGameFromWizard(wizardData: unknown): Promise<GameStartResult>;
+  recordAtBat(command: unknown): Promise<AtBatResult>;
+  endInning(command: unknown): Promise<InningEndResult>;
+  substitutePlayer(command: unknown): Promise<SubstitutionResult>;
+  undoLastAction(command: unknown): Promise<UndoResult>;
+  redoLastAction(command: unknown): Promise<RedoResult>;
 }
 
 interface GameAdapterConfig {
