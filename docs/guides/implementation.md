@@ -366,7 +366,7 @@ pnpm install
 **Create Primary Adapters**:
 
 ```
-apps/web/src/adapters/
+apps/web/src/shared/api/adapters/
 ├── controllers/
 │   ├── game-controller.ts
 │   └── stats-controller.ts

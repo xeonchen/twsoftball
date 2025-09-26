@@ -1,1 +1,2 @@
-export { useGameStore, type GameData } from './gameStore';
+// Game-related exports moved to entities/game
+export { useUIStore } from './uiStore';

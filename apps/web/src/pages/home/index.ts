@@ -1,2 +1,2 @@
-// Placeholder for home page
-export {};
+export { HomePage } from './ui/HomePage';
+export { HomePage as default } from './ui/HomePage';

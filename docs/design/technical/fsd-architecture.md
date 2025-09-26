@@ -62,78 +62,80 @@ apps/web/src/
 ├── pages/                   # Pages Layer (Level 5)
 │   ├── home/
 │   │   ├── index.ts
-│   │   ├── HomePage.tsx
-│   │   └── HomePage.test.tsx
+│   │   └── ui/
+│   │       ├── HomePage.tsx
+│   │       └── HomePage.test.tsx
 │   ├── game-setup/
 │   │   ├── index.ts
-│   │   ├── GameSetupPage.tsx
-│   │   ├── steps/
-│   │   │   ├── TeamsStep.tsx
-│   │   │   ├── LineupStep.tsx
-│   │   │   └── ConfirmStep.tsx
-│   │   └── GameSetupPage.test.tsx
+│   │   └── ui/
+│   │       ├── GameSetupTeamsPage.tsx
+│   │       ├── GameSetupLineupPage.tsx
+│   │       ├── GameSetupConfirmPage.tsx
+│   │       └── *.test.tsx
 │   ├── game-recording/
 │   │   ├── index.ts
-│   │   ├── GameRecordingPage.tsx
-│   │   └── GameRecordingPage.test.tsx
+│   │   └── ui/
+│   │       ├── GameRecordingPage.tsx
+│   │       └── GameRecordingPage.test.tsx
 │   ├── game-stats/
 │   │   ├── index.ts
-│   │   ├── GameStatsPage.tsx
-│   │   └── GameStatsPage.test.tsx
+│   │   └── ui/
+│   │       ├── GameStatsPage.tsx
+│   │       └── GameStatsPage.test.tsx
 │   └── settings/
 │       ├── index.ts
-│       ├── SettingsPage.tsx
-│       └── SettingsPage.test.tsx
+│       └── ui/
+│           ├── SettingsPage.tsx
+│           └── SettingsPage.test.tsx
 │
 ├── widgets/                 # Widgets Layer (Level 4)
 │   ├── game-header/
 │   │   ├── index.ts
-│   │   ├── GameHeader.tsx
-│   │   ├── GameHeader.test.tsx
+│   │   ├── ui/
+│   │   │   ├── GameHeader.tsx
+│   │   │   └── GameHeader.test.tsx
 │   │   └── model/
 │   │       └── useGameHeader.ts
-│   ├── batting-action-panel/
+│   ├── at-bat-panel/
 │   │   ├── index.ts
-│   │   ├── BattingActionPanel.tsx
-│   │   ├── BattingActionPanel.test.tsx
 │   │   ├── ui/
+│   │   │   ├── AtBatActionPanel.tsx
+│   │   │   ├── AtBatActionPanel.test.tsx
 │   │   │   ├── ActionButton.tsx
 │   │   │   └── ExpandedOptions.tsx
 │   │   └── model/
 │   │       ├── useBattingActions.ts
 │   │       └── types.ts
-│   ├── bases-display/
+│   ├── bases-diamond/
 │   │   ├── index.ts
-│   │   ├── BasesDisplay.tsx
-│   │   ├── BasesDisplay.test.tsx
 │   │   ├── ui/
+│   │   │   ├── BasesDiamond.tsx
+│   │   │   ├── BasesDiamond.test.tsx
 │   │   │   ├── Base.tsx
 │   │   │   └── RunnerIndicator.tsx
 │   │   └── model/
 │   │       └── useBasesState.ts
-│   ├── lineup-manager/
+│   ├── error-boundary/
 │   │   ├── index.ts
-│   │   ├── LineupManager.tsx
-│   │   ├── LineupManager.test.tsx
-│   │   ├── ui/
-│   │   │   ├── LineupCard.tsx
-│   │   │   ├── BenchPlayers.tsx
-│   │   │   └── SubstitutionModal.tsx
-│   │   └── model/
-│   │       ├── useLineupManager.ts
-│   │       └── types.ts
-│   └── game-status-bar/
+│   │   └── ui/
+│   │       ├── ErrorBoundary.tsx
+│   │       └── ErrorBoundary.test.tsx
+│   └── runner-advancement/
 │       ├── index.ts
-│       ├── GameStatusBar.tsx
-│       ├── GameStatusBar.test.tsx
-│       ├── ui/
-│       │   ├── InningDisplay.tsx
-│       │   ├── OutsDisplay.tsx
-│       │   └── UndoRedoControls.tsx
-│       └── model/
-│           └── useGameStatus.ts
+│       └── ui/
+│           ├── RunnerAdvancementModal.tsx
+│           └── RunnerAdvancementModal.test.tsx
 │
 ├── features/               # Features Layer (Level 3)
+│   ├── game-core/
+│   │   ├── index.ts
+│   │   ├── model/
+│   │   │   └── hooks/
+│   │   │       ├── usePerformanceOptimization.ts # Moved from shared layer
+│   │   │       ├── useRecordAtBat.ts            # Moved from shared layer
+│   │   │       └── useRunnerAdvancement.ts      # Moved from shared layer
+│   │   └── lib/
+│   │       └── gameUtils.ts
 │   ├── record-at-bat/
 │   │   ├── index.ts
 │   │   ├── ui/
@@ -149,7 +151,7 @@ apps/web/src/
 │   │   └── lib/
 │   │       ├── validation.ts
 │   │       └── runnerAdvancement.ts
-│   ├── manage-lineup/
+│   ├── lineup-management/
 │   │   ├── index.ts
 │   │   ├── ui/
 │   │   │   ├── LineupEditor.tsx
@@ -158,11 +160,24 @@ apps/web/src/
 │   │   ├── model/
 │   │   │   ├── store.ts
 │   │   │   ├── types.ts
-│   │   │   └── useManageLineup.ts
+│   │   │   └── useLineupManagement.ts
 │   │   ├── api/
 │   │   │   └── updateLineup.ts
 │   │   └── lib/
 │   │       └── lineupValidation.ts
+│   ├── game-setup/
+│   │   ├── index.ts
+│   │   ├── ui/
+│   │   │   ├── GameSetupForm.tsx
+│   │   │   └── GameSetupWizard.tsx
+│   │   ├── model/
+│   │   │   ├── store.ts
+│   │   │   ├── types.ts
+│   │   │   └── useGameSetup.ts
+│   │   ├── api/
+│   │   │   └── createGame.ts
+│   │   └── lib/
+│   │       └── gameSetupValidation.ts
 │   ├── substitute-player/
 │   │   ├── index.ts
 │   │   ├── ui/
@@ -437,19 +452,18 @@ export function App() {
 **Purpose**: Complete screen implementations that users can navigate to
 
 ```typescript
-// pages/game-recording/GameRecordingPage.tsx
+// pages/game-recording/ui/GameRecordingPage.tsx
 import { GameHeader } from 'widgets/game-header';
-import { BattingActionPanel } from 'widgets/batting-action-panel';
-import { BasesDisplay } from 'widgets/bases-display';
-import { GameStatusBar } from 'widgets/game-status-bar';
+import { AtBatActionPanel } from 'widgets/at-bat-panel';
+import { BasesDiamond } from 'widgets/bases-diamond';
+import { useGameRecording } from 'features/game-core';
 
 export function GameRecordingPage() {
   return (
     <div className="game-recording-layout">
       <GameHeader />
-      <GameStatusBar />
-      <BasesDisplay />
-      <BattingActionPanel />
+      <BasesDiamond />
+      <AtBatActionPanel />
     </div>
   );
 }
@@ -468,15 +482,15 @@ export function GameRecordingPage() {
 **Purpose**: Complex, composite UI blocks that combine multiple features
 
 ```typescript
-// widgets/batting-action-panel/BattingActionPanel.tsx
+// widgets/at-bat-panel/ui/AtBatActionPanel.tsx
 import { useRecordAtBat } from 'features/record-at-bat';
 import { Button } from 'shared/ui';
 
-export function BattingActionPanel() {
+export function AtBatActionPanel() {
   const { recordAtBat, isLoading } = useRecordAtBat();
 
   return (
-    <div className="batting-action-panel">
+    <div className="at-bat-action-panel">
       <Button
         size="large"
         onClick={() => recordAtBat('SINGLE')}
@@ -634,14 +648,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
 ```typescript
 // Pages can import from widgets, features, entities, shared
-// pages/game-recording/GameRecordingPage.tsx
+// pages/game-recording/ui/GameRecordingPage.tsx
 import { GameHeader } from 'widgets/game-header';
 import { useRecordAtBat } from 'features/record-at-bat';
+import { useGameRecording } from 'features/game-core';
 import { PlayerCard } from 'entities/player';
 import { Button } from 'shared/ui';
 
 // Widgets can import from features, entities, shared
-// widgets/batting-action-panel/BattingActionPanel.tsx
+// widgets/at-bat-panel/ui/AtBatActionPanel.tsx
 import { useRecordAtBat } from 'features/record-at-bat';
 import { AtBatResult } from 'entities/at-bat';
 import { Button } from 'shared/ui';
@@ -864,9 +879,9 @@ export function useGameEvents() {
 
 ```typescript
 // widgets/game-header/index.ts
-export { GameHeader } from './GameHeader';
+export { GameHeader } from './ui/GameHeader';
 export { useGameHeader } from './model/useGameHeader';
-export type { GameHeaderProps } from './GameHeader';
+export type { GameHeaderProps } from './ui/GameHeader';
 
 // shared/ui/index.ts
 export { Button } from './Button';
@@ -878,6 +893,9 @@ export { Input, Select, Checkbox } from './Form';
 export { AtBatForm } from './ui/AtBatForm';
 export { useRecordAtBat } from './model/useRecordAtBat';
 export type { AtBatData, AtBatResult } from './model/types';
+
+// features/game-core/index.ts
+export { useGameState, useGameSetup, useGameRecording } from './model';
 ```
 
 ---
@@ -935,13 +953,13 @@ describe('useRecordAtBat', () => {
 ### Widget Layer Testing
 
 ```typescript
-// widgets/batting-action-panel/BattingActionPanel.test.tsx
+// widgets/at-bat-panel/ui/AtBatActionPanel.test.tsx
 import { render, screen } from '@testing-library/react';
-import { BattingActionPanel } from './BattingActionPanel';
+import { AtBatActionPanel } from './AtBatActionPanel';
 
-describe('BattingActionPanel', () => {
+describe('AtBatActionPanel', () => {
   it('renders all primary action buttons', () => {
-    render(<BattingActionPanel />);
+    render(<AtBatActionPanel />);
 
     expect(screen.getByText('SINGLE')).toBeInTheDocument();
     expect(screen.getByText('DOUBLE')).toBeInTheDocument();
@@ -949,6 +967,60 @@ describe('BattingActionPanel', () => {
   });
 });
 ```
+
+---
+
+## Recent Architectural Changes (Phase 5.3.C)
+
+### Key Refactoring Changes
+
+- **UI Structure Migration**: All components moved to `ui/` subfolders for FSD
+  compliance
+- **Layer Index Removal**: Deleted layer-level index files (entities/index.ts,
+  features/index.ts, shared/index.ts)
+- **Game Hooks Migration**: Moved game-related hooks from `shared/` to
+  `features/game-core/` slice
+- **Public API Enforcement**: Enabled `fsd/public-api` rule globally via steiger
+  configuration
+- **Widget Restructuring**: Consolidated at-bat-panel and bases-diamond widgets
+  with proper structure
+
+### Steiger Configuration & Exceptions
+
+Architecture compliance validated via `steiger.config.ts`:
+
+#### Enabled Rules
+
+- **`fsd/public-api`**: Enforced globally to ensure proper barrel exports
+- **`fsd/forbidden-imports`**: Prevents layer dependency violations
+
+#### Documented Exceptions
+
+- **Pending Features (Phase 5.3.D-F)**: Temporarily exempt from
+  `insignificant-slice` rule:
+  - `widgets/at-bat-panel`, `widgets/bases-diamond`, `widgets/game-header`
+  - `features/lineup-management`, `features/record-at-bat`, `entities/player`
+- **Single-Reference Slices**: Acceptable architectural patterns:
+  - `features/game-setup` (used only in pages/game-setup)
+  - `features/game-core` (used only in pages/game-recording)
+  - `widgets/error-boundary`, `widgets/runner-advancement` (single usage
+    patterns)
+
+#### Architectural Debt
+
+- **DI Container Import Warning**: `shared/api/di/container.ts` imports from
+  entities layer
+  - Status: Documented for future refactoring to features layer
+  - Impact: Warning level, does not block builds
+
+### Migration Benefits
+
+- **Improved Scalability**: Clear slice boundaries and dependency rules
+- **Better Team Collaboration**: Isolated features for parallel development
+- **Enhanced Maintainability**: Predictable import patterns and public APIs
+- **Architecture Validation**: Automated compliance checking via steiger
+
+---
 
 This FSD architecture provides a scalable, maintainable foundation for the TW
 Softball PWA while maintaining clear separation of concerns and dependency

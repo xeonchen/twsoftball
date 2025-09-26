@@ -54,10 +54,41 @@ import {
   createApplicationServicesWithContainer,
   type ApplicationServices,
   type ApplicationConfig,
+  type StartNewGameCommand,
+  type AtBatResult,
+  type GameStartResult,
+  type InningEndResult,
+  type SubstitutionResult,
+  type UndoResult,
+  type RedoResult,
 } from '@twsoftball/application';
 
-import { GameAdapter, type GameAdapterConfig } from '../adapters';
+import type { SetupWizardState } from '../../lib/types/game';
 import { wizardToCommand } from '../mappers/wizardToCommand';
+
+// Interface definitions to avoid forbidden imports from entities layer
+interface GameAdapter {
+  startNewGame(command: unknown): Promise<GameStartResult>;
+  startNewGameFromWizard(wizardData: unknown): Promise<GameStartResult>;
+  recordAtBat(command: unknown): Promise<AtBatResult>;
+  endInning(command: unknown): Promise<InningEndResult>;
+  substitutePlayer(command: unknown): Promise<SubstitutionResult>;
+  undoLastAction(command: unknown): Promise<UndoResult>;
+  redoLastAction(command: unknown): Promise<RedoResult>;
+}
+
+interface GameAdapterConfig {
+  startNewGame: ApplicationServices['startNewGame'];
+  recordAtBat: ApplicationServices['recordAtBat'];
+  substitutePlayer: ApplicationServices['substitutePlayer'];
+  undoLastAction: ApplicationServices['undoLastAction'];
+  redoLastAction: ApplicationServices['redoLastAction'];
+  endInning: ApplicationServices['endInning'];
+  gameRepository: ApplicationServices['gameRepository'];
+  eventStore: ApplicationServices['eventStore'];
+  logger: ApplicationServices['logger'];
+  wizardToCommand: (wizardData: SetupWizardState) => StartNewGameCommand; // WizardToCommandMapper function type
+}
 
 /**
  * Configuration interface for dependency container initialization.
@@ -131,6 +162,7 @@ let applicationServices: ApplicationServices | null = null;
  * the container with the new configuration.
  *
  * @param config - Container configuration options
+ * @param serviceCreator - Optional service creator function for testing (internal use)
  * @throws Error if container initialization fails
  *
  * @example
@@ -150,7 +182,12 @@ let applicationServices: ApplicationServices | null = null;
  * });
  * ```
  */
-export async function initializeContainer(config: ContainerConfig): Promise<void> {
+export async function initializeContainer(
+  config: ContainerConfig,
+  serviceCreator: (
+    config: ApplicationConfig
+  ) => Promise<ApplicationServices> = createApplicationServicesWithContainer
+): Promise<void> {
   try {
     // Step 1: Validate configuration
     validateConfiguration(config);
@@ -163,7 +200,7 @@ export async function initializeContainer(config: ContainerConfig): Promise<void
     };
 
     // Step 3: Create application services using DIContainer with dynamic imports
-    applicationServices = await createApplicationServicesWithContainer(applicationConfig);
+    applicationServices = await serviceCreator(applicationConfig);
 
     // Step 4: Create GameAdapter configuration
     const gameAdapterConfig: GameAdapterConfig = {
@@ -179,7 +216,8 @@ export async function initializeContainer(config: ContainerConfig): Promise<void
       wizardToCommand,
     };
 
-    // Step 5: Create GameAdapter
+    // Step 5: Create GameAdapter using dynamic import
+    const { GameAdapter } = await import('../../../entities/game');
     const gameAdapter = new GameAdapter(gameAdapterConfig);
 
     // Step 6: Assemble final container

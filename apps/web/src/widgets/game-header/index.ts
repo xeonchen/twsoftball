@@ -1,2 +1,2 @@
-export { GameHeader } from './GameHeader';
-export type { GameHeaderProps } from './GameHeader';
+export { GameHeader } from './ui/GameHeader';
+export type { GameHeaderProps } from './ui/GameHeader';

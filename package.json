@@ -19,6 +19,9 @@
     "lint:strict": "eslint --max-warnings 0 .",
     "format": "turbo run format",
     "format:check": "turbo run format:check",
+    "fsd:check": "steiger --config steiger.config.ts ./apps/web/src --reporter=json",
+    "fsd:watch": "steiger --config steiger.config.ts ./apps/web/src --watch",
+    "fsd:staged": "steiger --config steiger.config.ts ./apps/web/src --staged --reporter=json",
     "deps:check": "dependency-cruiser --config .dependency-cruiser.cjs packages apps",
     "clean": "turbo run clean && rm -rf node_modules/.cache"
   },
@@ -26,6 +29,7 @@
     "@commitlint/cli": "^19.8.1",
     "@commitlint/config-conventional": "^19.8.1",
     "@eslint/js": "^9.34.0",
+    "@feature-sliced/steiger-plugin": "^0.5.7",
     "@types/node": "^24.3.0",
     "@typescript-eslint/eslint-plugin": "^8.42.0",
     "@typescript-eslint/parser": "^8.42.0",
@@ -48,6 +52,7 @@
     "lint-staged": "^16.1.6",
     "nyc": "^17.1.0",
     "prettier": "^3.6.2",
+    "steiger": "^0.5.11",
     "turbo": "^2.5.6",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"

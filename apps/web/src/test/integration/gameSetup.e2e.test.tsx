@@ -89,7 +89,7 @@ const storeState: StoreState = {
   },
 };
 
-vi.mock('../../shared/lib/store/gameStore', (): unknown => ({
+vi.mock('../../entities/game', (): unknown => ({
   useGameStore: (): unknown => ({
     setupWizard: storeState.setupWizard,
     setTeams: mockSetTeams,
@@ -114,6 +114,10 @@ vi.mock('../../features/game-setup', (): unknown => ({
     clearError: mockClearError,
     reset: vi.fn(),
   }),
+  validateTeamNames: vi.fn(() => ({
+    isValid: true,
+    message: '',
+  })),
 }));
 
 // Mock the DI container using global setup

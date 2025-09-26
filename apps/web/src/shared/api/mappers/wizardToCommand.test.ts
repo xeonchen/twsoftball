@@ -22,7 +22,7 @@
 import { GameId, PlayerId, JerseyNumber, FieldPosition } from '@twsoftball/application';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import type { SetupWizardState, Player } from '../../lib/store/gameStore';
+import type { SetupWizardState, Player } from '../../lib/types';
 
 import { wizardToCommand } from './wizardToCommand';
 

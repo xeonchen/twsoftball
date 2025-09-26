@@ -40,7 +40,7 @@ import type { StartNewGameCommand } from '@twsoftball/application';
 import { GameId, PlayerId, JerseyNumber, FieldPosition } from '@twsoftball/application';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { SetupWizardState, Player } from '../../lib/store/gameStore';
+import type { SetupWizardState, Player } from '../../lib/types';
 
 /**
  * Local LineupPlayerDTO interface to match what StartNewGameCommand expects.

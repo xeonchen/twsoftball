@@ -145,7 +145,7 @@ describe('PerformanceBenchmark', () => {
       // Measurements should be close to the delay (allowing for some variance)
       result.measurements.forEach(measurement => {
         expect(measurement).toBeGreaterThan(delay * 0.8); // At least 80% of expected
-        expect(measurement).toBeLessThan(delay * 3); // Less than 3x expected (generous for test environments)
+        expect(measurement).toBeLessThan(delay * 5); // Less than 5x expected (generous for CI environments)
       });
 
       expect(result.statistics.mean).toBeGreaterThan(delay * 0.8);

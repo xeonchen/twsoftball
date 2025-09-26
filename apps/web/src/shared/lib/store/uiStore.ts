@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import { Player } from './gameStore';
+import { Player } from '../types';
 
 /**
  * Notification types for user feedback
