@@ -251,7 +251,7 @@ describe('Command Mapper', () => {
     });
 
     it('should handle all field positions correctly', () => {
-      const positions = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'];
+      const positions = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'SF'];
 
       positions.forEach(position => {
         const uiData: UISubstitutePlayerData = {

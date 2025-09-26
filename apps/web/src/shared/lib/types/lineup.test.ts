@@ -211,6 +211,7 @@ describe('LineupTypes', () => {
         FieldPosition.LEFT_FIELD,
         FieldPosition.CENTER_FIELD,
         FieldPosition.RIGHT_FIELD,
+        FieldPosition.SHORT_FIELDER,
         FieldPosition.EXTRA_PLAYER,
       ];
 
@@ -260,6 +261,11 @@ describe('LineupTypes', () => {
         leftField: { battingSlot: 7, playerId: 'p7', fieldPosition: FieldPosition.LEFT_FIELD },
         centerField: { battingSlot: 8, playerId: 'p8', fieldPosition: FieldPosition.CENTER_FIELD },
         rightField: { battingSlot: 9, playerId: 'p9', fieldPosition: FieldPosition.RIGHT_FIELD },
+        shortFielder: {
+          battingSlot: 10,
+          playerId: 'p10',
+          fieldPosition: FieldPosition.SHORT_FIELDER,
+        },
       };
 
       expect(layout.pitcher.fieldPosition).toBe(FieldPosition.PITCHER);
@@ -271,9 +277,10 @@ describe('LineupTypes', () => {
       expect(layout.leftField.fieldPosition).toBe(FieldPosition.LEFT_FIELD);
       expect(layout.centerField.fieldPosition).toBe(FieldPosition.CENTER_FIELD);
       expect(layout.rightField.fieldPosition).toBe(FieldPosition.RIGHT_FIELD);
+      expect(layout.shortFielder.fieldPosition).toBe(FieldPosition.SHORT_FIELDER);
     });
 
-    it('should support optional extra hitter', () => {
+    it('should support optional extra player', () => {
       const layoutWithEH: FieldLayout = {
         pitcher: { battingSlot: 1, playerId: 'p1', fieldPosition: FieldPosition.PITCHER },
         catcher: { battingSlot: 2, playerId: 'p2', fieldPosition: FieldPosition.CATCHER },
@@ -284,19 +291,24 @@ describe('LineupTypes', () => {
         leftField: { battingSlot: 7, playerId: 'p7', fieldPosition: FieldPosition.LEFT_FIELD },
         centerField: { battingSlot: 8, playerId: 'p8', fieldPosition: FieldPosition.CENTER_FIELD },
         rightField: { battingSlot: 9, playerId: 'p9', fieldPosition: FieldPosition.RIGHT_FIELD },
-        extraHitter: {
+        shortFielder: {
           battingSlot: 10,
           playerId: 'p10',
+          fieldPosition: FieldPosition.SHORT_FIELDER,
+        },
+        extraPlayer: {
+          battingSlot: 11,
+          playerId: 'p11',
           fieldPosition: FieldPosition.EXTRA_PLAYER,
         },
       };
 
-      expect(layoutWithEH.extraHitter).toBeDefined();
-      expect(layoutWithEH.extraHitter?.fieldPosition).toBe(FieldPosition.EXTRA_PLAYER);
-      expect(layoutWithEH.extraHitter?.battingSlot).toBe(10);
+      expect(layoutWithEH.extraPlayer).toBeDefined();
+      expect(layoutWithEH.extraPlayer?.fieldPosition).toBe(FieldPosition.EXTRA_PLAYER);
+      expect(layoutWithEH.extraPlayer?.battingSlot).toBe(11);
     });
 
-    it('should allow field layout without extra hitter', () => {
+    it('should allow field layout without extra player', () => {
       const layoutWithoutEH: FieldLayout = {
         pitcher: { battingSlot: 1, playerId: 'p1', fieldPosition: FieldPosition.PITCHER },
         catcher: { battingSlot: 2, playerId: 'p2', fieldPosition: FieldPosition.CATCHER },
@@ -307,9 +319,14 @@ describe('LineupTypes', () => {
         leftField: { battingSlot: 7, playerId: 'p7', fieldPosition: FieldPosition.LEFT_FIELD },
         centerField: { battingSlot: 8, playerId: 'p8', fieldPosition: FieldPosition.CENTER_FIELD },
         rightField: { battingSlot: 9, playerId: 'p9', fieldPosition: FieldPosition.RIGHT_FIELD },
+        shortFielder: {
+          battingSlot: 10,
+          playerId: 'p10',
+          fieldPosition: FieldPosition.SHORT_FIELDER,
+        },
       };
 
-      expect(layoutWithoutEH.extraHitter).toBeUndefined();
+      expect(layoutWithoutEH.extraPlayer).toBeUndefined();
     });
   });
 
@@ -409,6 +426,11 @@ describe('LineupTypes', () => {
         leftField: { battingSlot: 7, playerId: 'p7', fieldPosition: FieldPosition.LEFT_FIELD },
         centerField: { battingSlot: 8, playerId: 'p8', fieldPosition: FieldPosition.CENTER_FIELD },
         rightField: { battingSlot: 9, playerId: 'p9', fieldPosition: FieldPosition.RIGHT_FIELD },
+        shortFielder: {
+          battingSlot: 10,
+          playerId: 'p10',
+          fieldPosition: FieldPosition.SHORT_FIELDER,
+        },
       };
 
       expect(layout.pitcher).toBe(positions[0]);
