@@ -75,6 +75,8 @@ interface GameAdapter {
   substitutePlayer(command: unknown): Promise<SubstitutionResult>;
   undoLastAction(command: unknown): Promise<UndoResult>;
   redoLastAction(command: unknown): Promise<RedoResult>;
+  getTeamLineup(data: unknown): Promise<unknown>;
+  makeSubstitution(data: unknown): Promise<unknown>;
 }
 
 interface GameAdapterConfig {
