@@ -1,0 +1,36 @@
+version: 2
+updates:
+  # Enable version updates for npm
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '10:00'
+      timezone: 'UTC'
+    # Group all dependency updates together
+    groups:
+      all-dependencies:
+        patterns:
+          - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
+    # Auto-labeling
+    labels:
+      - 'dependencies'
+    # Conventional commit messages
+    commit-message:
+      prefix: 'chore'
+      prefix-development: 'chore'
+      include: 'scope'
+    # Security updates allowed anytime
+    allow:
+      - dependency-type: 'all'
+    # Limit open PRs
+    open-pull-requests-limit: 10
+    # Reviewers (optional - can be configured later)
+    # reviewers:
+    #   - "xeonchen"
+    # Auto-merge for patch updates (optional - can be enabled later)
+    # enable-beta-ecosystems: true

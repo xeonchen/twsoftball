@@ -641,6 +641,8 @@ export default [
       'dist/**',
       'build/**',
       'coverage/**',
+      'dev-dist/**',
+      '**/dev-dist/**',
       '.pnpm-store/**',
       '**/*.tsbuildinfo',
       '**/.tsbuildinfo',
