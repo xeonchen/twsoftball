@@ -43,6 +43,16 @@ vi.mock('../model/useLineupManagement', () => ({
   })),
 }));
 
+// Mock the substitute player hook
+vi.mock('../../substitute-player', () => ({
+  useSubstitutePlayer: vi.fn(() => ({
+    substitutePlayer: vi.fn().mockResolvedValue({ success: true }),
+    isLoading: false,
+    error: null,
+    lastResult: null,
+  })),
+}));
+
 import { SubstitutionDialog } from './SubstitutionDialog';
 
 // Mock data
@@ -93,6 +103,8 @@ describe('SubstitutionDialog Component - TDD Implementation', () => {
     currentPlayer: mockCurrentPlayer,
     benchPlayers: mockBenchPlayers,
     gameId: 'game-123',
+    teamLineupId: 'team-456',
+    inning: 5,
   };
 
   beforeEach(() => {

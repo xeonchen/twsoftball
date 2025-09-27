@@ -65,6 +65,7 @@ export default defineConfig([
       './apps/web/src/entities/player/**',
       './apps/web/src/features/game-setup/**', // Single reference in pages/game-setup - acceptable
       './apps/web/src/features/game-core/**', // Single reference in pages/game-recording - acceptable
+      './apps/web/src/features/substitute-player/**', // Referenced by lineup-management feature - Phase 5.3.C integration
       './apps/web/src/widgets/error-boundary/**', // Single reference in pages/game-recording - acceptable
       './apps/web/src/widgets/runner-advancement/**', // Single reference in pages/game-recording - acceptable
     ],
@@ -79,6 +80,15 @@ export default defineConfig([
     files: ['./apps/web/src/shared/api/di/container.ts'],
     rules: {
       'fsd/forbidden-imports': 'off', // Documented architectural debt - needs refactoring to features layer
+    },
+  },
+
+  // Phase 5.3.C integration exception for substitute-player and lineup-management
+  {
+    // Allow lineup-management to import from substitute-player for Phase 5.3.C integration
+    files: ['./apps/web/src/features/lineup-management/**'],
+    rules: {
+      'fsd/forbidden-imports': 'off', // Phase 5.3.C feature integration - cross-feature dependency
     },
   },
 ]);

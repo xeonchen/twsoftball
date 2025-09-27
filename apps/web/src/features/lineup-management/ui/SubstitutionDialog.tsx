@@ -38,6 +38,7 @@ import { FieldPosition } from '@twsoftball/application';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 import type { BenchPlayer, PositionAssignment } from '../../../shared/lib/types';
+import { useSubstitutePlayer } from '../../substitute-player';
 import { useLineupManagement } from '../model/useLineupManagement';
 import type { SubstitutionData } from '../model/useLineupManagement';
 
@@ -57,6 +58,10 @@ export interface SubstitutionDialogProps {
   benchPlayers: BenchPlayer[];
   /** Game ID for context */
   gameId: string;
+  /** Team lineup ID for substitution */
+  teamLineupId: string;
+  /** Current inning number */
+  inning: number;
 }
 
 /**
@@ -98,9 +103,16 @@ export function SubstitutionDialog({
   currentPlayer,
   benchPlayers,
   gameId,
+  teamLineupId,
+  inning,
 }: SubstitutionDialogProps): React.JSX.Element | null {
   // Hook state
   const { checkEligibility, getAvailablePositions } = useLineupManagement(gameId);
+  const {
+    substitutePlayer: executeSubstitution,
+    isLoading: isExecuting,
+    error: substitutionError,
+  } = useSubstitutePlayer();
 
   // Local state
   const [formState, setFormState] = useState<SubstitutionFormState>({
@@ -121,11 +133,11 @@ export function SubstitutionDialog({
       formState.selectedPlayerId
         ? checkEligibility({
             playerId: formState.selectedPlayerId,
-            inning: 5, // Would be current inning from game state
+            inning,
             isReentry: formState.isReentry,
           })
         : { eligible: false, reason: 'No player selected' },
-    [formState.selectedPlayerId, formState.isReentry, checkEligibility]
+    [formState.selectedPlayerId, formState.isReentry, inning, checkEligibility]
   );
 
   // Get available positions for selected player
@@ -167,28 +179,67 @@ export function SubstitutionDialog({
       return;
     }
 
+    const selectedPlayer = benchPlayers.find(p => p.id === formState.selectedPlayerId);
+    if (!selectedPlayer) {
+      setError('Selected player not found');
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
     try {
-      const substitutionData: SubstitutionData = {
-        outgoingPlayerId: currentPlayer.playerId,
-        incomingPlayerId: formState.selectedPlayerId,
+      // Use the substitute-player feature to execute the substitution
+      const result = await executeSubstitution({
+        gameId,
+        teamLineupId,
         battingSlot: currentPlayer.battingSlot,
-        fieldPosition: formState.selectedPosition,
+        outgoingPlayerId: currentPlayer.playerId,
+        incomingPlayer: {
+          id: selectedPlayer.id,
+          name: selectedPlayer.name,
+          jerseyNumber: selectedPlayer.jerseyNumber,
+          position: formState.selectedPosition,
+        },
+        inning,
         isReentry: formState.isReentry,
-      };
+      });
 
-      await onConfirm(substitutionData);
-      // Close dialog after successful substitution
-      onClose();
+      if (result.success) {
+        // Also call the original onConfirm for backward compatibility
+        const substitutionData: SubstitutionData = {
+          outgoingPlayerId: currentPlayer.playerId,
+          incomingPlayerId: formState.selectedPlayerId,
+          battingSlot: currentPlayer.battingSlot,
+          fieldPosition: formState.selectedPosition,
+          isReentry: formState.isReentry,
+        };
+        await onConfirm(substitutionData);
+
+        // Close dialog after successful substitution
+        onClose();
+      } else {
+        const errorMessage = result.errors?.[0] || 'Substitution failed';
+        setError(errorMessage);
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Substitution failed';
       setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
-  }, [eligibility, currentPlayer, formState, onConfirm, onClose]);
+  }, [
+    eligibility,
+    currentPlayer,
+    formState,
+    benchPlayers,
+    executeSubstitution,
+    gameId,
+    teamLineupId,
+    inning,
+    onConfirm,
+    onClose,
+  ]);
 
   /**
    * Handle keyboard navigation
@@ -261,9 +312,9 @@ export function SubstitutionDialog({
         </div>
 
         {/* Error display */}
-        {error && (
+        {(error || substitutionError) && (
           <div role="alert" className="error-message">
-            {error}
+            {error || substitutionError}
           </div>
         )}
 
@@ -352,7 +403,7 @@ export function SubstitutionDialog({
             type="button"
             onClick={onClose}
             className="cancel-button touch-friendly"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isExecuting}
           >
             Cancel
           </button>
@@ -362,9 +413,9 @@ export function SubstitutionDialog({
               void handleSubmit();
             }}
             className="confirm-button touch-friendly"
-            disabled={!eligibility.eligible || isSubmitting}
+            disabled={!eligibility.eligible || isSubmitting || isExecuting}
           >
-            {isSubmitting ? 'Confirming...' : 'Confirm'}
+            {isSubmitting || isExecuting ? 'Confirming...' : 'Confirm'}
           </button>
         </div>
       </div>

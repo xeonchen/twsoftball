@@ -34,6 +34,16 @@ vi.mock('../model/useLineupManagement', () => ({
   useLineupManagement: vi.fn(),
 }));
 
+// Mock the substitute player hook
+vi.mock('../../substitute-player', () => ({
+  useSubstitutePlayer: vi.fn(() => ({
+    substitutePlayer: vi.fn().mockResolvedValue({ success: true }),
+    isLoading: false,
+    error: null,
+    lastResult: null,
+  })),
+}));
+
 // Cast to mock for TypeScript
 const mockUseLineupManagement = useLineupManagement as vi.MockedFunction<
   typeof useLineupManagement

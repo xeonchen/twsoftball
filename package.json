@@ -61,7 +61,7 @@
     "node": ">=18",
     "pnpm": ">=10"
   },
-  "packageManager": "pnpm@10.17.0",
+  "packageManager": "pnpm@10.17.1",
   "pnpm": {
     "overrides": {
       "micromatch@<4.0.8": ">=4.0.8",
