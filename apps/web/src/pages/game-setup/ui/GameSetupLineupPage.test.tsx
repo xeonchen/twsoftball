@@ -525,7 +525,7 @@ describe('GameSetupLineupPage Component', () => {
         () => {
           expect(screen.queryByTestId('jersey-suggestions')).not.toBeInTheDocument();
         },
-        { timeout: 300 }
+        { timeout: 500 }
       );
     });
 

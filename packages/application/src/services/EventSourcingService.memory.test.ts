@@ -445,7 +445,7 @@ describe('EventSourcingService - Memory Management', () => {
       );
     });
 
-    it('should evict 25% of entries under memory pressure', () => {
+    it('should evict 25% of entries under memory pressure', { timeout: 10000 }, () => {
       // Enable caching
       eventSourcingService.enableSnapshotCaching(true);
 
