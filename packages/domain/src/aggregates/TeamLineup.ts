@@ -1,4 +1,5 @@
 import { FieldPosition } from '../constants/FieldPosition.js';
+import { JERSEY_NUMBERS } from '../constants/JerseyNumberConstants.js';
 import { DomainError } from '../errors/DomainError.js';
 import { DomainEvent } from '../events/DomainEvent.js';
 import { FieldPositionChanged } from '../events/FieldPositionChanged.js';
@@ -1089,12 +1090,12 @@ export class TeamLineup {
           // Since the PlayerSubstitutedIntoGame event doesn't contain jersey/name info,
           // we generate a unique jersey number to avoid conflicts during reconstruction
           let jerseyNum = 90;
-          while (this.jerseyAssignments.has(jerseyNum) && jerseyNum <= 99) {
+          while (this.jerseyAssignments.has(jerseyNum) && jerseyNum <= JERSEY_NUMBERS.MAX_ALLOWED) {
             jerseyNum += 1;
           }
-          if (jerseyNum > 99) {
-            // Fallback to higher numbers if 90-99 are taken
-            jerseyNum = 50;
+          if (jerseyNum > JERSEY_NUMBERS.MAX_ALLOWED) {
+            // Fallback to substitute range if 90-99 are taken
+            jerseyNum = JERSEY_NUMBERS.SUBSTITUTE_START;
             while (this.jerseyAssignments.has(jerseyNum) && jerseyNum <= 89) {
               jerseyNum += 1;
             }

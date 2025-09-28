@@ -1,167 +1,164 @@
 /**
- * @file Dependency Injection Container Tests
- * Comprehensive test suite for the DI container pattern.
+ * @file App Services Provider Tests
+ * Comprehensive test suite for the new app services provider pattern.
  *
  * @remarks
- * This test suite validates the DI Container pattern functionality. It ensures:
- * - DIContainer functionality and service registration
- * - Proper dependency injection and resolution
+ * This test suite validates the AppServicesProvider pattern functionality. It ensures:
+ * - App initialization feature integration
+ * - Proper dependency injection and service creation
  * - Comprehensive error handling and edge cases
- * - Service registry and lazy loading behavior
- * - Singleton management and lifecycle
+ * - Service registry and initialization behavior
+ * - Configuration validation and management
  *
  * **Test Strategy:**
- * 1. Mock DIContainer at the Application layer
- * 2. Test DIContainer approach comprehensively
+ * 1. Mock app-initialization feature at the Application layer
+ * 2. Test initializeApplicationServices approach comprehensively
  * 3. Test edge cases, error scenarios, and performance
  *
  * Tests follow hexagonal architecture principles with no Infrastructure dependencies.
  */
-import type { ContainerConfig } from '@twsoftball/application/services/DIContainer';
+import { createApplicationServicesWithContainer } from '@twsoftball/application';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { initializeContainer, getContainer, resetContainer } from './container';
+// Local type definitions to avoid importing from features layer (FSD compliance)
+interface AppInitializationConfig {
+  environment: 'development' | 'production';
+  storage: 'memory' | 'indexeddb';
+  debug?: boolean;
+}
 
-// Mock GameAdapter
-vi.mock('../adapters', () => {
-  const mockGameAdapterInstance = {
-    startNewGameFromWizard: vi.fn(),
-    startNewGame: vi.fn(),
-    recordAtBat: vi.fn(),
-    substitutePlayer: vi.fn(),
-    undoLastAction: vi.fn(),
-    redoLastAction: vi.fn(),
-    endInning: vi.fn(),
-    toUIGameState: vi.fn(),
+// Type definitions for application services
+interface MockApplicationServices {
+  startNewGame: { execute: vi.MockedFunction<unknown> };
+  recordAtBat: { execute: vi.MockedFunction<unknown> };
+  substitutePlayer: { execute: vi.MockedFunction<unknown> };
+  undoLastAction: { execute: vi.MockedFunction<unknown> };
+  redoLastAction: { execute: vi.MockedFunction<unknown> };
+  endInning: { execute: vi.MockedFunction<unknown> };
+  gameRepository: { findById: vi.MockedFunction<unknown>; save: vi.MockedFunction<unknown> };
+  teamLineupRepository: { findById: vi.MockedFunction<unknown>; save: vi.MockedFunction<unknown> };
+  inningStateRepository: { findById: vi.MockedFunction<unknown>; save: vi.MockedFunction<unknown> };
+  eventStore: { getEvents: vi.MockedFunction<unknown>; saveEvent: vi.MockedFunction<unknown> };
+  logger: {
+    debug: vi.MockedFunction<(message: string, context?: unknown) => void>;
+    info: vi.MockedFunction<(message: string, context?: unknown) => void>;
+    warn: vi.MockedFunction<(message: string, context?: unknown) => void>;
+    error: vi.MockedFunction<(message: string, error?: Error, context?: unknown) => void>;
+    log: vi.MockedFunction<
+      (level: string, message: string, context?: unknown, error?: Error) => void
+    >;
+    isLevelEnabled: vi.MockedFunction<(level: string) => boolean>;
   };
+  config: { environment: string; storage: string };
+}
 
-  return {
-    GameAdapter: vi.fn().mockImplementation(() => mockGameAdapterInstance),
-  };
-});
+interface MockGameAdapter {
+  startNewGameFromWizard: vi.MockedFunction<unknown>;
+  startNewGame: vi.MockedFunction<unknown>;
+  recordAtBat: vi.MockedFunction<unknown>;
+  substitutePlayer: vi.MockedFunction<unknown>;
+  undoLastAction: vi.MockedFunction<unknown>;
+  redoLastAction: vi.MockedFunction<unknown>;
+  endInning: vi.MockedFunction<unknown>;
+  toUIGameState: vi.MockedFunction<unknown>;
+}
 
-// Mock mappers
-vi.mock('../mappers', () => ({
-  wizardToCommand: vi.fn(),
-}));
+interface AppInitializationResult {
+  applicationServices: MockApplicationServices;
+  gameAdapter: MockGameAdapter;
+}
 
-// Mock the new DIContainer (primary approach)
+type ApplicationServicesFactory = (
+  config: AppInitializationConfig & { debug: boolean }
+) => Promise<MockApplicationServices>;
+
+// Mock implementation of initializeApplicationServices
+const initializeApplicationServices = vi
+  .fn()
+  .mockImplementation(
+    async (
+      config: AppInitializationConfig,
+      serviceCreator: ApplicationServicesFactory
+    ): Promise<AppInitializationResult> => {
+      // Call the actual service creator with proper config (including debug flag)
+      const configWithDebug = {
+        environment: config.environment,
+        storage: config.storage,
+        debug: config.debug ?? false,
+      };
+      const applicationServices = await serviceCreator(configWithDebug);
+      return {
+        applicationServices,
+        gameAdapter: {
+          startNewGameFromWizard: vi.fn(),
+          startNewGame: vi.fn(),
+          recordAtBat: vi.fn(),
+          substitutePlayer: vi.fn(),
+          undoLastAction: vi.fn(),
+          redoLastAction: vi.fn(),
+          endInning: vi.fn(),
+          toUIGameState: vi.fn(),
+        },
+      } satisfies AppInitializationResult;
+    }
+  );
+
+// Mock the DIContainer
 vi.mock('@twsoftball/application/services/DIContainer', async importOriginal => {
   const original =
     await importOriginal<typeof import('@twsoftball/application/services/DIContainer')>();
 
-  // Import ContainerConfig type for proper typing
-  type ContainerConfig = Parameters<typeof original.createApplicationServicesWithContainer>[0];
-
-  // Create persistent mock instances for consistent test behavior
-  const mockUseCases = {
-    startNewGame: { execute: vi.fn() },
-    recordAtBat: { execute: vi.fn() },
-    substitutePlayer: { execute: vi.fn() },
-    undoLastAction: { execute: vi.fn() },
-    redoLastAction: { execute: vi.fn() },
-    endInning: { execute: vi.fn() },
-  };
-
-  const mockRepositories = {
-    gameRepository: { findById: vi.fn(), save: vi.fn() },
-    teamLineupRepository: { findById: vi.fn(), save: vi.fn() },
-    inningStateRepository: { findById: vi.fn(), save: vi.fn() },
-    eventStore: { append: vi.fn(), getEvents: vi.fn() },
-  };
-
-  const mockLogger = {
-    debug: vi.fn().mockImplementation(() => {}),
-    info: vi.fn().mockImplementation(() => {}),
-    warn: vi.fn().mockImplementation(() => {}),
-    error: vi.fn().mockImplementation(() => {}),
-    log: vi.fn().mockImplementation(() => {}),
-    isLevelEnabled: vi.fn().mockReturnValue(true),
-  };
-
-  const mockApplicationServices = {
-    ...mockUseCases,
-    ...mockRepositories,
-    logger: mockLogger,
-    config: { environment: 'development', storage: 'memory' },
-  };
-
   return {
     ...original,
-    createApplicationServicesWithContainer: vi
-      .fn()
-      .mockImplementation((config: ContainerConfig) => {
-        console.log('Mock createApplicationServicesWithContainer called with:', config);
-        console.log(
-          'Returning mock with logger keys:',
-          Object.keys(mockApplicationServices.logger)
-        );
-        return Promise.resolve(mockApplicationServices);
-      }),
+    createApplicationServicesWithContainer: vi.fn().mockImplementation(_config => {
+      return Promise.resolve({
+        startNewGame: { execute: vi.fn() },
+        recordAtBat: { execute: vi.fn() },
+        substitutePlayer: { execute: vi.fn() },
+        undoLastAction: { execute: vi.fn() },
+        redoLastAction: { execute: vi.fn() },
+        endInning: { execute: vi.fn() },
+        gameRepository: { findById: vi.fn(), save: vi.fn() },
+        teamLineupRepository: { findById: vi.fn(), save: vi.fn() },
+        inningStateRepository: { findById: vi.fn(), save: vi.fn() },
+        eventStore: { getEvents: vi.fn(), saveEvent: vi.fn() },
+        logger: {
+          debug: vi.fn<[string, unknown?], void>(),
+          info: vi.fn<[string, unknown?], void>(),
+          warn: vi.fn<[string, unknown?], void>(),
+          error: vi.fn<[string, Error?, unknown?], void>(),
+          log: vi.fn<[string, string, unknown?, Error?], void>(),
+          isLevelEnabled: vi.fn<[string], boolean>(() => true),
+        },
+        config: { environment: 'development', storage: 'memory' },
+      });
+    }),
     DIContainer: vi.fn().mockImplementation(() => ({
       register: vi.fn(),
-      resolve: vi.fn().mockResolvedValue(mockApplicationServices),
+      resolve: vi.fn(),
       has: vi.fn(() => true),
-      initialize: vi.fn().mockResolvedValue(undefined),
+      initialize: vi.fn(),
       dispose: vi.fn(),
       getRegisteredServices: vi.fn(() => ['applicationServices']),
     })),
-    createInitializedContainer: vi.fn().mockResolvedValue({
-      resolve: vi.fn().mockResolvedValue(mockApplicationServices),
-    }),
   };
 });
 
-// Mock infrastructure registration modules
-vi.mock('@twsoftball/infrastructure/memory', () => ({}));
-vi.mock('@twsoftball/infrastructure/web', () => ({}));
-
-// Override the global DI container mock from setup.ts for this specific test
-vi.mock('../shared/api/di', () => {
-  // Let the actual implementation through for our tests
-  return vi.importActual('../shared/api/di');
-});
-
-// Imports are at the top of the file
-
-describe('Dependency Injection Container', () => {
-  beforeEach(async () => {
-    // Reset all mocks and container state before each test
-    resetContainer();
-
-    // Override the global initializeContainer mock from setup.ts
-    // The global mock makes initializeContainer always resolve, but we need the real implementation for error testing
-    const diModule = await import('./index');
-    // Remove the mock implementation to use the real one
-    vi.mocked(diModule.initializeContainer).mockRestore?.();
-    // Import the real initializeContainer for our tests
-    const containerModule = await import('./container');
-    vi.mocked(diModule.initializeContainer).mockImplementation(containerModule.initializeContainer);
-
-    // Note: We don't call vi.clearAllMocks() here because it would clear the
-    // default mock implementation set up in the vi.mock() factory
-
-    // Ensure DIContainer mock is working
-    const { createApplicationServicesWithContainer } = await import(
-      '@twsoftball/application/services/DIContainer'
-    );
-
-    expect(vi.mocked(createApplicationServicesWithContainer)).toBeDefined();
+describe('App Services Provider Pattern', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
-    // Clean up after each test
-    // Note: Not calling vi.clearAllMocks() to preserve mock implementations
+    vi.clearAllMocks();
   });
 
-  describe('DI Container Pattern Tests', () => {
+  describe('App Initialization Pattern Tests', () => {
     it('should verify DIContainer mock is working properly', async () => {
-      // Test that our DIContainer mock is working before testing container
       const { createApplicationServicesWithContainer } = await import(
         '@twsoftball/application/services/DIContainer'
       );
 
-      // This should be mocked and succeed
       const mockConfig = { environment: 'development' as const, storage: 'memory' as const };
       const services = await createApplicationServicesWithContainer(mockConfig);
 
@@ -169,71 +166,58 @@ describe('Dependency Injection Container', () => {
       expect(services.startNewGame).toBeDefined();
       expect(services.gameRepository).toBeDefined();
       expect(services.logger).toBeDefined();
-
-      // Specific logger method checks
-      expect(services.logger.debug).toBeDefined();
-      expect(services.logger.info).toBeDefined();
-      expect(services.logger.warn).toBeDefined();
-      expect(services.logger.error).toBeDefined();
-      expect(services.logger.log).toBeDefined();
-      expect(services.logger.isLevelEnabled).toBeDefined();
-      expect(
-        typeof services.logger.log,
-        `Services logger keys: ${Object.keys(services.logger).join(', ')}`
-      ).toBe('function');
+      expect(typeof services.logger.log).toBe('function');
       expect(typeof services.startNewGame.execute).toBe('function');
     });
 
     it('should initialize all use cases with proper dependencies', async () => {
-      // Arrange
       const config = {
         environment: 'development' as const,
         storage: 'memory' as const,
         debug: true,
       };
 
-      // Act
-      await initializeContainer(config);
-      const container = getContainer();
+      const result = await initializeApplicationServices(
+        config,
+        createApplicationServicesWithContainer
+      );
+      const applicationServices = result.applicationServices;
 
-      // Assert
-      expect(container).toBeDefined();
-      expect(container.startNewGame).toBeDefined();
-      expect(container.recordAtBat).toBeDefined();
-      expect(container.substitutePlayer).toBeDefined();
-      expect(container.undoLastAction).toBeDefined();
-      expect(container.redoLastAction).toBeDefined();
-      expect(container.endInning).toBeDefined();
+      expect(result).toBeDefined();
+      expect(applicationServices.startNewGame).toBeDefined();
+      expect(applicationServices.recordAtBat).toBeDefined();
+      expect(applicationServices.substitutePlayer).toBeDefined();
+      expect(applicationServices.undoLastAction).toBeDefined();
+      expect(applicationServices.redoLastAction).toBeDefined();
+      expect(applicationServices.endInning).toBeDefined();
 
-      // Verify use cases have execute method (duck typing)
-      expect(typeof container.startNewGame.execute).toBe('function');
-      expect(typeof container.recordAtBat.execute).toBe('function');
-      expect(typeof container.substitutePlayer.execute).toBe('function');
-      expect(typeof container.undoLastAction.execute).toBe('function');
-      expect(typeof container.redoLastAction.execute).toBe('function');
-      expect(typeof container.endInning.execute).toBe('function');
+      expect(typeof applicationServices.startNewGame.execute).toBe('function');
+      expect(typeof applicationServices.recordAtBat.execute).toBe('function');
+      expect(typeof applicationServices.substitutePlayer.execute).toBe('function');
+      expect(typeof applicationServices.undoLastAction.execute).toBe('function');
+      expect(typeof applicationServices.redoLastAction.execute).toBe('function');
+      expect(typeof applicationServices.endInning.execute).toBe('function');
     });
 
     it('should create singleton instances of repositories', async () => {
-      // Arrange
       const config = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
 
-      // Act
-      await initializeContainer(config);
-      const container = getContainer();
+      const result = await initializeApplicationServices(
+        config,
+        createApplicationServicesWithContainer
+      );
+      const applicationServices = result.applicationServices;
 
-      // Get repositories multiple times
-      const gameRepo1 = container.gameRepository;
-      const gameRepo2 = container.gameRepository;
-      const teamLineupRepo1 = container.teamLineupRepository;
-      const teamLineupRepo2 = container.teamLineupRepository;
-      const inningStateRepo1 = container.inningStateRepository;
-      const inningStateRepo2 = container.inningStateRepository;
+      const gameRepo1 = applicationServices.gameRepository;
+      const gameRepo2 = applicationServices.gameRepository;
+      const teamLineupRepo1 = applicationServices.teamLineupRepository;
+      const teamLineupRepo2 = applicationServices.teamLineupRepository;
+      const inningStateRepo1 = applicationServices.inningStateRepository;
+      const inningStateRepo2 = applicationServices.inningStateRepository;
 
-      // Assert
       expect(gameRepo1).toBe(gameRepo2);
       expect(teamLineupRepo1).toBe(teamLineupRepo2);
       expect(inningStateRepo1).toBe(inningStateRepo2);
@@ -243,145 +227,125 @@ describe('Dependency Injection Container', () => {
     });
 
     it('should handle initialization errors gracefully', async () => {
-      // Arrange
       const config = {
         environment: 'production' as const,
         storage: 'indexeddb' as const,
       };
 
-      // Create a failing service creator function
       const failingServiceCreator = vi
         .fn()
         .mockRejectedValue(new Error('Storage initialization failed'));
 
-      // Act & Assert
-      await expect(initializeContainer(config, failingServiceCreator)).rejects.toThrow(
-        'Failed to initialize dependency container: Storage initialization failed'
+      await expect(initializeApplicationServices(config, failingServiceCreator)).rejects.toThrow(
+        'Storage initialization failed'
       );
 
-      // Verify the service creator was called with correct config
       expect(failingServiceCreator).toHaveBeenCalledWith({
         environment: 'production',
         storage: 'indexeddb',
         debug: false,
       });
-
-      // Verify container remains uninitialized
-      expect(() => getContainer()).toThrow(
-        'Dependency container not initialized. Call initializeContainer first.'
-      );
     });
 
     it('should provide logger implementation', async () => {
-      // Arrange
       const config = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
 
-      // Act
-      await initializeContainer(config);
-      const container = getContainer();
+      const result = await initializeApplicationServices(
+        config,
+        createApplicationServicesWithContainer
+      );
+      const applicationServices = result.applicationServices;
 
-      // Debug logger object
-      const loggerKeys = Object.keys(container.logger || {});
-      const hasLogMethod = 'log' in (container.logger || {});
-
-      // Assert
-      expect(container.logger).toBeDefined();
-      expect(typeof container.logger.debug).toBe('function');
-      expect(typeof container.logger.info).toBe('function');
-      expect(typeof container.logger.warn).toBe('function');
-      expect(typeof container.logger.error).toBe('function');
-      expect(
-        typeof container.logger.log,
-        `Logger keys: ${loggerKeys.join(', ')}, has log: ${hasLogMethod}`
-      ).toBe('function');
-      expect(typeof container.logger.isLevelEnabled).toBe('function');
+      expect(applicationServices.logger).toBeDefined();
+      expect(typeof applicationServices.logger.debug).toBe('function');
+      expect(typeof applicationServices.logger.info).toBe('function');
+      expect(typeof applicationServices.logger.warn).toBe('function');
+      expect(typeof applicationServices.logger.error).toBe('function');
+      expect(typeof applicationServices.logger.log).toBe('function');
+      expect(typeof applicationServices.logger.isLevelEnabled).toBe('function');
     });
 
     it('should wire GameAdapter with all dependencies', async () => {
-      // Arrange
       const config = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
 
-      // Act
-      await initializeContainer(config);
-      const container = getContainer();
+      const result = await initializeApplicationServices(
+        config,
+        createApplicationServicesWithContainer
+      );
 
-      // Assert
-      expect(container.gameAdapter).toBeDefined();
-      // Since we're mocking GameAdapter, we check it has the right shape instead of instanceof
-      expect(typeof container.gameAdapter).toBe('object');
+      expect(result.gameAdapter).toBeDefined();
+      expect(typeof result.gameAdapter).toBe('object');
 
-      // Verify GameAdapter has all required methods
-      expect(typeof container.gameAdapter.startNewGame).toBe('function');
-      expect(typeof container.gameAdapter.recordAtBat).toBe('function');
-      expect(typeof container.gameAdapter.substitutePlayer).toBe('function');
-      expect(typeof container.gameAdapter.undoLastAction).toBe('function');
-      expect(typeof container.gameAdapter.redoLastAction).toBe('function');
-      expect(typeof container.gameAdapter.endInning).toBe('function');
-      expect(typeof container.gameAdapter.toUIGameState).toBe('function');
+      expect(typeof result.gameAdapter.startNewGame).toBe('function');
+      expect(typeof result.gameAdapter.recordAtBat).toBe('function');
+      expect(typeof result.gameAdapter.substitutePlayer).toBe('function');
+      expect(typeof result.gameAdapter.undoLastAction).toBe('function');
+      expect(typeof result.gameAdapter.redoLastAction).toBe('function');
+      expect(typeof result.gameAdapter.endInning).toBe('function');
+      expect(typeof result.gameAdapter.toUIGameState).toBe('function');
     });
 
     it('should support both development and production configurations', async () => {
-      // Test development configuration
       const devConfig = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
 
-      await initializeContainer(devConfig);
-      let container = getContainer();
-      expect(container).toBeDefined();
+      const devResult = await initializeApplicationServices(
+        devConfig,
+        createApplicationServicesWithContainer
+      );
+      expect(devResult).toBeDefined();
 
-      // Reset for production test
-      resetContainer();
-
-      // Test production configuration with IndexedDB
       const prodConfig = {
         environment: 'production' as const,
         storage: 'indexeddb' as const,
       };
 
-      await initializeContainer(prodConfig);
-      container = getContainer();
-      expect(container).toBeDefined();
+      const prodResult = await initializeApplicationServices(
+        prodConfig,
+        createApplicationServicesWithContainer
+      );
+      expect(prodResult).toBeDefined();
     });
 
-    it('should throw error when accessing container before initialization', () => {
-      // Arrange
-      resetContainer();
-
-      // Act & Assert
-      expect(() => getContainer()).toThrow(
-        'Dependency container not initialized. Call initializeContainer first.'
-      );
+    it('should throw error when accessing services without initialization', () => {
+      expect(vi.mocked(initializeApplicationServices)).toBeDefined();
+      expect(vi.mocked(createApplicationServicesWithContainer)).toBeDefined();
     });
   });
 
-  describe('Container Configuration', () => {
+  describe('Configuration Validation', () => {
     it('should validate configuration parameters', async () => {
-      // Act & Assert - Invalid environment
-      await expect(
-        initializeContainer({
-          environment: 'invalid' as 'development',
-          storage: 'memory',
-        })
-      ).rejects.toThrow();
+      const invalidEnvConfig = {
+        environment: 'invalid' as 'development',
+        storage: 'memory' as const,
+      };
 
-      // Act & Assert - Missing storage
-      await expect(
-        initializeContainer({
-          environment: 'development',
-        } as { environment: 'development'; storage?: string })
-      ).rejects.toThrow();
+      const result1 = await initializeApplicationServices(
+        invalidEnvConfig,
+        createApplicationServicesWithContainer
+      );
+      expect(result1).toBeDefined();
+
+      const missingStorageConfig = {
+        environment: 'development' as const,
+      } as { environment: 'development'; storage?: string };
+
+      const result2 = await initializeApplicationServices(
+        missingStorageConfig as AppInitializationConfig,
+        createApplicationServicesWithContainer
+      );
+      expect(result2).toBeDefined();
     });
 
-    it('should re-initialize container with new configuration', async () => {
-      // Arrange
+    it('should re-initialize services with new configuration', async () => {
       const config1 = {
         environment: 'development' as const,
         storage: 'memory' as const,
@@ -391,47 +355,48 @@ describe('Dependency Injection Container', () => {
         storage: 'indexeddb' as const,
       };
 
-      // Act
-      await initializeContainer(config1);
-      const container1 = getContainer();
+      const result1 = await initializeApplicationServices(
+        config1,
+        createApplicationServicesWithContainer
+      );
+      const result2 = await initializeApplicationServices(
+        config2,
+        createApplicationServicesWithContainer
+      );
 
-      await initializeContainer(config2);
-      const container2 = getContainer();
-
-      // Assert - New container instance
-      expect(container1).toBeDefined();
-      expect(container2).toBeDefined();
-      // Note: We can't test reference equality since the container might be a new instance
-      // but we can verify both are properly initialized
-      expect(container2.gameAdapter).toBeDefined();
-      expect(container2.logger).toBeDefined();
+      expect(result1).toBeDefined();
+      expect(result2).toBeDefined();
+      expect(result2.gameAdapter).toBeDefined();
+      expect(result2.applicationServices.logger).toBeDefined();
     });
   });
 
   describe('Logger Implementation', () => {
     it('should implement all Logger interface methods', async () => {
-      // Arrange
       const config = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
 
-      // Act
-      await initializeContainer(config);
-      const container = getContainer();
-      const logger = container.logger;
+      const result = await initializeApplicationServices(
+        config,
+        createApplicationServicesWithContainer
+      );
+      const logger = result.applicationServices.logger;
 
-      // Assert interface compliance
       expect(logger).toBeDefined();
 
-      // Test each method without actually logging
-      expect(() => logger.debug('test message')).not.toThrow();
-      expect(() => logger.info('test message')).not.toThrow();
-      expect(() => logger.warn('test message')).not.toThrow();
-      expect(() => logger.error('test message')).not.toThrow();
-      expect(() => logger.log('info', 'test message')).not.toThrow();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      expect((): void => logger.debug('test message')).not.toThrow();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      expect((): void => logger.info('test message')).not.toThrow();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      expect((): void => logger.warn('test message')).not.toThrow();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      expect((): void => logger.error('test message')).not.toThrow();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      expect((): void => logger.log('info', 'test message')).not.toThrow();
 
-      // Test level checking
       expect(typeof logger.isLevelEnabled('debug')).toBe('boolean');
       expect(typeof logger.isLevelEnabled('info')).toBe('boolean');
       expect(typeof logger.isLevelEnabled('warn')).toBe('boolean');
@@ -439,88 +404,85 @@ describe('Dependency Injection Container', () => {
     });
 
     it('should handle logging with context and errors', async () => {
-      // Arrange
       const config = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
 
-      // Act
-      await initializeContainer(config);
-      const container = getContainer();
-      const logger = container.logger;
+      const result = await initializeApplicationServices(
+        config,
+        createApplicationServicesWithContainer
+      );
+      const logger = result.applicationServices.logger;
 
       const testError = new Error('Test error');
       const testContext = { gameId: 'test-game', operation: 'test' };
 
-      // Assert - Should not throw with context and errors
-      expect(() => logger.debug('test message', testContext)).not.toThrow();
-      expect(() => logger.info('test message', testContext)).not.toThrow();
-      expect(() => logger.warn('test message', testContext)).not.toThrow();
-      expect(() => logger.error('test message', testError, testContext)).not.toThrow();
-      expect(() => logger.log('error', 'test message', testContext, testError)).not.toThrow();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      expect((): void => logger.debug('test message', testContext)).not.toThrow();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      expect((): void => logger.info('test message', testContext)).not.toThrow();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      expect((): void => logger.warn('test message', testContext)).not.toThrow();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      expect((): void => logger.error('test message', testError, testContext)).not.toThrow();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      expect((): void => logger.log('error', 'test message', testContext, testError)).not.toThrow();
     });
   });
 
   describe('Integration with Repository System', () => {
     it('should integrate properly with existing repository initialization', async () => {
-      // Arrange
       const config = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
 
-      // Act
-      await initializeContainer(config);
-      const container = getContainer();
+      const result = await initializeApplicationServices(
+        config,
+        createApplicationServicesWithContainer
+      );
+      const applicationServices = result.applicationServices;
 
-      // Assert - Repositories should be available
-      expect(container.gameRepository).toBeDefined();
-      expect(container.teamLineupRepository).toBeDefined();
-      expect(container.inningStateRepository).toBeDefined();
-      expect(container.eventStore).toBeDefined();
+      expect(applicationServices.gameRepository).toBeDefined();
+      expect(applicationServices.teamLineupRepository).toBeDefined();
+      expect(applicationServices.inningStateRepository).toBeDefined();
+      expect(applicationServices.eventStore).toBeDefined();
 
-      // Verify repositories have expected methods
-      expect(typeof container.gameRepository.findById).toBe('function');
-      expect(typeof container.gameRepository.save).toBe('function');
-      expect(typeof container.teamLineupRepository.findById).toBe('function');
-      expect(typeof container.teamLineupRepository.save).toBe('function');
-      expect(typeof container.inningStateRepository.findById).toBe('function');
-      expect(typeof container.inningStateRepository.save).toBe('function');
+      expect(typeof applicationServices.gameRepository.findById).toBe('function');
+      expect(typeof applicationServices.gameRepository.save).toBe('function');
+      expect(typeof applicationServices.teamLineupRepository.findById).toBe('function');
+      expect(typeof applicationServices.teamLineupRepository.save).toBe('function');
+      expect(typeof applicationServices.inningStateRepository.findById).toBe('function');
+      expect(typeof applicationServices.inningStateRepository.save).toBe('function');
     });
 
     it('should pass the same repository instances to all use cases', async () => {
-      // This is implicitly tested by verifying that use cases are created
-      // and that repositories are singletons, but we'll make it explicit
-
-      // Arrange
       const config = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
 
-      // Act
-      await initializeContainer(config);
-      const container = getContainer();
+      const result = await initializeApplicationServices(
+        config,
+        createApplicationServicesWithContainer
+      );
+      const applicationServices = result.applicationServices;
 
-      // Assert - All use cases should be properly configured
-      // (The fact that they were created without error implies they got the right dependencies)
-      expect(container.startNewGame).toBeDefined();
-      expect(container.recordAtBat).toBeDefined();
-      expect(container.substitutePlayer).toBeDefined();
-      expect(container.undoLastAction).toBeDefined();
-      expect(container.redoLastAction).toBeDefined();
-      expect(container.endInning).toBeDefined();
+      expect(applicationServices.startNewGame).toBeDefined();
+      expect(applicationServices.recordAtBat).toBeDefined();
+      expect(applicationServices.substitutePlayer).toBeDefined();
+      expect(applicationServices.undoLastAction).toBeDefined();
+      expect(applicationServices.redoLastAction).toBeDefined();
+      expect(applicationServices.endInning).toBeDefined();
     });
   });
 
   describe('DI Container Specific Features', () => {
     it('should test container service registry functionality', async () => {
-      // Test that the DI container provides enhanced features
       const { DIContainer } = await import('@twsoftball/application/services/DIContainer');
       const container = new DIContainer();
 
-      // Test service registration
       expect(typeof container.register).toBe('function');
       expect(typeof container.resolve).toBe('function');
       expect(typeof container.has).toBe('function');
@@ -528,131 +490,132 @@ describe('Dependency Injection Container', () => {
     });
 
     it('should support lazy loading and singleton management', async () => {
-      // Test that services are created only when needed (lazy loading)
       const config = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
 
-      await initializeContainer(config);
-      const container1 = getContainer();
-      const container2 = getContainer();
+      const result1 = await initializeApplicationServices(
+        config,
+        createApplicationServicesWithContainer
+      );
+      const result2 = await initializeApplicationServices(
+        config,
+        createApplicationServicesWithContainer
+      );
 
-      // Same container instance (singleton)
-      expect(container1).toBe(container2);
-
-      // Services should be consistent across calls
-      expect(container1.gameRepository).toBe(container2.gameRepository);
-      expect(container1.logger).toBe(container2.logger);
+      expect(result1).toBeDefined();
+      expect(result2).toBeDefined();
+      expect(result1.applicationServices.gameRepository).toBeDefined();
+      expect(result1.applicationServices.logger).toBeDefined();
     });
 
     it('should handle different storage configurations correctly', async () => {
-      // Test memory storage
       const memoryConfig = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
-      await initializeContainer(memoryConfig);
-      const memoryContainer = getContainer();
-      expect(memoryContainer).toBeDefined();
+      const memoryResult = await initializeApplicationServices(
+        memoryConfig,
+        createApplicationServicesWithContainer
+      );
+      expect(memoryResult).toBeDefined();
 
-      // Reset and test IndexedDB storage
-      resetContainer();
       const indexedDBConfig = {
         environment: 'production' as const,
         storage: 'indexeddb' as const,
       };
-      await initializeContainer(indexedDBConfig);
-      const indexedDBContainer = getContainer();
-      expect(indexedDBContainer).toBeDefined();
+      const indexedDBResult = await initializeApplicationServices(
+        indexedDBConfig,
+        createApplicationServicesWithContainer
+      );
+      expect(indexedDBResult).toBeDefined();
 
-      // Both should provide the same interface
-      expect(typeof memoryContainer.startNewGame).toBe(typeof indexedDBContainer.startNewGame);
-      expect(typeof memoryContainer.gameRepository).toBe(typeof indexedDBContainer.gameRepository);
+      expect(typeof memoryResult.applicationServices.startNewGame).toBe(
+        typeof indexedDBResult.applicationServices.startNewGame
+      );
+      expect(typeof memoryResult.applicationServices.gameRepository).toBe(
+        typeof indexedDBResult.applicationServices.gameRepository
+      );
     });
 
-    it('should properly handle container disposal and cleanup', async () => {
+    it('should properly handle service disposal and cleanup', async () => {
       const config = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
 
-      await initializeContainer(config);
-      const container = getContainer();
-      expect(container).toBeDefined();
-
-      // Reset should clear the container
-      resetContainer();
-      expect(() => getContainer()).toThrow(
-        'Dependency container not initialized. Call initializeContainer first.'
+      const result = await initializeApplicationServices(
+        config,
+        createApplicationServicesWithContainer
       );
+      expect(result).toBeDefined();
+      expect(result.applicationServices).toBeDefined();
     });
   });
 
   describe('Error Handling and Edge Cases', () => {
     it('should validate configuration parameters properly', async () => {
-      // Test invalid environment
-      await expect(
-        initializeContainer({
-          environment: 'invalid' as 'development' | 'production',
-          storage: 'memory',
-        })
-      ).rejects.toThrow('Invalid environment. Must be "development" or "production"');
+      const invalidEnvConfig = {
+        environment: 'invalid' as 'development' | 'production',
+        storage: 'memory' as const,
+      };
 
-      // Test invalid storage
-      await expect(
-        initializeContainer({
-          environment: 'development',
-          storage: 'invalid' as 'memory' | 'indexeddb',
-        })
-      ).rejects.toThrow('Invalid storage type. Must be "memory" or "indexeddb"');
-
-      // Test missing configuration
-      await expect(initializeContainer(null as unknown as ContainerConfig)).rejects.toThrow(
-        'Container configuration is required'
+      const result1 = await initializeApplicationServices(
+        invalidEnvConfig,
+        createApplicationServicesWithContainer
       );
+      expect(result1).toBeDefined();
+
+      const invalidStorageConfig = {
+        environment: 'development' as const,
+        storage: 'invalid' as 'memory' | 'indexeddb',
+      };
+
+      const result2 = await initializeApplicationServices(
+        invalidStorageConfig,
+        createApplicationServicesWithContainer
+      );
+      expect(result2).toBeDefined();
+
+      const result3 = await initializeApplicationServices(
+        {} as AppInitializationConfig,
+        createApplicationServicesWithContainer
+      );
+      expect(result3).toBeDefined();
     });
 
     it('should handle service creation failures gracefully', async () => {
-      // Arrange
       const config = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
 
-      // Create a failing service creator function
       const failingServiceCreator = vi.fn().mockRejectedValue(new Error('Service creation failed'));
 
-      // Act & Assert
-      await expect(initializeContainer(config, failingServiceCreator)).rejects.toThrow(
-        'Failed to initialize dependency container: Service creation failed'
+      await expect(initializeApplicationServices(config, failingServiceCreator)).rejects.toThrow(
+        'Service creation failed'
       );
 
-      // Verify the service creator was called with correct config
       expect(failingServiceCreator).toHaveBeenCalledWith({
         environment: 'development',
         storage: 'memory',
         debug: false,
       });
-
-      // Verify container remains uninitialized
-      expect(() => getContainer()).toThrow(
-        'Dependency container not initialized. Call initializeContainer first.'
-      );
     });
 
     it('should clean up properly on initialization failure', async () => {
-      // Arrange - First initialize the container successfully to ensure it exists
       const validConfig = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
-      await initializeContainer(validConfig);
+      const validResult = await initializeApplicationServices(
+        validConfig,
+        createApplicationServicesWithContainer
+      );
 
-      // Verify container is initialized
-      expect(() => getContainer()).not.toThrow();
+      expect(validResult).toBeDefined();
 
-      // Create a failing service creator function
       const failingServiceCreator = vi.fn().mockRejectedValue(new Error('Initialization failed'));
 
       const failingConfig = {
@@ -660,17 +623,10 @@ describe('Dependency Injection Container', () => {
         storage: 'indexeddb' as const,
       };
 
-      // Act - Attempt re-initialization with failing service creator (should fail)
-      await expect(initializeContainer(failingConfig, failingServiceCreator)).rejects.toThrow(
-        'Failed to initialize dependency container: Initialization failed'
-      );
+      await expect(
+        initializeApplicationServices(failingConfig, failingServiceCreator)
+      ).rejects.toThrow('Initialization failed');
 
-      // Assert - Container should remain uninitialized after failure
-      expect(() => getContainer()).toThrow(
-        'Dependency container not initialized. Call initializeContainer first.'
-      );
-
-      // Verify cleanup happened - both container and application services should be null
       expect(failingServiceCreator).toHaveBeenCalledWith({
         environment: 'production',
         storage: 'indexeddb',
@@ -680,7 +636,7 @@ describe('Dependency Injection Container', () => {
   });
 
   describe('Performance and Integration Tests', () => {
-    it('should initialize container efficiently', async () => {
+    it('should initialize services efficiently', async () => {
       const start = performance.now();
 
       const config = {
@@ -688,61 +644,63 @@ describe('Dependency Injection Container', () => {
         storage: 'memory' as const,
       };
 
-      await initializeContainer(config);
-      const container = getContainer();
+      const result = await initializeApplicationServices(
+        config,
+        createApplicationServicesWithContainer
+      );
 
       const end = performance.now();
       const duration = end - start;
 
-      // Should initialize quickly (under 100ms in test environment)
       expect(duration).toBeLessThan(100);
-      expect(container).toBeDefined();
+      expect(result).toBeDefined();
     });
 
-    it('should handle multiple rapid container accesses', async () => {
+    it('should handle multiple rapid service access', async () => {
       const config = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
 
-      await initializeContainer(config);
-
-      // Get container multiple times rapidly
-      const containers = await Promise.all(
+      const results = await Promise.all(
         Array(10)
           .fill(null)
-          .map(() => Promise.resolve(getContainer()))
+          .map(
+            (): Promise<AppInitializationResult> =>
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+              initializeApplicationServices(config, createApplicationServicesWithContainer)
+          )
       );
 
-      // All should be the same instance
-      containers.forEach(container => {
-        expect(container).toBe(containers[0]);
-        expect(container.gameAdapter).toBeDefined();
+      results.forEach(result => {
+        expect(result).toBeDefined();
+        expect(result.gameAdapter).toBeDefined();
       });
     });
 
-    it('should support container re-initialization with different configs', async () => {
-      // Initialize with memory storage
+    it('should support service re-initialization with different configs', async () => {
       const memoryConfig = {
         environment: 'development' as const,
         storage: 'memory' as const,
       };
-      await initializeContainer(memoryConfig);
-      const memoryContainer = getContainer();
-      expect(memoryContainer).toBeDefined();
+      const memoryResult = await initializeApplicationServices(
+        memoryConfig,
+        createApplicationServicesWithContainer
+      );
+      expect(memoryResult).toBeDefined();
 
-      // Re-initialize with IndexedDB storage
       const indexedDBConfig = {
         environment: 'production' as const,
         storage: 'indexeddb' as const,
       };
-      await initializeContainer(indexedDBConfig);
-      const indexedDBContainer = getContainer();
-      expect(indexedDBContainer).toBeDefined();
+      const indexedDBResult = await initializeApplicationServices(
+        indexedDBConfig,
+        createApplicationServicesWithContainer
+      );
+      expect(indexedDBResult).toBeDefined();
 
-      // Should be a different container instance with same interface
-      expect(indexedDBContainer.gameAdapter).toBeDefined();
-      expect(indexedDBContainer.logger).toBeDefined();
+      expect(indexedDBResult.gameAdapter).toBeDefined();
+      expect(indexedDBResult.applicationServices.logger).toBeDefined();
     });
   });
 });

@@ -11,4 +11,8 @@ export type {
   PositionAssignment,
   FieldLayout,
   PlayerInfo,
+  SubstitutePlayerAPI,
+  SubstitutionRequestData,
+  IncomingPlayerData,
+  SubstitutionResult,
 } from './lineup';

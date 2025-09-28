@@ -109,3 +109,83 @@ export interface FieldLayout {
   /** Optional extra player assignment (bats only, doesn't play defense) */
   extraPlayer?: PositionAssignment;
 }
+
+/**
+ * Shared interface for substitute player functionality.
+ * Enables composition at widget/page level without cross-feature dependencies.
+ */
+export interface SubstitutePlayerAPI {
+  /** Function to perform player substitution */
+  executeSubstitution: (data: SubstitutionRequestData) => Promise<SubstitutionResult>;
+  /** Whether a substitution operation is currently in progress */
+  isLoading: boolean;
+  /** Current error message, null if no error */
+  error: string | null;
+}
+
+/**
+ * Shared data structure for substitution requests.
+ * Bridge between UI and substitution functionality.
+ */
+export interface SubstitutionRequestData {
+  /** Game identifier where substitution occurs */
+  gameId: string;
+  /** Team lineup identifier being modified */
+  teamLineupId: string;
+  /** Batting slot position (1-30) */
+  battingSlot: number;
+  /** ID of player being substituted out */
+  outgoingPlayerId: string;
+  /** Information about player being substituted in */
+  incomingPlayer: IncomingPlayerData;
+  /** Current inning number */
+  inning: number;
+  /** Whether this is a starter re-entering the game */
+  isReentry: boolean;
+  /** Optional notes about the substitution */
+  notes?: string;
+}
+
+/**
+ * Shared data structure for incoming player information.
+ * UI-friendly representation for substitution forms.
+ */
+export interface IncomingPlayerData {
+  /** Unique identifier for the incoming player */
+  id: string;
+  /** Display name for the incoming player */
+  name: string;
+  /** Jersey number as string (supports formats like "00", "A1") */
+  jerseyNumber: string;
+  /** Field position where the player will be assigned */
+  position: FieldPosition;
+}
+
+/**
+ * Shared result structure for substitution operations.
+ * Standardized response format for UI consumption.
+ */
+export interface SubstitutionResult {
+  /** Whether the substitution was successful */
+  success: boolean;
+  /** Updated game state (for successful substitutions) */
+  gameState?: unknown;
+  /** Detailed substitution information (for successful substitutions) */
+  substitutionDetails?: {
+    battingSlot: number;
+    outgoingPlayerName: string;
+    incomingPlayerName: string;
+    newFieldPosition: FieldPosition;
+    inning: number;
+    wasReentry: boolean;
+    timestamp: Date;
+    previousFieldPosition?: FieldPosition;
+    notes?: string;
+  };
+  /** Whether field position changed during substitution */
+  positionChanged: boolean;
+  /** Whether this substitution used a starter's re-entry opportunity */
+  reentryUsed: boolean;
+  /** Error messages (for failed substitutions) */
+  errors?: string[];
+}

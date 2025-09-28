@@ -13,27 +13,23 @@ export default defineConfig({
     include: ['packages/**/*.{test,spec}.ts', 'apps/**/*.{test,spec}.ts'],
     exclude: ['node_modules/**', 'dist/**', 'build/**', 'coverage/**'],
 
-    // Test isolation for better reliability
-    isolate: true,
+    // Memory optimizations
+    isolate: false, // Reuse test contexts
+    fileParallelism: false, // Sequential file execution
+    maxConcurrency: 2, // Max 2 suites per file
+    testTimeout: 10000, // 10 second default timeout
 
-    // Resource constraints to prevent CPU exhaustion
-    maxWorkers: 2,
+    // Reduced workers since Turbo is sequential
+    maxWorkers: 1,
     minWorkers: 1,
 
-    // Pool configuration for better resource control
+    // Simplified pool configuration
     poolOptions: {
       threads: {
-        maxThreads: 2,
+        maxThreads: 1,
         minThreads: 1,
-        useAtomics: true,
-      },
-      forks: {
-        maxForks: 1,
-        minForks: 1,
       },
     },
-
-    fileParallelism: true,
 
     // Enhanced reporting for CI integration
     reporters: ['default', 'junit'],

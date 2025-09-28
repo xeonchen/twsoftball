@@ -13,11 +13,11 @@
     "lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix --max-warnings 0",
     "format": "prettier --write 'src/**/*.{ts,tsx,json}'",
     "format:check": "prettier --check 'src/**/*.{ts,tsx,json}'",
-    "test": "vitest run --config vitest.config.ts --exclude '**/*.perf.test.{ts,tsx}'",
-    "test:watch": "vitest --config vitest.config.ts --exclude '**/*.perf.test.{ts,tsx}'",
-    "test:coverage": "vitest run --config vitest.config.ts --coverage --exclude '**/*.perf.test.{ts,tsx}'",
-    "test:perf": "vitest run --config vitest.config.ts --reporter=verbose src/test/performance/**/*.perf.test.*",
-    "test:all": "vitest run --config vitest.config.ts",
+    "test": "NODE_OPTIONS='--max-old-space-size=2048' vitest run --config vitest.config.ts --exclude '**/*.perf.test.{ts,tsx}'",
+    "test:watch": "NODE_OPTIONS='--max-old-space-size=2048' vitest --config vitest.config.ts --exclude '**/*.perf.test.{ts,tsx}'",
+    "test:coverage": "NODE_OPTIONS='--max-old-space-size=2048' vitest run --config vitest.config.ts --coverage --exclude '**/*.perf.test.{ts,tsx}'",
+    "test:perf": "NODE_OPTIONS='--max-old-space-size=3072' vitest run --config vitest.config.ts --reporter=verbose src/test/performance/**/*.perf.test.*",
+    "test:all": "NODE_OPTIONS='--max-old-space-size=2048' vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

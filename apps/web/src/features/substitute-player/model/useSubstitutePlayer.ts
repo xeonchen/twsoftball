@@ -68,7 +68,7 @@ import {
 import { SubstitutePlayerCommandFactory } from '@twsoftball/application/dtos/SubstitutePlayerCommand';
 import { useState, useCallback } from 'react';
 
-import { getContainer } from '../../../shared/api';
+import { useAppServicesContext } from '../../../shared/lib';
 
 /**
  * UI-friendly data structure for incoming player information
@@ -171,6 +171,9 @@ export function useSubstitutePlayer(): UseSubstitutePlayerState {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<SubstitutePlayerResult | null>(null);
+
+  // Get services from context at the top level
+  const { services } = useAppServicesContext();
 
   /**
    * Validates substitution data before processing
@@ -322,9 +325,12 @@ export function useSubstitutePlayer(): UseSubstitutePlayerState {
           validateSubstitutionData(data);
         }
 
-        // Get use case from DI container
-        const container = getContainer();
-        const substitutePlayerUseCase = container.substitutePlayer;
+        // Get use case from app services context
+        if (!services?.applicationServices) {
+          throw new Error('Application services not available');
+        }
+
+        const substitutePlayerUseCase = services.applicationServices.substitutePlayer;
 
         // Create command
         const command = createSubstitutionCommand(data);
@@ -352,7 +358,13 @@ export function useSubstitutePlayer(): UseSubstitutePlayerState {
         setIsLoading(false);
       }
     },
-    [validateSubstitutionData, createSubstitutionCommand, convertResult, extractErrorMessage]
+    [
+      validateSubstitutionData,
+      createSubstitutionCommand,
+      convertResult,
+      extractErrorMessage,
+      services,
+    ]
   );
 
   return {

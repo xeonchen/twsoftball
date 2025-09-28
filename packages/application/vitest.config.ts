@@ -30,6 +30,32 @@ export default defineConfig({
         'src/index.ts',
         'src/test-utils/**',
         'src/test-factories/**',
+        // Pure type DTOs - TypeScript interfaces without runtime code
+        // These files contain only `interface` and `type` definitions that
+        // don't generate JavaScript runtime code for coverage tools to measure
+        'src/dtos/AtBatResultDTO.ts',
+        'src/dtos/BasesStateDTO.ts',
+        'src/dtos/CompleteAtBatSequenceResult.ts',
+        'src/dtos/CompleteGameWorkflowResult.ts',
+        'src/dtos/EndGameResult.ts',
+        'src/dtos/GameHistoryDTO.ts',
+        'src/dtos/GameScoreDTO.ts',
+        'src/dtos/GameStartResult.ts',
+        'src/dtos/GameStateDTO.ts',
+        'src/dtos/GameStatisticsDTO.ts',
+        'src/dtos/InningEndResult.ts',
+        'src/dtos/PlayerInGameDTO.ts',
+        'src/dtos/PlayerStatisticsDTO.ts',
+        'src/dtos/RedoResult.ts',
+        'src/dtos/RunnerAdvanceDTO.ts',
+        'src/dtos/SubstitutionResult.ts',
+        'src/dtos/TeamLineupDTO.ts',
+        'src/dtos/UndoResult.ts',
+        // Port interfaces - these are contracts without implementation
+        'src/ports/**/*.ts',
+        // Type-only exports that don't generate runtime code
+        'src/types/ApplicationTypes.ts',
+        'src/services/InfrastructureFactory.ts', // Interface-only file
       ],
       // Application layer thresholds (slightly lower than domain)
       thresholds: {

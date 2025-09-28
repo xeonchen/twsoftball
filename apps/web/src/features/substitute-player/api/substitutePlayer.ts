@@ -48,18 +48,10 @@
  * ```
  */
 
-import {
-  FieldPosition,
-  GameId,
-  PlayerId,
-  TeamLineupId,
-  JerseyNumber,
-  SubstitutePlayerCommand,
-  SubstitutionResult,
-} from '@twsoftball/application';
-import { SubstitutePlayerCommandFactory } from '@twsoftball/application/dtos/SubstitutePlayerCommand';
+import { FieldPosition } from '@twsoftball/application';
 
-import { getContainer } from '../../../shared/api';
+// DEPRECATED: This standalone API function is deprecated.
+// Use useSubstitutePlayer hook or useSubstitutePlayerAPI hook instead.
 
 /**
  * UI-friendly incoming player information for API calls
@@ -173,82 +165,9 @@ function validateAPIParams(params: SubstitutePlayerAPIParams): void {
   }
 }
 
-/**
- * Converts API parameters to Application layer command
- * @param params - API parameters
- * @returns SubstitutePlayerCommand for use case execution
- */
-function createCommandFromParams(params: SubstitutePlayerAPIParams): SubstitutePlayerCommand {
-  const gameId = new GameId(params.gameId);
-  const teamLineupId = new TeamLineupId(params.teamLineupId);
-  const outgoingPlayerId = new PlayerId(params.outgoingPlayerId);
-  const incomingPlayerId = new PlayerId(params.incomingPlayer.id);
-  const jerseyNumber = new JerseyNumber(params.incomingPlayer.jerseyNumber);
+// DEPRECATED: Function removed - no longer used
 
-  if (params.isReentry) {
-    return SubstitutePlayerCommandFactory.createReentry(
-      gameId,
-      teamLineupId,
-      params.battingSlot,
-      outgoingPlayerId,
-      incomingPlayerId,
-      params.incomingPlayer.name,
-      jerseyNumber,
-      params.incomingPlayer.position,
-      params.inning,
-      params.notes
-    );
-  }
-
-  return SubstitutePlayerCommandFactory.createRegular(
-    gameId,
-    teamLineupId,
-    params.battingSlot,
-    outgoingPlayerId,
-    incomingPlayerId,
-    params.incomingPlayer.name,
-    jerseyNumber,
-    params.incomingPlayer.position,
-    params.inning,
-    params.notes
-  );
-}
-
-/**
- * Converts Application layer result to API result
- * @param result - SubstitutionResult from use case
- * @returns API-friendly result
- */
-function convertResultForAPI(result: SubstitutionResult): SubstitutePlayerAPIResult {
-  const converted: SubstitutePlayerAPIResult = {
-    success: result.success,
-    gameState: result.gameState,
-    positionChanged: result.positionChanged,
-    reentryUsed: result.reentryUsed,
-  };
-
-  if (result.errors) {
-    converted.errors = result.errors;
-  }
-
-  if (result.substitutionDetails) {
-    converted.substitutionDetails = {
-      battingSlot: result.substitutionDetails.battingSlot,
-      outgoingPlayerName: result.substitutionDetails.outgoingPlayerName,
-      incomingPlayerName: result.substitutionDetails.incomingPlayerName,
-      newFieldPosition: result.substitutionDetails.newFieldPosition,
-      inning: result.substitutionDetails.inning,
-      wasReentry: result.substitutionDetails.wasReentry,
-      timestamp: result.substitutionDetails.timestamp,
-      ...(result.substitutionDetails.previousFieldPosition && {
-        previousFieldPosition: result.substitutionDetails.previousFieldPosition,
-      }),
-      ...(result.substitutionDetails.notes && { notes: result.substitutionDetails.notes }),
-    };
-  }
-
-  return converted;
-}
+// DEPRECATED: Function removed - no longer used
 
 /**
  * Performs a player substitution using the SubstitutePlayer use case
@@ -293,22 +212,14 @@ function convertResultForAPI(result: SubstitutionResult): SubstitutePlayerAPIRes
  * });
  * ```
  */
-export async function substitutePlayer(
-  params: SubstitutePlayerAPIParams
-): Promise<SubstitutePlayerAPIResult> {
+export function substitutePlayer(params: SubstitutePlayerAPIParams): never {
   // Validate input parameters
   validateAPIParams(params);
 
-  // Get SubstitutePlayer use case from DI container
-  const container = getContainer();
-  const substitutePlayerUseCase = container.substitutePlayer;
-
-  // Create command from parameters
-  const command = createCommandFromParams(params);
-
-  // Execute use case
-  const result = await substitutePlayerUseCase.execute(command);
-
-  // Convert and return result
-  return convertResultForAPI(result);
+  // DEPRECATED: This standalone API function is deprecated
+  throw new Error(
+    'substitutePlayer API function is deprecated. ' +
+      'Use useSubstitutePlayer hook or useSubstitutePlayerAPI hook instead. ' +
+      'Standalone API functions cannot access React context services.'
+  );
 }

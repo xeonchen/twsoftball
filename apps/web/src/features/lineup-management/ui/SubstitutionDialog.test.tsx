@@ -105,6 +105,11 @@ describe('SubstitutionDialog Component - TDD Implementation', () => {
     gameId: 'game-123',
     teamLineupId: 'team-456',
     inning: 5,
+    substitutePlayerAPI: {
+      executeSubstitution: vi.fn().mockResolvedValue({ success: true }),
+      isExecuting: false,
+      substitutionError: null,
+    },
   };
 
   beforeEach(() => {

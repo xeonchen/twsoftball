@@ -6,6 +6,7 @@
  */
 
 export { useSubstitutePlayer } from './useSubstitutePlayer';
+export { useSubstitutePlayerAPI } from './useSubstitutePlayerAPI';
 export type {
   SubstitutePlayerData,
   SubstitutePlayerResult,

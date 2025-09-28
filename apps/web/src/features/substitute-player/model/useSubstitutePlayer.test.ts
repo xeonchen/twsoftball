@@ -25,18 +25,14 @@ import {
 import { SubstitutePlayerCommandFactory } from '@twsoftball/application/dtos/SubstitutePlayerCommand';
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { getContainer } from '../../../shared/api';
+import { useAppServicesContext } from '../../../shared/lib';
 
 import { useSubstitutePlayer } from './useSubstitutePlayer';
 import type { SubstitutePlayerData, SubstitutePlayerResult } from './useSubstitutePlayer';
 
-// Mock the shared/api index module
-vi.mock('../../../shared/api', () => ({
-  getContainer: vi.fn(() => ({
-    substitutePlayer: {
-      execute: vi.fn(),
-    },
-  })),
+// Mock the shared/lib context
+vi.mock('../../../shared/lib', () => ({
+  useAppServicesContext: vi.fn(),
 }));
 
 // Mock Application layer exports
@@ -48,7 +44,9 @@ vi.mock('@twsoftball/application/dtos/SubstitutePlayerCommand', () => ({
 }));
 
 // Cast to mocks for TypeScript
-const mockGetContainer = getContainer as vi.MockedFunction<typeof getContainer>;
+const mockUseAppServicesContext = useAppServicesContext as vi.MockedFunction<
+  typeof useAppServicesContext
+>;
 const mockCreateRegular = SubstitutePlayerCommandFactory.createRegular as vi.MockedFunction<
   typeof SubstitutePlayerCommandFactory.createRegular
 >;
@@ -65,9 +63,19 @@ describe('useSubstitutePlayer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Reset container mock after clearAllMocks
-    mockGetContainer.mockReturnValue({
-      substitutePlayer: mockSubstitutePlayerUseCase,
+    // Reset context mock after clearAllMocks
+    mockUseAppServicesContext.mockReturnValue({
+      services: {
+        applicationServices: {
+          substitutePlayer: mockSubstitutePlayerUseCase,
+        },
+        gameAdapter: {} as {
+          recordAtBat?: (...args: unknown[]) => unknown;
+          [key: string]: unknown;
+        },
+      },
+      isInitializing: false,
+      error: null,
     });
 
     // Set up command factory mocks to return commands that match test expectations

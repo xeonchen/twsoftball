@@ -16,6 +16,7 @@ export { LineupEditor, SubstitutionDialog, PositionAssignment } from './ui';
 export type {
   LineupEditorProps,
   SubstitutionDialogProps,
+  SubstitutePlayerAPI,
   PositionAssignmentProps,
   PositionChangeData,
 } from './ui';

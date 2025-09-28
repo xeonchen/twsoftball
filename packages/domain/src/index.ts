@@ -22,6 +22,7 @@ export * from './value-objects/BasesState.js';
 export * from './constants/AtBatResultType.js';
 export * from './constants/FieldPosition.js';
 export * from './constants/GameStatus.js';
+export * from './constants/JerseyNumberConstants.js';
 
 // Domain Events
 export * from './events/DomainEvent.js';

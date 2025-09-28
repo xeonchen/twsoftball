@@ -397,7 +397,7 @@ describe('EventSourcingService - Memory Management', () => {
   });
 
   describe('Cache Eviction - Memory Pressure', () => {
-    it('should perform aggressive eviction under high memory pressure', () => {
+    it('should perform aggressive eviction under high memory pressure', { timeout: 10000 }, () => {
       // Enable caching
       eventSourcingService.enableSnapshotCaching(true);
 
@@ -598,7 +598,7 @@ describe('EventSourcingService - Memory Management', () => {
       expect(cleanupResult.memoryFreed).toBe(0);
     });
 
-    it('should handle concurrent memory pressure scenarios', () => {
+    it('should handle concurrent memory pressure scenarios', { timeout: 10000 }, () => {
       // Enable caching
       eventSourcingService.enableSnapshotCaching(true);
 
@@ -626,41 +626,45 @@ describe('EventSourcingService - Memory Management', () => {
       expect(stats.enabled).toBe(true);
     });
 
-    it('should maintain cache integrity during memory pressure eviction', () => {
-      // Enable caching
-      eventSourcingService.enableSnapshotCaching(true);
+    it(
+      'should maintain cache integrity during memory pressure eviction',
+      { timeout: 10000 },
+      () => {
+        // Enable caching
+        eventSourcingService.enableSnapshotCaching(true);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing internal cache manipulation
-      const service = eventSourcingService as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing internal cache manipulation
+        const service = eventSourcingService as any;
 
-      // Create varying sized entries
-      for (let i = 0; i < 20; i++) {
-        const sizeMultiplier = i % 3 === 0 ? 2000000 : 500000; // Some large, some medium
-        const variedData = 'x'.repeat(sizeMultiplier);
-        const cacheKey = `game-${i}:Game:1`;
-        service.snapshotCache.set(cacheKey, {
-          id: `game-${i}`,
-          streamId: `game-${i}`,
-          aggregateType: 'Game',
-          version: 1,
-          aggregate: { id: `game-${i}`, variedData },
-          createdAt: new Date(),
-          metadata: {},
-          lastAccessed: new Date(Date.now() - i * 1000), // Different access times
-        });
+        // Create varying sized entries
+        for (let i = 0; i < 20; i++) {
+          const sizeMultiplier = i % 3 === 0 ? 2000000 : 500000; // Some large, some medium
+          const variedData = 'x'.repeat(sizeMultiplier);
+          const cacheKey = `game-${i}:Game:1`;
+          service.snapshotCache.set(cacheKey, {
+            id: `game-${i}`,
+            streamId: `game-${i}`,
+            aggregateType: 'Game',
+            version: 1,
+            aggregate: { id: `game-${i}`, variedData },
+            createdAt: new Date(),
+            metadata: {},
+            lastAccessed: new Date(Date.now() - i * 1000), // Different access times
+          });
+        }
+
+        // Force eviction check
+        service.evictStaleEntries();
+
+        // Verify cache maintains integrity
+        const stats = eventSourcingService.getCacheStatistics();
+        expect(stats.enabled).toBe(true);
+        expect(stats.size).toBeGreaterThan(0);
+        expect(stats.memoryUsageEstimate).toBeGreaterThan(0);
+
+        // All remaining entries should be valid
+        expect(stats.size).toBeLessThanOrEqual(stats.maxSize);
       }
-
-      // Force eviction check
-      service.evictStaleEntries();
-
-      // Verify cache maintains integrity
-      const stats = eventSourcingService.getCacheStatistics();
-      expect(stats.enabled).toBe(true);
-      expect(stats.size).toBeGreaterThan(0);
-      expect(stats.memoryUsageEstimate).toBeGreaterThan(0);
-
-      // All remaining entries should be valid
-      expect(stats.size).toBeLessThanOrEqual(stats.maxSize);
-    });
+    );
   });
 });

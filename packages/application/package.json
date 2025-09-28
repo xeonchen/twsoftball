@@ -44,9 +44,9 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test": "NODE_OPTIONS='--max-old-space-size=2048' vitest run",
+    "test:watch": "NODE_OPTIONS='--max-old-space-size=2048' vitest",
+    "test:coverage": "NODE_OPTIONS='--max-old-space-size=2048' vitest run --coverage",
     "test:perf": "echo 'No performance tests in this package'",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit && eslint 'src/**/*.{ts,tsx}' --max-warnings 0",

@@ -25,7 +25,8 @@ import { renderHook, act } from '@testing-library/react';
 import { GameId } from '@twsoftball/application';
 import { vi, describe, it, expect, beforeEach, afterEach, type MockedFunction } from 'vitest';
 
-import { getContainer, wizardToCommand } from '../../../shared/api';
+import { wizardToCommand } from '../../../shared/api';
+import { useAppServicesContext } from '../../../shared/lib';
 import type { SetupWizardState } from '../../../shared/lib/types';
 
 import { useGameSetup } from './useGameSetup';
@@ -47,22 +48,20 @@ interface TestMocks {
 
 const testMocks = (globalThis as { __testMocks: TestMocks }).__testMocks;
 
-// Mock the DI module at test level with proper implementations
-vi.mock('../../../shared/api/di', () => ({
-  getContainer: vi.fn(() => testMocks.container),
+// Mock the wizard-to-command mapper at test level
+vi.mock('../../../shared/api', () => ({
+  wizardToCommand: vi.fn(),
 }));
 
-// Mock the wizard-to-command mapper at test level
-vi.mock('@twsoftball/application', async importOriginal => {
-  const original = await importOriginal<typeof import('@twsoftball/application')>();
-  return {
-    ...original,
-    wizardToCommand: vi.fn(),
-  };
-});
+// Mock the app services context
+vi.mock('../../../shared/lib', () => ({
+  useAppServicesContext: vi.fn(),
+}));
 
-const mockGetContainer = getContainer as MockedFunction<typeof getContainer>;
 const mockWizardToCommand = wizardToCommand as MockedFunction<typeof wizardToCommand>;
+const mockUseAppServicesContext = useAppServicesContext as MockedFunction<
+  typeof useAppServicesContext
+>;
 
 // Local aliases for commonly used mocks
 const mockExecute = testMocks.useCases.startNewGame.execute;
@@ -115,7 +114,7 @@ describe('useGameSetup Hook', () => {
 
   const mockSuccessResult = {
     success: true as const,
-    gameId: new GameId('test-game-id'),
+    gameId: 'test-game-id',
     initialState: {
       gameId: new GameId('test-game-id'),
       status: 'WAITING_TO_START' as const,
@@ -140,15 +139,33 @@ describe('useGameSetup Hook', () => {
     },
   };
 
+  // Create persistent mock for startNewGameFromWizard
+  const mockStartNewGameFromWizard = vi.fn();
+
   beforeEach(() => {
     // Clear call history and reset implementations
     vi.clearAllMocks();
     vi.resetAllMocks();
 
     // Restore default mock implementations
-    mockGetContainer.mockReturnValue(testMocks.container);
     mockWizardToCommand.mockReturnValue(mockGameCommand);
     mockExecute.mockResolvedValue(mockSuccessResult);
+    mockStartNewGameFromWizard.mockResolvedValue(mockSuccessResult);
+
+    // Set up default context mock
+    mockUseAppServicesContext.mockReturnValue({
+      services: {
+        applicationServices: {
+          startNewGame: { execute: mockExecute },
+        },
+        gameAdapter: {
+          startNewGameFromWizard: mockStartNewGameFromWizard,
+          logger: mockLogger,
+        },
+      },
+      isInitializing: false,
+      error: null,
+    });
   });
 
   afterEach(() => {
@@ -175,8 +192,8 @@ describe('useGameSetup Hook', () => {
       expect(result.current.validationErrors).toBeNull();
 
       // Verify use case was called with correct command
-      expect(mockExecute).toHaveBeenCalledTimes(1);
-      expect(mockExecute).toHaveBeenCalledWith(mockGameCommand);
+      expect(mockStartNewGameFromWizard).toHaveBeenCalledTimes(1);
+      expect(mockStartNewGameFromWizard).toHaveBeenCalledWith(validWizardState);
 
       // Verify wizard state was mapped to command
       expect(mockWizardToCommand).toHaveBeenCalledTimes(1);
@@ -207,7 +224,7 @@ describe('useGameSetup Hook', () => {
       const useCasePromise = new Promise<typeof mockSuccessResult>(resolve => {
         resolveUseCase = resolve;
       });
-      mockExecute.mockReturnValue(useCasePromise);
+      mockStartNewGameFromWizard.mockReturnValue(useCasePromise);
 
       const { result } = renderHook(() => useGameSetup());
 
@@ -284,10 +301,10 @@ describe('useGameSetup Hook', () => {
     it('should handle use case validation errors', async () => {
       const validationResult = {
         success: false as const,
-        gameId: new GameId('test-game-id'),
+        gameId: 'test-game-id',
         errors: ['Team names must be different', 'Jersey number 5 is duplicated'],
       };
-      mockExecute.mockResolvedValue(validationResult);
+      mockStartNewGameFromWizard.mockResolvedValue(validationResult);
 
       const { result } = renderHook(() => useGameSetup());
 
@@ -307,7 +324,7 @@ describe('useGameSetup Hook', () => {
     it('should provide validation errors in UI-friendly format', async () => {
       const validationResult = {
         success: false as const,
-        gameId: new GameId('test-game-id'),
+        gameId: 'test-game-id',
         errors: [
           'Home team name cannot be empty',
           'Player name cannot be empty',
@@ -315,7 +332,7 @@ describe('useGameSetup Hook', () => {
           'Missing required field position: CENTER_FIELD',
         ],
       };
-      mockExecute.mockResolvedValue(validationResult);
+      mockStartNewGameFromWizard.mockResolvedValue(validationResult);
 
       const { result } = renderHook(() => useGameSetup());
 
@@ -337,7 +354,7 @@ describe('useGameSetup Hook', () => {
   describe('Infrastructure Error Handling', () => {
     it('should handle infrastructure errors gracefully', async () => {
       const infraError = new Error('Failed to save game state');
-      mockExecute.mockRejectedValue(infraError);
+      mockStartNewGameFromWizard.mockRejectedValue(infraError);
 
       const { result } = renderHook(() => useGameSetup());
 
@@ -364,7 +381,7 @@ describe('useGameSetup Hook', () => {
 
     it('should handle network errors with retry guidance', async () => {
       const networkError = new Error('Network request failed');
-      mockExecute.mockRejectedValue(networkError);
+      mockStartNewGameFromWizard.mockRejectedValue(networkError);
 
       const { result } = renderHook(() => useGameSetup());
 
@@ -379,7 +396,7 @@ describe('useGameSetup Hook', () => {
 
     it('should handle unknown errors with generic message', async () => {
       const unknownError = new Error('Something unexpected happened');
-      mockExecute.mockRejectedValue(unknownError);
+      mockStartNewGameFromWizard.mockRejectedValue(unknownError);
 
       const { result } = renderHook(() => useGameSetup());
 
@@ -395,7 +412,7 @@ describe('useGameSetup Hook', () => {
     it('should clear errors when starting new operation', async () => {
       // First, cause an error
       const error = new Error('Test error');
-      mockExecute.mockRejectedValueOnce(error);
+      mockStartNewGameFromWizard.mockRejectedValueOnce(error);
 
       const { result } = renderHook(() => useGameSetup());
 
@@ -406,7 +423,7 @@ describe('useGameSetup Hook', () => {
       expect(result.current.error).toBeTruthy();
 
       // Then, mock a successful response
-      mockExecute.mockResolvedValueOnce(mockSuccessResult);
+      mockStartNewGameFromWizard.mockResolvedValueOnce(mockSuccessResult);
 
       // Start new operation - should clear previous error
       await act(async () => {
@@ -419,7 +436,7 @@ describe('useGameSetup Hook', () => {
 
     it('should provide clearError function', async () => {
       const error = new Error('Test error');
-      mockExecute.mockRejectedValue(error);
+      mockStartNewGameFromWizard.mockRejectedValue(error);
 
       const { result } = renderHook(() => useGameSetup());
 
@@ -459,25 +476,25 @@ describe('useGameSetup Hook', () => {
     });
   });
 
-  describe('DI Container Integration', () => {
-    it('should integrate with DI container properly', async () => {
+  describe('App Services Context Integration', () => {
+    it('should integrate with app services context properly', async () => {
       const { result } = renderHook(() => useGameSetup());
 
       await act(async () => {
         await result.current.startGame(validWizardState);
       });
 
-      // Verify container was accessed
-      expect(mockGetContainer).toHaveBeenCalled();
-
-      // Verify startNewGame use case was used
-      expect(mockExecute).toHaveBeenCalledWith(mockGameCommand);
+      // Verify startNewGameFromWizard use case was used
+      expect(mockStartNewGameFromWizard).toHaveBeenCalledWith(validWizardState);
     });
 
-    it('should handle DI container initialization errors', async () => {
-      mockGetContainer.mockImplementationOnce(() => {
-        throw new Error('Dependency container not initialized');
-      });
+    it('should handle app services initialization errors', async () => {
+      // Mock the context to return null services
+      mockUseAppServicesContext.mockImplementationOnce(() => ({
+        services: null,
+        isInitializing: false,
+        error: null,
+      }));
 
       const { result } = renderHook(() => useGameSetup());
 
@@ -511,7 +528,7 @@ describe('useGameSetup Hook', () => {
       const useCasePromise = new Promise<typeof mockSuccessResult>(resolve => {
         resolveUseCase = resolve;
       });
-      mockExecute.mockReturnValue(useCasePromise);
+      mockStartNewGameFromWizard.mockReturnValue(useCasePromise);
 
       const { result, unmount } = renderHook(() => useGameSetup());
 
@@ -536,7 +553,26 @@ describe('useGameSetup Hook', () => {
   });
 
   describe('Performance and Memory Considerations', () => {
-    it('should memoize startGame function', () => {
+    it('should memoize startGame function when dependencies are stable', () => {
+      // Mock the context hook to return the same services object
+      const stableServices = {
+        applicationServices: {
+          ...testMocks.useCases,
+          ...testMocks.repositories,
+          eventStore: testMocks.infrastructure.eventStore,
+          logger: testMocks.logger,
+          config: { environment: 'test', storage: 'memory' },
+        },
+        gameAdapter: testMocks.infrastructure.gameAdapter,
+      };
+
+      // Ensure the mock returns the same object reference
+      mockUseAppServicesContext.mockReturnValue({
+        services: stableServices,
+        isInitializing: false,
+        error: null,
+      });
+
       const { result, rerender } = renderHook(() => useGameSetup());
 
       const firstStartGame = result.current.startGame;
@@ -568,10 +604,10 @@ describe('useGameSetup Hook', () => {
     it('should categorize team validation errors correctly', async () => {
       const validationResult = {
         success: false as const,
-        gameId: new GameId('test-game-id'),
+        gameId: 'test-game-id',
         errors: ['Home team name cannot be empty', 'Team names must be different'],
       };
-      mockExecute.mockResolvedValue(validationResult);
+      mockStartNewGameFromWizard.mockResolvedValue(validationResult);
 
       const { result } = renderHook(() => useGameSetup());
 
@@ -585,14 +621,14 @@ describe('useGameSetup Hook', () => {
     it('should categorize lineup validation errors correctly', async () => {
       const validationResult = {
         success: false as const,
-        gameId: new GameId('test-game-id'),
+        gameId: 'test-game-id',
         errors: [
           'Player name cannot be empty',
           'Duplicate jersey numbers: #5 assigned to multiple players',
           'Missing required field position: PITCHER',
         ],
       };
-      mockExecute.mockResolvedValue(validationResult);
+      mockStartNewGameFromWizard.mockResolvedValue(validationResult);
 
       const { result } = renderHook(() => useGameSetup());
 
@@ -606,14 +642,14 @@ describe('useGameSetup Hook', () => {
     it('should handle mixed validation errors', async () => {
       const validationResult = {
         success: false as const,
-        gameId: new GameId('test-game-id'),
+        gameId: 'test-game-id',
         errors: [
           'Away team name cannot be empty',
           'Player name cannot be empty',
           'General validation error',
         ],
       };
-      mockExecute.mockResolvedValue(validationResult);
+      mockStartNewGameFromWizard.mockResolvedValue(validationResult);
 
       const { result } = renderHook(() => useGameSetup());
 

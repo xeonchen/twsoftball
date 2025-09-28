@@ -7,6 +7,12 @@ export default defineConfig({
     include: ['src/**/*.{test,spec}.ts'],
     exclude: ['node_modules/**', 'dist/**', 'coverage/**'],
 
+    // Memory optimizations
+    isolate: false,
+    fileParallelism: false,
+    maxConcurrency: 2,
+    testTimeout: 10000,
+
     // Shared utilities coverage configuration
     coverage: {
       provider: 'v8',

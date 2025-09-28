@@ -52,7 +52,7 @@ import { FieldPosition, GameId } from '@twsoftball/application';
 import { useState, useEffect, useCallback } from 'react';
 
 import { useGameStore } from '../../../entities/game';
-import { getContainer } from '../../../shared/api';
+import { useAppServicesContext } from '../../../shared/lib';
 import type { BenchPlayer, PositionAssignment } from '../../../shared/lib/types';
 
 /**
@@ -148,6 +148,9 @@ export function useLineupManagement(gameId: string): UseLineupManagementState {
   // Game store for current game state
   const gameStore = useGameStore();
 
+  // App services context for accessing game adapter
+  const { services } = useAppServicesContext();
+
   /**
    * Load lineup data from the application layer
    */
@@ -158,10 +161,12 @@ export function useLineupManagement(gameId: string): UseLineupManagementState {
     setError(null);
 
     try {
-      const container = getContainer();
+      if (!services) {
+        throw new Error('Application services not initialized');
+      }
 
       // Call getTeamLineup method from GameAdapter
-      const response = await container.gameAdapter.getTeamLineup({ gameId });
+      const response = await services.gameAdapter.getTeamLineup({ gameId });
       const result = validateTeamLineupResponse(response);
 
       if (result.success) {
@@ -170,7 +175,7 @@ export function useLineupManagement(gameId: string): UseLineupManagementState {
       } else {
         throw new Error('Failed to load lineup data');
       }
-    } catch (err) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(errorMessage);
       // Set empty arrays on error to maintain consistent state
@@ -179,7 +184,7 @@ export function useLineupManagement(gameId: string): UseLineupManagementState {
     } finally {
       setIsLoading(false);
     }
-  }, [gameId]);
+  }, [gameId, services]);
 
   // Load data on mount and when gameId changes
   useEffect(() => {
@@ -262,10 +267,12 @@ export function useLineupManagement(gameId: string): UseLineupManagementState {
       setError(null);
 
       try {
-        const container = getContainer();
+        if (!services) {
+          throw new Error('Application services not initialized');
+        }
 
         // Use makeSubstitution method from GameAdapter
-        await container.gameAdapter.makeSubstitution({
+        await services.gameAdapter.makeSubstitution({
           gameId,
           outgoingPlayerId,
           incomingPlayerId,
@@ -276,7 +283,7 @@ export function useLineupManagement(gameId: string): UseLineupManagementState {
 
         // Reload lineup data to get updated state
         await loadLineupData();
-      } catch (err) {
+      } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
         setError(errorMessage);
         throw err;
@@ -284,7 +291,7 @@ export function useLineupManagement(gameId: string): UseLineupManagementState {
         setIsLoading(false);
       }
     },
-    [gameId, checkEligibility, gameStore.activeGameState?.currentInning, loadLineupData]
+    [gameId, checkEligibility, gameStore.activeGameState?.currentInning, loadLineupData, services]
   );
 
   /**

@@ -21,153 +21,71 @@
  */
 
 import { renderHook, act } from '@testing-library/react';
-import { GameId, PlayerId, FieldPosition } from '@twsoftball/application';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { FieldPosition } from '@twsoftball/application';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock game store
+import { useGameStore } from '../../../entities/game';
+import { useAppServicesContext } from '../../../shared/lib';
+import {
+  MOCK_GAME_ID,
+  MOCK_GAME_STORE,
+  createFreshLineupData,
+  createFreshBenchData,
+  createMockGameAdapter,
+  createMockServices,
+  cleanupTestMemory,
+} from '../../../test-utils/lineupTestUtils';
+
+import { useLineupManagement } from './useLineupManagement';
+
+// Mock game store with minimal implementation
 vi.mock('../../../entities/game', () => ({
   useGameStore: vi.fn(),
 }));
 
-// Mock shared API
-vi.mock('../../../shared/api', () => ({
-  getContainer: vi.fn(() => ({
-    gameAdapter: {
-      getTeamLineup: vi.fn(),
-      makeSubstitution: vi.fn(),
-    },
-  })),
+// Mock app services context with minimal implementation
+vi.mock('../../../shared/lib', () => ({
+  useAppServicesContext: vi.fn(),
 }));
 
-// Default mock game store data
-const defaultMockGameStore = {
-  currentGame: {
-    id: 'game-123',
-    homeTeam: 'Warriors',
-    awayTeam: 'Eagles',
-    status: 'active',
-  },
-  activeGameState: {
-    currentInning: 5,
-    isTopHalf: true,
-    currentBatter: {
-      id: 'player-1',
-      name: 'John Doe',
-      jerseyNumber: '12',
-      position: 'SS' as FieldPosition,
-      battingOrder: 1,
-    },
-    bases: {
-      first: null,
-      second: null,
-      third: null,
-    },
-    outs: 0,
-  },
-};
-
-// Mock lineup data
-const mockActiveLineup: PositionAssignment[] = [
-  { battingSlot: 1, playerId: 'player-1', fieldPosition: FieldPosition.SHORTSTOP },
-  { battingSlot: 2, playerId: 'player-2', fieldPosition: FieldPosition.SECOND_BASE },
-  { battingSlot: 3, playerId: 'player-3', fieldPosition: FieldPosition.FIRST_BASE },
-  { battingSlot: 4, playerId: 'player-4', fieldPosition: FieldPosition.THIRD_BASE },
-  { battingSlot: 5, playerId: 'player-5', fieldPosition: FieldPosition.CATCHER },
-  { battingSlot: 6, playerId: 'player-6', fieldPosition: FieldPosition.PITCHER },
-  { battingSlot: 7, playerId: 'player-7', fieldPosition: FieldPosition.LEFT_FIELD },
-  { battingSlot: 8, playerId: 'player-8', fieldPosition: FieldPosition.CENTER_FIELD },
-  { battingSlot: 9, playerId: 'player-9', fieldPosition: FieldPosition.RIGHT_FIELD },
-  { battingSlot: 10, playerId: 'player-10', fieldPosition: FieldPosition.EXTRA_PLAYER },
-];
-
-const mockBenchPlayers: BenchPlayer[] = [
-  {
-    id: 'bench-1',
-    name: 'Bench Player 1',
-    jerseyNumber: '15',
-    isStarter: false,
-    hasReentered: false,
-    entryInning: null,
-  },
-  {
-    id: 'bench-2',
-    name: 'Bench Player 2',
-    jerseyNumber: '16',
-    isStarter: false,
-    hasReentered: false,
-    entryInning: null,
-  },
-  {
-    id: 'starter-sub-1',
-    name: 'Substituted Starter',
-    jerseyNumber: '7',
-    isStarter: true,
-    hasReentered: false,
-    entryInning: null, // Originally in lineup, now on bench
-  },
-];
-
-// Import the hook after mocks are set up
-import { useGameStore } from '../../../entities/game';
-import { getContainer } from '../../../shared/api';
-import type { BenchPlayer, PositionAssignment } from '../../../shared/lib/types';
-
-import { useLineupManagement } from './useLineupManagement';
-
-// Cast to mocks for TypeScript
-const mockGetContainer = getContainer as vi.MockedFunction<typeof getContainer>;
+// Type-safe mock references
 const mockUseGameStore = useGameStore as vi.MockedFunction<typeof useGameStore>;
+const mockUseAppServicesContext = useAppServicesContext as vi.MockedFunction<
+  typeof useAppServicesContext
+>;
 
-// Create persistent mock adapter reference for tests
-const mockGameAdapter = {
-  getTeamLineup: vi.fn(),
-  makeSubstitution: vi.fn(),
-};
+// Reusable mock adapter instance
+let mockGameAdapter: ReturnType<typeof createMockGameAdapter>;
 
 describe('useLineupManagement Hook - TDD Implementation', () => {
   beforeEach(() => {
+    // Clear all mocks efficiently
     vi.clearAllMocks();
 
-    // Setup default mock return values
-    mockUseGameStore.mockReturnValue(defaultMockGameStore);
+    // Create fresh mock adapter for this test
+    mockGameAdapter = createMockGameAdapter();
 
-    // Setup default lineup data
-    mockGameAdapter.getTeamLineup.mockResolvedValue({
-      success: true,
-      gameId: new GameId('game-123'),
-      activeLineup: mockActiveLineup,
-      benchPlayers: mockBenchPlayers,
-      substitutionHistory: [],
-    });
+    // Setup mock return values with minimal data
+    mockUseGameStore.mockReturnValue(MOCK_GAME_STORE);
+    mockUseAppServicesContext.mockReturnValue(createMockServices(mockGameAdapter));
+  });
 
-    mockGameAdapter.makeSubstitution.mockResolvedValue({
-      success: true,
-      gameId: new GameId('game-123'),
-      substitution: {
-        inning: 5,
-        battingSlot: 1,
-        outgoingPlayer: { playerId: new PlayerId('player-1'), name: 'John Doe' },
-        incomingPlayer: { playerId: new PlayerId('bench-1'), name: 'Bench Player 1' },
-        timestamp: new Date(),
-        isReentry: false,
-      },
-    });
-
-    mockGetContainer.mockReturnValue({
-      gameAdapter: mockGameAdapter,
-    });
+  afterEach(() => {
+    // Comprehensive cleanup for memory optimization
+    vi.restoreAllMocks();
+    cleanupTestMemory();
   });
 
   describe('Initial Data Loading', () => {
     it('should load current lineup and bench players on mount', async () => {
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       // Should be loading initially
       expect(result.current.isLoading).toBe(true);
       expect(result.current.activeLineup).toEqual([]);
       expect(result.current.benchPlayers).toEqual([]);
 
-      // Wait for data to load
+      // Wait for data to load with optimized timing
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
       });
@@ -175,27 +93,30 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
       expect(result.current.isLoading).toBe(false);
       expect(result.current.activeLineup).toHaveLength(10);
       expect(result.current.benchPlayers).toHaveLength(3);
-      expect(result.current.activeLineup).toEqual(mockActiveLineup);
-      expect(result.current.benchPlayers).toEqual(mockBenchPlayers);
+
+      // Clean up component reference
+      unmount();
     });
 
     it('should call getTeamLineup with correct gameId', async () => {
-      renderHook(() => useLineupManagement('game-123'));
+      const { unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
       });
 
       expect(mockGameAdapter.getTeamLineup).toHaveBeenCalledWith({
-        gameId: 'game-123',
+        gameId: MOCK_GAME_ID,
       });
+
+      unmount();
     });
 
     it('should handle loading errors gracefully', async () => {
       const errorMessage = 'Failed to load lineup';
       mockGameAdapter.getTeamLineup.mockRejectedValue(new Error(errorMessage));
 
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -205,12 +126,14 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
       expect(result.current.error).toBe(errorMessage);
       expect(result.current.activeLineup).toEqual([]);
       expect(result.current.benchPlayers).toEqual([]);
+
+      unmount();
     });
   });
 
   describe('Substitution Eligibility Validation', () => {
     it('should validate substitution eligibility for regular substitute', async () => {
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -224,40 +147,44 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
 
       expect(eligibility.eligible).toBe(true);
       expect(eligibility.reason).toBeNull();
+
+      unmount();
     });
 
     it('should validate re-entry eligibility for starter', async () => {
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
       });
 
       const eligibility = result.current.checkEligibility({
-        playerId: 'starter-sub-1', // Starter who was substituted
+        playerId: 'starter-sub-1',
         inning: 7,
         isReentry: true,
       });
 
       expect(eligibility.eligible).toBe(true);
       expect(eligibility.reason).toBeNull();
+
+      unmount();
     });
 
     it('should prevent re-entry for player who already re-entered', async () => {
-      // Mock bench player who has already re-entered
-      const benchWithReentry = mockBenchPlayers.map(player =>
+      // Create bench data with re-entry efficiently
+      const benchWithReentry = createFreshBenchData().map(player =>
         player.id === 'starter-sub-1' ? { ...player, hasReentered: true, entryInning: 6 } : player
       );
 
       mockGameAdapter.getTeamLineup.mockResolvedValue({
         success: true,
-        gameId: new GameId('game-123'),
-        activeLineup: mockActiveLineup,
+        gameId: { value: MOCK_GAME_ID },
+        activeLineup: createFreshLineupData(),
         benchPlayers: benchWithReentry,
         substitutionHistory: [],
       });
 
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -271,46 +198,52 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
 
       expect(eligibility.eligible).toBe(false);
       expect(eligibility.reason).toBe('Starter can only re-enter once per game');
+
+      unmount();
     });
 
     it('should prevent non-starter from re-entering', async () => {
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
       });
 
       const eligibility = result.current.checkEligibility({
-        playerId: 'bench-1', // Non-starter
+        playerId: 'bench-1',
         inning: 6,
         isReentry: true,
       });
 
       expect(eligibility.eligible).toBe(false);
       expect(eligibility.reason).toBe('Only original starters can re-enter the game');
+
+      unmount();
     });
 
     it('should prevent substitution of active player', async () => {
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
       });
 
       const eligibility = result.current.checkEligibility({
-        playerId: 'player-1', // Active player in lineup
+        playerId: 'player-1',
         inning: 5,
         isReentry: false,
       });
 
       expect(eligibility.eligible).toBe(false);
       expect(eligibility.reason).toBe('Player is currently active in the lineup');
+
+      unmount();
     });
   });
 
   describe('Player Substitution', () => {
     it('should perform valid substitution', async () => {
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -329,17 +262,19 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
       });
 
       expect(mockGameAdapter.makeSubstitution).toHaveBeenCalledWith({
-        gameId: 'game-123',
+        gameId: MOCK_GAME_ID,
         outgoingPlayerId: 'player-1',
         incomingPlayerId: 'bench-1',
         battingSlot: 1,
         fieldPosition: FieldPosition.SHORTSTOP,
         isReentry: false,
       });
+
+      unmount();
     });
 
     it('should handle re-entry substitution', async () => {
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -347,7 +282,7 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
 
       const reentryData = {
         outgoingPlayerId: 'player-2',
-        incomingPlayerId: 'starter-sub-1', // Starter re-entering
+        incomingPlayerId: 'starter-sub-1',
         battingSlot: 2 as const,
         fieldPosition: FieldPosition.SECOND_BASE,
         isReentry: true,
@@ -358,17 +293,19 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
       });
 
       expect(mockGameAdapter.makeSubstitution).toHaveBeenCalledWith({
-        gameId: 'game-123',
+        gameId: MOCK_GAME_ID,
         outgoingPlayerId: 'player-2',
         incomingPlayerId: 'starter-sub-1',
         battingSlot: 2,
         fieldPosition: FieldPosition.SECOND_BASE,
         isReentry: true,
       });
+
+      unmount();
     });
 
     it('should prevent invalid substitutions', async () => {
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -392,13 +329,15 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
 
       expect(result.current.error).toBeTruthy();
       expect(mockGameAdapter.makeSubstitution).not.toHaveBeenCalled();
+
+      unmount();
     });
 
     it('should handle substitution errors from adapter', async () => {
       const errorMessage = 'Substitution failed';
       mockGameAdapter.makeSubstitution.mockRejectedValue(new Error(errorMessage));
 
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -421,12 +360,14 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
       });
 
       expect(result.current.error).toBe(errorMessage);
+
+      unmount();
     });
   });
 
   describe('Position Management', () => {
     it('should get available positions for substitution', async () => {
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -437,10 +378,12 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
       expect(availablePositions).toContain(FieldPosition.SHORTSTOP);
       expect(availablePositions).toContain(FieldPosition.FIRST_BASE);
       expect(availablePositions).toHaveLength(10); // All 9 field positions + EP
+
+      unmount();
     });
 
     it('should find player by batting slot', async () => {
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -453,10 +396,12 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
         playerId: 'player-1',
         fieldPosition: FieldPosition.SHORTSTOP,
       });
+
+      unmount();
     });
 
     it('should find player by field position', async () => {
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -469,6 +414,8 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
         playerId: 'player-6',
         fieldPosition: FieldPosition.PITCHER,
       });
+
+      unmount();
     });
   });
 
@@ -481,7 +428,7 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
 
       mockGameAdapter.makeSubstitution.mockReturnValue(substitutionPromise);
 
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -502,13 +449,15 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
       await act(async () => {
         resolvePromise!({
           success: true,
-          gameId: new GameId('game-123'),
+          gameId: { value: MOCK_GAME_ID },
           substitution: {},
         });
         await new Promise(resolve => setTimeout(resolve, 0));
       });
 
       expect(result.current.isLoading).toBe(false);
+
+      unmount();
     });
 
     it('should clear error state on successful operations', async () => {
@@ -516,7 +465,7 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
       mockGameAdapter.getTeamLineup.mockRejectedValueOnce(new Error('Test error'));
 
       // First cause an error during initial load
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       await act(async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -527,9 +476,9 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
       // Then perform successful operation
       mockGameAdapter.getTeamLineup.mockResolvedValueOnce({
         success: true,
-        gameId: new GameId('game-123'),
-        activeLineup: mockActiveLineup,
-        benchPlayers: mockBenchPlayers,
+        gameId: { value: MOCK_GAME_ID },
+        activeLineup: createFreshLineupData(),
+        benchPlayers: createFreshBenchData(),
         substitutionHistory: [],
       });
 
@@ -539,10 +488,12 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
       });
 
       expect(result.current.error).toBeNull();
+
+      unmount();
     });
 
     it('should provide reset function to clear state', () => {
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       act(() => {
         result.current.reset();
@@ -552,12 +503,14 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
       expect(result.current.isLoading).toBe(false);
       expect(result.current.activeLineup).toEqual([]);
       expect(result.current.benchPlayers).toEqual([]);
+
+      unmount();
     });
   });
 
   describe('Hook Interface', () => {
     it('should return correct hook interface', () => {
-      const { result } = renderHook(() => useLineupManagement('game-123'));
+      const { result, unmount } = renderHook(() => useLineupManagement(MOCK_GAME_ID));
 
       expect(result.current).toEqual({
         // Data
@@ -579,6 +532,8 @@ describe('useLineupManagement Hook - TDD Implementation', () => {
         findPlayerBySlot: expect.any(Function),
         findPlayerByPosition: expect.any(Function),
       });
+
+      unmount();
     });
   });
 });

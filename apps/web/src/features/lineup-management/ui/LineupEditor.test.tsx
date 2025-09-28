@@ -49,6 +49,13 @@ const mockUseLineupManagement = useLineupManagement as vi.MockedFunction<
   typeof useLineupManagement
 >;
 
+// Mock substitute player API
+const mockSubstitutePlayerAPI = {
+  executeSubstitution: vi.fn().mockResolvedValue({ success: true }),
+  isExecuting: false,
+  substitutionError: null,
+};
+
 // Mock data
 const mockActiveLineup: PositionAssignment[] = [
   { battingSlot: 1, playerId: 'player-1', fieldPosition: FieldPosition.SHORTSTOP },
@@ -101,11 +108,16 @@ describe('LineupEditor Component - TDD Implementation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseLineupManagement.mockReturnValue(defaultMockHookValue);
+
+    // Reset substitute player API mock
+    mockSubstitutePlayerAPI.executeSubstitution.mockClear();
+    mockSubstitutePlayerAPI.isExecuting = false;
+    mockSubstitutePlayerAPI.substitutionError = null;
   });
 
   describe('Component Rendering and Structure', () => {
     it('should render lineup editor with proper structure', () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       // Should have main container
       expect(screen.getByRole('region', { name: /lineup editor/i })).toBeInTheDocument();
@@ -118,7 +130,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
     });
 
     it('should render all batting positions', () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       // Should show all 10 batting positions
       for (let i = 1; i <= 10; i++) {
@@ -127,7 +139,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
     });
 
     it('should display player information for each lineup slot', () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       // Should show player IDs (in real implementation, these would be player names)
       expect(screen.getByText('player-1')).toBeInTheDocument();
@@ -136,7 +148,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
     });
 
     it('should display field positions for each player', () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       // Should show abbreviated position names
       expect(screen.getByText('SS')).toBeInTheDocument(); // Shortstop
@@ -152,7 +164,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
     });
 
     it('should render substitution buttons for each lineup slot', () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       // Should have substitute buttons for each position
       const substituteButtons = screen.getAllByText(/substitute/i);
@@ -168,7 +180,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
         activeLineup: [],
       });
 
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       expect(screen.getByRole('status', { name: /loading lineup/i })).toBeInTheDocument();
     });
@@ -181,7 +193,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
         activeLineup: [],
       });
 
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       expect(screen.getByRole('alert')).toBeInTheDocument();
       expect(screen.getByText(errorMessage)).toBeInTheDocument();
@@ -194,7 +206,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
         activeLineup: [],
       });
 
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       const retryButton = screen.getByRole('button', { name: /retry/i });
       expect(retryButton).toBeInTheDocument();
@@ -209,7 +221,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
         activeLineup: [],
       });
 
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       expect(screen.getByText(/no lineup data available/i)).toBeInTheDocument();
     });
@@ -217,7 +229,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
 
   describe('Substitution Interactions', () => {
     it('should open substitution dialog when substitute button clicked', async () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       const firstSubstituteButton = screen.getAllByText(/substitute/i)[0];
       fireEvent.click(firstSubstituteButton);
@@ -229,7 +241,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
     });
 
     it('should pass correct player data to substitution dialog', async () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       const firstSubstituteButton = screen.getAllByText(/substitute/i)[0];
       fireEvent.click(firstSubstituteButton);
@@ -245,7 +257,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
     });
 
     it('should close substitution dialog when cancelled', async () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       const firstSubstituteButton = screen.getAllByText(/substitute/i)[0];
       fireEvent.click(firstSubstituteButton);
@@ -263,13 +275,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
     });
 
     it('should handle substitution completion', async () => {
-      const mockMakeSubstitution = vi.fn().mockResolvedValue(undefined);
-      mockUseLineupManagement.mockReturnValue({
-        ...defaultMockHookValue,
-        makeSubstitution: mockMakeSubstitution,
-      });
-
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       const firstSubstituteButton = screen.getAllByText(/substitute/i)[0];
       fireEvent.click(firstSubstituteButton);
@@ -292,11 +298,15 @@ describe('LineupEditor Component - TDD Implementation', () => {
       fireEvent.click(confirmButton);
 
       await waitFor(() => {
-        expect(mockMakeSubstitution).toHaveBeenCalledWith(
+        expect(mockSubstitutePlayerAPI.executeSubstitution).toHaveBeenCalledWith(
           expect.objectContaining({
-            outgoingPlayerId: 'player-1',
+            gameId: 'game-123',
             battingSlot: 1,
-            fieldPosition: FieldPosition.SHORTSTOP,
+            outgoingPlayerId: 'player-1',
+            incomingPlayer: expect.objectContaining({
+              id: 'bench-1',
+              position: FieldPosition.SHORTSTOP,
+            }),
           })
         );
       });
@@ -305,7 +315,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
 
   describe('Responsive Design and Mobile Layout', () => {
     it('should have proper mobile layout classes', () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       const container = screen.getByRole('region', { name: /lineup editor/i });
       expect(container).toHaveClass('lineup-container');
@@ -315,7 +325,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
     });
 
     it('should display compact player information on mobile', () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       // Should have mobile-optimized player cards
       const playerCards = screen.getAllByRole('listitem');
@@ -323,7 +333,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
     });
 
     it('should have touch-friendly button sizes', () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       const substituteButtons = screen.getAllByText(/substitute/i);
       substituteButtons.forEach(button => {
@@ -334,7 +344,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
 
   describe('Accessibility Features', () => {
     it('should have proper ARIA labels and roles', () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       expect(screen.getByRole('region', { name: /lineup editor/i })).toBeInTheDocument();
       expect(screen.getByRole('list', { name: /batting order/i })).toBeInTheDocument();
@@ -344,7 +354,7 @@ describe('LineupEditor Component - TDD Implementation', () => {
     });
 
     it('should have accessible substitute buttons', () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       const substituteButtons = screen.getAllByRole('button', { name: /substitute/i });
       expect(substituteButtons).toHaveLength(10);
@@ -354,14 +364,14 @@ describe('LineupEditor Component - TDD Implementation', () => {
     });
 
     it('should announce lineup changes to screen readers', () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       // Should have live region for announcements
       expect(screen.getByRole('status', { name: /lineup updates/i })).toBeInTheDocument();
     });
 
     it('should have proper keyboard navigation', () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       const substituteButtons = screen.getAllByRole('button', { name: /substitute/i });
 
@@ -374,23 +384,31 @@ describe('LineupEditor Component - TDD Implementation', () => {
 
   describe('Component Props and Integration', () => {
     it('should pass gameId to lineup management hook', () => {
-      render(<LineupEditor gameId="game-123" />);
+      render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       expect(mockUseLineupManagement).toHaveBeenCalledWith('game-123');
     });
 
     it('should re-render when gameId changes', () => {
-      const { rerender } = render(<LineupEditor gameId="game-123" />);
+      const { rerender } = render(
+        <LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />
+      );
 
       expect(mockUseLineupManagement).toHaveBeenCalledWith('game-123');
 
-      rerender(<LineupEditor gameId="game-456" />);
+      rerender(<LineupEditor gameId="game-456" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       expect(mockUseLineupManagement).toHaveBeenCalledWith('game-456');
     });
 
     it('should handle optional className prop', () => {
-      render(<LineupEditor gameId="game-123" className="custom-class" />);
+      render(
+        <LineupEditor
+          gameId="game-123"
+          className="custom-class"
+          substitutePlayerAPI={mockSubstitutePlayerAPI}
+        />
+      );
 
       const container = screen.getByRole('region', { name: /lineup editor/i });
       expect(container).toHaveClass('lineup-container');
@@ -402,14 +420,14 @@ describe('LineupEditor Component - TDD Implementation', () => {
 
     it('should handle optional onSubstitutionComplete callback', async () => {
       const onSubstitutionComplete = vi.fn();
-      const mockMakeSubstitution = vi.fn().mockResolvedValue(undefined);
 
-      mockUseLineupManagement.mockReturnValue({
-        ...defaultMockHookValue,
-        makeSubstitution: mockMakeSubstitution,
-      });
-
-      render(<LineupEditor gameId="game-123" onSubstitutionComplete={onSubstitutionComplete} />);
+      render(
+        <LineupEditor
+          gameId="game-123"
+          onSubstitutionComplete={onSubstitutionComplete}
+          substitutePlayerAPI={mockSubstitutePlayerAPI}
+        />
+      );
 
       const firstSubstituteButton = screen.getAllByText(/substitute/i)[0];
       fireEvent.click(firstSubstituteButton);

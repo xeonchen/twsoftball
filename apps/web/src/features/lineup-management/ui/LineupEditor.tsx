@@ -37,7 +37,7 @@ import type { PositionAssignment } from '../../../shared/lib/types';
 import { useLineupManagement } from '../model/useLineupManagement';
 import type { SubstitutionData } from '../model/useLineupManagement';
 
-import { SubstitutionDialog } from './SubstitutionDialog';
+import { SubstitutionDialog, type SubstitutePlayerAPI } from './SubstitutionDialog';
 
 /**
  * Props for LineupEditor component
@@ -49,6 +49,8 @@ export interface LineupEditorProps {
   onSubstitutionComplete?: () => void;
   /** Optional CSS class name */
   className?: string;
+  /** Substitute player API functionality (injected by widget) */
+  substitutePlayerAPI: SubstitutePlayerAPI;
 }
 
 /**
@@ -86,9 +88,10 @@ export function LineupEditor({
   gameId,
   onSubstitutionComplete,
   className = '',
+  substitutePlayerAPI,
 }: LineupEditorProps): React.JSX.Element {
   // Hook state
-  const { activeLineup, benchPlayers, isLoading, error, makeSubstitution, refreshLineup } =
+  const { activeLineup, benchPlayers, isLoading, error, refreshLineup } =
     useLineupManagement(gameId);
 
   // Local state for dialog management
@@ -118,15 +121,18 @@ export function LineupEditor({
   }, []);
 
   /**
-   * Handle substitution confirmation
+   * Handle substitution confirmation - SubstitutionDialog now handles the actual substitution
    */
   const handleSubstitutionConfirm = useCallback(
-    async (data: SubstitutionData): Promise<void> => {
-      await makeSubstitution(data);
+    async (_data: SubstitutionData): Promise<void> => {
+      // SubstitutionDialog has already executed the substitution via substitute-player feature
+      // This callback is now just for UI state updates and notifications
       handleDialogClose();
       onSubstitutionComplete?.();
+      // Refresh lineup to get the latest state
+      await refreshLineup();
     },
-    [makeSubstitution, handleDialogClose, onSubstitutionComplete]
+    [handleDialogClose, onSubstitutionComplete, refreshLineup]
   );
 
   /**
@@ -248,6 +254,7 @@ export function LineupEditor({
           currentPlayer={substitutionDialog.currentPlayer}
           benchPlayers={benchPlayers}
           gameId={gameId}
+          substitutePlayerAPI={substitutePlayerAPI}
         />
       )}
     </div>

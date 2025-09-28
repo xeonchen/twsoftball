@@ -37,10 +37,28 @@
 import { FieldPosition } from '@twsoftball/application';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
-import type { BenchPlayer, PositionAssignment } from '../../../shared/lib/types';
-import { useSubstitutePlayer } from '../../substitute-player';
+import type {
+  BenchPlayer,
+  PositionAssignment,
+  SubstitutionRequestData,
+  SubstitutionResult,
+} from '../../../shared/lib/types';
 import { useLineupManagement } from '../model/useLineupManagement';
 import type { SubstitutionData } from '../model/useLineupManagement';
+
+// Import types for substitute player functionality
+
+/**
+ * Interface for substitute player API functionality injected via props
+ */
+export interface SubstitutePlayerAPI {
+  /** Function to execute player substitution */
+  executeSubstitution: (data: SubstitutionRequestData) => Promise<SubstitutionResult>;
+  /** Whether a substitution is currently executing */
+  isExecuting: boolean;
+  /** Error from substitute player operations */
+  substitutionError: string | null;
+}
 
 /**
  * Props for SubstitutionDialog component
@@ -58,10 +76,12 @@ export interface SubstitutionDialogProps {
   benchPlayers: BenchPlayer[];
   /** Game ID for context */
   gameId: string;
-  /** Team lineup ID for substitution */
-  teamLineupId: string;
-  /** Current inning number */
-  inning: number;
+  /** Team lineup ID for substitution (optional - will be determined from game context) */
+  teamLineupId?: string;
+  /** Current inning number (optional - will be determined from game context) */
+  inning?: number;
+  /** Substitute player API functionality (injected by widget) */
+  substitutePlayerAPI: SubstitutePlayerAPI;
 }
 
 /**
@@ -103,16 +123,15 @@ export function SubstitutionDialog({
   currentPlayer,
   benchPlayers,
   gameId,
-  teamLineupId,
-  inning,
+  teamLineupId = 'home-team', // Default fallback
+  inning = 1, // Default fallback
+  substitutePlayerAPI,
 }: SubstitutionDialogProps): React.JSX.Element | null {
   // Hook state
   const { checkEligibility, getAvailablePositions } = useLineupManagement(gameId);
-  const {
-    substitutePlayer: executeSubstitution,
-    isLoading: isExecuting,
-    error: substitutionError,
-  } = useSubstitutePlayer();
+
+  // Extract substitute player functionality from injected API
+  const { executeSubstitution, isExecuting, substitutionError } = substitutePlayerAPI;
 
   // Local state
   const [formState, setFormState] = useState<SubstitutionFormState>({
@@ -206,7 +225,7 @@ export function SubstitutionDialog({
       });
 
       if (result.success) {
-        // Also call the original onConfirm for backward compatibility
+        // Call the onConfirm callback for UI updates and notifications
         const substitutionData: SubstitutionData = {
           outgoingPlayerId: currentPlayer.playerId,
           incomingPlayerId: formState.selectedPlayerId,

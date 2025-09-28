@@ -10,5 +10,5 @@ export { PositionAssignment } from './PositionAssignment';
 
 // Export component types
 export type { LineupEditorProps } from './LineupEditor';
-export type { SubstitutionDialogProps } from './SubstitutionDialog';
+export type { SubstitutionDialogProps, SubstitutePlayerAPI } from './SubstitutionDialog';
 export type { PositionAssignmentProps, PositionChangeData } from './PositionAssignment';

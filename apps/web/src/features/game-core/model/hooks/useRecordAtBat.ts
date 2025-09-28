@@ -50,7 +50,7 @@ import { useState, useCallback } from 'react';
 
 // Local imports
 import { useGameStore } from '../../../../entities/game';
-import { getContainer } from '../../../../shared/api';
+import { useAppServicesContext } from '../../../../shared/lib';
 
 /**
  * UI interface for runner advance data
@@ -114,6 +114,9 @@ export function useRecordAtBat(): UseRecordAtBatState {
   // Get game state from store
   const { currentGame, activeGameState } = useGameStore();
 
+  // Get services from context
+  const { services } = useAppServicesContext();
+
   /**
    * Records an at-bat by transforming UI data to application commands
    * and executing through the game adapter.
@@ -151,11 +154,15 @@ export function useRecordAtBat(): UseRecordAtBatState {
         };
 
         // Execute recording through adapter
-        const container = getContainer();
-        const recordingResult = await container.gameAdapter.recordAtBat(adapterData);
+        if (!services) {
+          throw new Error('Application services not initialized');
+        }
+        const recordingResult = await (
+          services.gameAdapter as { recordAtBat: (data: unknown) => Promise<unknown> }
+        ).recordAtBat(adapterData);
 
-        // Update result state
-        setResult(recordingResult);
+        // Update result state - type assertion for safe assignment
+        setResult(recordingResult as AtBatResult);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to record at-bat';
         setError(errorMessage);
@@ -164,7 +171,7 @@ export function useRecordAtBat(): UseRecordAtBatState {
         setIsLoading(false);
       }
     },
-    [currentGame, activeGameState]
+    [currentGame, activeGameState, services]
   );
 
   /**

@@ -351,7 +351,7 @@ describe('LineupTypes', () => {
 
       expect(playerInfo.playerId).toBeTruthy();
       expect(playerInfo.name).toBeTruthy();
-      expect(playerInfo.playerId).toBeInstanceOf(PlayerId);
+      expect(playerInfo.playerId).toHaveProperty('value', 'required-id');
       expect(typeof playerInfo.name).toBe('string');
     });
   });

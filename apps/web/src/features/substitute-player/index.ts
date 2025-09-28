@@ -21,6 +21,9 @@
 // Re-export main hook for substitute player functionality
 export { useSubstitutePlayer } from './model';
 
+// Re-export shared API hook for FSD-compliant composition
+export { useSubstitutePlayerAPI } from './model/useSubstitutePlayerAPI';
+
 // Re-export API functions
 export { substitutePlayer } from './api';
 
