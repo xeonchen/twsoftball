@@ -14,7 +14,8 @@ import { createStartNewGameCommand } from '../test-factories/command-factories.j
 import { createTestInfrastructureFactory } from '../test-factories/test-infrastructure-factory.js';
 import type { ApplicationConfig, ApplicationServices } from '../types/ApplicationTypes.js';
 
-import { DIContainer, createApplicationServicesWithContainer } from './DIContainer.js';
+import { createApplicationServicesWithContainer } from './ApplicationFactory.js';
+import { DIContainer } from './DIContainer.js';
 
 describe('DIContainer Integration Tests', () => {
   let container: DIContainer;

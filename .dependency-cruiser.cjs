@@ -7,11 +7,11 @@ module.exports = {
       from: { path: '^packages/domain' },
       to: {
         pathNot: [
-          '^packages/domain',               // Can import from itself
-          '^node_modules',                  // Can import external packages
-          '\\.json$'                        // Allow JSON imports
-        ]
-      }
+          '^packages/domain', // Can import from itself
+          '^node_modules', // Can import external packages
+          '\\.json$', // Allow JSON imports
+        ],
+      },
     },
     {
       name: 'application-layer-allowed-dependencies',
@@ -20,15 +20,15 @@ module.exports = {
       from: { path: '^packages/application' },
       to: {
         pathNot: [
-          '^packages/application',          // Can import from itself
-          '^packages/domain',               // Can import domain layer
-          '^packages/shared',               // Can import shared utilities
-          '^node_modules',                  // Can import external packages
-          '\\.json$'                        // Allow JSON imports
+          '^packages/application', // Can import from itself
+          '^packages/domain', // Can import domain layer
+          '^packages/shared', // Can import shared utilities
+          '^node_modules', // Can import external packages
+          '\\.json$', // Allow JSON imports
         ],
         // Exclude dynamic imports from this rule
-        dependencyTypesNot: ['dynamic-import']
-      }
+        dependencyTypesNot: ['dynamic-import'],
+      },
     },
     {
       name: 'infrastructure-layer-allowed-dependencies',
@@ -37,14 +37,14 @@ module.exports = {
       from: { path: '^packages/infrastructure' },
       to: {
         pathNot: [
-          '^packages/infrastructure',       // Can import from itself
-          '^packages/domain',               // Can import domain types
-          '^packages/application',          // Can import application layer
-          '^packages/shared',               // Can import shared utilities
-          '^node_modules',                  // Can import external packages
-          '\\.json$'                        // Allow JSON imports
-        ]
-      }
+          '^packages/infrastructure', // Can import from itself
+          '^packages/domain', // Can import domain types
+          '^packages/application', // Can import application layer
+          '^packages/shared', // Can import shared utilities
+          '^node_modules', // Can import external packages
+          '\\.json$', // Allow JSON imports
+        ],
+      },
     },
     {
       name: 'shared-layer-allowed-dependencies',
@@ -53,11 +53,11 @@ module.exports = {
       from: { path: '^packages/shared' },
       to: {
         pathNot: [
-          '^packages/shared',               // Can import from itself
-          '^node_modules',                  // Can import external packages
-          '\\.json$'                        // Allow JSON imports
-        ]
-      }
+          '^packages/shared', // Can import from itself
+          '^node_modules', // Can import external packages
+          '\\.json$', // Allow JSON imports
+        ],
+      },
     },
     {
       name: 'application-layer-forbidden-infrastructure',
@@ -66,49 +66,49 @@ module.exports = {
       from: { path: '^packages/application' },
       to: {
         path: [
-          '^packages/infrastructure',         // Explicitly forbidden
-          '^@twsoftball/infrastructure$',     // Package alias forbidden (exact)
-          '^@twsoftball/infrastructure/'      // Package alias forbidden (subpaths)
+          '^packages/infrastructure', // Explicitly forbidden
+          '^@twsoftball/infrastructure$', // Package alias forbidden (exact)
+          '^@twsoftball/infrastructure/', // Package alias forbidden (subpaths)
         ],
         // Exclude dynamic imports - they are allowed for ApplicationFactory pattern
-        dependencyTypesNot: ['dynamic-import']
-      }
+        dependencyTypesNot: ['dynamic-import'],
+      },
     },
     {
       name: 'web-layer-allowed-dependencies',
       comment: 'Web layer can only import from application layer',
       severity: 'error',
       from: {
-        path: '^apps/web'
+        path: '^apps/web',
       },
       to: {
         pathNot: [
-          '^apps/web',                      // Can import from itself
-          '^packages/application',          // Can import application layer
-          '^node_modules',                  // Can import external packages
-          '\\.css$',                        // Allow CSS imports
-          '\\.scss$',                       // Allow SCSS imports
-          '\\.svg$',                        // Allow SVG imports
-          '\\.png$',                        // Allow image imports
-          '\\.jpg$',                        // Allow image imports
-          '\\.json$'                        // Allow JSON imports
-        ]
-      }
+          '^apps/web', // Can import from itself
+          '^packages/application', // Can import application layer
+          '^node_modules', // Can import external packages
+          '\\.css$', // Allow CSS imports
+          '\\.scss$', // Allow SCSS imports
+          '\\.svg$', // Allow SVG imports
+          '\\.png$', // Allow image imports
+          '\\.jpg$', // Allow image imports
+          '\\.json$', // Allow JSON imports
+        ],
+      },
     },
     {
       name: 'web-layer-forbidden-infrastructure',
       comment: 'Web layer must NOT import from infrastructure layer',
       severity: 'error',
       from: {
-        path: '^apps/web'
+        path: '^apps/web',
       },
       to: {
         path: [
-          '^packages/infrastructure',         // Explicitly forbidden
-          '^@twsoftball/infrastructure$',     // Package alias forbidden (exact)
-          '^@twsoftball/infrastructure/'      // Package alias forbidden (subpaths)
-        ]
-      }
+          '^packages/infrastructure', // Explicitly forbidden
+          '^@twsoftball/infrastructure$', // Package alias forbidden (exact)
+          '^@twsoftball/infrastructure/', // Package alias forbidden (subpaths)
+        ],
+      },
     },
     {
       name: 'web-layer-forbidden-domain',
@@ -117,11 +117,11 @@ module.exports = {
       from: { path: '^apps/web' },
       to: {
         path: [
-          '^packages/domain',               // Explicitly forbidden
-          '^@twsoftball/domain$',           // Package alias forbidden (exact)
-          '^@twsoftball/domain/'            // Package alias forbidden (subpaths)
-        ]
-      }
+          '^packages/domain', // Explicitly forbidden
+          '^@twsoftball/domain$', // Package alias forbidden (exact)
+          '^@twsoftball/domain/', // Package alias forbidden (subpaths)
+        ],
+      },
     },
     {
       name: 'package-alias-violations',
@@ -130,12 +130,12 @@ module.exports = {
       from: { path: '^apps/web' },
       to: {
         path: [
-          '^@twsoftball/infrastructure$',     // Web cannot use infrastructure alias (exact)
-          '^@twsoftball/infrastructure/',     // Web cannot use infrastructure alias (subpaths)
-          '^@twsoftball/domain$',             // Web cannot use domain alias (exact)
-          '^@twsoftball/domain/'              // Web cannot use domain alias (subpaths)
-        ]
-      }
+          '^@twsoftball/infrastructure$', // Web cannot use infrastructure alias (exact)
+          '^@twsoftball/infrastructure/', // Web cannot use infrastructure alias (subpaths)
+          '^@twsoftball/domain$', // Web cannot use domain alias (exact)
+          '^@twsoftball/domain/', // Web cannot use domain alias (subpaths)
+        ],
+      },
     },
     {
       name: 'domain-forbidden-application',
@@ -144,11 +144,11 @@ module.exports = {
       from: { path: '^packages/domain' },
       to: {
         path: [
-          '^packages/application',           // Explicitly forbidden
-          '^@twsoftball/application$',       // Package alias forbidden (exact)
-          '^@twsoftball/application/'        // Package alias forbidden (subpaths)
-        ]
-      }
+          '^packages/application', // Explicitly forbidden
+          '^@twsoftball/application$', // Package alias forbidden (exact)
+          '^@twsoftball/application/', // Package alias forbidden (subpaths)
+        ],
+      },
     },
     {
       name: 'domain-forbidden-infrastructure',
@@ -157,11 +157,11 @@ module.exports = {
       from: { path: '^packages/domain' },
       to: {
         path: [
-          '^packages/infrastructure',         // Explicitly forbidden
-          '^@twsoftball/infrastructure$',     // Package alias forbidden (exact)
-          '^@twsoftball/infrastructure/'      // Package alias forbidden (subpaths)
-        ]
-      }
+          '^packages/infrastructure', // Explicitly forbidden
+          '^@twsoftball/infrastructure$', // Package alias forbidden (exact)
+          '^@twsoftball/infrastructure/', // Package alias forbidden (subpaths)
+        ],
+      },
     },
     {
       name: 'shared-forbidden-application',
@@ -170,11 +170,11 @@ module.exports = {
       from: { path: '^packages/shared' },
       to: {
         path: [
-          '^packages/application',           // Explicitly forbidden
-          '^@twsoftball/application$',       // Package alias forbidden (exact)
-          '^@twsoftball/application/'        // Package alias forbidden (subpaths)
-        ]
-      }
+          '^packages/application', // Explicitly forbidden
+          '^@twsoftball/application$', // Package alias forbidden (exact)
+          '^@twsoftball/application/', // Package alias forbidden (subpaths)
+        ],
+      },
     },
     {
       name: 'shared-forbidden-infrastructure',
@@ -183,24 +183,26 @@ module.exports = {
       from: { path: '^packages/shared' },
       to: {
         path: [
-          '^packages/infrastructure',         // Explicitly forbidden
-          '^@twsoftball/infrastructure$',     // Package alias forbidden (exact)
-          '^@twsoftball/infrastructure/'      // Package alias forbidden (subpaths)
-        ]
-      }
+          '^packages/infrastructure', // Explicitly forbidden
+          '^@twsoftball/infrastructure$', // Package alias forbidden (exact)
+          '^@twsoftball/infrastructure/', // Package alias forbidden (subpaths)
+        ],
+      },
     },
     {
       name: 'no-circular-dependencies',
-      comment: 'Circular dependencies are not allowed (excluding ApplicationFactory dynamic imports)',
+      comment:
+        'Circular dependencies are not allowed (excluding ApplicationFactory dynamic imports)',
       severity: 'error',
       from: {},
       to: {
         circular: true,
         // Exclude circular dependencies involving ApplicationFactory since it uses dynamic imports
         pathNot: [
-          '^packages/application/src/services/ApplicationFactory\\.ts$'
-        ]
-      }
+          '^packages/application/src/services/ApplicationFactory\\.ts$',
+          'ApplicationFactory',
+        ],
+      },
     },
     {
       name: 'no-orphans',
@@ -219,10 +221,10 @@ module.exports = {
           'dist/.*',
           'apps/web/tailwind\\.config\\.js$',
           'apps/web/src/app/providers/theme/index\\.ts$',
-          'apps/web/postcss\\.config\\.js$'
-        ]
+          'apps/web/postcss\\.config\\.js$',
+        ],
       },
-      to: {}
+      to: {},
     },
     {
       name: 'no-deprecated-core',
@@ -231,10 +233,8 @@ module.exports = {
       from: {},
       to: {
         dependencyTypes: ['core'],
-        path: [
-          '^(punycode|domain|constants|sys|_stream_wrap)$'
-        ]
-      }
+        path: ['^(punycode|domain|constants|sys|_stream_wrap)$'],
+      },
     },
     {
       name: 'not-to-dev-dep',
@@ -242,28 +242,28 @@ module.exports = {
       severity: 'error',
       from: {
         path: '^(packages|apps)',
-        pathNot: '\\.(?:test|spec)\\.[jt]s$'
+        pathNot: '\\.(?:test|spec)\\.[jt]s$',
       },
-      to: { dependencyTypes: ['npm-dev'] }
-    }
+      to: { dependencyTypes: ['npm-dev'] },
+    },
   ],
   options: {
     doNotFollow: {
       path: ['node_modules', 'dist'],
-      dependencyTypes: ['npm', 'npm-dev', 'npm-optional', 'npm-peer']
+      dependencyTypes: ['npm', 'npm-dev', 'npm-optional', 'npm-peer'],
     },
     includeOnly: '^(packages|apps)/',
     tsPreCompilationDeps: true,
     tsConfig: {
-      fileName: './tsconfig.json'
+      fileName: './tsconfig.json',
     },
     enhancedResolveOptions: {
-      exportsFields: ['exports']
+      exportsFields: ['exports'],
     },
     reporterOptions: {
       dot: {
-        collapsePattern: 'node_modules/(@[^/]+/[^/]+|[^/]+)'
-      }
-    }
-  }
+        collapsePattern: 'node_modules/(@[^/]+/[^/]+|[^/]+)',
+      },
+    },
+  },
 };

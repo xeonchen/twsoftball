@@ -4,6 +4,9 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  optimizeDeps: {
+    include: ['@twsoftball/infrastructure/web', '@twsoftball/infrastructure/memory'],
+  },
   plugins: [
     react(),
     VitePWA({
@@ -66,6 +69,7 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     rollupOptions: {
+      external: ['@twsoftball/infrastructure/memory', '@twsoftball/infrastructure/web'],
       output: {
         manualChunks: {
           // Vendor libraries chunk - largest dependencies

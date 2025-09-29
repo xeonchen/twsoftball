@@ -9,18 +9,7 @@ import { FieldPosition } from '@twsoftball/application';
 import React from 'react';
 
 import type { BenchPlayer } from '../../../shared/lib';
-
-/**
- * Player eligibility information for substitution decisions
- */
-export interface PlayerEligibility {
-  /** Whether the player can be substituted into the game */
-  canSubstitute: boolean;
-  /** Whether the player can re-enter after being substituted */
-  canReenter: boolean;
-  /** Array of restriction messages explaining why substitution might be limited */
-  restrictions: string[];
-}
+import type { PlayerEligibility } from '../model/types';
 
 /**
  * Props interface for BenchPlayerCard component

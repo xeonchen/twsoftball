@@ -3,14 +3,30 @@
   "version": "0.1.0",
   "description": "Infrastructure layer - Adapters and implementations",
   "type": "module",
+  "typesVersions": {
+    "*": {
+      "web": [
+        "./dist/web.d.ts"
+      ],
+      "memory": [
+        "./dist/memory.d.ts"
+      ],
+      "persistence/*": [
+        "./dist/persistence/*"
+      ],
+      "config/*": [
+        "./dist/config/*"
+      ]
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
     "./web": {
-      "types": "./dist/web/index.d.ts",
-      "import": "./dist/web/index.js"
+      "types": "./dist/web.d.ts",
+      "import": "./dist/web.js"
     },
     "./memory": {
       "types": "./dist/memory.d.ts",

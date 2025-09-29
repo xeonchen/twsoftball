@@ -1,5 +1,4 @@
 import {
-  createApplicationServicesWithContainer,
   type ApplicationServices,
   type ApplicationConfig,
   type StartNewGameCommand,
@@ -15,6 +14,8 @@ import {
   AtBatResultType,
   type Logger,
 } from '@twsoftball/application';
+// Direct import to avoid circular dependencies
+import { createApplicationServicesWithContainer } from '@twsoftball/application/services/ApplicationFactory';
 import { useCallback, useEffect, useState } from 'react';
 
 import type { Player } from '../../../shared/lib/types';

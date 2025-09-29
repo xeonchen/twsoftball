@@ -9,8 +9,7 @@
 export { useBenchManagement } from './useBenchManagement';
 
 // Export model types
-export type {
-  BenchManagementConfig,
-  PlayerEligibility,
-  UseBenchManagementState,
-} from './useBenchManagement';
+export type { BenchManagementConfig, UseBenchManagementState } from './useBenchManagement';
+
+// Export business domain types
+export type { PlayerEligibility } from './types';

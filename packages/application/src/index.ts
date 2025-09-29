@@ -39,6 +39,9 @@ export type { ApplicationConfig, ApplicationServices } from './types/Application
 // Dependency Injection Container
 export * from './services/DIContainer';
 
+// Note: ApplicationFactory is not exported through index.ts to avoid circular dependencies
+// Import directly: import { createApplicationServicesWithContainer } from '@twsoftball/application/src/services/ApplicationFactory'
+
 // Infrastructure Factory Interface
 export type {
   InfrastructureFactory,

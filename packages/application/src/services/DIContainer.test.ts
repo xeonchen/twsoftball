@@ -13,14 +13,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import type { ApplicationConfig } from '../types/ApplicationTypes.js';
 
+import { createApplicationServicesWithContainer } from './ApplicationFactory.js';
 import {
   DIContainer,
   CircularDependencyError,
   ServiceNotFoundError,
   DependencyResolutionError,
   createInitializedContainer,
-  createApplicationServicesWithContainer,
 } from './DIContainer.js';
+import type { InfrastructureFactory, InfrastructureServices } from './InfrastructureFactory.js';
 
 describe('DIContainer', () => {
   let container: DIContainer;
@@ -505,6 +506,25 @@ describe('DIContainer', () => {
 });
 
 describe('Container Factory Functions', () => {
+  let mockFactory: InfrastructureFactory;
+
+  beforeEach(() => {
+    // Create a mock infrastructure factory for testing
+    mockFactory = {
+      async createServices(): Promise<InfrastructureServices> {
+        // Use memory factory from infrastructure package
+        const { createMemoryFactory } = await import('@twsoftball/infrastructure/memory');
+        const factory = createMemoryFactory();
+        return factory.createServices({
+          environment: 'test',
+          debug: false,
+        });
+      },
+      getStorageType: (): string => 'memory',
+      getDescription: (): string => 'Mock factory for testing',
+    };
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
   });
@@ -518,7 +538,7 @@ describe('Container Factory Functions', () => {
       };
 
       // Act
-      const container = await createInitializedContainer(config);
+      const container = await createInitializedContainer(config, mockFactory);
 
       // Assert
       expect(container).toBeInstanceOf(DIContainer);
@@ -542,7 +562,7 @@ describe('Container Factory Functions', () => {
       };
 
       // Act
-      const container = await createInitializedContainer(appConfig, containerConfig);
+      const container = await createInitializedContainer(appConfig, mockFactory, containerConfig);
 
       // Assert
       expect(container).toBeInstanceOf(DIContainer);
@@ -611,9 +631,25 @@ describe('Container Factory Functions', () => {
 
 describe('DIContainer Integration with Real Dependencies', () => {
   let container: DIContainer;
+  let mockFactory: InfrastructureFactory;
 
   beforeEach(() => {
     container = new DIContainer({ debug: false });
+
+    // Create a mock infrastructure factory for testing
+    mockFactory = {
+      async createServices(): Promise<InfrastructureServices> {
+        // Use memory factory from infrastructure package
+        const { createMemoryFactory } = await import('@twsoftball/infrastructure/memory');
+        const factory = createMemoryFactory();
+        return factory.createServices({
+          environment: 'test',
+          debug: false,
+        });
+      },
+      getStorageType: (): string => 'memory',
+      getDescription: (): string => 'Mock factory for testing',
+    };
   });
 
   afterEach(() => {
@@ -628,7 +664,7 @@ describe('DIContainer Integration with Real Dependencies', () => {
     };
 
     // Act
-    await container.initialize(config);
+    await container.initialize(config, mockFactory);
     const services = await container.resolve('applicationServices');
 
     // Assert
@@ -648,7 +684,7 @@ describe('DIContainer Integration with Real Dependencies', () => {
     };
 
     // Act
-    await container.initialize(config);
+    await container.initialize(config, mockFactory);
     const startNewGame = await container.resolve('startNewGame');
     const gameRepository = await container.resolve('gameRepository');
     const eventStore = await container.resolve('eventStore');
@@ -675,8 +711,17 @@ describe('DIContainer Integration with Real Dependencies', () => {
       storage: 'invalid' as 'memory' | 'indexeddb' | 'sqlite' | 'cloud',
     };
 
+    // Create a mock factory that throws an error
+    const failingFactory: InfrastructureFactory = {
+      createServices(): Promise<InfrastructureServices> {
+        return Promise.reject(new Error('Mock factory failure'));
+      },
+      getStorageType: (): string => 'invalid',
+      getDescription: (): string => 'Failing mock factory',
+    };
+
     // Act & Assert
-    await expect(container.initialize(invalidConfig)).rejects.toThrow(
+    await expect(container.initialize(invalidConfig, failingFactory)).rejects.toThrow(
       'Failed to initialize DI container'
     );
   });

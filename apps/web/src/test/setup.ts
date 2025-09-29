@@ -169,7 +169,24 @@ interface WizardState {
   lineup?: unknown[];
 }
 
-// Mock DI Container functions for tests - simplified to prevent memory leaks
+// Mock ApplicationFactory and DI Container functions for tests - simplified to prevent memory leaks
+vi.mock('@twsoftball/application/services/ApplicationFactory', () => ({
+  createApplicationServicesWithContainer: vi.fn().mockResolvedValue({
+    ...mockUseCases,
+    ...mockRepositories,
+    eventStore: mockInfrastructure.eventStore,
+    logger: mockLogger,
+    config: { environment: 'test', storage: 'memory' },
+  }),
+  createApplicationServicesWithContainerAndFactory: vi.fn().mockResolvedValue({
+    ...mockUseCases,
+    ...mockRepositories,
+    eventStore: mockInfrastructure.eventStore,
+    logger: mockLogger,
+    config: { environment: 'test', storage: 'memory' },
+  }),
+}));
+
 vi.mock('@twsoftball/application', () => ({
   createApplicationServicesWithContainer: vi.fn().mockResolvedValue({
     ...mockUseCases,

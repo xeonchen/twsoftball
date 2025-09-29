@@ -34,8 +34,10 @@
  * ```
  */
 
-import { createApplicationServicesWithContainer } from '@twsoftball/application';
+import { createApplicationServicesWithContainer } from '@twsoftball/application/services/ApplicationFactory';
 import React, { useEffect, useState, type ReactNode } from 'react';
+
+// Direct import to avoid circular dependencies
 
 import {
   initializeApplicationServices,

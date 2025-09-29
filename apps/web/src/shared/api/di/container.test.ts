@@ -17,7 +17,7 @@
  *
  * Tests follow hexagonal architecture principles with no Infrastructure dependencies.
  */
-import { createApplicationServicesWithContainer } from '@twsoftball/application';
+import { createApplicationServicesWithContainer } from '@twsoftball/application/services/ApplicationFactory';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Local type definitions to avoid importing from features layer (FSD compliance)
@@ -103,14 +103,34 @@ const initializeApplicationServices = vi
     }
   );
 
-// Mock the DIContainer
-vi.mock('@twsoftball/application/services/DIContainer', async importOriginal => {
-  const original =
-    await importOriginal<typeof import('@twsoftball/application/services/DIContainer')>();
-
-  return {
-    ...original,
-    createApplicationServicesWithContainer: vi.fn().mockImplementation(_config => {
+// Mock the ApplicationFactory (already mocked in setup.ts, but re-mock here for test isolation)
+vi.mock('@twsoftball/application/services/ApplicationFactory', () => ({
+  createApplicationServicesWithContainer: vi.fn().mockImplementation(_config => {
+    return Promise.resolve({
+      startNewGame: { execute: vi.fn() },
+      recordAtBat: { execute: vi.fn() },
+      substitutePlayer: { execute: vi.fn() },
+      undoLastAction: { execute: vi.fn() },
+      redoLastAction: { execute: vi.fn() },
+      endInning: { execute: vi.fn() },
+      gameRepository: { findById: vi.fn(), save: vi.fn() },
+      teamLineupRepository: { findById: vi.fn(), save: vi.fn() },
+      inningStateRepository: { findById: vi.fn(), save: vi.fn() },
+      eventStore: { getEvents: vi.fn(), saveEvent: vi.fn() },
+      logger: {
+        debug: vi.fn<[string, unknown?], void>(),
+        info: vi.fn<[string, unknown?], void>(),
+        warn: vi.fn<[string, unknown?], void>(),
+        error: vi.fn<[string, Error?, unknown?], void>(),
+        log: vi.fn<[string, string, unknown?, Error?], void>(),
+        isLevelEnabled: vi.fn<[string], boolean>(() => true),
+      },
+      config: { environment: 'development', storage: 'memory' },
+    });
+  }),
+  createApplicationServicesWithContainerAndFactory: vi
+    .fn()
+    .mockImplementation((_config, _factory) => {
       return Promise.resolve({
         startNewGame: { execute: vi.fn() },
         recordAtBat: { execute: vi.fn() },
@@ -133,16 +153,7 @@ vi.mock('@twsoftball/application/services/DIContainer', async importOriginal => 
         config: { environment: 'development', storage: 'memory' },
       });
     }),
-    DIContainer: vi.fn().mockImplementation(() => ({
-      register: vi.fn(),
-      resolve: vi.fn(),
-      has: vi.fn(() => true),
-      initialize: vi.fn(),
-      dispose: vi.fn(),
-      getRegisteredServices: vi.fn(() => ['applicationServices']),
-    })),
-  };
-});
+}));
 
 describe('App Services Provider Pattern', () => {
   beforeEach(() => {
@@ -154,9 +165,9 @@ describe('App Services Provider Pattern', () => {
   });
 
   describe('App Initialization Pattern Tests', () => {
-    it('should verify DIContainer mock is working properly', async () => {
+    it('should verify ApplicationFactory mock is working properly', async () => {
       const { createApplicationServicesWithContainer } = await import(
-        '@twsoftball/application/services/DIContainer'
+        '@twsoftball/application/services/ApplicationFactory'
       );
 
       const mockConfig = { environment: 'development' as const, storage: 'memory' as const };
@@ -479,14 +490,19 @@ describe('App Services Provider Pattern', () => {
   });
 
   describe('DI Container Specific Features', () => {
-    it('should test container service registry functionality', async () => {
-      const { DIContainer } = await import('@twsoftball/application/services/DIContainer');
-      const container = new DIContainer();
+    it('should test application factory functionality', async () => {
+      const {
+        createApplicationServicesWithContainer,
+        createApplicationServicesWithContainerAndFactory,
+      } = await import('@twsoftball/application/services/ApplicationFactory');
 
-      expect(typeof container.register).toBe('function');
-      expect(typeof container.resolve).toBe('function');
-      expect(typeof container.has).toBe('function');
-      expect(typeof container.dispose).toBe('function');
+      expect(typeof createApplicationServicesWithContainer).toBe('function');
+      expect(typeof createApplicationServicesWithContainerAndFactory).toBe('function');
+
+      // Test basic functionality
+      const config = { environment: 'development' as const, storage: 'memory' as const };
+      const services = await createApplicationServicesWithContainer(config);
+      expect(services).toBeDefined();
     });
 
     it('should support lazy loading and singleton management', async () => {

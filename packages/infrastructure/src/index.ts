@@ -31,6 +31,10 @@
 export * from './persistence';
 export * from './web';
 
+// Export factory functions for DI container
+export { createIndexedDBFactory } from './web/factory';
+export { createMemoryFactory } from './memory/factory';
+
 // Note: Self-registration modules (./web/register.js, ./memory/register.js) are not
 // automatically imported here to avoid side effects. They are imported by the
 // Application layer's BootstrapRegistry when needed.

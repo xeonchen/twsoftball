@@ -32,7 +32,8 @@ import type {
   SubstitutionResult,
   PositionAssignment,
 } from '../../../shared/lib';
-import type { PlayerEligibility } from '../ui/BenchPlayerCard';
+
+import type { PlayerEligibility } from './types';
 
 /**
  * Configuration for bench management functionality
