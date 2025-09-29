@@ -69,6 +69,7 @@ export default defineConfig([
       './apps/web/src/features/app-initialization/**', // Referenced by app-layer providers - architectural feature
       './apps/web/src/widgets/error-boundary/**', // Single reference in pages/game-recording - acceptable
       './apps/web/src/widgets/runner-advancement/**', // Single reference in pages/game-recording - acceptable
+      './apps/web/src/widgets/bench-management/**', // Phase 5.3.D bench management widget - pending integration
     ],
     rules: {
       'fsd/insignificant-slice': 'off', // Pending integration or acceptable single-reference patterns
