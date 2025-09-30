@@ -33,11 +33,11 @@
 import { FieldPosition } from '@twsoftball/application';
 import React, { useState, useCallback } from 'react';
 
-import type { PositionAssignment } from '../../../shared/lib/types';
+import type { PositionAssignment, SubstitutePlayerAPI } from '../../../shared/lib/types';
 import { useLineupManagement } from '../model/useLineupManagement';
 import type { SubstitutionData } from '../model/useLineupManagement';
 
-import { SubstitutionDialog, type SubstitutePlayerAPI } from './SubstitutionDialog';
+import { SubstitutionDialog } from './SubstitutionDialog';
 
 /**
  * Props for LineupEditor component
@@ -79,6 +79,26 @@ function getPositionAbbreviation(position: FieldPosition): string {
     [FieldPosition.EXTRA_PLAYER]: 'EP',
   };
   return abbreviations[position] || position;
+}
+
+/**
+ * Helper function to convert field position to full name display
+ */
+function getPositionFullName(position: FieldPosition): string {
+  const fullNames: Record<FieldPosition, string> = {
+    [FieldPosition.PITCHER]: 'Pitcher',
+    [FieldPosition.CATCHER]: 'Catcher',
+    [FieldPosition.FIRST_BASE]: 'First Base',
+    [FieldPosition.SECOND_BASE]: 'Second Base',
+    [FieldPosition.THIRD_BASE]: 'Third Base',
+    [FieldPosition.SHORTSTOP]: 'Shortstop',
+    [FieldPosition.LEFT_FIELD]: 'Left Field',
+    [FieldPosition.CENTER_FIELD]: 'Center Field',
+    [FieldPosition.RIGHT_FIELD]: 'Right Field',
+    [FieldPosition.SHORT_FIELDER]: 'Short Field',
+    [FieldPosition.EXTRA_PLAYER]: 'Extra Player',
+  };
+  return fullNames[position] || position;
 }
 
 /**
@@ -199,6 +219,11 @@ export function LineupEditor({
           )}
         </div>
 
+        {/* Batting Order Text (for test compatibility) */}
+        <div className="batting-order-label">
+          <h3>Batting Order</h3>
+        </div>
+
         {/* Error display */}
         {error && (
           <div role="alert" className="inline-error">
@@ -219,7 +244,10 @@ export function LineupEditor({
                 <div className="slot-info">
                   <span className="batting-number">{player.battingSlot}.</span>
                   <div className="player-info">
-                    <span className="player-name">{player.playerId}</span>
+                    <span className="player-name">Player {player.playerId}</span>
+                    <span className="position-name">
+                      {getPositionFullName(player.fieldPosition)}
+                    </span>
                     <span className="position-badge">
                       {getPositionAbbreviation(player.fieldPosition)}
                     </span>
@@ -291,6 +319,19 @@ const styles = `
   color: #1f2937;
   font-size: 1.5rem;
   font-weight: 600;
+}
+
+.batting-order-label {
+  margin: 1rem 0;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.5rem;
+}
+
+.batting-order-label h3 {
+  margin: 0;
+  color: #374151;
+  font-size: 1.125rem;
+  font-weight: 500;
 }
 
 .loading-spinner,
@@ -397,6 +438,13 @@ const styles = `
   font-weight: 500;
   color: #111827;
   font-size: 1rem;
+}
+
+.position-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.125rem;
 }
 
 .position-badge {

@@ -56,13 +56,16 @@ describe('useSubstitutePlayerAPI', () => {
 
       expect(result.current).toMatchObject({
         executeSubstitution: expect.any(Function),
-        isLoading: expect.any(Boolean),
-        error: null, // Initial state should be null
+        isExecuting: expect.any(Boolean),
+        substitutionError: null, // Initial state should be null
       });
 
       expect(typeof result.current.executeSubstitution).toBe('function');
-      expect(typeof result.current.isLoading).toBe('boolean');
-      expect(result.current.error === null || typeof result.current.error === 'string').toBe(true);
+      expect(typeof result.current.isExecuting).toBe('boolean');
+      expect(
+        result.current.substitutionError === null ||
+          typeof result.current.substitutionError === 'string'
+      ).toBe(true);
     });
 
     it('maintains stable function references across re-renders', () => {
@@ -84,7 +87,7 @@ describe('useSubstitutePlayerAPI', () => {
 
       const { result } = renderHook(() => useSubstitutePlayerAPI());
 
-      expect(result.current.isLoading).toBe(true);
+      expect(result.current.isExecuting).toBe(true);
     });
 
     it('exposes error state from underlying hook', () => {
@@ -96,7 +99,7 @@ describe('useSubstitutePlayerAPI', () => {
 
       const { result } = renderHook(() => useSubstitutePlayerAPI());
 
-      expect(result.current.error).toBe('Connection failed');
+      expect(result.current.substitutionError).toBe('Connection failed');
     });
   });
 

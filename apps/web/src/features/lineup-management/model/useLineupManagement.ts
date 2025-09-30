@@ -53,7 +53,11 @@ import { useState, useEffect, useCallback } from 'react';
 
 import { useGameStore } from '../../../entities/game';
 import { useAppServicesContext } from '../../../shared/lib';
-import type { BenchPlayer, PositionAssignment } from '../../../shared/lib/types';
+import type {
+  BenchPlayer,
+  PositionAssignment,
+  SubstitutionRecord,
+} from '../../../shared/lib/types';
 
 /**
  * Response structure from getTeamLineup API call
@@ -63,7 +67,7 @@ interface TeamLineupResponse {
   gameId: GameId;
   activeLineup: PositionAssignment[];
   benchPlayers: BenchPlayer[];
-  substitutionHistory: unknown[]; // TODO: Define proper substitution history type
+  substitutionHistory: SubstitutionRecord[];
 }
 
 /**

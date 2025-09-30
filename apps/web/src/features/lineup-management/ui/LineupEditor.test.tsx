@@ -142,9 +142,9 @@ describe('LineupEditor Component - TDD Implementation', () => {
       render(<LineupEditor gameId="game-123" substitutePlayerAPI={mockSubstitutePlayerAPI} />);
 
       // Should show player IDs (in real implementation, these would be player names)
-      expect(screen.getByText('player-1')).toBeInTheDocument();
-      expect(screen.getByText('player-2')).toBeInTheDocument();
-      expect(screen.getByText('player-3')).toBeInTheDocument();
+      expect(screen.getByText('Player player-1')).toBeInTheDocument();
+      expect(screen.getByText('Player player-2')).toBeInTheDocument();
+      expect(screen.getByText('Player player-3')).toBeInTheDocument();
     });
 
     it('should display field positions for each player', () => {
@@ -251,8 +251,8 @@ describe('LineupEditor Component - TDD Implementation', () => {
         expect(screen.getByText(/substituting player-1/i)).toBeInTheDocument();
         // Should show batting slot
         expect(screen.getByText(/batting slot 1/i)).toBeInTheDocument();
-        // Should show current position
-        expect(screen.getByText(/shortstop/i)).toBeInTheDocument();
+        // Should show current position in the dialog (be more specific)
+        expect(screen.getByText(/current position: shortstop/i)).toBeInTheDocument();
       });
     });
 

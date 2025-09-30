@@ -117,10 +117,10 @@ export interface FieldLayout {
 export interface SubstitutePlayerAPI {
   /** Function to perform player substitution */
   executeSubstitution: (data: SubstitutionRequestData) => Promise<SubstitutionResult>;
-  /** Whether a substitution operation is currently in progress */
-  isLoading: boolean;
-  /** Current error message, null if no error */
-  error: string | null;
+  /** Whether a substitution is currently executing */
+  isExecuting: boolean;
+  /** Error from substitute player operations */
+  substitutionError: string | null;
 }
 
 /**

@@ -129,7 +129,7 @@ export function useSubstitutePlayerAPI(): SubstitutePlayerAPI {
 
   return {
     executeSubstitution,
-    isLoading,
-    error,
+    isExecuting: isLoading,
+    substitutionError: error,
   };
 }

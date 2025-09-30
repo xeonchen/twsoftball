@@ -40,25 +40,14 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type {
   BenchPlayer,
   PositionAssignment,
-  SubstitutionRequestData,
-  SubstitutionResult,
+  SubstitutePlayerAPI,
 } from '../../../shared/lib/types';
 import { useLineupManagement } from '../model/useLineupManagement';
 import type { SubstitutionData } from '../model/useLineupManagement';
 
 // Import types for substitute player functionality
 
-/**
- * Interface for substitute player API functionality injected via props
- */
-export interface SubstitutePlayerAPI {
-  /** Function to execute player substitution */
-  executeSubstitution: (data: SubstitutionRequestData) => Promise<SubstitutionResult>;
-  /** Whether a substitution is currently executing */
-  isExecuting: boolean;
-  /** Error from substitute player operations */
-  substitutionError: string | null;
-}
+// SubstitutePlayerAPI interface now imported from shared types
 
 /**
  * Props for SubstitutionDialog component

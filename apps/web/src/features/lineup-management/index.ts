@@ -10,7 +10,7 @@
  */
 
 // Export UI components (primary public interface)
-export { LineupEditor, SubstitutionDialog, PositionAssignment } from './ui';
+export { LineupEditor, SubstitutionDialog, PositionAssignment, SubstitutionHistory } from './ui';
 
 // Export UI component types
 export type {
@@ -19,6 +19,7 @@ export type {
   SubstitutePlayerAPI,
   PositionAssignmentProps,
   PositionChangeData,
+  SubstitutionHistoryProps,
 } from './ui';
 
 // Export model layer (hooks and business logic)

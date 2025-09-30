@@ -7,8 +7,10 @@
 export { LineupEditor } from './LineupEditor';
 export { SubstitutionDialog } from './SubstitutionDialog';
 export { PositionAssignment } from './PositionAssignment';
+export { SubstitutionHistory, SubstitutionHistoryEmpty } from './SubstitutionHistory';
 
 // Export component types
 export type { LineupEditorProps } from './LineupEditor';
 export type { SubstitutionDialogProps, SubstitutePlayerAPI } from './SubstitutionDialog';
 export type { PositionAssignmentProps, PositionChangeData } from './PositionAssignment';
+export type { SubstitutionHistoryProps } from './SubstitutionHistory';
