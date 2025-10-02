@@ -16,7 +16,6 @@ export { LineupEditor, SubstitutionDialog, PositionAssignment, SubstitutionHisto
 export type {
   LineupEditorProps,
   SubstitutionDialogProps,
-  SubstitutePlayerAPI,
   PositionAssignmentProps,
   PositionChangeData,
   SubstitutionHistoryProps,

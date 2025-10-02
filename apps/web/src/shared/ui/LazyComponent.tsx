@@ -37,7 +37,7 @@ import React, { ComponentType, ReactElement, Suspense, useEffect, useState } fro
 /**
  * Props for LazyComponent wrapper
  */
-export interface LazyComponentProps<P extends Record<string, unknown> = Record<string, unknown>> {
+export interface LazyComponentProps<P extends object = object> {
   /** The lazy-loaded component */
   component: ComponentType<P>;
   /** Props to pass to the lazy component */
@@ -162,7 +162,7 @@ class LazyErrorBoundary extends React.Component<
 /**
  * LazyComponent wrapper with comprehensive loading and error handling
  */
-export function LazyComponent<P extends Record<string, unknown> = Record<string, unknown>>({
+export function LazyComponent<P extends object = object>({
   component: Component,
   componentProps = {} as P,
   fallback,
@@ -232,12 +232,25 @@ export function LazyComponent<P extends Record<string, unknown> = Record<string,
 }
 
 /**
+ * Higher-order component options
+ */
+export interface WithLazyLoadingOptions {
+  fallback?: ReactElement;
+  errorFallback?: ReactElement;
+  loadingMessage?: string;
+  errorMessage?: string;
+  preload?: boolean;
+  componentName?: string;
+  timeout?: number;
+}
+
+/**
  * Higher-order component for creating lazy-loaded components
  */
 // eslint-disable-next-line react-refresh/only-export-components -- HOC utility for lazy loading, not a component
-export function withLazyLoading<P extends Record<string, unknown>>(
+export function withLazyLoading<P extends object>(
   importFn: () => Promise<{ default: ComponentType<P> }>,
-  options: Omit<LazyComponentProps<P>, 'component' | 'componentProps'> = {}
+  options: WithLazyLoadingOptions = {}
 ): ComponentType<P> {
   const LazyLoadedComponent = React.lazy(importFn);
 

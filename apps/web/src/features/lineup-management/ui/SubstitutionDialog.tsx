@@ -37,17 +37,10 @@
 import { FieldPosition } from '@twsoftball/application';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
-import type {
-  BenchPlayer,
-  PositionAssignment,
-  SubstitutePlayerAPI,
-} from '../../../shared/lib/types';
+import type { BenchPlayer, PositionAssignment } from '../../../shared/lib/types';
 import { useSubstitutePlayer } from '../../substitute-player';
 import { useLineupManagement } from '../model/useLineupManagement';
 import type { SubstitutionData } from '../model/useLineupManagement';
-
-// Re-export shared types for external consumers
-export type { SubstitutePlayerAPI };
 
 /**
  * Props for SubstitutionDialog component
