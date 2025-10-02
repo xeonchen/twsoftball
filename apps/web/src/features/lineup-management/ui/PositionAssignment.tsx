@@ -494,12 +494,12 @@ export function PositionAssignment({
         onTouchEnd={handleFieldTouchEnd}
       >
         {/* Field diagram */}
-        <div className="field-diagram">
-          <img
-            src="/softball-field.svg"
-            alt="Softball field diagram"
-            className="field-background"
-          />
+        <div className="field-diagram" role="img" aria-labelledby="field-description">
+          <div id="field-description" className="sr-only">
+            Interactive softball field diagram showing player positions. Use Tab to navigate between
+            positions and Enter to edit assignments.
+          </div>
+          <img src="/softball-field.svg" alt="" className="field-background" aria-hidden="true" />
 
           {/* Infield positions */}
           <div className="infield">
@@ -543,20 +543,20 @@ export function PositionAssignment({
         </div>
 
         {/* Status indicators */}
-        <div className="field-status">
+        <div className="field-status" role="status" aria-live="polite">
           {isComplete ? (
-            <div className="status-success">
+            <div className="status-success" aria-labelledby="status-success-text">
               <span role="img" aria-label="Complete" className="status-icon">
                 ✓
               </span>
-              <span>All positions covered</span>
+              <span id="status-success-text">All positions covered</span>
             </div>
           ) : (
-            <div className="status-error">
+            <div className="status-error" aria-labelledby="status-error-text">
               <span role="img" aria-label="Incomplete" className="status-icon">
                 ⚠
               </span>
-              <span>
+              <span id="status-error-text">
                 {validationErrors.length} issue{validationErrors.length !== 1 ? 's' : ''}
               </span>
             </div>
@@ -565,8 +565,11 @@ export function PositionAssignment({
 
         {/* Validation errors */}
         {validationErrors.length > 0 && (
-          <div role="alert" className="validation-errors">
-            <ul>
+          <div role="alert" aria-labelledby="validation-title" className="validation-errors">
+            <h3 id="validation-title" className="validation-title">
+              Position Assignment Issues
+            </h3>
+            <ul aria-label="List of validation errors">
               {validationErrors.map((error, index) => (
                 <li key={index}>{error}</li>
               ))}
@@ -583,8 +586,10 @@ export function PositionAssignment({
 
         {/* Drag feedback */}
         {dragState.dragging && (
-          <div className="drag-feedback">
-            <span>Dragging {dragState.draggedPlayer}</span>
+          <div className="drag-feedback" role="status" aria-live="assertive">
+            <span>
+              Dragging {dragState.draggedPlayer}. Use arrow keys to move or Escape to cancel.
+            </span>
           </div>
         )}
 

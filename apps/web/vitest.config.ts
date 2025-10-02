@@ -22,7 +22,9 @@ export default defineConfig({
     globals: true,
     environment: 'happy-dom', // Better CSS compatibility than JSDOM for Tailwind v4
     setupFiles: './src/test/setup.ts',
-    css: true,
+    css: {
+      include: [], // Disable CSS processing to prevent Tailwind output flooding console
+    },
     testTimeout: 30000, // Reduced timeout from 5 minutes to 30 seconds for better memory management
     include: ['src/**/*.test.{ts,tsx}', 'src/**/*.spec.{ts,tsx}', 'src/**/*.perf.test.{ts,tsx}'],
 

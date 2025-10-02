@@ -1260,11 +1260,6 @@ export function GameRecordingPage(): ReactElement {
                 <LineupEditor
                   gameId={gameId || ''}
                   onSubstitutionComplete={() => handleSubstitutionComplete()}
-                  substitutePlayerAPI={{
-                    executeSubstitution: substitutePlayerAPI.executeSubstitution,
-                    isExecuting: substitutePlayerAPI.isExecuting,
-                    substitutionError: substitutePlayerAPI.substitutionError,
-                  }}
                 />
               </div>
             </div>
@@ -1288,11 +1283,6 @@ export function GameRecordingPage(): ReactElement {
                 fieldPosition: FieldPosition.PITCHER, // Default field position
               }}
               benchPlayers={[]} // This would be populated from game state
-              substitutePlayerAPI={{
-                executeSubstitution: substitutePlayerAPI.executeSubstitution,
-                isExecuting: substitutePlayerAPI.isExecuting,
-                substitutionError: substitutePlayerAPI.substitutionError,
-              }}
             />
           </div>
         )}

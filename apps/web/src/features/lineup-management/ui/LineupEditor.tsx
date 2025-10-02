@@ -33,7 +33,7 @@
 import { FieldPosition } from '@twsoftball/application';
 import React, { useState, useCallback } from 'react';
 
-import type { PositionAssignment, SubstitutePlayerAPI } from '../../../shared/lib/types';
+import type { PositionAssignment } from '../../../shared/lib/types';
 import { useLineupManagement } from '../model/useLineupManagement';
 import type { SubstitutionData } from '../model/useLineupManagement';
 
@@ -49,8 +49,6 @@ export interface LineupEditorProps {
   onSubstitutionComplete?: () => void;
   /** Optional CSS class name */
   className?: string;
-  /** Substitute player API functionality (injected by widget) */
-  substitutePlayerAPI: SubstitutePlayerAPI;
 }
 
 /**
@@ -108,7 +106,6 @@ export function LineupEditor({
   gameId,
   onSubstitutionComplete,
   className = '',
-  substitutePlayerAPI,
 }: LineupEditorProps): React.JSX.Element {
   // Hook state
   const { activeLineup, benchPlayers, isLoading, error, refreshLineup } =
@@ -167,8 +164,8 @@ export function LineupEditor({
     return (
       <div className={`lineup-editor ${className}`}>
         <div role="status" aria-label="Loading lineup" className="loading-spinner">
-          <div className="spinner" />
-          <span>Loading lineup...</span>
+          <div className="spinner" aria-hidden="true" />
+          <span id="loading-text">Loading lineup...</span>
         </div>
       </div>
     );
@@ -178,14 +175,20 @@ export function LineupEditor({
   if (error && activeLineup.length === 0) {
     return (
       <div className={`lineup-editor ${className}`}>
-        <div role="alert" className="error-container">
-          <h2>Error Loading Lineup</h2>
-          <p>{error}</p>
+        <div
+          role="alert"
+          aria-labelledby="error-title"
+          aria-describedby="error-description"
+          className="error-container"
+        >
+          <h2 id="error-title">Error Loading Lineup</h2>
+          <p id="error-description">{error}</p>
           <button
             type="button"
             onClick={handleRetry}
             className="retry-button"
             aria-label="Retry loading lineup"
+            aria-describedby="error-description"
           >
             Retry
           </button>
@@ -198,23 +201,29 @@ export function LineupEditor({
   if (activeLineup.length === 0) {
     return (
       <div className={`lineup-editor ${className}`}>
-        <div className="empty-state">
-          <h2>No Lineup Data Available</h2>
-          <p>Please set up your lineup to continue.</p>
+        <div
+          className="empty-state"
+          role="status"
+          aria-labelledby="empty-title"
+          aria-describedby="empty-description"
+        >
+          <h2 id="empty-title">No Lineup Data Available</h2>
+          <p id="empty-description">Please set up your lineup to continue.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`lineup-editor ${className}`}>
+    <div className={`lineup-editor ${className}`} data-testid="lineup-editor">
       <div role="region" aria-label="Lineup editor" className="lineup-container">
         {/* Header */}
         <div className="lineup-header">
-          <h2>Current Lineup</h2>
+          <h1 id="lineup-title">Current Lineup</h1>
           {isLoading && (
-            <div role="status" aria-label="Loading" className="inline-spinner">
-              <div className="small-spinner" />
+            <div role="status" aria-label="Updating lineup" className="inline-spinner">
+              <div className="small-spinner" aria-hidden="true" />
+              <span className="sr-only">Loading updated lineup data</span>
             </div>
           )}
         </div>
@@ -226,13 +235,22 @@ export function LineupEditor({
 
         {/* Error display */}
         {error && (
-          <div role="alert" className="inline-error">
-            <span>{error}</span>
+          <div role="alert" aria-live="assertive" className="inline-error">
+            <span id="inline-error-text">{error}</span>
           </div>
         )}
 
         {/* Lineup list */}
-        <div role="list" aria-label="Batting order" className="lineup-list">
+        <div
+          role="list"
+          aria-labelledby="lineup-title"
+          aria-describedby="batting-order-description"
+          className="lineup-list"
+        >
+          <div id="batting-order-description" className="sr-only">
+            Current batting order with {activeLineup.length} players. Use Tab to navigate and Enter
+            or Space to substitute players.
+          </div>
           {activeLineup
             .sort((a, b) => a.battingSlot - b.battingSlot)
             .map(player => (
@@ -240,17 +258,33 @@ export function LineupEditor({
                 key={`${player.battingSlot}-${player.playerId}`}
                 role="listitem"
                 className="lineup-slot"
+                aria-labelledby={`player-${player.battingSlot}-name`}
+                aria-describedby={`player-${player.battingSlot}-details`}
               >
                 <div className="slot-info">
-                  <span className="batting-number">{player.battingSlot}.</span>
+                  <span
+                    className="batting-number"
+                    aria-label={`Batting position ${player.battingSlot}`}
+                  >
+                    {player.battingSlot}.
+                  </span>
                   <div className="player-info">
-                    <span className="player-name">Player {player.playerId}</span>
+                    <span id={`player-${player.battingSlot}-name`} className="player-name">
+                      Player {player.playerId}
+                    </span>
                     <span className="position-name">
                       {getPositionFullName(player.fieldPosition)}
                     </span>
-                    <span className="position-badge">
+                    <span
+                      className="position-badge"
+                      aria-label={`Position ${getPositionFullName(player.fieldPosition)}`}
+                    >
                       {getPositionAbbreviation(player.fieldPosition)}
                     </span>
+                  </div>
+                  <div id={`player-${player.battingSlot}-details`} className="sr-only">
+                    Player {player.playerId} is batting {player.battingSlot} and playing{' '}
+                    {getPositionFullName(player.fieldPosition)}.
                   </div>
                 </div>
 
@@ -258,7 +292,8 @@ export function LineupEditor({
                   type="button"
                   onClick={() => handleSubstituteClick(player)}
                   className="substitute-button"
-                  aria-label={`Substitute player in slot ${player.battingSlot}`}
+                  aria-label={`Substitute Player ${player.playerId} in batting slot ${player.battingSlot}, currently playing ${getPositionFullName(player.fieldPosition)}`}
+                  aria-describedby={`player-${player.battingSlot}-details`}
                   tabIndex={0}
                 >
                   Substitute
@@ -268,9 +303,20 @@ export function LineupEditor({
         </div>
 
         {/* Live region for announcements */}
-        <div role="status" aria-label="Lineup updates" aria-live="polite" className="sr-only">
+        <div
+          id="lineup-announcements"
+          role="status"
+          aria-label="Lineup updates"
+          aria-live="polite"
+          className="sr-only"
+        >
           {/* Screen reader announcements will be inserted here */}
         </div>
+
+        {/* Skip link for keyboard navigation */}
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
       </div>
 
       {/* Substitution dialog */}
@@ -282,7 +328,6 @@ export function LineupEditor({
           currentPlayer={substitutionDialog.currentPlayer}
           benchPlayers={benchPlayers}
           gameId={gameId}
-          substitutePlayerAPI={substitutePlayerAPI}
         />
       )}
     </div>
@@ -479,6 +524,12 @@ const styles = `
   outline-offset: 2px;
 }
 
+.substitute-button:focus-visible {
+  outline: 3px solid #4f46e5;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px #fff;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -489,6 +540,65 @@ const styles = `
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Skip link for accessibility */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background: #000;
+  color: #fff;
+  padding: 8px;
+  text-decoration: none;
+  border-radius: 4px;
+  z-index: 100;
+  font-size: 14px;
+  transition: top 0.3s;
+}
+
+.skip-link:focus {
+  top: 6px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .lineup-slot {
+    border: 2px solid;
+  }
+
+  .substitute-button {
+    border: 2px solid;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .small-spinner {
+    animation: none;
+  }
+
+  .lineup-slot {
+    transition: none;
+  }
+
+  .substitute-button {
+    transition: none;
+  }
+}
+
+/* Focus indicators with better contrast */
+.substitute-button:focus-visible {
+  outline: 3px solid #4f46e5;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px #fff;
+}
+
+.retry-button:focus-visible {
+  outline: 3px solid #4f46e5;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px #fff;
 }
 
 /* Mobile responsive design */

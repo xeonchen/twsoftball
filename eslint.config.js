@@ -612,6 +612,81 @@ export default [
     },
   },
 
+  // Playwright E2E tests configuration
+  {
+    files: ['apps/web/e2e/**/*.ts', 'apps/web/playwright.config.ts'],
+    languageOptions: {
+      parser: tseslintParser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+      globals: {
+        // Browser globals
+        console: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
+        performance: 'readonly',
+        // Node.js globals (for config and setup files)
+        process: 'readonly',
+        Buffer: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        // Playwright globals
+        expect: 'readonly',
+        test: 'readonly',
+        describe: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tseslint,
+      import: importPlugin,
+    },
+    rules: {
+      // TypeScript ESLint relaxed rules for E2E tests
+      ...tseslint.configs.recommended.rules,
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-floating-promises': 'error',
+
+      // Import rules - allow Playwright in devDependencies
+      'import/no-extraneous-dependencies': [
+        'error',
+        {
+          devDependencies: true,
+        },
+      ],
+
+      // Allow console for E2E test logging
+      'no-console': 'off',
+
+      // Relax eslint-comments rules for E2E tests
+      'eslint-comments/no-restricted-disable': 'off',
+      'eslint-comments/require-description': 'off',
+      'eslint-comments/disable-enable-pair': 'off',
+    },
+  },
+
   // Node.js scripts (tools directory)
   {
     files: ['tools/**/*.js'],

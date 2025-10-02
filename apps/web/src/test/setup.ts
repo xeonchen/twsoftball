@@ -2,8 +2,8 @@ import * as matchers from '@testing-library/jest-dom/matchers';
 import { cleanup } from '@testing-library/react';
 import { afterEach, expect, vi } from 'vitest';
 
-// Import CSS for testing
-import '../index.css';
+// CSS import disabled - causes Tailwind v4 to flood console with @property declarations
+// import '../index.css';
 
 // Type interfaces for mocks
 interface Logger {

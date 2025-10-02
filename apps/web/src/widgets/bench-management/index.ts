@@ -25,10 +25,11 @@ export { BenchManagementWidget } from './ui/BenchManagementWidget';
 
 // Export UI component types
 export type { BenchManagementWidgetProps } from './ui/BenchManagementWidget';
-export type { BenchPlayerCardProps, PlayerEligibility } from './ui/BenchPlayerCard';
+export type { BenchPlayerCardProps } from './ui/BenchPlayerCard';
 
 // Export model layer (for advanced usage)
 export { useBenchManagement } from './model/useBenchManagement';
 
 // Export model types
 export type { BenchManagementConfig, UseBenchManagementState } from './model/useBenchManagement';
+export type { PlayerEligibility } from './model/types';

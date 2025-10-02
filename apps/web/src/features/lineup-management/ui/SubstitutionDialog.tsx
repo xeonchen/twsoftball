@@ -42,12 +42,12 @@ import type {
   PositionAssignment,
   SubstitutePlayerAPI,
 } from '../../../shared/lib/types';
+import { useSubstitutePlayer } from '../../substitute-player';
 import { useLineupManagement } from '../model/useLineupManagement';
 import type { SubstitutionData } from '../model/useLineupManagement';
 
-// Import types for substitute player functionality
-
-// SubstitutePlayerAPI interface now imported from shared types
+// Re-export shared types for external consumers
+export type { SubstitutePlayerAPI };
 
 /**
  * Props for SubstitutionDialog component
@@ -69,8 +69,6 @@ export interface SubstitutionDialogProps {
   teamLineupId?: string;
   /** Current inning number (optional - will be determined from game context) */
   inning?: number;
-  /** Substitute player API functionality (injected by widget) */
-  substitutePlayerAPI: SubstitutePlayerAPI;
 }
 
 /**
@@ -114,13 +112,16 @@ export function SubstitutionDialog({
   gameId,
   teamLineupId = 'home-team', // Default fallback
   inning = 1, // Default fallback
-  substitutePlayerAPI,
 }: SubstitutionDialogProps): React.JSX.Element | null {
   // Hook state
   const { checkEligibility, getAvailablePositions } = useLineupManagement(gameId);
 
-  // Extract substitute player functionality from injected API
-  const { executeSubstitution, isExecuting, substitutionError } = substitutePlayerAPI;
+  // Use DI Container pattern for substitute player functionality
+  const {
+    substitutePlayer,
+    isLoading: isExecuting,
+    error: substitutionError,
+  } = useSubstitutePlayer();
 
   // Local state
   const [formState, setFormState] = useState<SubstitutionFormState>({
@@ -198,7 +199,7 @@ export function SubstitutionDialog({
 
     try {
       // Use the substitute-player feature to execute the substitution
-      const result = await executeSubstitution({
+      const result = await substitutePlayer({
         gameId,
         teamLineupId,
         battingSlot: currentPlayer.battingSlot,
@@ -241,7 +242,7 @@ export function SubstitutionDialog({
     currentPlayer,
     formState,
     benchPlayers,
-    executeSubstitution,
+    substitutePlayer,
     gameId,
     teamLineupId,
     inning,
@@ -261,11 +262,45 @@ export function SubstitutionDialog({
     [onClose]
   );
 
-  // Focus management
+  // Focus management and focus trap
   useEffect(() => {
-    if (isOpen && dialogRef.current) {
-      dialogRef.current.focus();
+    if (isOpen && firstFocusableRef.current) {
+      // Focus the first focusable element in the dialog
+      firstFocusableRef.current.focus();
+
+      // Set up focus trap
+      const dialog = dialogRef.current;
+      if (!dialog) return undefined;
+
+      const focusableElements = dialog.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const firstElement = focusableElements[0] as HTMLElement;
+      const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+      const handleTabKey = (e: KeyboardEvent): void => {
+        if (e.key === 'Tab') {
+          if (e.shiftKey) {
+            if (document.activeElement === firstElement) {
+              e.preventDefault();
+              lastElement?.focus();
+            }
+          } else {
+            if (document.activeElement === lastElement) {
+              e.preventDefault();
+              firstElement?.focus();
+            }
+          }
+        }
+      };
+
+      dialog.addEventListener('keydown', handleTabKey);
+
+      return (): void => {
+        dialog.removeEventListener('keydown', handleTabKey);
+      };
     }
+    return undefined;
   }, [isOpen]);
 
   // Reset form when dialog opens/closes
@@ -286,14 +321,16 @@ export function SubstitutionDialog({
   }
 
   return (
-    <div className="dialog-overlay" role="presentation">
+    <div className="dialog-overlay" role="presentation" onClick={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="dialog-title"
+        aria-describedby="dialog-description"
         className="substitution-dialog"
         onKeyDown={handleKeyDown}
+        onClick={e => e.stopPropagation()}
         tabIndex={-1}
       >
         {/* Dialog header */}
@@ -312,11 +349,13 @@ export function SubstitutionDialog({
 
         {/* Current player info */}
         <div className="current-player-info">
-          <p>
-            <strong>Substituting {currentPlayer.playerId}</strong> in batting slot{' '}
-            {currentPlayer.battingSlot}
-          </p>
-          <p>Current position: {getPositionDisplayName(currentPlayer.fieldPosition)}</p>
+          <div id="dialog-description">
+            <p>
+              <strong>Substituting {currentPlayer.playerId}</strong> in batting slot{' '}
+              {currentPlayer.battingSlot}
+            </p>
+            <p>Current position: {getPositionDisplayName(currentPlayer.fieldPosition)}</p>
+          </div>
         </div>
 
         {/* Error display */}
@@ -332,68 +371,106 @@ export function SubstitutionDialog({
           <div className="form-section">
             <h3>Select Replacement Player</h3>
             {benchPlayers.length === 0 ? (
-              <p className="no-players">No bench players available</p>
+              <p className="no-players" role="status">
+                No bench players available
+              </p>
             ) : (
-              <div role="radiogroup" aria-label="Select replacement player" className="player-list">
-                {benchPlayers.map(player => (
-                  <label key={player.id} className="player-option">
-                    <input
-                      type="radio"
-                      name="selectedPlayer"
-                      value={player.id}
-                      checked={formState.selectedPlayerId === player.id}
-                      onChange={e => handlePlayerSelection(e.target.value)}
-                      aria-describedby={`player-${player.id}-details`}
-                    />
-                    <div className="player-details">
-                      <div className="player-header">
-                        <span className="player-name">{player.name}</span>
-                        <span className="jersey-number">#{player.jerseyNumber}</span>
-                      </div>
-                      <div id={`player-${player.id}-details`} className="player-meta">
-                        {player.isStarter && <span className="starter-badge">Starter</span>}
-                        {player.hasReentered && player.entryInning && (
-                          <span className="reentry-info">
-                            Re-entered inning {player.entryInning}
+              <fieldset>
+                <legend className="sr-only">Select replacement player</legend>
+                <div
+                  role="radiogroup"
+                  aria-label="Select replacement player"
+                  aria-required="true"
+                  className="player-list"
+                >
+                  {benchPlayers.map(player => (
+                    <label key={player.id} className="player-option">
+                      <input
+                        type="radio"
+                        name="selectedPlayer"
+                        value={player.id}
+                        checked={formState.selectedPlayerId === player.id}
+                        onChange={e => handlePlayerSelection(e.target.value)}
+                        aria-describedby={`player-${player.id}-details ${formState.selectedPlayerId === player.id ? `eligibility-${player.id}` : ''}`}
+                        aria-labelledby={`player-${player.id}-name`}
+                        required
+                      />
+                      <div className="player-details">
+                        <div className="player-header">
+                          <span id={`player-${player.id}-name`} className="player-name">
+                            {player.name}
                           </span>
-                        )}
-                      </div>
-                    </div>
-                    {formState.selectedPlayerId === player.id && (
-                      <div className="eligibility-indicator">
-                        {eligibility.eligible ? (
-                          <span role="img" aria-label="Eligible" className="eligible-icon">
-                            ✓
+                          <span
+                            className="jersey-number"
+                            aria-label={`Jersey number ${player.jerseyNumber}`}
+                          >
+                            #{player.jerseyNumber}
                           </span>
-                        ) : (
-                          <span role="img" aria-label="Not eligible" className="ineligible-icon">
-                            ✗
-                          </span>
-                        )}
+                        </div>
+                        <div id={`player-${player.id}-details`} className="player-meta">
+                          {player.isStarter && (
+                            <span className="starter-badge" aria-label="Original starter">
+                              Starter
+                            </span>
+                          )}
+                          {player.hasReentered && player.entryInning && (
+                            <span
+                              className="reentry-info"
+                              aria-label={`Re-entered in inning ${player.entryInning}`}
+                            >
+                              Re-entered inning {player.entryInning}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </label>
-                ))}
-              </div>
+                      {formState.selectedPlayerId === player.id && (
+                        <div className="eligibility-indicator" id={`eligibility-${player.id}`}>
+                          {eligibility.eligible ? (
+                            <span
+                              role="img"
+                              aria-label="Player is eligible for substitution"
+                              className="eligible-icon"
+                            >
+                              ✓
+                            </span>
+                          ) : (
+                            <span
+                              role="img"
+                              aria-label="Player is not eligible for substitution"
+                              className="ineligible-icon"
+                            >
+                              ✗
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
             )}
           </div>
 
           {/* Eligibility feedback */}
           {formState.selectedPlayerId && !eligibility.eligible && (
-            <div className="eligibility-error">{eligibility.reason}</div>
+            <div role="alert" aria-live="polite" className="eligibility-error">
+              <strong>Substitution not allowed:</strong> {eligibility.reason}
+            </div>
           )}
 
           {/* Position selection */}
           {formState.selectedPlayerId && eligibility.eligible && (
             <div className="form-section">
               <label htmlFor="position-select" className="form-label">
-                Field Position
+                Field Position <span aria-label="required">*</span>
               </label>
               <select
                 id="position-select"
                 value={formState.selectedPosition}
                 onChange={e => handlePositionChange(e.target.value as FieldPosition)}
                 className="position-select"
+                aria-describedby="position-help"
+                required
               >
                 {availablePositions.map(position => (
                   <option key={position} value={position}>
@@ -401,6 +478,10 @@ export function SubstitutionDialog({
                   </option>
                 ))}
               </select>
+              <div id="position-help" className="sr-only">
+                Select the field position for the incoming player. Available positions are based on
+                team lineup rules.
+              </div>
             </div>
           )}
         </div>
@@ -412,6 +493,7 @@ export function SubstitutionDialog({
             onClick={onClose}
             className="cancel-button touch-friendly"
             disabled={isSubmitting || isExecuting}
+            aria-label="Cancel substitution"
           >
             Cancel
           </button>
@@ -422,8 +504,17 @@ export function SubstitutionDialog({
             }}
             className="confirm-button touch-friendly"
             disabled={!eligibility.eligible || isSubmitting || isExecuting}
+            aria-label={`Confirm substitution of ${currentPlayer.playerId} with ${formState.selectedPlayerId ? benchPlayers.find(p => p.id === formState.selectedPlayerId)?.name || 'selected player' : 'selected player'}`}
+            aria-describedby={!eligibility.eligible ? 'eligibility-error' : undefined}
           >
-            {isSubmitting || isExecuting ? 'Confirming...' : 'Confirm'}
+            {isSubmitting || isExecuting ? (
+              <>
+                <span aria-hidden="true">Confirming...</span>
+                <span className="sr-only">Processing substitution, please wait</span>
+              </>
+            ) : (
+              'Confirm Substitution'
+            )}
           </button>
         </div>
       </div>
@@ -472,6 +563,56 @@ const styles = `
   font-size: 1.25rem;
   font-weight: 600;
   color: #1f2937;
+}
+
+/* Focus trap and enhanced focus styles */
+.substitution-dialog *:focus-visible {
+  outline: 3px solid #4f46e5;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.player-option input[type="radio"]:focus-visible {
+  outline: 3px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+.position-select:focus-visible {
+  outline: 3px solid #4f46e5;
+  outline-offset: 2px;
+  border-color: #4f46e5;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .substitution-dialog {
+    border: 2px solid;
+  }
+
+  .player-option {
+    border: 2px solid;
+  }
+
+  .confirm-button,
+  .cancel-button {
+    border: 2px solid;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .substitution-dialog {
+    transition: none;
+  }
+
+  .player-option {
+    transition: none;
+  }
+
+  .confirm-button,
+  .cancel-button {
+    transition: none;
+  }
 }
 
 .close-button {
@@ -685,9 +826,14 @@ const styles = `
   border: 1px solid #d1d5db;
 }
 
-.cancel-button:hover {
+.cancel-button:hover:not(:disabled) {
   background: #f9fafb;
   border-color: #9ca3af;
+}
+
+.cancel-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .confirm-button {
@@ -705,6 +851,12 @@ const styles = `
   background: #9ca3af;
   border-color: #9ca3af;
   cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Loading state styling */
+.confirm-button[aria-describedby]:disabled {
+  background: #6b7280;
 }
 
 /* Mobile responsive design */
@@ -736,6 +888,26 @@ const styles = `
   .confirm-button {
     width: 100%;
     padding: 0.75rem;
+    min-height: 48px; /* Enhanced touch target */
+  }
+}
+
+/* Touch-friendly enhancements */
+.touch-friendly {
+  min-height: 44px;
+  min-width: 44px;
+  touch-action: manipulation;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .player-option {
+    min-height: 48px;
+    padding: 1rem;
+  }
+
+  .position-select {
+    min-height: 48px;
+    font-size: 16px; /* Prevents zoom on iOS */
   }
 }
 `;

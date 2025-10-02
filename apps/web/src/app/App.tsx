@@ -33,7 +33,7 @@ export const App = (): ReactElement => {
     <AppServicesProvider config={appConfig}>
       <QueryProvider>
         <RouterProvider>
-          <div className="min-h-screen bg-gray-50">
+          <div className="min-h-screen bg-gray-50" data-testid="app-ready">
             <header className="bg-field-green-600 text-white p-4">
               <h1 className="text-2xl font-bold">TW Softball</h1>
               <p className="text-sm opacity-90">Progressive Web App</p>

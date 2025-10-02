@@ -18,14 +18,12 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "e2e/**/*", "playwright.config.ts"],
   "exclude": [
     "node_modules",
     "dist",
     "**/*.test.ts",
     "**/*.test.tsx",
-    "**/*.spec.ts",
-    "**/*.spec.tsx",
     "src/test/**/*",
     "vite.config.ts",
     "vitest.config.ts"

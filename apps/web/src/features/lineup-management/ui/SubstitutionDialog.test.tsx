@@ -145,7 +145,7 @@ describe('SubstitutionDialog Component - TDD Implementation', () => {
 
       const dialog = screen.getByRole('dialog');
       expect(dialog).toHaveAttribute('aria-modal', 'true');
-      expect(dialog).toHaveFocus();
+      expect(screen.getByRole('button', { name: /close dialog/i })).toHaveFocus();
     });
 
     it('should have close button in header', () => {
@@ -493,10 +493,10 @@ describe('SubstitutionDialog Component - TDD Implementation', () => {
     it('should support keyboard navigation', () => {
       render(<SubstitutionDialog {...defaultProps} />);
 
-      const dialog = screen.getByRole('dialog');
-      expect(dialog).toHaveFocus();
+      const closeButton = screen.getByRole('button', { name: /close dialog/i });
+      expect(closeButton).toHaveFocus();
 
-      // Dialog should be focused initially, check that radio buttons are available
+      // Dialog should have close button focused initially, check that radio buttons are available
       const firstRadio = screen.getAllByRole('radio')[0];
       expect(firstRadio).toBeInTheDocument();
 
@@ -515,12 +515,12 @@ describe('SubstitutionDialog Component - TDD Implementation', () => {
     it('should trap focus within dialog', () => {
       render(<SubstitutionDialog {...defaultProps} />);
 
-      const dialog = screen.getByRole('dialog');
+      const closeButton = screen.getByRole('button', { name: /close dialog/i });
       const cancelButton = screen.getByRole('button', { name: /cancel/i });
       const confirmButton = screen.getByRole('button', { name: /confirm/i });
 
       // Should keep focus within dialog boundaries
-      expect([dialog, cancelButton, confirmButton]).toContain(document.activeElement);
+      expect([closeButton, cancelButton, confirmButton]).toContain(document.activeElement);
     });
   });
 

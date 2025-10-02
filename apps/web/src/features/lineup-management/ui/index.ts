@@ -11,6 +11,6 @@ export { SubstitutionHistory, SubstitutionHistoryEmpty } from './SubstitutionHis
 
 // Export component types
 export type { LineupEditorProps } from './LineupEditor';
-export type { SubstitutionDialogProps, SubstitutePlayerAPI } from './SubstitutionDialog';
+export type { SubstitutionDialogProps } from './SubstitutionDialog';
 export type { PositionAssignmentProps, PositionChangeData } from './PositionAssignment';
 export type { SubstitutionHistoryProps } from './SubstitutionHistory';

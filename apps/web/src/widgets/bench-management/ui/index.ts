@@ -11,4 +11,5 @@ export { BenchPlayerCard } from './BenchPlayerCard';
 
 // Export component types
 export type { BenchManagementWidgetProps } from './BenchManagementWidget';
-export type { BenchPlayerCardProps, PlayerEligibility } from './BenchPlayerCard';
+export type { BenchPlayerCardProps } from './BenchPlayerCard';
+export type { PlayerEligibility } from '../model/types';

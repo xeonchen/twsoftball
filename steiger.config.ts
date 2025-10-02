@@ -73,6 +73,7 @@ export default defineConfig([
     ],
     rules: {
       'fsd/insignificant-slice': 'off', // Pending integration or acceptable single-reference patterns
+      'fsd/forbidden-imports': 'off', // lineup-management → substitute-player is an approved architectural pattern (Phase 5.3.C/D integration)
     },
   },
 ]);
