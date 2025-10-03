@@ -43,22 +43,17 @@
  */
 
 import { FieldPosition } from '@twsoftball/application';
-import React, { useEffect, ReactElement } from 'react';
+import React, { useEffect, useCallback, ReactElement } from 'react';
 
+import { usePerformanceMonitoring, useInteractionTracking } from '../../../shared/lib/hooks';
 import { monitoring } from '../../../shared/lib/monitoring';
-import { ErrorBoundary, withErrorBoundary } from '../../../shared/ui/ErrorBoundary';
+import { createLineupErrorBoundary } from '../../../shared/ui';
+import { ErrorBoundary } from '../../../shared/ui/ErrorBoundary';
 
 // Import original components
 import { LineupEditor, LineupEditorProps } from './LineupEditor';
 import { PositionAssignment, PositionAssignmentProps } from './PositionAssignment';
 import { SubstitutionDialog, SubstitutionDialogProps } from './SubstitutionDialog';
-
-/**
- * Interface for interaction tracking properties
- */
-interface InteractionProperties {
-  [key: string]: string | number | boolean | undefined;
-}
 
 /**
  * Interface for substitution confirmation data
@@ -78,65 +73,6 @@ interface PositionChangeData {
   position: FieldPosition;
   newPlayerId: string;
   previousPlayerId?: string;
-}
-
-/**
- * Performance monitoring hook
- */
-function usePerformanceMonitoring(componentName: string): void {
-  useEffect(() => {
-    const startTime = performance.now();
-    let isMounted = true;
-
-    return (): void => {
-      // Prevent timing errors on unmount by checking mounted flag
-      if (!isMounted) {
-        return;
-      }
-
-      isMounted = false;
-
-      try {
-        const endTime = performance.now();
-        const renderTime = endTime - startTime;
-
-        // Sanity check: render time should be > 0 and < 60000ms (1 minute)
-        if (renderTime > 0 && renderTime < 60000) {
-          monitoring.timing(`${componentName}_render_time`, renderTime, {
-            component: componentName,
-          });
-        }
-      } catch (error) {
-        // Silently handle monitoring errors to prevent crashes
-        // In production, monitoring failures should not break the app
-        if (import.meta.env.MODE === 'development') {
-          // eslint-disable-next-line no-console -- Development debugging
-          console.warn('Performance monitoring error:', error);
-        }
-      }
-    };
-  }, [componentName]);
-}
-
-/**
- * User interaction tracking hook
- */
-function useInteractionTracking(componentName: string): {
-  trackInteraction: (action: string, properties?: InteractionProperties) => void;
-  trackFeature: (action: string, properties?: InteractionProperties) => void;
-} {
-  const trackInteraction = (action: string, properties?: InteractionProperties): void => {
-    monitoring.track(`${componentName}_${action}`, {
-      component: componentName,
-      ...properties,
-    });
-  };
-
-  const trackFeature = (action: string, properties?: InteractionProperties): void => {
-    monitoring.feature(componentName, action, properties);
-  };
-
-  return { trackInteraction, trackFeature };
 }
 
 /**
@@ -165,14 +101,14 @@ function LineupEditorWithMonitoring(props: LineupEditorProps): ReactElement {
   }, [gameId]);
 
   // Enhanced event handlers with tracking
-  const handleSubstitutionComplete = (): void => {
+  const handleSubstitutionComplete = useCallback((): void => {
     trackFeature('substitution_completed', {
       gameId,
       timestamp: Date.now(),
     });
 
     onSubstitutionComplete?.();
-  };
+  }, [trackFeature, gameId, onSubstitutionComplete]);
 
   // Enhanced props with tracking
   const enhancedProps: LineupEditorProps = {
@@ -220,42 +156,45 @@ function SubstitutionDialogWithMonitoring(props: SubstitutionDialogProps): React
   }, [isOpen, currentPlayer, gameId]);
 
   // Enhanced event handlers
-  const handleClose = (): void => {
+  const handleClose = useCallback((): void => {
     trackInteraction('dialog_closed', {
       method: 'close_button',
       gameId,
     });
     props.onClose();
-  };
+  }, [trackInteraction, gameId, props]);
 
-  const handleConfirm = async (data: SubstitutionConfirmData): Promise<void> => {
-    const startTime = performance.now();
+  const handleConfirm = useCallback(
+    async (data: SubstitutionConfirmData): Promise<void> => {
+      const startTime = performance.now();
 
-    try {
-      await props.onConfirm(data);
+      try {
+        await props.onConfirm(data);
 
-      const endTime = performance.now();
-      const duration = endTime - startTime;
+        const endTime = performance.now();
+        const duration = endTime - startTime;
 
-      trackFeature('substitution_confirmed', {
-        duration,
-        playerId: data.incomingPlayerId,
-        gameId,
-      });
+        trackFeature('substitution_confirmed', {
+          duration,
+          playerId: data.incomingPlayerId,
+          gameId,
+        });
 
-      monitoring.timing('substitution_completion_time', duration, {
-        success: 'true',
-        gameId,
-      });
-    } catch (error) {
-      monitoring.error(error as Error, {
-        context: 'substitution_confirmation',
-        gameId,
-        substitutionData: data,
-      });
-      throw error;
-    }
-  };
+        monitoring.timing('substitution_completion_time', duration, {
+          success: 'true',
+          gameId,
+        });
+      } catch (error) {
+        monitoring.error(error as Error, {
+          context: 'substitution_confirmation',
+          gameId,
+          substitutionData: data,
+        });
+        throw error;
+      }
+    },
+    [trackFeature, gameId, props]
+  );
 
   const enhancedProps: SubstitutionDialogProps = {
     ...props,
@@ -276,38 +215,41 @@ function PositionAssignmentWithMonitoring(props: PositionAssignmentProps): React
   const { trackInteraction, trackFeature } = useInteractionTracking('position_assignment');
 
   // Enhanced position change handler
-  const handlePositionChange = async (change: PositionChangeData): Promise<void> => {
-    const startTime = performance.now();
+  const handlePositionChange = useCallback(
+    async (change: PositionChangeData): Promise<void> => {
+      const startTime = performance.now();
 
-    trackInteraction('position_change_initiated', {
-      position: change.position,
-      newPlayerId: change.newPlayerId,
-    });
-
-    try {
-      await onPositionChange(change);
-
-      const endTime = performance.now();
-      const duration = endTime - startTime;
-
-      trackFeature('position_changed', {
-        duration,
+      trackInteraction('position_change_initiated', {
         position: change.position,
         newPlayerId: change.newPlayerId,
       });
 
-      monitoring.timing('position_change_time', duration, {
-        success: 'true',
-        position: change.position,
-      });
-    } catch (error) {
-      monitoring.error(error as Error, {
-        context: 'position_change',
-        changeData: change,
-      });
-      throw error;
-    }
-  };
+      try {
+        await onPositionChange(change);
+
+        const endTime = performance.now();
+        const duration = endTime - startTime;
+
+        trackFeature('position_changed', {
+          duration,
+          position: change.position,
+          newPlayerId: change.newPlayerId,
+        });
+
+        monitoring.timing('position_change_time', duration, {
+          success: 'true',
+          position: change.position,
+        });
+      } catch (error) {
+        monitoring.error(error as Error, {
+          context: 'position_change',
+          changeData: change,
+        });
+        throw error;
+      }
+    },
+    [trackInteraction, trackFeature, onPositionChange]
+  );
 
   const enhancedProps: PositionAssignmentProps = {
     ...props,
@@ -320,13 +262,17 @@ function PositionAssignmentWithMonitoring(props: PositionAssignmentProps): React
 /**
  * Custom error fallback for lineup components
  */
-interface LineupErrorFallbackProps {
+export interface LineupErrorFallbackProps {
   error: Error;
   onRetry: () => void;
   context: string;
 }
 
-function LineupErrorFallback({ error, onRetry, context }: LineupErrorFallbackProps): ReactElement {
+export function LineupErrorFallback({
+  error,
+  onRetry,
+  context,
+}: LineupErrorFallbackProps): ReactElement {
   const { trackInteraction } = useInteractionTracking('error_fallback');
 
   const handleRetry = (): void => {
@@ -447,59 +393,35 @@ function LineupErrorFallback({ error, onRetry, context }: LineupErrorFallbackPro
 /**
  * Enhanced components with error boundaries
  */
-export const EnhancedLineupEditor = withErrorBoundary(LineupEditorWithMonitoring, {
-  fallback: error => (
-    <LineupErrorFallback
-      error={error}
-      onRetry={() => window.location.reload()}
-      context="lineup_editor"
-    />
-  ),
-  onError: error => {
-    monitoring.error(error, {
-      context: 'lineup_editor',
-    });
-  },
+export const EnhancedLineupEditor = createLineupErrorBoundary(LineupEditorWithMonitoring, {
   context: 'lineup_editor',
-  enableRetry: true,
   maxRetries: 3,
+  fallbackRenderer: (error, onRetry) => (
+    <LineupErrorFallback error={error} onRetry={onRetry} context="lineup_editor" />
+  ),
 });
 
-export const EnhancedSubstitutionDialog = withErrorBoundary(SubstitutionDialogWithMonitoring, {
-  fallback: error => (
-    <LineupErrorFallback
-      error={error}
-      onRetry={() => window.location.reload()}
-      context="substitution_dialog"
-    />
-  ),
-  onError: error => {
-    monitoring.error(error, {
-      context: 'substitution_dialog',
-    });
-  },
-  context: 'substitution_dialog',
-  enableRetry: true,
-  maxRetries: 2,
-});
+export const EnhancedSubstitutionDialog = createLineupErrorBoundary(
+  SubstitutionDialogWithMonitoring,
+  {
+    context: 'substitution_dialog',
+    maxRetries: 2,
+    fallbackRenderer: (error, onRetry) => (
+      <LineupErrorFallback error={error} onRetry={onRetry} context="substitution_dialog" />
+    ),
+  }
+);
 
-export const EnhancedPositionAssignment = withErrorBoundary(PositionAssignmentWithMonitoring, {
-  fallback: error => (
-    <LineupErrorFallback
-      error={error}
-      onRetry={() => window.location.reload()}
-      context="position_assignment"
-    />
-  ),
-  onError: error => {
-    monitoring.error(error, {
-      context: 'position_assignment',
-    });
-  },
-  context: 'position_assignment',
-  enableRetry: true,
-  maxRetries: 2,
-});
+export const EnhancedPositionAssignment = createLineupErrorBoundary(
+  PositionAssignmentWithMonitoring,
+  {
+    context: 'position_assignment',
+    maxRetries: 2,
+    fallbackRenderer: (error, onRetry) => (
+      <LineupErrorFallback error={error} onRetry={onRetry} context="position_assignment" />
+    ),
+  }
+);
 
 /**
  * Provider component for lineup monitoring context

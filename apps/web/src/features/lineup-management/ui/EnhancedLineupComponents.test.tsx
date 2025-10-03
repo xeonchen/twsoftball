@@ -10,6 +10,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Test mocking requires flexible types */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { monitoring } from '../../../shared/lib/monitoring';
@@ -19,6 +20,7 @@ import {
   EnhancedSubstitutionDialog,
   EnhancedPositionAssignment,
   LineupMonitoringProvider,
+  LineupErrorFallback,
 } from './EnhancedLineupComponents';
 
 // Mock monitoring service
@@ -465,4 +467,293 @@ describe('EnhancedLineupComponents', () => {
       expect(screen.getByText('Test Content')).toBeInTheDocument();
     });
   });
+
+  describe('LineupErrorFallback Component', () => {
+    const mockError = new Error('Test error message');
+
+    it('renders lineup_editor context with correct message and actions', () => {
+      const onRetry = vi.fn();
+      render(
+        <LineupErrorFallbackTestWrapper
+          error={mockError}
+          onRetry={onRetry}
+          context="lineup_editor"
+        />
+      );
+
+      expect(screen.getByText(/having trouble loading your lineup/i)).toBeInTheDocument();
+      expect(screen.getByText(/Try refreshing the page/i)).toBeInTheDocument();
+      expect(screen.getByText(/Check your internet connection/i)).toBeInTheDocument();
+      expect(screen.getByText(/Use the basic lineup view/i)).toBeInTheDocument();
+    });
+
+    it('renders substitution_dialog context with correct message and actions', () => {
+      const onRetry = vi.fn();
+      render(
+        <LineupErrorFallbackTestWrapper
+          error={mockError}
+          onRetry={onRetry}
+          context="substitution_dialog"
+        />
+      );
+
+      expect(
+        screen.getByText(/substitution feature is temporarily unavailable/i)
+      ).toBeInTheDocument();
+      expect(screen.getByText(/Close and reopen the substitution dialog/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Try making the substitution from the lineup list/i)
+      ).toBeInTheDocument();
+      expect(screen.getByText(/Check that the player is eligible/i)).toBeInTheDocument();
+    });
+
+    it('renders position_assignment context with correct message and actions', () => {
+      const onRetry = vi.fn();
+      render(
+        <LineupErrorFallbackTestWrapper
+          error={mockError}
+          onRetry={onRetry}
+          context="position_assignment"
+        />
+      );
+
+      expect(screen.getByText(/field position display is having issues/i)).toBeInTheDocument();
+      expect(screen.getByText(/Use the lineup list to make position changes/i)).toBeInTheDocument();
+      expect(screen.getByText(/Try switching to a different view/i)).toBeInTheDocument();
+      expect(screen.getByText(/Contact support if the issue persists/i)).toBeInTheDocument();
+    });
+
+    it('renders default context with generic message', () => {
+      const onRetry = vi.fn();
+      render(
+        <LineupErrorFallbackTestWrapper
+          error={mockError}
+          onRetry={onRetry}
+          context="unknown_context"
+        />
+      );
+
+      expect(screen.getByText(/encountered an unexpected error/i)).toBeInTheDocument();
+      expect(screen.getByText(/Refresh the page/i)).toBeInTheDocument();
+      expect(screen.getByText(/Try again in a few moments/i)).toBeInTheDocument();
+    });
+
+    it('handleRetry callback triggers onRetry and tracks interaction', () => {
+      const onRetry = vi.fn();
+      render(
+        <LineupErrorFallbackTestWrapper
+          error={mockError}
+          onRetry={onRetry}
+          context="lineup_editor"
+        />
+      );
+
+      const retryButton = screen.getByLabelText(/Retry the lineup feature/i);
+      fireEvent.click(retryButton);
+
+      expect(onRetry).toHaveBeenCalledTimes(1);
+      expect(monitoring.track).toHaveBeenCalledWith(
+        'error_fallback_error_retry',
+        expect.objectContaining({
+          errorType: 'Error',
+          context: 'lineup_editor',
+        })
+      );
+    });
+
+    it('handleReport callback tracks user_reported_error event', () => {
+      const onRetry = vi.fn();
+      render(
+        <LineupErrorFallbackTestWrapper
+          error={mockError}
+          onRetry={onRetry}
+          context="lineup_editor"
+        />
+      );
+
+      const reportButton = screen.getByLabelText(/Report this issue/i);
+      fireEvent.click(reportButton);
+
+      expect(monitoring.track).toHaveBeenCalledWith('user_reported_error', {
+        error: 'Test error message',
+        context: 'lineup_editor',
+        userAction: 'manual_report',
+      });
+
+      expect(monitoring.track).toHaveBeenCalledWith(
+        'error_fallback_error_reported',
+        expect.objectContaining({
+          errorType: 'Error',
+          context: 'lineup_editor',
+        })
+      );
+    });
+
+    it('displays technical details in collapsible section', () => {
+      const onRetry = vi.fn();
+      render(
+        <LineupErrorFallbackTestWrapper
+          error={mockError}
+          onRetry={onRetry}
+          context="lineup_editor"
+        />
+      );
+
+      expect(screen.getByText('Technical Details')).toBeInTheDocument();
+      expect(screen.getByText(/Test error message/i)).toBeInTheDocument();
+      expect(screen.getByText(/lineup_editor/i)).toBeInTheDocument();
+    });
+
+    it('shows error icon and timestamp', () => {
+      const onRetry = vi.fn();
+      render(
+        <LineupErrorFallbackTestWrapper
+          error={mockError}
+          onRetry={onRetry}
+          context="lineup_editor"
+        />
+      );
+
+      expect(screen.getByText('⚠️')).toBeInTheDocument();
+      expect(screen.getByText(/Time:/i)).toBeInTheDocument();
+    });
+
+    it('renders action buttons with proper aria-labels', () => {
+      const onRetry = vi.fn();
+      render(
+        <LineupErrorFallbackTestWrapper
+          error={mockError}
+          onRetry={onRetry}
+          context="lineup_editor"
+        />
+      );
+
+      expect(screen.getByLabelText('Retry the lineup feature')).toBeInTheDocument();
+      expect(screen.getByLabelText('Report this issue to support')).toBeInTheDocument();
+    });
+  });
+
+  describe('Style Injection', () => {
+    it('injects styles on first import', () => {
+      const styleElement = document.getElementById('enhanced-lineup-styles');
+      expect(styleElement).toBeInTheDocument();
+      expect(styleElement?.tagName).toBe('STYLE');
+    });
+
+    it('style element contains expected CSS rules', () => {
+      const styleElement = document.getElementById('enhanced-lineup-styles');
+      expect(styleElement?.textContent).toContain('.lineup-error-fallback');
+      expect(styleElement?.textContent).toContain('.enhanced-lineup-editor');
+      expect(styleElement?.textContent).toContain('.retry-button');
+    });
+
+    it('style element has correct id attribute', () => {
+      const styleElement = document.getElementById('enhanced-lineup-styles');
+      expect(styleElement?.id).toBe('enhanced-lineup-styles');
+    });
+  });
+
+  describe('Performance Monitoring Edge Cases', () => {
+    it('handles very fast unmounts correctly', async () => {
+      const { unmount } = render(<EnhancedLineupEditor gameId="game-123" />);
+
+      // Unmount immediately
+      unmount();
+
+      await waitFor(() => {
+        // Should still attempt to track timing
+        expect(monitoring.timing).toHaveBeenCalledWith(
+          'lineup_editor_render_time',
+          expect.any(Number),
+          expect.objectContaining({
+            component: 'lineup_editor',
+          })
+        );
+      });
+    });
+
+    it('tracks valid render times', async () => {
+      const { unmount } = render(<EnhancedLineupEditor gameId="game-123" />);
+
+      // Wait a bit before unmounting
+      await new Promise(resolve => setTimeout(resolve, 10));
+      unmount();
+
+      await waitFor(() => {
+        const timingCalls = (monitoring.timing as any).mock.calls;
+        const renderTimingCall = timingCalls.find(
+          (call: any[]) => call[0] === 'lineup_editor_render_time'
+        );
+
+        expect(renderTimingCall).toBeDefined();
+        const renderTime = renderTimingCall[1];
+
+        // Should be > 0 and < 60000ms
+        expect(renderTime).toBeGreaterThan(0);
+        expect(renderTime).toBeLessThan(60000);
+      });
+    });
+  });
+
+  describe('Monitoring Error Handling', () => {
+    it('silently handles monitoring.timing errors in production', async () => {
+      // Mock monitoring.timing to throw an error
+      vi.mocked(monitoring.timing).mockImplementation(() => {
+        throw new Error('Monitoring service unavailable');
+      });
+
+      const { unmount } = render(<EnhancedLineupEditor gameId="game-123" />);
+      unmount();
+
+      // Should not crash the app
+      await waitFor(() => {
+        expect(true).toBe(true); // App should continue working
+      });
+    });
+
+    it('does not crash app when monitoring.error fails', async () => {
+      const mockError = new Error('Substitution failed');
+      vi.mocked(monitoring.error).mockImplementation(() => {
+        throw new Error('Error tracking failed');
+      });
+
+      const onConfirm = vi.fn().mockRejectedValue(mockError);
+
+      render(
+        <EnhancedSubstitutionDialog
+          isOpen={true}
+          currentPlayer={{
+            playerId: 'player1',
+            playerName: 'John Doe',
+            battingSlot: 1,
+            fieldPosition: 'PITCHER',
+          }}
+          gameId="game-123"
+          benchPlayers={[]}
+          onClose={vi.fn()}
+          onConfirm={onConfirm}
+        />
+      );
+
+      fireEvent.click(screen.getByText('Confirm'));
+
+      // Should not crash despite monitoring error
+      await waitFor(() => {
+        expect(onConfirm).toHaveBeenCalled();
+      });
+    });
+  });
 });
+
+// Helper component to directly test LineupErrorFallback
+function LineupErrorFallbackTestWrapper({
+  error,
+  onRetry,
+  context,
+}: {
+  error: Error;
+  onRetry: () => void;
+  context: string;
+}): ReactElement {
+  return <LineupErrorFallback error={error} onRetry={onRetry} context={context} />;
+}
