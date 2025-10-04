@@ -27,7 +27,13 @@
  * ```
  */
 
-import type { ApplicationServices, AtBatResult, FieldPosition } from '@twsoftball/application';
+import type {
+  ApplicationServices,
+  AtBatResult,
+  FieldPosition,
+  UndoResult,
+  RedoResult,
+} from '@twsoftball/application';
 import { createContext, useContext } from 'react';
 
 // Import proper types to avoid unknown types
@@ -78,6 +84,16 @@ export interface GameAdapterInterface {
       toBase: number;
     }>;
   }) => Promise<AtBatResult>;
+  undoLastAction: (uiData: { gameId: string }) => Promise<UndoResult>;
+  redoLastAction: (uiData: { gameId: string }) => Promise<RedoResult>;
+  getGameState: (uiData: { gameId: string }) => Promise<{
+    undoStack?: {
+      canUndo: boolean;
+      canRedo: boolean;
+      historyPosition: number;
+      totalActions: number;
+    };
+  }>;
   logger: ApplicationServices['logger'];
 }
 

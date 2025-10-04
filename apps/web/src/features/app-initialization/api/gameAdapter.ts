@@ -455,6 +455,57 @@ export class GameAdapter {
   }
 
   /**
+   * Gets the current game state including undo/redo stack information.
+   *
+   * @param uiData - Request data containing gameId
+   * @returns Promise resolving to game state with undo stack info
+   */
+  async getGameState(uiData: { gameId: string }): Promise<{
+    undoStack?: {
+      canUndo: boolean;
+      canRedo: boolean;
+      historyPosition: number;
+      totalActions: number;
+    };
+  }> {
+    if (!uiData.gameId) {
+      throw new Error('Missing required data: gameId is required');
+    }
+
+    try {
+      const gameId = new GameId(uiData.gameId);
+
+      // Get all events for the game to determine undo/redo availability
+      const events = await this.config.eventStore.getEvents(gameId);
+
+      // Events are returned in order (oldest first)
+      // The undo stack works by tracking which events have been undone
+      // For simplicity, we check if there are any events at all for canUndo
+      // canRedo would be true if there are undone events, but we don't track that
+      // in this simple implementation - it gets updated after undo/redo operations
+
+      const totalActions = events.length;
+      const canUndo = totalActions > 0;
+
+      return {
+        undoStack: {
+          canUndo,
+          canRedo: false, // This will be updated after undo operations
+          historyPosition: totalActions,
+          totalActions,
+        },
+      };
+    } catch (error) {
+      this.config.logger.error(
+        'Game adapter: Failed to get game state',
+        error instanceof Error ? error : new Error(String(error)),
+        { uiData }
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Ends the current inning.
    *
    * @param uiData - End inning request data from the UI
