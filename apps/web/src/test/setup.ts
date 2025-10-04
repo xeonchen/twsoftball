@@ -304,6 +304,22 @@ vi.mock('@twsoftball/application', () => ({
   ValidationError: vi
     .fn()
     .mockImplementation((message: string) => ({ message, name: 'ValidationError' })),
+  // Add SecureRandom utility (re-exported from shared)
+  SecureRandom: {
+    randomStringId: vi.fn((length: number) => {
+      // Generate unique random string for each call
+      const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let result = '';
+      for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return result;
+    }),
+    randomFloat: vi.fn(() => Math.random()),
+    randomInt: vi.fn(
+      (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min
+    ),
+  },
 }));
 
 // Mock web adapters (now in Web layer)

@@ -81,6 +81,9 @@ export type { CompleteGameWorkflowResult } from './dtos/CompleteGameWorkflowResu
 // Domain type exports for presentation layer
 export * from './types/domain-exports';
 
+// Shared utility exports for presentation layer
+export * from './types/shared-exports';
+
 // Error Classes - Application layer errors for presentation layer
 export {
   ValidationError,

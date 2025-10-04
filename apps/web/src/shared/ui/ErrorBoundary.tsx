@@ -38,6 +38,7 @@
  * ```
  */
 
+import { SecureRandom } from '@twsoftball/application';
 import React, { Component, ReactNode, ErrorInfo, ReactElement } from 'react';
 
 /**
@@ -212,7 +213,7 @@ function DefaultErrorFallback({
  * Generate unique error ID
  */
 function generateErrorId(): string {
-  return `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `err_${Date.now()}_${SecureRandom.randomStringId(9)}`;
 }
 
 /**

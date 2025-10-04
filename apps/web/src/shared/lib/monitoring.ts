@@ -48,6 +48,8 @@
  * ```
  */
 
+import { SecureRandom } from '@twsoftball/application';
+
 // Types for monitoring data
 export interface MonitoringConfig {
   /** Enable/disable monitoring */
@@ -150,7 +152,7 @@ class SessionManager {
   }
 
   private generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `session_${Date.now()}_${SecureRandom.randomStringId(9)}`;
   }
 
   private setupSessionTracking(): void {
@@ -479,7 +481,7 @@ class MonitoringService {
   }
 
   private shouldSample(): boolean {
-    return Math.random() < this.config.sampleRate;
+    return SecureRandom.randomFloat() < this.config.sampleRate;
   }
 
   private determineSeverity(
