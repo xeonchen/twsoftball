@@ -3,8 +3,13 @@
  * Exports hooks and state management for lineup management following FSD structure
  */
 
-// Export hooks and state management here when they are implemented
-// export { useLineupManager } from './useLineupManager';
-// export { usePlayerSelection } from './usePlayerSelection';
+// Export lineup management hooks
+export { useLineupManagement } from './useLineupManagement';
 
-export {};
+// Export hook types
+export type {
+  UseLineupManagementState,
+  EligibilityCheck,
+  EligibilityResult,
+  SubstitutionData,
+} from './useLineupManagement';

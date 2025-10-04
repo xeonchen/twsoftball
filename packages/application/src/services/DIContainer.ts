@@ -425,14 +425,15 @@ export class DIContainer {
   }
 
   /**
-   * Initializes the container with application configuration.
+   * Initializes the container with application configuration and infrastructure factory.
    *
    * @param config - Application configuration
+   * @param factory - Infrastructure factory instance
    * @returns Promise that resolves when initialization is complete
    *
    * @remarks
    * This method registers all core application services including:
-   * - Infrastructure services based on storage type
+   * - Infrastructure services using provided factory
    * - Domain use cases with proper dependency injection
    * - Complete ApplicationServices interface
    *
@@ -440,16 +441,19 @@ export class DIContainer {
    *
    * @example
    * ```typescript
+   * import { createIndexedDBFactory } from '@twsoftball/infrastructure/web';
+   *
    * const container = new DIContainer();
+   * const factory = createIndexedDBFactory();
    * await container.initialize({
    *   environment: 'production',
    *   storage: 'indexeddb'
-   * });
+   * }, factory);
    *
    * const services = await container.resolve<ApplicationServices>('applicationServices');
    * ```
    */
-  initialize(config: ApplicationConfig): Promise<void> {
+  initialize(config: ApplicationConfig, factory: InfrastructureFactory): Promise<void> {
     this.ensureNotDisposed();
 
     if (this.config.debug) {
@@ -463,8 +467,8 @@ export class DIContainer {
         throw new Error(`Unsupported storage: ${config.storage}`);
       }
 
-      // Register Infrastructure services
-      this.registerInfrastructureServices(config);
+      // Register Infrastructure services using provided factory
+      this.registerInfrastructureServices(config, factory);
 
       // Register Application use cases
       this.registerApplicationUseCases();
@@ -512,44 +516,25 @@ export class DIContainer {
   }
 
   /**
-   * Registers Infrastructure services based on configuration.
+   * Registers Infrastructure services using provided factory.
    *
    * @param config - Application configuration
+   * @param factory - Infrastructure factory instance
    * @private
    */
-  private registerInfrastructureServices(config: ApplicationConfig): void {
+  private registerInfrastructureServices(
+    config: ApplicationConfig,
+    factory: InfrastructureFactory
+  ): void {
     // Register Infrastructure factory (only if not already registered for testing)
     if (!this.has('infrastructureFactory')) {
       this.register(
         'infrastructureFactory',
-        async (): Promise<InfrastructureFactory> => {
-          let infrastructureFactory: InfrastructureFactory;
-
-          switch (config.storage) {
-            case 'memory': {
-              const modulePath = '@twsoftball/infrastructure/memory';
-              const module = (await import(modulePath)) as {
-                createMemoryFactory: () => InfrastructureFactory;
-              };
-              infrastructureFactory = module.createMemoryFactory();
-              break;
-            }
-            case 'indexeddb': {
-              const modulePath = '@twsoftball/infrastructure/web';
-              const module = (await import(modulePath)) as {
-                createIndexedDBFactory: () => InfrastructureFactory;
-              };
-              infrastructureFactory = module.createIndexedDBFactory();
-              break;
-            }
-            default:
-              throw new Error(`Unsupported storage: ${config.storage}`);
-          }
-
-          return infrastructureFactory;
+        (): Promise<InfrastructureFactory> => {
+          return Promise.resolve(factory);
         },
         [],
-        { description: `Infrastructure factory for ${config.storage} storage` }
+        { description: `Infrastructure factory for ${factory.getStorageType()} storage` }
       );
     }
 
@@ -721,7 +706,16 @@ export class DIContainer {
     this.register(
       'applicationServices',
       async (): Promise<ApplicationServices> => {
+        if (this.config.debug) {
+          // eslint-disable-next-line no-console, no-undef -- Debug logging for application services resolution
+          console.log('[DIContainer] Starting application services resolution...');
+        }
+
         // Resolve all use cases
+        if (this.config.debug) {
+          // eslint-disable-next-line no-console, no-undef -- Debug logging for use case resolution
+          console.log('[DIContainer] Resolving use cases...');
+        }
         const startNewGame = await this.resolve<StartNewGame>('startNewGame');
         const recordAtBat = await this.resolve<RecordAtBat>('recordAtBat');
         const substitutePlayer = await this.resolve<SubstitutePlayer>('substitutePlayer');
@@ -730,6 +724,10 @@ export class DIContainer {
         const endInning = await this.resolve<EndInning>('endInning');
 
         // Resolve repositories
+        if (this.config.debug) {
+          // eslint-disable-next-line no-console, no-undef -- Debug logging for repository resolution
+          console.log('[DIContainer] Resolving repositories...');
+        }
         const gameRepository = await this.resolve<GameRepository>('gameRepository');
         const teamLineupRepository =
           await this.resolve<TeamLineupRepository>('teamLineupRepository');
@@ -738,6 +736,10 @@ export class DIContainer {
         const eventStore = await this.resolve<EventStore>('eventStore');
 
         // Resolve supporting services
+        if (this.config.debug) {
+          // eslint-disable-next-line no-console, no-undef -- Debug logging for supporting services resolution
+          console.log('[DIContainer] Resolving supporting services...');
+        }
         const logger = await this.resolve<Logger>('logger');
 
         return {
@@ -796,6 +798,7 @@ export class DIContainer {
  * Creates a new DI container and initializes it with application configuration.
  *
  * @param config - Application configuration
+ * @param factory - Infrastructure factory instance
  * @param containerConfig - Container-specific configuration options
  * @returns Promise resolving to initialized container
  *
@@ -805,45 +808,23 @@ export class DIContainer {
  *
  * @example
  * ```typescript
+ * import { createIndexedDBFactory } from '@twsoftball/infrastructure/web';
+ *
+ * const factory = createIndexedDBFactory();
  * const container = await createInitializedContainer({
  *   environment: 'production',
  *   storage: 'indexeddb'
- * });
+ * }, factory);
  *
  * const services = await container.resolve<ApplicationServices>('applicationServices');
  * ```
  */
 export async function createInitializedContainer(
   config: ApplicationConfig,
+  factory: InfrastructureFactory,
   containerConfig?: ContainerConfig
 ): Promise<DIContainer> {
   const container = new DIContainer(containerConfig);
-  await container.initialize(config);
+  await container.initialize(config, factory);
   return container;
-}
-
-/**
- * Creates application services using the DI container approach.
- *
- * @param config - Application configuration
- * @returns Promise resolving to configured application services
- *
- * @remarks
- * This function provides a convenient way to create application services using
- * the DI container approach with automatic service registration and resolution.
- *
- * @example
- * ```typescript
- * // Create application services with DI container
- * const services = await createApplicationServicesWithContainer({
- *   environment: 'production',
- *   storage: 'indexeddb'
- * });
- * ```
- */
-export async function createApplicationServicesWithContainer(
-  config: ApplicationConfig
-): Promise<ApplicationServices> {
-  const container = await createInitializedContainer(config);
-  return container.resolve<ApplicationServices>('applicationServices');
 }

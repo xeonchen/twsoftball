@@ -74,7 +74,8 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-import { getContainer, wizardToCommand } from '../../../shared/api';
+import { wizardToCommand } from '../../../shared/api';
+import { useAppServicesContext } from '../../../shared/lib';
 import type { SetupWizardState } from '../../../shared/lib/types';
 
 /**
@@ -166,6 +167,9 @@ export interface UseGameSetupReturn {
  * ```
  */
 export function useGameSetup(): UseGameSetupReturn {
+  // Get app services for dependency injection
+  const { services } = useAppServicesContext();
+
   // State management
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -347,9 +351,11 @@ export function useGameSetup(): UseGameSetupReturn {
         clearError();
         setIsLoading(true);
 
-        // Get dependencies from DI container
-        const container = getContainer();
-        const { startNewGame: startNewGameUseCase, logger } = container;
+        // Get dependencies from app services
+        if (!services) {
+          throw new Error('App services not initialized');
+        }
+        const { startNewGameFromWizard: startNewGameUseCase, logger } = services.gameAdapter;
 
         logger.debug('Starting game creation process', {
           homeTeam: wizardState.teams.home,
@@ -360,10 +366,9 @@ export function useGameSetup(): UseGameSetupReturn {
           isComplete: wizardState.isComplete,
         });
 
-        // Map wizard state to domain command
-        let command;
+        // Validate wizard state before starting game
         try {
-          command = wizardToCommand(wizardState);
+          wizardToCommand(wizardState); // Just validate, don't store result
         } catch (mappingError) {
           const errorMessage =
             mappingError instanceof Error ? mappingError.message : 'Invalid wizard state';
@@ -392,7 +397,7 @@ export function useGameSetup(): UseGameSetupReturn {
         }
 
         // Execute use case
-        const result = await startNewGameUseCase.execute(command);
+        const result = await startNewGameUseCase(wizardState);
 
         // Check mount state and abort signal before updating (prevent memory leaks)
         if (!isMountedRef.current || signal.aborted) {
@@ -401,11 +406,11 @@ export function useGameSetup(): UseGameSetupReturn {
 
         if (result.success) {
           // Success path
-          setGameId(result.gameId.value);
+          setGameId(result.gameId || '');
           setIsLoading(false);
 
           logger.info('Game created successfully', {
-            gameId: result.gameId.value,
+            gameId: result.gameId,
             homeTeam: wizardState.teams.home,
             awayTeam: wizardState.teams.away,
             ourTeam: wizardState.teams.ourTeam,
@@ -419,20 +424,25 @@ export function useGameSetup(): UseGameSetupReturn {
 
           logger.warn('Game creation failed due to validation errors', {
             errors: result.errors,
-            gameId: result.gameId.value,
+            gameId: result.gameId,
             validationErrorCategories: Object.keys(validationErrors),
           });
         }
       } catch (infrastructureError) {
         // Infrastructure or unexpected errors
         try {
-          const container = getContainer();
-          container.logger.error('Failed to start game', infrastructureError as Error, {
-            type: 'infrastructure',
-            homeTeam: wizardState.teams.home,
-            awayTeam: wizardState.teams.away,
-            lineupSize: wizardState.lineup.length,
-          });
+          if (services) {
+            services.gameAdapter.logger.error(
+              'Failed to start game',
+              infrastructureError as Error,
+              {
+                type: 'infrastructure',
+                homeTeam: wizardState.teams.home,
+                awayTeam: wizardState.teams.away,
+                lineupSize: wizardState.lineup.length,
+              }
+            );
+          }
         } catch (logError) {
           // Fallback logging to console if DI container fails
           // eslint-disable-next-line no-console -- Fallback logging when DI container fails
@@ -448,7 +458,7 @@ export function useGameSetup(): UseGameSetupReturn {
         }
       }
     },
-    [isLoading, clearError, mapValidationErrors, mapInfrastructureError, isMountedRef]
+    [isLoading, clearError, mapValidationErrors, mapInfrastructureError, isMountedRef, services]
   );
 
   // Return hook interface

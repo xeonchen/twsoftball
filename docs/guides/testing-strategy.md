@@ -453,6 +453,40 @@ pnpm test:coverage
 pnpm deps:check
 ```
 
+### End-to-End Testing (E2E)
+
+```bash
+# Run E2E tests with Playwright (requires dev server running)
+cd apps/web && pnpm test:e2e
+
+# Run E2E tests with Playwright UI for debugging
+cd apps/web && pnpm test:e2e:ui
+
+# Run E2E tests in headed mode (see browser)
+cd apps/web && pnpm test:e2e:headed
+
+# Debug specific E2E test
+cd apps/web && pnpm test:e2e:debug
+
+# View E2E test report
+cd apps/web && pnpm test:e2e:report
+```
+
+**E2E Test Structure:**
+
+- Tests located in `/apps/web/e2e/`
+- Organized by feature (e.g., `lineup-management/`, `game-recording/`)
+- Global setup/teardown in `global-setup.ts` and `global-teardown.ts`
+- Configuration in `playwright.config.ts`
+
+**E2E Test Coverage:**
+
+- Critical user workflows (lineup management, substitutions)
+- Cross-browser compatibility (Chrome, Firefox, Safari)
+- Mobile device simulation
+- Accessibility compliance (ARIA, keyboard navigation)
+- Performance budgets (FCP, load time)
+
 ## Mock Strategy
 
 ### Domain Layer (No Mocks)

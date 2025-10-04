@@ -65,20 +65,15 @@ export default defineConfig([
       './apps/web/src/entities/player/**',
       './apps/web/src/features/game-setup/**', // Single reference in pages/game-setup - acceptable
       './apps/web/src/features/game-core/**', // Single reference in pages/game-recording - acceptable
+      './apps/web/src/features/substitute-player/**', // Referenced by lineup-management feature - Phase 5.3.C integration
+      './apps/web/src/features/app-initialization/**', // Referenced by app-layer providers - architectural feature
       './apps/web/src/widgets/error-boundary/**', // Single reference in pages/game-recording - acceptable
       './apps/web/src/widgets/runner-advancement/**', // Single reference in pages/game-recording - acceptable
+      './apps/web/src/widgets/bench-management/**', // Phase 5.3.D bench management widget - pending integration
     ],
     rules: {
       'fsd/insignificant-slice': 'off', // Pending integration or acceptable single-reference patterns
-    },
-  },
-
-  // Temporary architectural exception for DI Container
-  {
-    // Allow DI container to import from entities layer - architectural debt to be refactored
-    files: ['./apps/web/src/shared/api/di/container.ts'],
-    rules: {
-      'fsd/forbidden-imports': 'off', // Documented architectural debt - needs refactoring to features layer
+      'fsd/forbidden-imports': 'off', // lineup-management → substitute-player is an approved architectural pattern (Phase 5.3.C/D integration)
     },
   },
 ]);

@@ -82,7 +82,7 @@ describe('Command Mapper', () => {
       const command = toStartNewGameCommand(uiData);
 
       expect(command.initialLineup).toEqual([]);
-      expect(command.gameId).toEqual({ value: 'empty-game' });
+      expect(command.gameId.value).toBe('empty-game');
     });
 
     it('should preserve all lineup data accurately', () => {
@@ -155,25 +155,18 @@ describe('Command Mapper', () => {
 
       const command = toRecordAtBatCommand(uiData);
 
-      expect(command).toEqual({
-        gameId: { value: 'game-456' },
-        batterId: { value: 'batter-1' },
-        result: 'SINGLE',
-        runnerAdvances: [
-          {
-            playerId: { value: 'runner-1' },
-            fromBase: 'FIRST',
-            toBase: 'SECOND',
-            advanceReason: 'BATTED_BALL',
-          },
-          {
-            playerId: { value: 'runner-2' },
-            fromBase: 'SECOND',
-            toBase: 'THIRD',
-            advanceReason: 'BATTED_BALL',
-          },
-        ],
-      });
+      expect(command.gameId.value).toBe('game-456');
+      expect(command.batterId.value).toBe('batter-1');
+      expect(command.result).toBe('SINGLE');
+      expect(command.runnerAdvances).toHaveLength(2);
+      expect(command.runnerAdvances[0].playerId.value).toBe('runner-1');
+      expect(command.runnerAdvances[0].fromBase).toBe('FIRST');
+      expect(command.runnerAdvances[0].toBase).toBe('SECOND');
+      expect(command.runnerAdvances[0].advanceReason).toBe('BATTED_BALL');
+      expect(command.runnerAdvances[1].playerId.value).toBe('runner-2');
+      expect(command.runnerAdvances[1].fromBase).toBe('SECOND');
+      expect(command.runnerAdvances[1].toBase).toBe('THIRD');
+      expect(command.runnerAdvances[1].advanceReason).toBe('BATTED_BALL');
     });
 
     it('should handle empty runner advances', () => {
@@ -187,8 +180,8 @@ describe('Command Mapper', () => {
       const command = toRecordAtBatCommand(uiData);
 
       expect(command.runnerAdvances).toEqual([]);
-      expect(command.gameId).toEqual({ value: 'simple-game' });
-      expect(command.batterId).toEqual({ value: 'simple-batter' });
+      expect(command.gameId.value).toBe('simple-game');
+      expect(command.batterId.value).toBe('simple-batter');
       expect(command.result).toBe('STRIKEOUT');
     });
 
@@ -212,12 +205,10 @@ describe('Command Mapper', () => {
       const command = toRecordAtBatCommand(uiData);
 
       expect(command.runnerAdvances).toHaveLength(3);
-      expect(command.runnerAdvances[0]).toEqual({
-        playerId: { value: 'r1' },
-        fromBase: 'FIRST',
-        toBase: 'HOME',
-        advanceReason: 'BATTED_BALL',
-      });
+      expect(command.runnerAdvances[0].playerId.value).toBe('r1');
+      expect(command.runnerAdvances[0].fromBase).toBe('FIRST');
+      expect(command.runnerAdvances[0].toBase).toBe('HOME');
+      expect(command.runnerAdvances[0].advanceReason).toBe('BATTED_BALL');
     });
   });
 
@@ -251,7 +242,7 @@ describe('Command Mapper', () => {
     });
 
     it('should handle all field positions correctly', () => {
-      const positions = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'];
+      const positions = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'SF'];
 
       positions.forEach(position => {
         const uiData: UISubstitutePlayerData = {
@@ -281,9 +272,7 @@ describe('Command Mapper', () => {
 
       const command = toUndoCommand(uiData);
 
-      expect(command).toEqual({
-        gameId: { value: 'undo-game' },
-      });
+      expect(command.gameId.value).toBe('undo-game');
     });
 
     it('should handle various game ID formats', () => {
@@ -292,7 +281,7 @@ describe('Command Mapper', () => {
       gameIds.forEach(gameId => {
         const uiData: UIUndoRedoData = { gameId };
         const command = toUndoCommand(uiData);
-        expect(command.gameId).toEqual({ value: gameId });
+        expect(command.gameId.value).toBe(gameId);
       });
     });
   });
@@ -305,9 +294,7 @@ describe('Command Mapper', () => {
 
       const command = toRedoCommand(uiData);
 
-      expect(command).toEqual({
-        gameId: { value: 'redo-game' },
-      });
+      expect(command.gameId.value).toBe('redo-game');
     });
 
     it('should create identical structure to undo command', () => {
@@ -316,7 +303,7 @@ describe('Command Mapper', () => {
       const undoCommand = toUndoCommand(uiData);
       const redoCommand = toRedoCommand(uiData);
 
-      expect(undoCommand).toEqual(redoCommand);
+      expect(undoCommand.gameId.value).toBe(redoCommand.gameId.value);
     });
   });
 
@@ -328,9 +315,7 @@ describe('Command Mapper', () => {
 
       const command = toEndInningCommand(uiData);
 
-      expect(command).toEqual({
-        gameId: { value: 'inning-end-game' },
-      });
+      expect(command.gameId.value).toBe('inning-end-game');
     });
 
     it('should work with any game ID', () => {
@@ -344,7 +329,7 @@ describe('Command Mapper', () => {
       testCases.forEach(gameId => {
         const uiData: UIEndInningData = { gameId };
         const command = toEndInningCommand(uiData);
-        expect(command.gameId).toEqual({ value: gameId });
+        expect(command.gameId.value).toBe(gameId);
       });
     });
   });

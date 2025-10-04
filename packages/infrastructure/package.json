@@ -3,14 +3,30 @@
   "version": "0.1.0",
   "description": "Infrastructure layer - Adapters and implementations",
   "type": "module",
+  "typesVersions": {
+    "*": {
+      "web": [
+        "./dist/web.d.ts"
+      ],
+      "memory": [
+        "./dist/memory.d.ts"
+      ],
+      "persistence/*": [
+        "./dist/persistence/*"
+      ],
+      "config/*": [
+        "./dist/config/*"
+      ]
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
     "./web": {
-      "types": "./dist/web/index.d.ts",
-      "import": "./dist/web/index.js"
+      "types": "./dist/web.d.ts",
+      "import": "./dist/web.js"
     },
     "./memory": {
       "types": "./dist/memory.d.ts",
@@ -28,11 +44,11 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
-    "test": "vitest run --exclude '**/*.perf.test.ts'",
-    "test:watch": "vitest",
-    "test:perf": "vitest run --testNamePattern 'Infrastructure Performance Testing'",
-    "test:coverage": "vitest run --coverage --exclude '**/*.perf.test.ts'",
-    "test:all": "vitest run",
+    "test": "NODE_OPTIONS='--max-old-space-size=2048' vitest run --exclude '**/*.perf.test.ts'",
+    "test:watch": "NODE_OPTIONS='--max-old-space-size=2048' vitest",
+    "test:perf": "NODE_OPTIONS='--max-old-space-size=2048' vitest run --testNamePattern 'Infrastructure Performance Testing'",
+    "test:coverage": "NODE_OPTIONS='--max-old-space-size=2048' vitest run --coverage --exclude '**/*.perf.test.ts'",
+    "test:all": "NODE_OPTIONS='--max-old-space-size=2048' vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit && eslint 'src/**/*.{ts,tsx}' --max-warnings 0",
     "lint:eslint": "eslint 'src/**/*.{ts,tsx}' --max-warnings 0",

@@ -274,7 +274,7 @@ export function GameSetupLineupPage(): ReactElement {
    * Check position coverage
    */
   const getPositionCoverage = (): Array<{ position: string; covered: boolean }> => {
-    const positions = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'];
+    const positions = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'SF'];
     const covered = lineup
       .filter(player => player.name && player.position)
       .map(player => player.position);

@@ -66,5 +66,12 @@
     "vitest.config.*",
     ".prettier*"
   ],
-  "globalPassThroughEnv": ["NODE_ENV", "CI", "TURBO_TOKEN", "TURBO_TEAM"]
+  "globalPassThroughEnv": [
+    "NODE_ENV",
+    "CI",
+    "TURBO_TOKEN",
+    "TURBO_TEAM",
+    "NODE_OPTIONS",
+    "TURBO_CONCURRENCY"
+  ]
 }

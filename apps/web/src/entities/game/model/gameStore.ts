@@ -3,6 +3,9 @@ import { create } from 'zustand';
 // Import shared types
 import type { Player, SetupWizardState } from '../../../shared/lib/types';
 
+// Re-export types for external use
+export type { SetupWizardState };
+
 /**
  * Enhanced game data structure for Phase 2
  * Integrates with complete game management and recording workflow

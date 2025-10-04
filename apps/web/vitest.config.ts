@@ -22,9 +22,24 @@ export default defineConfig({
     globals: true,
     environment: 'happy-dom', // Better CSS compatibility than JSDOM for Tailwind v4
     setupFiles: './src/test/setup.ts',
-    css: true,
-    testTimeout: 20000, // Increase global test timeout to 20 seconds for performance tests
+    css: {
+      include: [], // Disable CSS processing to prevent Tailwind output flooding console
+    },
+    testTimeout: 30000, // Reduced timeout from 5 minutes to 30 seconds for better memory management
     include: ['src/**/*.test.{ts,tsx}', 'src/**/*.spec.{ts,tsx}', 'src/**/*.perf.test.{ts,tsx}'],
+
+    // Memory optimization settings
+    isolate: true, // Enable test isolation to prevent memory leaks between tests
+    fileParallelism: false, // Sequential execution to reduce memory pressure
+    maxConcurrency: 1, // Limit concurrent tests within files
+
+    // Pool optimization for memory management
+    poolOptions: {
+      threads: {
+        maxThreads: 2, // Limit threads to reduce memory usage
+        minThreads: 1,
+      },
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

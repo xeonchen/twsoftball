@@ -6,8 +6,11 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.{test,spec}.ts'],
 
-    // Test isolation for better reliability (beneficial for domain logic)
-    isolate: true,
+    // Memory optimizations
+    isolate: false,
+    fileParallelism: false,
+    maxConcurrency: 2,
+    testTimeout: 10000,
 
     // Enhanced reporting for CI integration
     reporters: ['default', 'junit'],

@@ -3,8 +3,14 @@
  * Barrel exports for lineup management UI components following FSD structure
  */
 
-// Export UI components here when they are implemented
-// export { LineupEditor } from './LineupEditor';
-// export { PlayerSelector } from './PlayerSelector';
+// Export main lineup management components
+export { LineupEditor } from './LineupEditor';
+export { SubstitutionDialog } from './SubstitutionDialog';
+export { PositionAssignment } from './PositionAssignment';
+export { SubstitutionHistory, SubstitutionHistoryEmpty } from './SubstitutionHistory';
 
-export {};
+// Export component types
+export type { LineupEditorProps } from './LineupEditor';
+export type { SubstitutionDialogProps } from './SubstitutionDialog';
+export type { PositionAssignmentProps, PositionChangeData } from './PositionAssignment';
+export type { SubstitutionHistoryProps } from './SubstitutionHistory';

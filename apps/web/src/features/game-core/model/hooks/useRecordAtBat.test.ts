@@ -59,22 +59,20 @@ const defaultMockGameStore = {
 
 // Import the hook after mocks are set up
 import { useGameStore } from '../../../../entities/game';
-import { getContainer } from '../../../../shared/api';
+import { useAppServicesContext } from '../../../../shared/lib';
 
 import { useRecordAtBat } from './useRecordAtBat';
 // Import the mocked modules to get mock functions
 
-// Mock the shared/api index module instead of the specific container file
-vi.mock('../../../../shared/api', () => ({
-  getContainer: vi.fn(() => ({
-    gameAdapter: {
-      recordAtBat: vi.fn(),
-    },
-  })),
+// Mock the shared/lib context
+vi.mock('../../../../shared/lib', () => ({
+  useAppServicesContext: vi.fn(),
 }));
 
 // Cast to mocks for TypeScript
-const mockGetContainer = getContainer as vi.MockedFunction<typeof getContainer>;
+const mockUseAppServicesContext = useAppServicesContext as vi.MockedFunction<
+  typeof useAppServicesContext
+>;
 const mockUseGameStore = useGameStore as vi.MockedFunction<typeof useGameStore>;
 
 // Create persistent mock adapter reference for tests
@@ -99,8 +97,16 @@ describe('useRecordAtBat Hook - TDD Implementation', () => {
       newGameState: defaultMockGameStore.activeGameState,
     } as AtBatResult);
 
-    mockGetContainer.mockReturnValue({
-      gameAdapter: mockGameAdapter,
+    // Set up default context mock
+    mockUseAppServicesContext.mockReturnValue({
+      services: {
+        applicationServices: {
+          recordAtBat: { execute: mockGameAdapter.recordAtBat },
+        },
+        gameAdapter: mockGameAdapter,
+      },
+      isInitializing: false,
+      error: null,
     });
   });
 

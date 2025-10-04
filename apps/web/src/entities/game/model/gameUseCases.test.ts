@@ -1,4 +1,5 @@
 import { renderHook } from '@testing-library/react';
+import { vi } from 'vitest';
 
 import { useGameStore } from './gameStore';
 import { useGameUseCases } from './gameUseCases';

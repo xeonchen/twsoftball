@@ -1,4 +1,4 @@
-import { AtBatResultType } from '@twsoftball/application';
+import { AtBatResultType, FieldPosition } from '@twsoftball/application';
 import {
   type ReactElement,
   useState,
@@ -11,10 +11,16 @@ import { useParams, useNavigate } from 'react-router-dom';
 
 import { useGameStore } from '../../../entities/game';
 import { useRecordAtBat, useRunnerAdvancement } from '../../../features/game-core';
+import {
+  LineupEditor,
+  SubstitutionDialog,
+  SubstitutionHistory,
+} from '../../../features/lineup-management';
+import { useSubstitutePlayerAPI } from '../../../features/substitute-player';
 import { useErrorRecovery, useNavigationGuard, useTimerManager } from '../../../shared/lib/hooks';
 import { useUIStore } from '../../../shared/lib/store';
 import { debounce } from '../../../shared/lib/utils';
-import { Button } from '../../../shared/ui/button';
+import { BenchManagementWidget } from '../../../widgets/bench-management';
 import { ErrorBoundary } from '../../../widgets/error-boundary';
 import { RunnerAdvancementPanel } from '../../../widgets/runner-advancement';
 
@@ -39,7 +45,13 @@ import { RunnerAdvancementPanel } from '../../../widgets/runner-advancement';
 export function GameRecordingPage(): ReactElement {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
-  const { currentGame, activeGameState, isGameActive, updateScore } = useGameStore();
+  const {
+    currentGame,
+    activeGameState,
+    isGameActive,
+    updateScore,
+    error: gameError,
+  } = useGameStore();
   const { showNavigationWarning, showInfo } = useUIStore();
   const timers = useTimerManager();
 
@@ -55,9 +67,23 @@ export function GameRecordingPage(): ReactElement {
   const [pendingAtBatResult, setPendingAtBatResult] = useState<string | null>(null);
   const [rbiNotification, setRbiNotification] = useState<number | null>(null);
 
+  // Phase 5: Lineup Management state
+  const [showLineupInterface, setShowLineupInterface] = useState(false);
+  const [showLineupEditor, setShowLineupEditor] = useState(false);
+  const [showSubstitutionHistory, setShowSubstitutionHistory] = useState(false);
+  const [showSubstitutionDialog, setShowSubstitutionDialog] = useState(false);
+  const [selectedPlayerForSubstitution, setSelectedPlayerForSubstitution] = useState<{
+    playerId: string;
+    battingSlot: number;
+    playerName: string;
+  } | null>(null);
+
   // Phase 1 hooks integration
   const { recordAtBat, isLoading, error, result, reset } = useRecordAtBat();
   const { runnerAdvances, clearAdvances, isValidAdvancement } = useRunnerAdvancement();
+
+  // Phase 5: Substitute player integration
+  const substitutePlayerAPI = useSubstitutePlayerAPI();
 
   // Phase 4: Error handling and recovery
   const errorRecovery = useErrorRecovery();
@@ -459,6 +485,98 @@ export function GameRecordingPage(): ReactElement {
     void navigate('/settings');
   };
 
+  /**
+   * Phase 5: Lineup Management Handlers
+   */
+
+  /**
+   * Toggle lineup interface visibility
+   */
+  const handleToggleLineupInterface = useCallback((): void => {
+    setShowLineupInterface(prev => !prev);
+    // Close other modals when opening lineup interface
+    if (!showLineupInterface) {
+      setShowLineupEditor(false);
+      setShowSubstitutionHistory(false);
+      setShowSubstitutionDialog(false);
+    }
+  }, [showLineupInterface]);
+
+  /**
+   * Open lineup editor modal
+   */
+  const handleOpenLineupEditor = useCallback((): void => {
+    setShowLineupEditor(true);
+    setShowSubstitutionHistory(false);
+  }, []);
+
+  /**
+   * Close lineup editor modal
+   */
+  const handleCloseLineupEditor = useCallback((): void => {
+    setShowLineupEditor(false);
+    setShowSubstitutionDialog(false);
+    setSelectedPlayerForSubstitution(null);
+  }, []);
+
+  /**
+   * Toggle substitution history display
+   */
+  const handleToggleSubstitutionHistory = useCallback((): void => {
+    setShowSubstitutionHistory(prev => !prev);
+    setShowLineupEditor(false);
+  }, []);
+
+  /**
+   * Handle retry for substitution errors
+   */
+  const handleRetrySubstitution = useCallback((): void => {
+    // Close the substitution dialog to reset the state
+    setShowSubstitutionDialog(false);
+    setSelectedPlayerForSubstitution(null);
+
+    // The error will be cleared when the user attempts a new substitution
+    // This is better than window.location.reload() as it preserves the game state
+  }, []);
+
+  /**
+   * Handle substitution completion
+   */
+  const handleSubstitutionComplete = useCallback(
+    (data?: unknown): void => {
+      try {
+        // Process substitution data if provided
+        if (data) {
+          // Log substitution data for debugging in development
+          // eslint-disable-next-line no-console -- Required for debugging substitution data
+          console.log('Substitution completed with data:', data);
+        }
+
+        // Close dialogs
+        setShowSubstitutionDialog(false);
+        setSelectedPlayerForSubstitution(null);
+
+        // Show success notification
+        showInfo('Player substitution completed successfully', 'Substitution Complete');
+
+        // The game state will be updated automatically through the store
+      } catch (error) {
+        // Error handling is managed by the substitute player feature
+        // eslint-disable-next-line no-console -- Error logging is necessary for debugging
+        console.error('Substitution completion error:', error);
+      }
+    },
+    [showInfo]
+  );
+
+  /**
+   * Handle substitution cancellation
+   */
+  const handleSubstitutionCancel = useCallback((): void => {
+    setShowSubstitutionDialog(false);
+    setSelectedPlayerForSubstitution(null);
+  }, []);
+
   // Action buttons configuration with priority ordering
   const actionButtons = [
     // Always visible (most common)
@@ -484,109 +602,17 @@ export function GameRecordingPage(): ReactElement {
     { id: 'tripleplay', label: 'TRIPLE PLAY', priority: 'rare' },
   ];
 
-  // Handle data corruption and error states from store
-  const gameStore = useGameStore();
-  const gameStoreError =
-    gameStore.error ||
-    ((gameStore as unknown as { hasError?: boolean }).hasError ? 'Game data error' : null);
+  // Handle data corruption and error states from store - use single useGameStore call
+  const gameStoreError = gameError;
 
-  // If there's a game store error or no game data, show error state
-  if (gameStoreError || !currentGame || !activeGameState) {
-    // Check for specific error states that require special handling
-    if (gameStoreError) {
-      const errorMessage = typeof gameStoreError === 'string' ? gameStoreError : 'Game data error';
+  // Check for error states but maintain consistent component structure
+  const hasError = gameStoreError || !currentGame || !activeGameState;
+  const errorMessage = hasError
+    ? gameStoreError || (gameId ? `No active game found with ID: ${gameId}` : 'Game data error')
+    : null;
 
-      return (
-        <div className="game-recording-error" data-testid="game-recording-page">
-          <div
-            role="alert"
-            className="error-notification"
-            style={{
-              padding: '1rem',
-              backgroundColor: '#ffebee',
-              border: '1px solid #f44336',
-              borderRadius: '8px',
-              margin: '1rem 0',
-            }}
-          >
-            <h1>{errorMessage}</h1>
-            {errorMessage.toLowerCase().includes('corrupted') && (
-              <>
-                <p>
-                  The game data has been corrupted. You can try to restore the game or refresh the
-                  page.
-                </p>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-                  <button
-                    onClick={() => window.location.reload()}
-                    style={{
-                      padding: '0.5rem 1rem',
-                      backgroundColor: '#388e3c',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Refresh Page
-                  </button>
-                  <button
-                    onClick={() => void navigate('/')}
-                    style={{
-                      padding: '0.5rem 1rem',
-                      backgroundColor: '#1976d2',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Restore Game
-                  </button>
-                </div>
-              </>
-            )}
-            {errorMessage.toLowerCase().includes('essential') && (
-              <>
-                <p>Essential game data is missing. Please initialize a new game.</p>
-                <button
-                  onClick={() => void navigate('/new-game')}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    backgroundColor: '#1976d2',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    marginTop: '1rem',
-                  }}
-                >
-                  Initialize New Game
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="game-recording-error" data-testid="game-recording-page">
-        <h1>Game Not Found</h1>
-        <p>No active game found with ID: {gameId}</p>
-        <Button
-          onClick={() => {
-            void navigate('/');
-          }}
-        >
-          Go Home
-        </Button>
-      </div>
-    );
-  }
-
-  const { homeScore = 0, awayScore = 0 } = currentGame;
-  const { currentInning, isTopHalf, currentBatter, bases, outs } = activeGameState;
+  const { homeScore = 0, awayScore = 0 } = currentGame || {};
+  const { currentInning, isTopHalf, currentBatter, bases, outs } = activeGameState || {};
 
   return (
     <ErrorBoundary
@@ -608,9 +634,29 @@ export function GameRecordingPage(): ReactElement {
               HOME {homeScore} - {awayScore} AWAY
             </span>
           </div>
-          <button className="settings-button" onClick={handleSettings} aria-label="Game settings">
-            ⚙️
-          </button>
+          <div className="header-actions">
+            <button
+              className={`lineup-button ${showLineupInterface ? 'active' : ''} ${currentGame && activeGameState ? 'mobile-optimized' : ''}`}
+              onClick={handleToggleLineupInterface}
+              disabled={
+                !currentGame ||
+                !activeGameState ||
+                (gameError?.toLowerCase().includes('lineup') ?? false)
+              }
+              aria-label={
+                gameError?.toLowerCase().includes('lineup')
+                  ? 'Lineup unavailable'
+                  : currentGame && activeGameState
+                    ? 'Open lineup management'
+                    : 'Lineup unavailable'
+              }
+            >
+              👥
+            </button>
+            <button className="settings-button" onClick={handleSettings} aria-label="Game settings">
+              ⚙️
+            </button>
+          </div>
         </header>
 
         {/* Loading state overlay */}
@@ -838,6 +884,152 @@ export function GameRecordingPage(): ReactElement {
           </div>
         )}
 
+        {/* Game Error State - player not eligible for substitution */}
+        {(hasError ||
+          (gameError && (gameError.includes('Corrupted') || gameError.includes('Essential')))) && (
+          <div
+            role="alert"
+            className="game-error-notification"
+            style={{
+              padding: '1rem',
+              backgroundColor: '#ffebee',
+              border: '1px solid #f44336',
+              borderRadius: '8px',
+              margin: '1rem 0',
+            }}
+          >
+            <h1>Game Not Found</h1>
+            <p>{errorMessage}</p>
+            {errorMessage?.toLowerCase().includes('corrupted') && (
+              <>
+                <p>
+                  The game data has been corrupted. You can try to restore the game or refresh the
+                  page.
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                  <button
+                    onClick={() => window.location.reload()}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#388e3c',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Refresh Page
+                  </button>
+                  <button
+                    onClick={() => void navigate('/')}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#1976d2',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Restore Game
+                  </button>
+                </div>
+              </>
+            )}
+            {errorMessage?.toLowerCase().includes('essential') && (
+              <>
+                <p>Essential game data is missing. Please initialize a new game.</p>
+                <button
+                  onClick={() => void navigate('/new-game')}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#1976d2',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    marginTop: '1rem',
+                  }}
+                >
+                  Initialize New Game
+                </button>
+              </>
+            )}
+            {gameId && !gameStoreError && (
+              <>
+                <button
+                  onClick={() => void navigate('/')}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#1976d2',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    marginTop: '1rem',
+                  }}
+                >
+                  Go Home
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Substitution Error State - player not eligible */}
+        {substitutePlayerAPI.substitutionError && (
+          <div
+            role="alert"
+            className="substitution-error-notification"
+            style={{
+              padding: '1rem',
+              backgroundColor: '#fff3e0',
+              border: '1px solid #ff9800',
+              borderRadius: '8px',
+              margin: '1rem 0',
+            }}
+          >
+            <h3 style={{ color: '#f57c00', marginBottom: '0.5rem' }}>Substitution Error</h3>
+            <p style={{ marginBottom: '1rem' }}>
+              {substitutePlayerAPI.substitutionError.includes('not eligible')
+                ? 'Player not eligible'
+                : substitutePlayerAPI.substitutionError}
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={handleRetrySubstitution}
+                aria-label="Retry"
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#1976d2',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                Retry
+              </button>
+              <button
+                onClick={() => {
+                  setShowSubstitutionDialog(false);
+                  setSelectedPlayerForSubstitution(null);
+                }}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#757575',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* RBI notification */}
         {rbiNotification && (
           <div className="rbi-notification">
@@ -926,21 +1118,70 @@ export function GameRecordingPage(): ReactElement {
           </div>
         </div>
 
+        {/* Phase 5: Bench Management Widget */}
+        {showLineupInterface && (
+          <div className="lineup-interface-overlay">
+            <div className="lineup-interface-container">
+              <div className="lineup-interface-actions">
+                <button
+                  onClick={handleOpenLineupEditor}
+                  className="manage-lineup-button"
+                  aria-label="Open detailed lineup editor"
+                >
+                  Manage Lineup
+                </button>
+                <button
+                  onClick={handleToggleSubstitutionHistory}
+                  className="substitution-history-button"
+                >
+                  Substitution History
+                </button>
+                <button
+                  onClick={handleToggleLineupInterface}
+                  className="close-lineup-button"
+                  aria-label="Close lineup management"
+                >
+                  Close
+                </button>
+              </div>
+
+              <BenchManagementWidget
+                gameId={gameId || ''}
+                teamLineupId={gameId || ''}
+                currentInning={activeGameState?.currentInning || 1}
+                onSubstitutionComplete={data => handleSubstitutionComplete(data)}
+                aria-label="Bench players management"
+              />
+
+              {/* Substitution History Display */}
+              {showSubstitutionHistory && (
+                <div className="substitution-history-section">
+                  <h3>Substitution History</h3>
+                  <SubstitutionHistory
+                    gameId={gameId || ''}
+                    substitutions={[]} // This would be populated from game state
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Runner advancement panel */}
         {showRunnerAdvancement && (
           <div className="runner-advancement-overlay">
             <div className="runner-advancement-container">
               <RunnerAdvancementPanel
                 currentGameState={{
-                  ...(activeGameState.currentBatter && {
+                  ...(activeGameState?.currentBatter && {
                     currentBatter: {
                       id: activeGameState.currentBatter.id,
                       name: activeGameState.currentBatter.name,
                     },
                   }),
-                  bases: activeGameState.bases,
-                  inning: activeGameState.currentInning,
-                  isTopOfInning: activeGameState.isTopHalf,
+                  bases: activeGameState?.bases || { first: null, second: null, third: null },
+                  inning: activeGameState?.currentInning || 1,
+                  isTopOfInning: activeGameState?.isTopHalf || true,
                 }}
                 {...(pendingAtBatResult && {
                   atBatResult: {
@@ -995,6 +1236,56 @@ export function GameRecordingPage(): ReactElement {
         >
           📊
         </button>
+
+        {/* Phase 5: Lineup Editor Modal */}
+        {showLineupEditor && (
+          <div className="lineup-editor-overlay">
+            <div
+              className="lineup-editor-modal"
+              data-testid="lineup-editor-modal"
+              role="dialog"
+              aria-labelledby="lineup-editor-title"
+            >
+              <div className="modal-header">
+                <h2 id="lineup-editor-title">Lineup Management</h2>
+                <button
+                  onClick={handleCloseLineupEditor}
+                  className="close-modal-button"
+                  aria-label="Close lineup editor"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="modal-content">
+                <LineupEditor
+                  gameId={gameId || ''}
+                  onSubstitutionComplete={() => handleSubstitutionComplete()}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Phase 5: Substitution Dialog */}
+        {showSubstitutionDialog && selectedPlayerForSubstitution && (
+          <div className="substitution-dialog-overlay">
+            <SubstitutionDialog
+              isOpen={showSubstitutionDialog}
+              onClose={handleSubstitutionCancel}
+              onConfirm={data => Promise.resolve(handleSubstitutionComplete(data))}
+              gameId={gameId || ''}
+              currentPlayer={{
+                playerId: selectedPlayerForSubstitution.playerId,
+                battingSlot: Math.min(
+                  10,
+                  Math.max(1, selectedPlayerForSubstitution.battingSlot)
+                ) as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10,
+                fieldPosition: FieldPosition.PITCHER, // Default field position
+              }}
+              benchPlayers={[]} // This would be populated from game state
+            />
+          </div>
+        )}
       </div>
     </ErrorBoundary>
   );

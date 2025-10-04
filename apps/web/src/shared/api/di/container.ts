@@ -1,97 +1,54 @@
 /**
- * @file Dependency Injection Container
- * Central dependency injection container for the Web layer following Hexagonal Architecture.
+ * @file Shared DI Container
+ * Pure infrastructure-level dependency injection utilities for the shared layer.
  *
  * @remarks
- * This container provides centralized dependency injection using the new DIContainer
- * pattern with Dynamic Import. It maintains strict architectural boundaries and uses
- * the clean Application-only approach to avoid any Infrastructure dependencies.
+ * This container provides shared infrastructure utilities that can be used
+ * across different layers of the application. It follows Feature-Sliced Design
+ * principles by staying within the shared layer boundaries.
  *
- * **Architectural Compliance**:
- * - Web layer only imports from Application layer
- * - Uses DIContainer with dynamic imports for service creation
- * - No Web layer Infrastructure dependencies whatsoever
- * - Clean hexagonal architecture compliance
- * - No dependency-cruiser exceptions needed
+ * **Architecture Compliance**:
+ * - Shared layer utilities only
+ * - No imports from features/entities/widgets/pages layers
+ * - Provides reusable DI patterns and utilities
+ * - Can be imported by higher layers (features, widgets, pages, app)
  *
  * **Key Responsibilities**:
- * - Use DIContainer for enhanced dependency injection
- * - Add web-specific adapters (GameAdapter)
- * - Handle initialization errors gracefully
- * - Ensure thread-safe singleton access
+ * - Provide shared DI utility types and interfaces
+ * - Export configuration types for type sharing
+ * - Provide testing utilities for DI patterns
+ * - Maintain backward compatibility for existing imports
  *
- * **Design Patterns**:
- * - DI Container pattern with service registry and lazy loading
- * - Singleton pattern for container instance
- * - Adapter pattern for web layer integration
+ * **Migration Note**:
+ * Application-level initialization has been moved to:
+ * - `app/providers/appServices.tsx` - React provider for app-level DI
+ * - `features/app-initialization/` - Feature-level initialization logic
  *
- * **Initialization Flow**:
- * 1. Validate configuration parameters
- * 2. Create ApplicationServices using DIContainer (which dynamically imports Infrastructure)
- * 3. Wire GameAdapter with application services
- * 4. Store container instance for singleton access
+ * This file now serves as a shared utility layer only.
  *
  * @example
  * ```typescript
- * // Initialize container at app startup
- * await initializeContainer({
- *   environment: 'development',
- *   storage: 'memory',
- *   debug: true
- * });
+ * // For shared utilities and types
+ * import { ContainerConfig } from 'shared/api/di';
  *
- * // Access container in components/services
- * const container = getContainer();
- * const gameResult = await container.gameAdapter.startNewGame(gameData);
- *
- * // Access individual services
- * const logger = container.logger;
- * logger.info('Game operation completed', { gameId: 'game-123' });
+ * // For app-level services (new pattern)
+ * import { useAppServices } from 'app/providers';
+ * const { services } = useAppServices();
  * ```
  */
 
-import {
-  createApplicationServicesWithContainer,
-  type ApplicationServices,
-  type ApplicationConfig,
-  type StartNewGameCommand,
-  type AtBatResult,
-  type GameStartResult,
-  type InningEndResult,
-  type SubstitutionResult,
-  type UndoResult,
-  type RedoResult,
-} from '@twsoftball/application';
-
-import type { SetupWizardState } from '../../lib/types/game';
-import { wizardToCommand } from '../mappers/wizardToCommand';
-
-// Interface definitions to avoid forbidden imports from entities layer
-interface GameAdapter {
-  startNewGame(command: unknown): Promise<GameStartResult>;
-  startNewGameFromWizard(wizardData: unknown): Promise<GameStartResult>;
-  recordAtBat(command: unknown): Promise<AtBatResult>;
-  endInning(command: unknown): Promise<InningEndResult>;
-  substitutePlayer(command: unknown): Promise<SubstitutionResult>;
-  undoLastAction(command: unknown): Promise<UndoResult>;
-  redoLastAction(command: unknown): Promise<RedoResult>;
-}
-
-interface GameAdapterConfig {
-  startNewGame: ApplicationServices['startNewGame'];
-  recordAtBat: ApplicationServices['recordAtBat'];
-  substitutePlayer: ApplicationServices['substitutePlayer'];
-  undoLastAction: ApplicationServices['undoLastAction'];
-  redoLastAction: ApplicationServices['redoLastAction'];
-  endInning: ApplicationServices['endInning'];
-  gameRepository: ApplicationServices['gameRepository'];
-  eventStore: ApplicationServices['eventStore'];
-  logger: ApplicationServices['logger'];
-  wizardToCommand: (wizardData: SetupWizardState) => StartNewGameCommand; // WizardToCommandMapper function type
-}
+import type { ApplicationServices } from '@twsoftball/application';
 
 /**
  * Configuration interface for dependency container initialization.
+ *
+ * @remarks
+ * This interface is maintained in the shared layer for type compatibility
+ * across the application. The actual initialization is now handled by the
+ * app layer using the app-initialization feature.
+ *
+ * @deprecated Use AppInitializationConfig from features/app-initialization
+ * and AppServicesProvider from app/providers instead.
  */
 export interface ContainerConfig {
   /** Runtime environment (development/production) */
@@ -106,9 +63,10 @@ export interface ContainerConfig {
  * Complete dependency container interface providing all application services.
  *
  * @remarks
- * The container wraps ApplicationServices and adds web-specific adapters.
- * It maintains singleton instances and ensures proper dependency injection
- * throughout the application using the enhanced DIContainer pattern.
+ * This interface is maintained in the shared layer for type compatibility.
+ * For actual service access, use the new app-level pattern with useAppServices hook.
+ *
+ * @deprecated Use useAppServices hook from app/providers instead.
  */
 export interface DependencyContainer {
   // Use Cases (from ApplicationServices)
@@ -132,195 +90,96 @@ export interface DependencyContainer {
   readonly config: ApplicationServices['config'];
 
   // Web Layer Adapters
-  readonly gameAdapter: GameAdapter;
+  readonly gameAdapter: unknown; // Avoiding import from features layer
 }
-
-// Internal container storage
-let containerInstance: DependencyContainer | null = null;
-let applicationServices: ApplicationServices | null = null;
 
 /**
  * Initializes the dependency injection container with the specified configuration.
  *
  * @remarks
- * This function creates and configures all services, repositories, and adapters
- * needed by the Web layer. It follows a specific initialization order to ensure
- * proper dependency resolution and handles errors gracefully.
+ * **DEPRECATED**: This function has been moved to the app layer for proper
+ * Feature-Sliced Design compliance.
  *
- * **Initialization Steps**:
- * 1. **Configuration Validation**: Verify all required parameters
- * 2. **Application Services Creation**: Create ApplicationServices using DIContainer with dynamic imports
- * 3. **Adapter Wiring**: Configure GameAdapter with all services
- * 4. **Container Assembly**: Build final container instance
+ * **Migration Path**:
+ * 1. Remove calls to this function
+ * 2. Use AppServicesProvider in app layer instead
+ * 3. Access services through useAppServices hook
  *
- * **Error Handling**:
- * - Configuration validation errors
- * - Application service creation failures (dynamic import errors, storage initialization)
- * - Adapter configuration issues
- *
- * The function is idempotent - calling it multiple times will re-initialize
- * the container with the new configuration.
- *
+ * @deprecated Use AppServicesProvider from app/providers instead
  * @param config - Container configuration options
- * @param serviceCreator - Optional service creator function for testing (internal use)
- * @throws Error if container initialization fails
+ * @throws Error indicating migration is required
  *
  * @example
  * ```typescript
- * // Development setup with in-memory storage
- * await initializeContainer({
- *   environment: 'development',
- *   storage: 'memory',
- *   debug: true
- * });
+ * // OLD (deprecated):
+ * await initializeContainer(config);
+ * const container = getContainer();
  *
- * // Production setup with persistent IndexedDB storage
- * await initializeContainer({
- *   environment: 'production',
- *   storage: 'indexeddb',
- *   debug: false
- * });
+ * // NEW (FSD compliant):
+ * // In App.tsx
+ * <AppServicesProvider config={config}>
+ *   <YourApp />
+ * </AppServicesProvider>
+ *
+ * // In components
+ * const { services } = useAppServices();
+ * await services.gameAdapter.startNewGame(data);
  * ```
  */
-export async function initializeContainer(
-  config: ContainerConfig,
-  serviceCreator: (
-    config: ApplicationConfig
-  ) => Promise<ApplicationServices> = createApplicationServicesWithContainer
-): Promise<void> {
-  try {
-    // Step 1: Validate configuration
-    validateConfiguration(config);
-
-    // Step 2: Create application configuration
-    const applicationConfig: ApplicationConfig = {
-      environment: config.environment,
-      storage: config.storage,
-      debug: config.debug ?? false,
-    };
-
-    // Step 3: Create application services using DIContainer with dynamic imports
-    applicationServices = await serviceCreator(applicationConfig);
-
-    // Step 4: Create GameAdapter configuration
-    const gameAdapterConfig: GameAdapterConfig = {
-      startNewGame: applicationServices.startNewGame,
-      recordAtBat: applicationServices.recordAtBat,
-      substitutePlayer: applicationServices.substitutePlayer,
-      undoLastAction: applicationServices.undoLastAction,
-      redoLastAction: applicationServices.redoLastAction,
-      endInning: applicationServices.endInning,
-      gameRepository: applicationServices.gameRepository,
-      eventStore: applicationServices.eventStore,
-      logger: applicationServices.logger,
-      wizardToCommand,
-    };
-
-    // Step 5: Create GameAdapter using dynamic import
-    const { GameAdapter } = await import('../../../entities/game');
-    const gameAdapter = new GameAdapter(gameAdapterConfig);
-
-    // Step 6: Assemble final container
-    containerInstance = {
-      ...applicationServices,
-      gameAdapter,
-    };
-
-    applicationServices.logger.info('Dependency container initialized successfully', {
-      environment: config.environment,
-      storage: config.storage,
-      debug: config.debug,
-    });
-  } catch (error) {
-    // Clean up on failure
-    containerInstance = null;
-    applicationServices = null;
-
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    throw new Error(`Failed to initialize dependency container: ${errorMessage}`);
-  }
+export function initializeContainer(_config: ContainerConfig): Promise<void> {
+  throw new Error(
+    'initializeContainer has been deprecated and moved to app layer. ' +
+      'Use AppServicesProvider from app/providers instead. ' +
+      'See migration guide in container.ts for details.'
+  );
 }
 
 /**
  * Gets the initialized dependency container instance.
  *
  * @remarks
- * Provides singleton access to the dependency container. This is the primary
- * way for Web layer components to access application services and repositories.
+ * **DEPRECATED**: This function has been moved to the app layer for proper
+ * Feature-Sliced Design compliance.
  *
- * The container provides type-safe access to all services and ensures that
- * dependencies are properly initialized before use.
+ * **Migration Path**:
+ * 1. Remove calls to this function
+ * 2. Use useAppServices hook instead
+ * 3. Access services through the hook's return value
  *
- * @throws Error if container hasn't been initialized
- * @returns Initialized dependency container
+ * @deprecated Use useAppServices hook from app/providers instead
+ * @throws Error indicating migration is required
+ * @returns Never returns, always throws
  *
  * @example
  * ```typescript
- * // Access container in React components
- * function GameComponent() {
- *   const container = getContainer();
+ * // OLD (deprecated):
+ * const container = getContainer();
+ * await container.gameAdapter.startNewGame(data);
  *
- *   const startGame = async () => {
- *     const result = await container.gameAdapter.startNewGame(gameData);
- *     container.logger.info('Game started', { gameId: result.gameId });
- *   };
- *
- *   return <button onClick={startGame}>Start Game</button>;
- * }
- *
- * // Access in service classes
- * class GameService {
- *   private readonly container = getContainer();
- *
- *   async processGameAction(action: GameAction) {
- *     return this.container.recordAtBat.execute(action.command);
- *   }
- * }
+ * // NEW (FSD compliant):
+ * const { services } = useAppServices();
+ * await services.gameAdapter.startNewGame(data);
  * ```
  */
 export function getContainer(): DependencyContainer {
-  if (!containerInstance) {
-    throw new Error('Dependency container not initialized. Call initializeContainer first.');
-  }
-  return containerInstance;
+  throw new Error(
+    'getContainer has been deprecated and moved to app layer. ' +
+      'Use useAppServices hook from app/providers instead. ' +
+      'See migration guide in container.ts for details.'
+  );
 }
 
 /**
  * Resets the container instance - used for testing and cleanup.
  *
  * @remarks
- * Internal function for resetting container state, primarily used in test
- * scenarios to ensure clean test isolation. This should not be used in
- * production code except for controlled shutdown scenarios.
+ * **DEPRECATED**: This function is no longer needed with the new React-based
+ * service management pattern.
  *
+ * @deprecated No longer needed with React-based service management
  * @internal
  */
 export function resetContainer(): void {
-  containerInstance = null;
-  applicationServices = null;
-}
-
-/**
- * Validates container configuration parameters.
- *
- * @remarks
- * Ensures that all required configuration properties are present and valid
- * before attempting container initialization. This prevents partial
- * initialization failures and provides clear error messages.
- *
- * @param config - Configuration to validate
- * @throws Error if configuration is invalid
- */
-function validateConfiguration(config: ContainerConfig): void {
-  if (!config) {
-    throw new Error('Container configuration is required');
-  }
-
-  if (!config.environment || !['development', 'production'].includes(config.environment)) {
-    throw new Error('Invalid environment. Must be "development" or "production"');
-  }
-
-  if (!config.storage || !['memory', 'indexeddb'].includes(config.storage)) {
-    throw new Error('Invalid storage type. Must be "memory" or "indexeddb"');
-  }
+  // No-op for backward compatibility in tests
+  // The new React-based pattern handles cleanup automatically
 }

@@ -1,11 +1,23 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  optimizeDeps: {
+    include: ['@twsoftball/infrastructure/web', '@twsoftball/infrastructure/memory'],
+  },
   plugins: [
     react(),
+    // Bundle analyzer (only in analysis mode)
+    process.env.ANALYZE &&
+      visualizer({
+        filename: 'dist/stats.html',
+        open: true,
+        gzipSize: true,
+        brotliSize: true,
+      }),
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
@@ -65,20 +77,71 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    target: 'es2020',
     rollupOptions: {
+      external: ['@twsoftball/infrastructure/memory', '@twsoftball/infrastructure/web'],
       output: {
-        manualChunks: {
+        manualChunks: id => {
           // Vendor libraries chunk - largest dependencies
-          vendor: ['react', 'react-dom', 'react-router-dom'],
+          if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+            return 'vendor';
+          }
           // UI libraries chunk - component libraries
-          ui: ['@headlessui/react', '@tanstack/react-query'],
+          if (id.includes('@headlessui/react') || id.includes('@tanstack/react-query')) {
+            return 'ui';
+          }
           // Form and validation libraries chunk
-          forms: ['react-hook-form', '@hookform/resolvers', 'zod'],
+          if (
+            id.includes('react-hook-form') ||
+            id.includes('@hookform/resolvers') ||
+            id.includes('zod')
+          ) {
+            return 'forms';
+          }
           // Utility libraries chunk
-          utils: ['clsx', 'tailwind-merge', 'uuid', 'zustand'],
+          if (
+            id.includes('clsx') ||
+            id.includes('tailwind-merge') ||
+            id.includes('uuid') ||
+            id.includes('zustand')
+          ) {
+            return 'utils';
+          }
           // PWA and service worker chunk
-          pwa: ['workbox-window'],
+          if (id.includes('workbox-window')) {
+            return 'pwa';
+          }
+          // Lineup management feature chunk
+          if (id.includes('lineup-management') || id.includes('substitute-player')) {
+            return 'lineup';
+          }
+          // Game recording feature chunk
+          if (id.includes('game-recording') || id.includes('record-at-bat')) {
+            return 'game';
+          }
+          // Application layer chunk (business logic)
+          if (id.includes('@twsoftball/application')) {
+            return 'app-logic';
+          }
+          // Domain layer chunk (core domain)
+          if (id.includes('@twsoftball/domain')) {
+            return 'domain';
+          }
+          // Shared utilities chunk
+          if (id.includes('shared/lib') || id.includes('shared/ui')) {
+            return 'shared';
+          }
         },
+      },
+    },
+    // Optimize chunk sizes
+    chunkSizeWarningLimit: 1000,
+    // Enable minification
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
       },
     },
   },
