@@ -9,6 +9,7 @@
 export { useRecordAtBat } from './model/hooks/useRecordAtBat';
 export { useRunnerAdvancement } from './model/hooks/useRunnerAdvancement';
 export { usePerformanceOptimization } from './model/hooks/usePerformanceOptimization';
+export { useGameWithUndoRedo } from './model/hooks/useGameWithUndoRedo';
 
 // Re-export types from hooks for convenience
 export type {
@@ -21,3 +22,4 @@ export type {
   ForcedAdvance,
   UseRunnerAdvancementState,
 } from './model/hooks/useRunnerAdvancement';
+export type { UseGameWithUndoRedoReturn } from './model/hooks/useGameWithUndoRedo';

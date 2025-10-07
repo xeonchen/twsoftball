@@ -501,6 +501,77 @@ describe('useUndoRedo Hook - TDD Implementation', () => {
     });
   });
 
+  describe('State Synchronization - Loading States', () => {
+    it('should set isSyncing to true during initial state sync', async () => {
+      // Delay the getGameState response
+      let resolveGetGameState: (value: {
+        undoStack: {
+          canUndo: boolean;
+          canRedo: boolean;
+          historyPosition: number;
+          totalActions: number;
+        };
+      }) => void;
+      const getGameStatePromise = new Promise(resolve => {
+        resolveGetGameState = resolve;
+      });
+      mockGameAdapter.getGameState.mockReturnValue(getGameStatePromise);
+
+      const { result } = renderHook(() => useUndoRedo());
+
+      // Should be syncing initially
+      expect(result.current.isSyncing).toBe(true);
+
+      // Resolve the promise
+      await act(async () => {
+        resolveGetGameState!({
+          undoStack: { canUndo: true, canRedo: false, historyPosition: 1, totalActions: 1 },
+        });
+        await getGameStatePromise;
+      });
+
+      // Should finish syncing
+      expect(result.current.isSyncing).toBe(false);
+    });
+
+    it('should set isSyncing to false after sync completes', async () => {
+      mockGameAdapter.getGameState.mockResolvedValue({
+        undoStack: { canUndo: true, canRedo: false, historyPosition: 1, totalActions: 1 },
+      });
+
+      const { result } = renderHook(() => useUndoRedo());
+
+      // Wait for sync to complete
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+
+      // Should finish syncing
+      expect(result.current.isSyncing).toBe(false);
+
+      // Should have loaded state
+      expect(result.current.canUndo).toBe(true);
+    });
+
+    it('should set isSyncing to false on sync error', async () => {
+      mockGameAdapter.getGameState.mockRejectedValue(new Error('Network error'));
+
+      const { result } = renderHook(() => useUndoRedo());
+
+      // Wait for sync to fail
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+
+      // Should finish syncing
+      expect(result.current.isSyncing).toBe(false);
+
+      // Should have safe defaults
+      expect(result.current.canUndo).toBe(false);
+      expect(result.current.canRedo).toBe(false);
+    });
+  });
+
   describe('Error Handling - Infrastructure Failures', () => {
     it('should handle adapter throwing exception during undo', async () => {
       const error = new Error('Network connection lost');
@@ -566,6 +637,63 @@ describe('useUndoRedo Hook - TDD Implementation', () => {
       // Should disable both buttons on error
       expect(result.current.canUndo).toBe(false);
       expect(result.current.canRedo).toBe(false);
+    });
+
+    it('should expose sync error when getGameState fails', async () => {
+      mockGameAdapter.getGameState.mockRejectedValue(new Error('Network timeout'));
+
+      const { result } = renderHook(() => useUndoRedo());
+
+      // Wait for state sync attempt
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+
+      // Should expose error to UI
+      expect(result.current.syncError).toBe('Network timeout');
+      expect(result.current.canUndo).toBe(false);
+      expect(result.current.canRedo).toBe(false);
+      expect(result.current.isSyncing).toBe(false);
+    });
+
+    it('should clear sync error on successful sync', async () => {
+      // First sync fails
+      mockGameAdapter.getGameState.mockRejectedValue(new Error('Network timeout'));
+
+      const { result, rerender } = renderHook(() => useUndoRedo());
+
+      // Wait for failed sync
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+
+      expect(result.current.syncError).toBe('Network timeout');
+
+      // Second sync succeeds
+      mockGameAdapter.getGameState.mockResolvedValue({
+        undoStack: { canUndo: true, canRedo: false, historyPosition: 1, totalActions: 1 },
+      });
+
+      // Simulate game state change to trigger re-sync
+      mockUseGameStore.mockReturnValue({
+        ...defaultMockGameStore,
+        activeGameState: {
+          currentInning: 2, // Changed
+          isTopHalf: true,
+          outs: 0,
+        },
+      });
+
+      rerender();
+
+      // Wait for successful sync
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+
+      // Should clear error
+      expect(result.current.syncError).toBeUndefined();
+      expect(result.current.canUndo).toBe(true);
     });
   });
 });

@@ -14,7 +14,7 @@
  * import { useUndoRedo } from 'features/undo-redo';
  *
  * function GameControls() {
- *   const { undo, redo, canUndo, canRedo, isLoading } = useUndoRedo();
+ *   const { undo, redo, canUndo, canRedo, isLoading, isSyncing } = useUndoRedo();
  *   // ... use in UI
  * }
  * ```

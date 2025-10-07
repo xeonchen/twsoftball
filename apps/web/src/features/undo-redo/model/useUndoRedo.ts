@@ -59,6 +59,10 @@ export interface UseUndoRedoReturn {
   canRedo: boolean;
   /** Whether an operation is currently in progress */
   isLoading: boolean;
+  /** Whether initial state synchronization is in progress */
+  isSyncing: boolean;
+  /** Error message from sync failures (undefined if no error) */
+  syncError?: string;
   /** Result of the last undo or redo operation */
   lastResult?: UndoResult | RedoResult | undefined;
 }
@@ -91,6 +95,8 @@ export const useUndoRedo = (): UseUndoRedoReturn => {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | undefined>(undefined);
   const [lastResult, setLastResult] = useState<UndoResult | RedoResult | undefined>(undefined);
 
   // Sync undo/redo state when game changes
@@ -98,6 +104,7 @@ export const useUndoRedo = (): UseUndoRedoReturn => {
     if (!currentGame?.id || !services?.gameAdapter) {
       setCanUndo(false);
       setCanRedo(false);
+      setIsSyncing(false);
       return;
     }
 
@@ -105,6 +112,7 @@ export const useUndoRedo = (): UseUndoRedoReturn => {
     const { gameAdapter } = services;
     const gameId = currentGame.id;
 
+    setIsSyncing(true);
     const syncUndoState = async (): Promise<void> => {
       try {
         // Query current undo stack state
@@ -113,13 +121,17 @@ export const useUndoRedo = (): UseUndoRedoReturn => {
         });
 
         if (gameState?.undoStack) {
+          setSyncError(undefined); // Clear any previous errors
           setCanUndo(gameState.undoStack.canUndo);
           setCanRedo(gameState.undoStack.canRedo);
         }
-      } catch {
-        // On error, disable both buttons
+      } catch (error) {
+        // On error, set error message and disable both buttons
+        setSyncError(error instanceof Error ? error.message : 'Failed to sync undo state');
         setCanUndo(false);
         setCanRedo(false);
+      } finally {
+        setIsSyncing(false);
       }
     };
 
@@ -226,6 +238,8 @@ export const useUndoRedo = (): UseUndoRedoReturn => {
     canUndo,
     canRedo,
     isLoading,
-    lastResult,
+    isSyncing,
+    ...(syncError !== undefined && { syncError }),
+    ...(lastResult !== undefined && { lastResult }),
   };
 };
