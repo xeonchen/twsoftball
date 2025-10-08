@@ -146,7 +146,7 @@ export function useLineupManagement(gameId: string): UseLineupManagementState {
   // State management
   const [activeLineup, setActiveLineup] = useState<PositionAssignment[]>([]);
   const [benchPlayers, setBenchPlayers] = useState<BenchPlayer[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Start with true to show initial loading state
   const [error, setError] = useState<string | null>(null);
 
   // Game store for current game state

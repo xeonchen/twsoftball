@@ -257,9 +257,11 @@ export function SubstitutionDialog({
 
   // Focus management and focus trap
   useEffect(() => {
-    if (isOpen && firstFocusableRef.current) {
-      // Focus the first focusable element in the dialog
-      firstFocusableRef.current.focus();
+    if (isOpen) {
+      // Focus the dialog container initially (for accessibility)
+      if (dialogRef.current) {
+        dialogRef.current.focus();
+      }
 
       // Set up focus trap
       const dialog = dialogRef.current;

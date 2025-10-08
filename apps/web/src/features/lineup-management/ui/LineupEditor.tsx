@@ -229,7 +229,7 @@ export function LineupEditor({
         </div>
 
         {/* Batting Order Text (for test compatibility) */}
-        <div className="batting-order-label">
+        <div className="batting-order-label" data-testid="batting-order-label">
           <h3>Batting Order</h3>
         </div>
 
@@ -246,6 +246,7 @@ export function LineupEditor({
           aria-labelledby="lineup-title"
           aria-describedby="batting-order-description"
           className="lineup-list"
+          data-testid="lineup-list"
         >
           <div id="batting-order-description" className="sr-only">
             Current batting order with {activeLineup.length} players. Use Tab to navigate and Enter

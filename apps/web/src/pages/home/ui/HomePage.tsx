@@ -132,6 +132,13 @@ export const HomePage = (): ReactElement => {
     void navigate(`/game/${gameId}/stats`);
   };
 
+  /**
+   * Navigate to lineup management page
+   */
+  const handleLineupManagement = (): void => {
+    void navigate('/lineup');
+  };
+
   // Check if there's an active game in progress
   const hasActiveGame = currentGame?.status === 'active';
 
@@ -184,6 +191,18 @@ export const HomePage = (): ReactElement => {
           aria-label="Start New Game"
         >
           START NEW GAME
+        </Button>
+
+        {/* Lineup Management Navigation */}
+        <Button
+          onClick={handleLineupManagement}
+          className="lineup-management-button"
+          size="large"
+          variant="secondary"
+          data-testid="lineup-management-nav"
+          aria-label="Manage Lineup"
+        >
+          MANAGE LINEUP
         </Button>
 
         {/* Recent Games Section */}

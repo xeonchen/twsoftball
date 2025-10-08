@@ -111,8 +111,8 @@ test.describe('Lineup Editor', () => {
     // Verify lineup editor is displayed
     await expect(page.locator('[data-testid="lineup-editor"]')).toBeVisible();
 
-    // Verify lineup title
-    await expect(page.locator('h1')).toContainText('Current Lineup');
+    // Verify lineup title (use specific h1 with id)
+    await expect(page.locator('h1#lineup-title')).toContainText('Current Lineup');
 
     // Verify batting order is displayed
     await expect(page.locator('[data-testid="batting-order-label"]')).toContainText(
@@ -239,9 +239,10 @@ test.describe('Lineup Editor Accessibility', () => {
     await expect(page.locator('[role="region"][aria-label="Lineup editor"]')).toBeVisible();
     await expect(page.locator('[role="list"][aria-labelledby="lineup-title"]')).toBeVisible();
 
-    // Check for proper heading hierarchy
-    await expect(page.locator('h1')).toHaveCount(1);
-    await expect(page.locator('h1')).toHaveAttribute('id', 'lineup-title');
+    // Check for proper heading hierarchy (only one h1 on the page)
+    const h1Elements = page.locator('h1');
+    await expect(h1Elements).toHaveCount(1);
+    await expect(h1Elements).toHaveAttribute('id', 'lineup-title');
 
     // Check for proper button labels
     const substituteButtons = page.locator('button[aria-label*="Substitute"]');

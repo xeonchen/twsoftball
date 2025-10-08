@@ -40,6 +40,8 @@ Injection Container, and Event Sourcing patterns.
 
 ```bash
 pnpm test                     # Run all tests
+pnpm test:e2e                 # Run E2E tests
+pnpm test:e2e:headed          # Run E2E with UI (for debugging)
 pnpm typecheck                # TypeScript check
 pnpm lint                     # ESLint check
 pnpm format:check             # Format files
@@ -374,6 +376,122 @@ pnpm test:coverage
 # Error paths MUST be tested
 # Performance implications MUST be considered
 ```
+
+### E2E Testing with Playwright
+
+#### Test Location & Structure
+
+**Test Files**: `apps/web/e2e/`
+
+- `lineup-management/lineup-editor.spec.ts` - Lineup display and management
+- `lineup-management/substitution-workflow.spec.ts` - Player substitution flows
+- `global-setup.ts` / `global-teardown.ts` - Test environment setup
+
+**Configuration**: `apps/web/playwright.config.ts`
+
+#### Running E2E Tests
+
+```bash
+# Run all E2E tests
+pnpm --filter @twsoftball/web test:e2e
+
+# Run specific test file
+pnpm --filter @twsoftball/web test:e2e lineup-management/lineup-editor.spec.ts
+
+# Run with UI (headed mode for debugging)
+pnpm --filter @twsoftball/web test:e2e:headed
+
+# Run in debug mode
+pnpm --filter @twsoftball/web test:e2e:debug
+
+# View test report
+pnpm --filter @twsoftball/web test:e2e:report
+
+# Run specific browser
+pnpm --filter @twsoftball/web test:e2e --project=chromium
+```
+
+#### E2E Test Data Patterns
+
+E2E tests use session storage for mock data injection:
+
+```typescript
+// Test setup pattern
+await page.evaluate(testData => {
+  const gameState = {
+    gameId: 'test-game-id',
+    homeTeam: { name: 'Test Team', activeLineup: [...] },
+    // ... test data structure
+  };
+  sessionStorage.setItem('gameState', JSON.stringify(gameState));
+}, TEST_DATA);
+```
+
+**Key Points**:
+
+- Tests inject data via `sessionStorage` before navigation
+- Application reads test data in `LineupManagementPage` and `GameAdapter`
+- Test data structure must match `UITeamLineupResult` format
+- Always clear sessionStorage between tests for isolation
+
+#### E2E Test IDs
+
+All E2E-testable elements must have `data-testid` attributes:
+
+```typescript
+// Required test IDs
+<div data-testid="app-ready">           // App initialization complete
+<div data-testid="lineup-editor">       // Lineup editor component
+<div data-testid="lineup-list">         // Lineup list container
+<div data-testid="batting-order-label"> // Batting order label
+<button data-testid="lineup-management-nav"> // Navigation to lineup page
+```
+
+**Pattern**: Use kebab-case for test IDs, be specific and descriptive.
+
+#### CI Integration
+
+E2E tests run automatically in CI:
+
+- **Trigger**: Every push and PR
+- **Browser**: Chromium only (for speed)
+- **Strategy**: `continue-on-error: true` during development
+- **Artifacts**: Test results and reports uploaded for 7 days
+- **Timeout**: 15 minutes
+
+View results in GitHub Actions under "E2E Tests" job.
+
+#### Current Test Coverage
+
+**Lineup Editor** (13 tests):
+
+- ✅ 6 passing: Display, dialog, accessibility, mobile, performance
+- ⏳ 7 in progress: Loading states, error handling, keyboard nav
+
+**Substitution Workflow** (14 tests):
+
+- ⏳ Full implementation in progress
+
+**Total**: 6/27 tests passing (22%) - infrastructure complete, features in
+development
+
+#### E2E Best Practices
+
+1. **Test User Journeys**: Focus on complete workflows, not component details
+2. **Use Semantic Selectors**: Prefer `role`, `aria-label`, `data-testid` over
+   CSS classes
+3. **Wait for Elements**: Use `waitForSelector` and `toBeVisible` expectations
+4. **Session Isolation**: Clear storage between tests
+5. **Headed Mode Debugging**: Use `test:e2e:headed` to watch tests execute
+6. **Mobile Testing**: Tests run on both desktop and mobile viewports
+
+#### Troubleshooting E2E Tests
+
+**Test timeouts**: Increase timeout in test or use `page.waitFor...()` **Element
+not found**: Verify `data-testid` exists and is spelled correctly **Timing
+issues**: Add explicit waits with `waitForSelector` or `waitForLoadState` **Data
+issues**: Check sessionStorage in browser DevTools during headed runs **CI
+failures**: Download artifacts from GitHub Actions for screenshots/videos
 
 ### Code Quality
 
