@@ -237,6 +237,10 @@ ignore:
   - '**/*.stories.tsx'
   - '**/.storybook/**'
 
+  # E2E test infrastructure (not production code)
+  - '**/e2e/**'
+  - 'apps/web/e2e/**'
+
 # Path fixes for monorepo structure
 fixes:
   # Fix paths for domain package
