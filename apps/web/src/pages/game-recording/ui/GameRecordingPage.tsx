@@ -1120,6 +1120,15 @@ export function GameRecordingPage(): ReactElement {
           </div>
         )}
 
+        {/* Undo/Redo Success State - Accessibility Announcement */}
+        {lastUndoRedoResult && lastUndoRedoResult.success && (
+          <div role="status" aria-live="polite" className="sr-only">
+            {'actionsUndone' in lastUndoRedoResult
+              ? `Undo successful. ${lastUndoRedoResult.actionsUndone} action${lastUndoRedoResult.actionsUndone === 1 ? '' : 's'} undone.`
+              : `Redo successful. ${lastUndoRedoResult.actionsRedone} action${lastUndoRedoResult.actionsRedone === 1 ? '' : 's'} restored.`}
+          </div>
+        )}
+
         {/* RBI notification */}
         {rbiNotification && (
           <div className="rbi-notification">

@@ -111,6 +111,7 @@ export const useUndoRedo = (): UseUndoRedoReturn => {
     // Capture services in a const to maintain type narrowing in async function
     const { gameAdapter } = services;
     const gameId = currentGame.id;
+    let cancelled = false;
 
     setIsSyncing(true);
     const syncUndoState = async (): Promise<void> => {
@@ -120,18 +121,22 @@ export const useUndoRedo = (): UseUndoRedoReturn => {
           gameId,
         });
 
+        if (cancelled) return;
+
         if (gameState?.undoStack) {
-          setSyncError(undefined); // Clear any previous errors
-          setCanUndo(gameState.undoStack.canUndo);
-          setCanRedo(gameState.undoStack.canRedo);
+          if (!cancelled) setSyncError(undefined); // Clear any previous errors
+          if (!cancelled) setCanUndo(gameState.undoStack.canUndo);
+          if (!cancelled) setCanRedo(gameState.undoStack.canRedo);
         }
       } catch (error) {
+        if (cancelled) return;
         // On error, set error message and disable both buttons
-        setSyncError(error instanceof Error ? error.message : 'Failed to sync undo state');
-        setCanUndo(false);
-        setCanRedo(false);
+        if (!cancelled)
+          setSyncError(error instanceof Error ? error.message : 'Failed to sync undo state');
+        if (!cancelled) setCanUndo(false);
+        if (!cancelled) setCanRedo(false);
       } finally {
-        setIsSyncing(false);
+        if (!cancelled) setIsSyncing(false);
       }
     };
 
@@ -139,6 +144,9 @@ export const useUndoRedo = (): UseUndoRedoReturn => {
     // NOTE: activeGameState intentionally excluded from dependencies to prevent
     // re-sync on every game action. Button states are updated via operation results
     // (lines 164-166, 211-213), so sync is only needed on mount or gameId change.
+    return (): void => {
+      cancelled = true;
+    };
   }, [currentGame?.id, services]);
 
   /**
