@@ -28,6 +28,9 @@ import { BenchManagementWidget } from '../../../widgets/bench-management';
 import { ErrorBoundary } from '../../../widgets/error-boundary';
 import { RunnerAdvancementPanel } from '../../../widgets/runner-advancement';
 
+/** Duration to show RBI notification in milliseconds */
+const RBI_NOTIFICATION_DURATION_MS = 3000;
+
 /**
  * Game Recording Page Component
  *
@@ -431,7 +434,7 @@ export function GameRecordingPage(): ReactElement {
       // Show RBI notification if applicable
       if (result.rbiAwarded && result.rbiAwarded > 0) {
         setRbiNotification(result.rbiAwarded);
-        timers.setTimeout(() => setRbiNotification(null), 3000); // Hide after 3 seconds
+        timers.setTimeout(() => setRbiNotification(null), RBI_NOTIFICATION_DURATION_MS);
       }
 
       // Update game state through store

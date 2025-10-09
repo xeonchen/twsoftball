@@ -391,9 +391,108 @@ describe('useUndoRedo Hook - TDD Implementation', () => {
     });
   });
 
+  describe('Performance Optimization', () => {
+    it('should only sync on mount and gameId changes, not on activeGameState changes', async () => {
+      mockGameAdapter.getGameState.mockResolvedValue({
+        undoStack: { canUndo: true, canRedo: false, historyPosition: 1, totalActions: 1 },
+      });
+
+      const { rerender } = renderHook(() => useUndoRedo());
+
+      // Wait for initial sync
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+
+      // Initial call
+      expect(mockGameAdapter.getGameState).toHaveBeenCalledTimes(1);
+
+      // Change activeGameState but keep same gameId
+      mockUseGameStore.mockReturnValue({
+        ...defaultMockGameStore,
+        activeGameState: {
+          currentInning: 2, // Changed
+          isTopHalf: false, // Changed
+          outs: 1, // Changed
+        },
+      });
+
+      rerender();
+
+      // Wait for potential re-sync
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+
+      // Should NOT call getGameState again (performance optimization)
+      expect(mockGameAdapter.getGameState).toHaveBeenCalledTimes(1);
+    });
+
+    it('should re-sync when gameId changes', async () => {
+      mockGameAdapter.getGameState.mockResolvedValue({
+        undoStack: { canUndo: true, canRedo: false, historyPosition: 1, totalActions: 1 },
+      });
+
+      const { rerender } = renderHook(() => useUndoRedo());
+
+      // Wait for initial sync
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+
+      expect(mockGameAdapter.getGameState).toHaveBeenCalledTimes(1);
+
+      // Change gameId
+      mockUseGameStore.mockReturnValue({
+        currentGame: {
+          id: 'game-456', // Different game
+          homeTeam: 'Warriors',
+          awayTeam: 'Eagles',
+          status: 'active',
+        },
+        activeGameState: {
+          currentInning: 1,
+          isTopHalf: true,
+          outs: 0,
+        },
+      });
+
+      rerender();
+
+      // Wait for re-sync
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+
+      // Should call getGameState again for new game
+      expect(mockGameAdapter.getGameState).toHaveBeenCalledTimes(2);
+      expect(mockGameAdapter.getGameState).toHaveBeenLastCalledWith({
+        gameId: 'game-456',
+      });
+    });
+  });
+
   describe('State Synchronization', () => {
-    it('should sync undo/redo state with game state changes', async () => {
-      const { result, rerender } = renderHook(() => useUndoRedo());
+    it('should sync undo/redo state on mount', async () => {
+      // Mock getGameState to return undo available
+      mockGameAdapter.getGameState.mockResolvedValue({
+        undoStack: { canUndo: true, canRedo: false, historyPosition: 1, totalActions: 1 },
+      });
+
+      const { result } = renderHook(() => useUndoRedo());
+
+      // Wait for initial state sync
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      });
+
+      // Should have synced state
+      expect(result.current.canUndo).toBe(true);
+      expect(result.current.canRedo).toBe(false);
+    });
+
+    it('should update state after undo operation', async () => {
+      const { result } = renderHook(() => useUndoRedo());
 
       // Initially no actions
       expect(result.current.canUndo).toBe(false);
@@ -418,15 +517,8 @@ describe('useUndoRedo Hook - TDD Implementation', () => {
         await result.current.undo();
       });
 
-      // State should update
+      // State should update based on operation result
       expect(result.current.canUndo).toBe(false);
-      expect(result.current.canRedo).toBe(true);
-
-      // Simulate game state change (new at-bat recorded elsewhere)
-      // This would happen when the game store updates
-      rerender();
-
-      // State should remain consistent based on last operation
       expect(result.current.canRedo).toBe(true);
     });
 
@@ -455,49 +547,6 @@ describe('useUndoRedo Hook - TDD Implementation', () => {
 
       expect(result.current.lastResult).toEqual(undoResult);
       expect(result.current.lastResult?.success).toBe(true);
-    });
-
-    it('should sync undo/redo state when game state changes', async () => {
-      // Mock getGameState to return undo available
-      mockGameAdapter.getGameState.mockResolvedValue({
-        undoStack: { canUndo: true, canRedo: false, historyPosition: 1, totalActions: 1 },
-      });
-
-      const { result, rerender } = renderHook(() => useUndoRedo());
-
-      // Wait for initial state sync
-      await act(async () => {
-        await new Promise(resolve => setTimeout(resolve, 0));
-      });
-
-      // Should have synced state
-      expect(result.current.canUndo).toBe(true);
-      expect(result.current.canRedo).toBe(false);
-
-      // Simulate game state change (new action recorded)
-      mockUseGameStore.mockReturnValue({
-        ...defaultMockGameStore,
-        activeGameState: {
-          currentInning: 1,
-          isTopHalf: true,
-          outs: 1, // Changed
-        },
-      });
-
-      // Mock getGameState to return different state
-      mockGameAdapter.getGameState.mockResolvedValue({
-        undoStack: { canUndo: true, canRedo: true, historyPosition: 2, totalActions: 2 },
-      });
-
-      rerender();
-
-      // Wait for state sync
-      await act(async () => {
-        await new Promise(resolve => setTimeout(resolve, 0));
-      });
-
-      expect(result.current.canUndo).toBe(true);
-      expect(result.current.canRedo).toBe(true);
     });
   });
 
@@ -656,7 +705,7 @@ describe('useUndoRedo Hook - TDD Implementation', () => {
       expect(result.current.isSyncing).toBe(false);
     });
 
-    it('should clear sync error on successful sync', async () => {
+    it('should clear sync error on successful sync when gameId changes', async () => {
       // First sync fails
       mockGameAdapter.getGameState.mockRejectedValue(new Error('Network timeout'));
 
@@ -669,16 +718,21 @@ describe('useUndoRedo Hook - TDD Implementation', () => {
 
       expect(result.current.syncError).toBe('Network timeout');
 
-      // Second sync succeeds
+      // Second sync succeeds with different game ID
       mockGameAdapter.getGameState.mockResolvedValue({
         undoStack: { canUndo: true, canRedo: false, historyPosition: 1, totalActions: 1 },
       });
 
-      // Simulate game state change to trigger re-sync
+      // Simulate game ID change to trigger re-sync
       mockUseGameStore.mockReturnValue({
-        ...defaultMockGameStore,
+        currentGame: {
+          id: 'game-456', // Different game
+          homeTeam: 'Warriors',
+          awayTeam: 'Eagles',
+          status: 'active',
+        },
         activeGameState: {
-          currentInning: 2, // Changed
+          currentInning: 1,
           isTopHalf: true,
           outs: 0,
         },

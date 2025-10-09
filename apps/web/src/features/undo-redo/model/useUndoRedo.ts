@@ -89,7 +89,7 @@ export interface UseUndoRedoReturn {
  */
 export const useUndoRedo = (): UseUndoRedoReturn => {
   const { services } = useAppServicesContext();
-  const { currentGame, activeGameState } = useGameStore();
+  const { currentGame } = useGameStore();
 
   // Local state for undo/redo availability
   const [canUndo, setCanUndo] = useState(false);
@@ -136,7 +136,10 @@ export const useUndoRedo = (): UseUndoRedoReturn => {
     };
 
     void syncUndoState();
-  }, [currentGame?.id, services, activeGameState]);
+    // NOTE: activeGameState intentionally excluded from dependencies to prevent
+    // re-sync on every game action. Button states are updated via operation results
+    // (lines 164-166, 211-213), so sync is only needed on mount or gameId change.
+  }, [currentGame?.id, services]);
 
   /**
    * Performs an undo operation.

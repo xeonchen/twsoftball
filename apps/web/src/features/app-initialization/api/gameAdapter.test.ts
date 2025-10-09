@@ -1916,6 +1916,125 @@ describe('GameAdapter', () => {
     });
   });
 
+  describe('getGameState - Undo Stack Analysis', () => {
+    it('should return canUndo=false, canRedo=false when no events exist', async () => {
+      (
+        mockEventStore.getEvents as MockedFunction<typeof mockEventStore.getEvents>
+      ).mockResolvedValue([]);
+
+      const result = await gameAdapter.getGameState({ gameId: 'game-123' });
+
+      expect(result.undoStack).toEqual({
+        canUndo: false,
+        canRedo: false,
+        historyPosition: 0,
+        totalActions: 0,
+      });
+    });
+
+    it('should return canUndo=true, canRedo=false with 1 action and no undos', async () => {
+      (
+        mockEventStore.getEvents as MockedFunction<typeof mockEventStore.getEvents>
+      ).mockResolvedValue([{ data: JSON.stringify({ type: 'AtBatCompleted' }) }] as never[]);
+
+      const result = await gameAdapter.getGameState({ gameId: 'game-123' });
+
+      expect(result.undoStack).toEqual({
+        canUndo: true,
+        canRedo: false,
+        historyPosition: 1,
+        totalActions: 1,
+      });
+    });
+
+    it('should return canUndo=false, canRedo=true after 1 undo (1 ActionUndone event)', async () => {
+      (
+        mockEventStore.getEvents as MockedFunction<typeof mockEventStore.getEvents>
+      ).mockResolvedValue([
+        { data: JSON.stringify({ type: 'AtBatCompleted' }) },
+        { data: JSON.stringify({ type: 'ActionUndone' }) },
+      ] as never[]);
+
+      const result = await gameAdapter.getGameState({ gameId: 'game-123' });
+
+      expect(result.undoStack).toEqual({
+        canUndo: false,
+        canRedo: true,
+        historyPosition: 0,
+        totalActions: 2,
+      });
+    });
+
+    it('should return canUndo=true, canRedo=false after 1 undo + 1 redo', async () => {
+      (
+        mockEventStore.getEvents as MockedFunction<typeof mockEventStore.getEvents>
+      ).mockResolvedValue([
+        { data: JSON.stringify({ type: 'AtBatCompleted' }) },
+        { data: JSON.stringify({ type: 'ActionUndone' }) },
+        { data: JSON.stringify({ type: 'ActionRedone' }) },
+      ] as never[]);
+
+      const result = await gameAdapter.getGameState({ gameId: 'game-123' });
+
+      expect(result.undoStack).toEqual({
+        canUndo: true,
+        canRedo: false,
+        historyPosition: 1,
+        totalActions: 3,
+      });
+    });
+
+    it('should handle multiple undo/redo events correctly', async () => {
+      (
+        mockEventStore.getEvents as MockedFunction<typeof mockEventStore.getEvents>
+      ).mockResolvedValue([
+        { data: JSON.stringify({ type: 'AtBatCompleted' }) },
+        { data: JSON.stringify({ type: 'AtBatCompleted' }) },
+        { data: JSON.stringify({ type: 'AtBatCompleted' }) },
+        { data: JSON.stringify({ type: 'ActionUndone' }) }, // Undo 1
+        { data: JSON.stringify({ type: 'ActionUndone' }) }, // Undo 2
+        { data: JSON.stringify({ type: 'ActionRedone' }) }, // Redo 1
+      ] as never[]);
+
+      const result = await gameAdapter.getGameState({ gameId: 'game-123' });
+
+      // Total: 6 events (3 AtBatCompleted, 2 ActionUndone, 1 ActionRedone)
+      // Actual game events: 3 (excluding undo/redo markers)
+      // Undone: 2, Redone: 1
+      // Position = 3 - 2 + 1 = 2
+      // canUndo = position > 0 = true
+      // canRedo = undone > redone = 2 > 1 = true
+      expect(result.undoStack).toEqual({
+        canUndo: true,
+        canRedo: true,
+        historyPosition: 2,
+        totalActions: 6,
+      });
+    });
+
+    it('should validate required gameId', async () => {
+      await expect(gameAdapter.getGameState({ gameId: '' })).rejects.toThrow(
+        'Missing required data: gameId is required'
+      );
+    });
+
+    it('should handle eventStore errors gracefully', async () => {
+      (
+        mockEventStore.getEvents as MockedFunction<typeof mockEventStore.getEvents>
+      ).mockRejectedValue(new Error('Database connection failed'));
+
+      await expect(gameAdapter.getGameState({ gameId: 'game-123' })).rejects.toThrow(
+        'Database connection failed'
+      );
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Game adapter: Failed to get game state',
+        expect.any(Error),
+        { uiData: { gameId: 'game-123' } }
+      );
+    });
+  });
+
   describe('makeSubstitution', () => {
     it('should make substitution successfully with proper validation', async () => {
       // Mock successful substitution result
