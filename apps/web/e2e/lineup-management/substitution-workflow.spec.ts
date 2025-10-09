@@ -280,12 +280,17 @@ test.describe('Substitution Accessibility', () => {
     await setupActiveGame(lineupPage);
   });
 
-  test('should maintain focus during substitution workflow', async ({ page }) => {
+  test('should maintain focus during substitution workflow', async ({ page, browserName }) => {
     await page.waitForTimeout(2000);
 
     // Tab through page elements
-    await page.keyboard.press('Tab');
-    await page.keyboard.press('Tab');
+    // WebKit (Safari) requires Alt+Tab for full keyboard navigation on macOS/iOS
+    // This is because Safari has a system-level "Full Keyboard Access" setting
+    // that defaults to "Text boxes and lists only". Alt+Tab simulates the
+    // "All Controls" mode for testing purposes.
+    const tabKey = browserName === 'webkit' ? 'Alt+Tab' : 'Tab';
+    await page.keyboard.press(tabKey);
+    await page.keyboard.press(tabKey);
 
     // Check that focus is managed
     const focusedElement = page.locator(':focus');

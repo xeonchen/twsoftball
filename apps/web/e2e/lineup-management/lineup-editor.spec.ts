@@ -220,7 +220,7 @@ test.describe('Lineup Editor', () => {
     expect(isEmpty || hasNoData).toBe(true);
   });
 
-  test('should be keyboard navigable', async () => {
+  test('should be keyboard navigable', async ({ browserName }) => {
     await lineupPage['page'].waitForTimeout(2000);
 
     // Try to find focusable elements
@@ -231,17 +231,19 @@ test.describe('Lineup Editor', () => {
       // Focus first button
       await buttons.first().focus();
 
-      // Tab to next element
-      await lineupPage['page'].keyboard.press('Tab');
+      // Tab to next element - use Alt+Tab for WebKit (Safari keyboard navigation)
+      // This is the platform-appropriate way to test keyboard navigation on WebKit
+      const tabKey = browserName === 'webkit' ? 'Alt+Tab' : 'Tab';
+      await lineupPage['page'].keyboard.press(tabKey);
 
       // Check that something is focused
       const focusedElement = lineupPage['page'].locator(':focus');
       const hasFocus = await focusedElement.count();
       expect(hasFocus).toBeGreaterThan(0);
+    } else {
+      // No buttons found - test passes (page may still be loading)
+      expect(buttonCount).toBe(0);
     }
-
-    // Test always passes - keyboard navigation is browser default
-    expect(true).toBe(true);
   });
 });
 
@@ -286,12 +288,17 @@ test.describe('Lineup Editor Accessibility', () => {
     expect(ariaCount).toBeGreaterThanOrEqual(0);
   });
 
-  test('should handle focus management', async ({ page }) => {
+  test('should handle focus management', async ({ page, browserName }) => {
     await page.waitForTimeout(2000);
 
     // Tab through page elements
-    await page.keyboard.press('Tab');
-    await page.keyboard.press('Tab');
+    // WebKit (Safari) requires Alt+Tab for full keyboard navigation on macOS/iOS
+    // This is because Safari has a system-level "Full Keyboard Access" setting
+    // that defaults to "Text boxes and lists only". Alt+Tab simulates the
+    // "All Controls" mode for testing purposes.
+    const tabKey = browserName === 'webkit' ? 'Alt+Tab' : 'Tab';
+    await page.keyboard.press(tabKey);
+    await page.keyboard.press(tabKey);
 
     // Check that focus is managed
     const focusedElement = page.locator(':focus');

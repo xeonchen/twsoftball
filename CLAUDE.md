@@ -608,6 +608,44 @@ View results in GitHub Actions under "E2E Tests" job.
 8. **Page Objects**: Use `LineupManagementPage` for maintainable selectors
 9. **Fixtures**: Use `gameStateFixtures.ts` for consistent test data
 10. **No Production Test Code**: Keep all test logic in E2E directory
+11. **Browser-Aware Keyboard Navigation**: Use `Alt+Tab` for WebKit, `Tab` for
+    other browsers (see WebKit Keyboard Navigation Pattern below)
+
+#### WebKit Keyboard Navigation Pattern
+
+**Important**: WebKit (Safari) requires special keyboard handling for E2E tests
+due to macOS/iOS "Full Keyboard Access" system settings.
+
+**Problem**: Safari defaults to "Text boxes and lists only" mode for keyboard
+navigation, which prevents standard `Tab` key from navigating through all
+interactive elements (buttons, links, etc.).
+
+**Solution**: Use browser-aware keyboard navigation in tests:
+
+```typescript
+test('should handle keyboard navigation', async ({ page, browserName }) => {
+  // WebKit requires Alt+Tab to simulate "All Controls" keyboard access mode
+  // Other browsers (Chromium, Firefox) use standard Tab key
+  const tabKey = browserName === 'webkit' ? 'Alt+Tab' : 'Tab';
+
+  await page.keyboard.press(tabKey);
+  await page.keyboard.press(tabKey);
+
+  // Verify focus management
+  const focusedElement = page.locator(':focus');
+  expect(await focusedElement.count()).toBeGreaterThan(0);
+});
+```
+
+**When to use**:
+
+- All keyboard navigation tests that tab through interactive elements
+- Focus management tests
+- Accessibility tests validating keyboard-only workflows
+
+**Why this works**: `Alt+Tab` in Playwright simulates the macOS "Full Keyboard
+Access" mode that allows keyboard navigation to all controls, not just text
+fields.
 
 #### Troubleshooting E2E Tests
 
@@ -624,6 +662,9 @@ View results in GitHub Actions under "E2E Tests" job.
 
 **Store not updating**: Ensure `window.dispatchEvent(new Event('storage'))` is
 called after sessionStorage updates
+
+**WebKit keyboard navigation failing**: Use `Alt+Tab` for WebKit instead of
+`Tab` (see WebKit Keyboard Navigation Pattern above)
 
 ### Code Quality
 
