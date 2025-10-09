@@ -51,6 +51,12 @@ export default defineConfig({
         '**/*.perf.test.{ts,tsx}',
         '**/test/**',
         '**/__tests__/**',
+        // E2E test infrastructure (not production code)
+        'e2e/**',
+        '**/e2e/**',
+        // Configuration files
+        '**/*.config.{ts,js}',
+        'src/test/**',
       ],
       // Web layer thresholds (UI testing has diminishing returns)
       thresholds: {
