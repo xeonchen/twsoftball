@@ -2361,4 +2361,70 @@ describe('GameAdapter', () => {
       );
     });
   });
+
+  describe('substitutePlayer - Error Paths', () => {
+    it('should throw error when outgoing player not found in any lineup', async () => {
+      // Mock game repository to return a game
+      const mockGame = {
+        id: { value: 'game-1' },
+        currentInning: 1,
+      };
+      (
+        mockGameRepository.findById as MockedFunction<typeof mockGameRepository.findById>
+      ).mockResolvedValue(mockGame as unknown);
+
+      // Mock team lineup repository to return lineups that DON'T contain the outgoing player
+      const mockHomeLineup = {
+        id: { value: 'home-lineup-1', equals: vi.fn().mockReturnValue(true) },
+        getPlayerInfo: vi.fn().mockReturnValue(undefined), // Player not found
+        getActiveLineup: vi.fn().mockReturnValue([]),
+      };
+
+      const mockAwayLineup = {
+        id: { value: 'away-lineup-1', equals: vi.fn().mockReturnValue(true) },
+        getPlayerInfo: vi.fn().mockReturnValue(undefined), // Player not found
+        getActiveLineup: vi.fn().mockReturnValue([]),
+      };
+
+      (
+        mockTeamLineupRepository.findByGameIdAndSide as MockedFunction<
+          typeof mockTeamLineupRepository.findByGameIdAndSide
+        >
+      )
+        .mockResolvedValueOnce(mockHomeLineup as unknown)
+        .mockResolvedValueOnce(mockAwayLineup as unknown);
+
+      const uiData = {
+        gameId: 'game-1',
+        outgoingPlayerId: 'nonexistent-player',
+        incomingPlayerId: 'player-2',
+        newPosition: 'RF',
+      };
+
+      await expect(gameAdapter.substitutePlayer(uiData)).rejects.toThrow(
+        'Outgoing player nonexistent-player not found in any team lineup'
+      );
+    });
+  });
+
+  describe('endInning - Error Paths', () => {
+    it('should throw error when game not found', async () => {
+      // Mock game repository to return null (game not found)
+      (
+        mockGameRepository.findById as MockedFunction<typeof mockGameRepository.findById>
+      ).mockResolvedValue(null);
+
+      const uiData = {
+        gameId: 'nonexistent-game',
+      };
+
+      await expect(gameAdapter.endInning(uiData)).rejects.toThrow('Game not found');
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Game adapter: Failed to end inning',
+        expect.any(Error),
+        { uiData }
+      );
+    });
+  });
 });
