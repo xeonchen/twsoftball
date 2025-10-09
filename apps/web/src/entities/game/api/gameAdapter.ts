@@ -47,6 +47,7 @@ import {
   JerseyNumber,
   TeamLineupId,
   FieldPosition,
+  JERSEY_NUMBERS,
 } from '@twsoftball/application';
 import type {
   AtBatResultType,
@@ -66,6 +67,7 @@ import type {
   UndoResult,
   EventStore,
   GameRepository,
+  TeamLineupRepository,
   Logger,
   EndInning,
   RecordAtBat,
@@ -76,6 +78,34 @@ import type {
 } from '@twsoftball/application';
 
 import type { SetupWizardState } from '../../../shared/lib/types';
+
+/**
+ * Interface representing lineup slot information for substitution logic.
+ */
+interface LineupSlot {
+  readonly currentPlayer: PlayerId;
+  readonly position: number;
+}
+
+/**
+ * Interface representing player information from team lineup.
+ */
+interface PlayerInfo {
+  readonly playerId: PlayerId;
+  readonly jerseyNumber: JerseyNumber;
+  readonly playerName: string;
+  readonly isStarter: boolean;
+  readonly hasUsedReentry: boolean;
+}
+
+/**
+ * Interface representing team lineup for substitution operations.
+ */
+interface TeamLineupForSubstitution {
+  readonly id: TeamLineupId;
+  getPlayerInfo(playerId: PlayerId): PlayerInfo | undefined;
+  getActiveLineup(): LineupSlot[];
+}
 
 // wizardToCommand is now passed as a dependency to avoid circular imports
 
@@ -105,6 +135,7 @@ export interface GameAdapterConfig {
   redoLastAction: RedoLastAction;
   endInning: EndInning;
   gameRepository: GameRepository;
+  teamLineupRepository: TeamLineupRepository;
   eventStore: EventStore;
   logger: Logger;
   wizardToCommand: WizardToCommandMapper;
@@ -175,6 +206,37 @@ export interface UIRunnerAdvanceData {
 }
 
 /**
+ * UI-friendly team lineup result interface.
+ */
+export interface UITeamLineupResult {
+  success: boolean;
+  gameId: GameId;
+  activeLineup: Array<{
+    battingSlot: number;
+    playerId: string;
+    fieldPosition: FieldPosition;
+  }>;
+  benchPlayers: unknown[];
+  substitutionHistory: unknown[];
+}
+
+/**
+ * UI-friendly substitution result interface.
+ */
+export interface UISubstitutionResult {
+  success: boolean;
+  gameId: GameId;
+  substitution: {
+    inning: number;
+    battingSlot: number;
+    outgoingPlayer: { playerId: PlayerId; name: string };
+    incomingPlayer: { playerId: PlayerId; name: string };
+    timestamp: Date;
+    isReentry: boolean;
+  };
+}
+
+/**
  * UI-friendly game state interface.
  */
 export interface UIGameState {
@@ -214,6 +276,13 @@ export interface UIGameState {
  */
 export class GameAdapter {
   constructor(private readonly config: GameAdapterConfig) {}
+
+  /**
+   * Logger property for external access (e.g., useGameSetup).
+   */
+  get logger(): Logger {
+    return this.config.logger;
+  }
 
   /**
    * Starts a new game from wizard state data.
@@ -325,7 +394,7 @@ export class GameAdapter {
     }
 
     try {
-      const command = this.toSubstitutePlayerCommand(uiData);
+      const command = await this.toSubstitutePlayerCommand(uiData);
       return await this.config.substitutePlayer.execute(command);
     } catch (error) {
       this.config.logger.error(
@@ -386,6 +455,57 @@ export class GameAdapter {
   }
 
   /**
+   * Gets the current game state including undo/redo stack information.
+   *
+   * @param uiData - Request data containing gameId
+   * @returns Promise resolving to game state with undo stack info
+   */
+  async getGameState(uiData: { gameId: string }): Promise<{
+    undoStack?: {
+      canUndo: boolean;
+      canRedo: boolean;
+      historyPosition: number;
+      totalActions: number;
+    };
+  }> {
+    if (!uiData.gameId) {
+      throw new Error('Missing required data: gameId is required');
+    }
+
+    try {
+      const gameId = new GameId(uiData.gameId);
+
+      // Get all events for the game to determine undo/redo availability
+      const events = await this.config.eventStore.getEvents(gameId);
+
+      // Events are returned in order (oldest first)
+      // The undo stack works by tracking which events have been undone
+      // For simplicity, we check if there are any events at all for canUndo
+      // canRedo would be true if there are undone events, but we don't track that
+      // in this simple implementation - it gets updated after undo/redo operations
+
+      const totalActions = events.length;
+      const canUndo = totalActions > 0;
+
+      return {
+        undoStack: {
+          canUndo,
+          canRedo: false, // This will be updated after undo operations
+          historyPosition: totalActions,
+          totalActions,
+        },
+      };
+    } catch (error) {
+      this.config.logger.error(
+        'Game adapter: Failed to get game state',
+        error instanceof Error ? error : new Error(String(error)),
+        { uiData }
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Ends the current inning.
    *
    * @param uiData - End inning request data from the UI
@@ -397,7 +517,7 @@ export class GameAdapter {
     }
 
     try {
-      const command = this.toEndInningCommand(uiData);
+      const command = await this.toEndInningCommand(uiData);
       return await this.config.endInning.execute(command);
     } catch (error) {
       this.config.logger.error(
@@ -415,62 +535,52 @@ export class GameAdapter {
    * @param uiData - Request data containing gameId
    * @returns Promise resolving to team lineup data
    */
-  async getTeamLineup(uiData: { gameId: string }): Promise<unknown> {
-    await Promise.resolve(); // Satisfy eslint require-await
-
+  async getTeamLineup(uiData: { gameId: string }): Promise<UITeamLineupResult> {
     if (!uiData.gameId) {
       throw new Error('Missing required data: gameId is required');
     }
 
     try {
-      // For now, return mock data that matches what tests expect
-      // TODO: Implement actual lineup retrieval from game repository
-      const mockActiveLineup = [
-        { battingSlot: 1, playerId: 'player-1', fieldPosition: FieldPosition.SHORTSTOP },
-        { battingSlot: 2, playerId: 'player-2', fieldPosition: FieldPosition.SECOND_BASE },
-        { battingSlot: 3, playerId: 'player-3', fieldPosition: FieldPosition.FIRST_BASE },
-        { battingSlot: 4, playerId: 'player-4', fieldPosition: FieldPosition.THIRD_BASE },
-        { battingSlot: 5, playerId: 'player-5', fieldPosition: FieldPosition.CATCHER },
-        { battingSlot: 6, playerId: 'player-6', fieldPosition: FieldPosition.PITCHER },
-        { battingSlot: 7, playerId: 'player-7', fieldPosition: FieldPosition.LEFT_FIELD },
-        { battingSlot: 8, playerId: 'player-8', fieldPosition: FieldPosition.CENTER_FIELD },
-        { battingSlot: 9, playerId: 'player-9', fieldPosition: FieldPosition.RIGHT_FIELD },
-        { battingSlot: 10, playerId: 'player-10', fieldPosition: FieldPosition.EXTRA_PLAYER },
-      ];
+      // Retrieve home team lineup from repository (assuming we're managing home team)
+      const gameId = new GameId(uiData.gameId);
+      const homeLineup = await this.config.teamLineupRepository.findByGameIdAndSide(gameId, 'HOME');
 
-      const mockBenchPlayers = [
-        {
-          id: 'bench-1',
-          name: 'Bench Player 1',
-          jerseyNumber: '15',
-          isStarter: false,
-          hasReentered: false,
-          entryInning: null,
-        },
-        {
-          id: 'bench-2',
-          name: 'Bench Player 2',
-          jerseyNumber: '16',
-          isStarter: false,
-          hasReentered: false,
-          entryInning: null,
-        },
-        {
-          id: 'starter-sub-1',
-          name: 'Substituted Starter',
-          jerseyNumber: '7',
-          isStarter: true,
-          hasReentered: false,
-          entryInning: null,
-        },
-      ];
+      if (!homeLineup) {
+        throw new Error('Game not found');
+      }
+
+      // Transform active lineup from domain objects to UI format using getActiveLineup()
+      const activeSlots = homeLineup.getActiveLineup();
+      const fieldPositions = homeLineup.getFieldingPositions();
+
+      const activeLineup = activeSlots.map(slot => {
+        // Find the player's actual field position from the fielding positions map
+        let fieldPosition: FieldPosition | undefined;
+        for (const [position, playerId] of fieldPositions.entries()) {
+          if (playerId.equals(slot.currentPlayer)) {
+            fieldPosition = position;
+            break;
+          }
+        }
+
+        return {
+          battingSlot: slot.position,
+          playerId: slot.currentPlayer.value,
+          fieldPosition: fieldPosition || FieldPosition.EXTRA_PLAYER, // Default to EXTRA_PLAYER if not found in field positions
+        };
+      });
+
+      // For now, return empty arrays for bench players and substitution history
+      // since the domain model doesn't expose these directly
+      const benchPlayers: unknown[] = [];
+      const substitutionHistory: unknown[] = [];
 
       return {
         success: true,
         gameId: new GameId(uiData.gameId),
-        activeLineup: mockActiveLineup,
-        benchPlayers: mockBenchPlayers,
-        substitutionHistory: [],
+        activeLineup,
+        benchPlayers,
+        substitutionHistory,
       };
     } catch (error) {
       this.config.logger.error(
@@ -495,9 +605,7 @@ export class GameAdapter {
     battingSlot: number;
     fieldPosition: FieldPosition;
     isReentry: boolean;
-  }): Promise<unknown> {
-    await Promise.resolve(); // Satisfy eslint require-await
-
+  }): Promise<UISubstitutionResult> {
     if (
       !uiData.gameId ||
       !uiData.outgoingPlayerId ||
@@ -511,30 +619,61 @@ export class GameAdapter {
     }
 
     try {
-      // Use the existing substitutePlayer method with proper command mapping
-      const command = {
+      // Get game to access current inning
+      const game = await this.config.gameRepository.findById(new GameId(uiData.gameId));
+
+      if (!game) {
+        throw new Error('Game not found');
+      }
+
+      // Get current inning from game state using correct property
+      const currentInning = game.currentInning;
+
+      // Get home team lineup to find player names
+      const gameId = new GameId(uiData.gameId);
+      const homeLineup = await this.config.teamLineupRepository.findByGameIdAndSide(gameId, 'HOME');
+
+      if (!homeLineup) {
+        throw new Error('Team lineup not found');
+      }
+
+      // Get player names from the team lineup
+      const outgoingPlayerInfo = homeLineup.getPlayerInfo(new PlayerId(uiData.outgoingPlayerId));
+      const incomingPlayerInfo = homeLineup.getPlayerInfo(new PlayerId(uiData.incomingPlayerId));
+
+      if (!outgoingPlayerInfo) {
+        throw new Error(`Outgoing player ${uiData.outgoingPlayerId} not found in team lineup`);
+      }
+
+      // Incoming player might not be in the lineup yet if they're a new substitute
+      const outgoingPlayer = { name: outgoingPlayerInfo.playerName };
+      const incomingPlayer = { name: incomingPlayerInfo?.playerName || 'New Substitute' };
+
+      // Create the substitution command for the use case
+      const command = await this.toSubstitutePlayerCommand({
         gameId: uiData.gameId,
         outgoingPlayerId: uiData.outgoingPlayerId,
         incomingPlayerId: uiData.incomingPlayerId,
-        newPosition: uiData.fieldPosition,
-      };
+        newPosition: uiData.fieldPosition as string,
+      });
 
-      await this.substitutePlayer(command);
+      // Execute the substitution through the existing use case
+      await this.config.substitutePlayer.execute(command);
 
-      // Return in format expected by tests
+      // Return the substitution result in UI-friendly format
       return {
         success: true,
         gameId: new GameId(uiData.gameId),
         substitution: {
-          inning: 5, // Default inning - TODO: Get from game state
+          inning: currentInning,
           battingSlot: uiData.battingSlot,
           outgoingPlayer: {
             playerId: new PlayerId(uiData.outgoingPlayerId),
-            name: 'Player Name', // TODO: Get actual player name
+            name: outgoingPlayer.name,
           },
           incomingPlayer: {
             playerId: new PlayerId(uiData.incomingPlayerId),
-            name: 'Incoming Player', // TODO: Get actual player name
+            name: incomingPlayer.name,
           },
           timestamp: new Date(),
           isReentry: uiData.isReentry,
@@ -635,18 +774,194 @@ export class GameAdapter {
     };
   }
 
-  private toSubstitutePlayerCommand(uiData: UISubstitutePlayerData): SubstitutePlayerCommand {
+  /**
+   * Finds the outgoing player's lineup information and team.
+   *
+   * @remarks
+   * Searches both home and away lineups to determine which team the outgoing player belongs to.
+   * Returns the relevant lineup and player information, or undefined if player not found.
+   *
+   * @param outgoingPlayerId - ID of the player being substituted out
+   * @param homeLineup - Home team lineup (may be null)
+   * @param awayLineup - Away team lineup (may be null)
+   * @returns Object containing lineup, team lineup ID, and player info, or undefined if not found
+   */
+  private findOutgoingPlayerInfo(
+    outgoingPlayerId: string,
+    homeLineup: TeamLineupForSubstitution | null,
+    awayLineup: TeamLineupForSubstitution | null
+  ):
+    | { lineup: TeamLineupForSubstitution; teamLineupId: TeamLineupId; playerInfo: PlayerInfo }
+    | undefined {
+    const playerId = new PlayerId(outgoingPlayerId);
+
+    // Check home lineup first
+    if (homeLineup) {
+      const playerInfo = homeLineup.getPlayerInfo(playerId);
+      if (playerInfo) {
+        return {
+          lineup: homeLineup,
+          teamLineupId: homeLineup.id,
+          playerInfo,
+        };
+      }
+    }
+
+    // Check away lineup
+    if (awayLineup) {
+      const playerInfo = awayLineup.getPlayerInfo(playerId);
+      if (playerInfo) {
+        return {
+          lineup: awayLineup,
+          teamLineupId: awayLineup.id,
+          playerInfo,
+        };
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Finds the batting slot position for a player in the active lineup.
+   *
+   * @remarks
+   * Searches the active lineup to find the batting order position of the specified player.
+   * This is needed because players may move positions but retain their batting order.
+   *
+   * @param playerId - ID of the player to find
+   * @param lineup - The team lineup to search
+   * @returns The batting slot position (1-based)
+   * @throws Error if player not found in active lineup
+   */
+  private findBattingSlot(playerId: string, lineup: TeamLineupForSubstitution): number {
+    const activeLineup = lineup.getActiveLineup();
+    const playerSlot = activeLineup.find(slot => slot.currentPlayer.equals(new PlayerId(playerId)));
+
+    if (!playerSlot) {
+      throw new Error(`Player ${playerId} not found in active lineup`);
+    }
+
+    return playerSlot.position;
+  }
+
+  /**
+   * Determines incoming player information and re-entry status.
+   *
+   * @remarks
+   * Checks if the incoming player already exists in the lineup (for re-entry scenarios)
+   * or if this is a new substitute player. Determines re-entry eligibility based on
+   * softball rules.
+   *
+   * @param incomingPlayerId - ID of the player being substituted in
+   * @param relevantLineup - The lineup where the substitution is happening
+   * @returns Object with player name, jersey number, and re-entry status
+   */
+  private determineIncomingPlayerInfo(
+    incomingPlayerId: string,
+    relevantLineup: TeamLineupForSubstitution
+  ): { playerName: string; jerseyNumber: JerseyNumber; isReentry: boolean } {
+    const incomingPlayerInfo = relevantLineup.getPlayerInfo(new PlayerId(incomingPlayerId));
+
+    // Determine if this is a re-entry
+    const isReentry = Boolean(
+      incomingPlayerInfo?.isStarter && incomingPlayerInfo?.hasUsedReentry === false
+    );
+
+    // Get player name
+    const playerName = incomingPlayerInfo?.playerName || 'New Substitute';
+
+    // Get or generate jersey number
+    let jerseyNumber: JerseyNumber;
+    if (incomingPlayerInfo) {
+      jerseyNumber = incomingPlayerInfo.jerseyNumber;
+    } else {
+      jerseyNumber = this.generateAvailableJerseyNumber(relevantLineup);
+    }
+
+    return { playerName, jerseyNumber, isReentry };
+  }
+
+  /**
+   * Generates an available jersey number for a new substitute player.
+   *
+   * @remarks
+   * Finds the next available jersey number starting from SUBSTITUTE_START (50)
+   * to avoid conflicts with existing player jersey numbers. Increments until
+   * an unused number is found within the allowed range.
+   *
+   * @param lineup - The team lineup to check for used jersey numbers
+   * @returns A unique JerseyNumber value object
+   */
+  private generateAvailableJerseyNumber(lineup: TeamLineupForSubstitution): JerseyNumber {
+    let jerseyNum = JERSEY_NUMBERS.SUBSTITUTE_START;
+
+    const usedJerseys = lineup
+      .getActiveLineup()
+      .map(slot => {
+        const playerInfo = lineup.getPlayerInfo(slot.currentPlayer);
+        return playerInfo?.jerseyNumber.toNumber();
+      })
+      .filter((number): number is number => number !== undefined);
+
+    while (usedJerseys.includes(jerseyNum) && jerseyNum <= JERSEY_NUMBERS.MAX_ALLOWED) {
+      jerseyNum++;
+    }
+
+    return JerseyNumber.fromNumber(jerseyNum);
+  }
+
+  private async toSubstitutePlayerCommand(
+    uiData: UISubstitutePlayerData
+  ): Promise<SubstitutePlayerCommand> {
+    // Get current game state for inning information
+    const game = await this.config.gameRepository.findById(new GameId(uiData.gameId));
+    if (!game) {
+      throw new Error('Game not found');
+    }
+
+    // Get team lineups for player lookup
+    const gameId = new GameId(uiData.gameId);
+    const homeLineup = (await this.config.teamLineupRepository.findByGameIdAndSide(
+      gameId,
+      'HOME'
+    )) as TeamLineupForSubstitution | null;
+    const awayLineup = (await this.config.teamLineupRepository.findByGameIdAndSide(
+      gameId,
+      'AWAY'
+    )) as TeamLineupForSubstitution | null;
+
+    // Find outgoing player information and determine which team they belong to
+    const outgoingPlayerLookup = this.findOutgoingPlayerInfo(
+      uiData.outgoingPlayerId,
+      homeLineup,
+      awayLineup
+    );
+
+    if (!outgoingPlayerLookup) {
+      throw new Error(`Outgoing player ${uiData.outgoingPlayerId} not found in any team lineup`);
+    }
+
+    // Find the batting slot for the outgoing player
+    const battingSlot = this.findBattingSlot(uiData.outgoingPlayerId, outgoingPlayerLookup.lineup);
+
+    // Determine incoming player information and re-entry status
+    const incomingPlayerDetails = this.determineIncomingPlayerInfo(
+      uiData.incomingPlayerId,
+      outgoingPlayerLookup.lineup
+    );
+
     return {
       gameId: new GameId(uiData.gameId),
-      teamLineupId: new TeamLineupId(`${uiData.gameId}-home`), // Default team lineup ID
-      battingSlot: 1, // Default batting slot - this would need to come from UI
+      teamLineupId: outgoingPlayerLookup.teamLineupId,
+      battingSlot,
       outgoingPlayerId: new PlayerId(uiData.outgoingPlayerId),
       incomingPlayerId: new PlayerId(uiData.incomingPlayerId),
-      incomingPlayerName: 'Unknown Player', // Default name - this would need to come from UI
-      incomingJerseyNumber: JerseyNumber.fromNumber(99), // Valid default jersey - this would need to come from UI
+      incomingPlayerName: incomingPlayerDetails.playerName,
+      incomingJerseyNumber: incomingPlayerDetails.jerseyNumber,
       newFieldPosition: uiData.newPosition as FieldPosition,
-      inning: 1, // Default inning - this would need to come from UI
-      isReentry: false, // Default to false
+      inning: game.currentInning,
+      isReentry: incomingPlayerDetails.isReentry,
     };
   }
 
@@ -662,13 +977,20 @@ export class GameAdapter {
     };
   }
 
-  private toEndInningCommand(uiData: UIEndInningData): EndInningCommand {
+  private async toEndInningCommand(uiData: UIEndInningData): Promise<EndInningCommand> {
+    // Get current game state to get actual inning information
+    const game = await this.config.gameRepository.findById(new GameId(uiData.gameId));
+
+    if (!game) {
+      throw new Error('Game not found');
+    }
+
     return {
       gameId: new GameId(uiData.gameId),
-      inning: 1, // Default inning - this would need to come from UI
-      isTopHalf: true, // Default to top half - this would need to come from UI
-      endingReason: 'THREE_OUTS', // Default ending reason
-      finalOuts: 3, // Default to 3 outs
+      inning: game.currentInning,
+      isTopHalf: game.isTopHalf,
+      endingReason: 'THREE_OUTS', // Default ending reason - could be enhanced to come from UI
+      finalOuts: 3, // Default to 3 outs - could be enhanced to come from UI
     };
   }
 }

@@ -430,11 +430,6 @@ jobs:
     runs-on: ubuntu-latest
     name: E2E Tests
     timeout-minutes: 15
-    # TEMPORARY: Allow E2E failures during development phase
-    # Current status: 6/27 tests passing (22%)
-    # TODO: Remove 'continue-on-error' once test suite reaches 80%+ pass rate
-    # Target: 22+ tests passing before making E2E failures block CI
-    continue-on-error: true
     needs: [setup, build]
     steps:
       - name: Checkout

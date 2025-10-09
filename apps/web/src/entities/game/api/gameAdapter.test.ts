@@ -11,6 +11,7 @@ import type {
   RedoLastAction,
   EndInning,
   GameRepository,
+  TeamLineupRepository,
   EventStore,
   Logger,
   GameStartResult,
@@ -64,6 +65,14 @@ const mockGameRepository = {
   exists: vi.fn(),
   delete: vi.fn(),
 } as unknown as GameRepository;
+
+const mockTeamLineupRepository = {
+  findById: vi.fn(),
+  findByGameId: vi.fn(),
+  findByGameIdAndSide: vi.fn(),
+  save: vi.fn(),
+  delete: vi.fn(),
+} as unknown as TeamLineupRepository;
 
 const mockEventStore = {
   getEvents: vi.fn(),
@@ -124,6 +133,7 @@ describe('GameAdapter', () => {
       redoLastAction: mockRedoLastAction,
       endInning: mockEndInning,
       gameRepository: mockGameRepository,
+      teamLineupRepository: mockTeamLineupRepository,
       eventStore: mockEventStore,
       logger: mockLogger,
       wizardToCommand: mockWizardToCommand,
@@ -267,6 +277,54 @@ describe('GameAdapter', () => {
 
   describe('substitutePlayer', () => {
     it('should execute SubstitutePlayer use case with UI data', async () => {
+      // Mock game with current inning
+      const mockGame = {
+        id: { value: 'game-1' },
+        currentInning: 3,
+        isTopHalf: false,
+      };
+
+      // Mock team lineup with player info
+      const mockTeamLineup = {
+        id: { value: 'home-lineup-1' },
+        getPlayerInfo: vi.fn().mockImplementation((playerId: { value: string }): unknown => {
+          if (playerId.value === 'player-1') {
+            return {
+              playerId: { value: 'player-1' },
+              playerName: 'Player One',
+              jerseyNumber: { value: '10', toNumber: (): number => 10 },
+              isStarter: true,
+              hasUsedReentry: false,
+            };
+          }
+          if (playerId.value === 'player-2') {
+            return {
+              playerId: { value: 'player-2' },
+              playerName: 'Player Two',
+              jerseyNumber: { value: '20', toNumber: (): number => 20 },
+              isStarter: false,
+              hasUsedReentry: false,
+            };
+          }
+          return undefined;
+        }),
+        getActiveLineup: vi.fn().mockReturnValue([
+          {
+            position: 1,
+            currentPlayer: { value: 'player-1', equals: vi.fn().mockReturnValue(true) },
+          },
+        ]),
+      };
+
+      (
+        mockGameRepository.findById as MockedFunction<typeof mockGameRepository.findById>
+      ).mockResolvedValue(mockGame as unknown);
+      (
+        mockTeamLineupRepository.findByGameIdAndSide as MockedFunction<
+          typeof mockTeamLineupRepository.findByGameIdAndSide
+        >
+      ).mockResolvedValue(mockTeamLineup as unknown);
+
       const mockResult: SubstitutionResult = {
         success: true,
         gameState: {
@@ -422,6 +480,17 @@ describe('GameAdapter', () => {
 
   describe('endInning', () => {
     it('should execute EndInning use case', async () => {
+      // Mock game with current inning
+      const mockGame = {
+        id: { value: 'game-1' },
+        currentInning: 1,
+        isTopHalf: true,
+      };
+
+      (
+        mockGameRepository.findById as MockedFunction<typeof mockGameRepository.findById>
+      ).mockResolvedValue(mockGame as unknown);
+
       const mockResult: InningEndResult = {
         success: true,
         transitionType: 'HALF_INNING' as const,
@@ -782,6 +851,39 @@ describe('GameAdapter', () => {
     });
 
     it('should handle null/undefined errors', async () => {
+      // Mock the required repositories so we can test the use case error
+      const mockGame = {
+        id: { value: 'game-1' },
+        currentInning: 3,
+        isTopHalf: false,
+      };
+
+      const mockTeamLineup = {
+        id: { value: 'home-lineup-1' },
+        getPlayerInfo: vi.fn().mockReturnValue({
+          playerId: { value: 'player-1' },
+          playerName: 'Player One',
+          jerseyNumber: { value: '10', toNumber: () => 10 },
+          isStarter: true,
+          hasUsedReentry: false,
+        }),
+        getActiveLineup: vi.fn().mockReturnValue([
+          {
+            position: 1,
+            currentPlayer: { value: 'player-1', equals: vi.fn().mockReturnValue(true) },
+          },
+        ]),
+      };
+
+      (
+        mockGameRepository.findById as MockedFunction<typeof mockGameRepository.findById>
+      ).mockResolvedValue(mockGame as unknown);
+      (
+        mockTeamLineupRepository.findByGameIdAndSide as MockedFunction<
+          typeof mockTeamLineupRepository.findByGameIdAndSide
+        >
+      ).mockResolvedValue(mockTeamLineup as unknown);
+
       (
         mockSubstitutePlayer.execute as MockedFunction<typeof mockSubstitutePlayer.execute>
       ).mockRejectedValue(null);
@@ -1414,23 +1516,39 @@ describe('GameAdapter', () => {
           uiData: { gameId: 'game-1' },
           mock: mockUndoLastAction.execute,
           logMessage: 'Game adapter: Failed to undo last action',
+          needsGameMock: false,
         },
         {
           method: 'redoLastAction',
           uiData: { gameId: 'game-1' },
           mock: mockRedoLastAction.execute,
           logMessage: 'Game adapter: Failed to redo last action',
+          needsGameMock: false,
         },
         {
           method: 'endInning',
           uiData: { gameId: 'game-1' },
           mock: mockEndInning.execute,
           logMessage: 'Game adapter: Failed to end inning',
+          needsGameMock: true,
         },
       ];
 
       for (const operation of operations) {
         vi.clearAllMocks();
+
+        // Some operations need game mock because they call gameRepository.findById first
+        if (operation.needsGameMock) {
+          const mockGame = {
+            id: { value: 'game-1' },
+            currentInning: 1,
+            isTopHalf: true,
+          };
+          (
+            mockGameRepository.findById as MockedFunction<typeof mockGameRepository.findById>
+          ).mockResolvedValue(mockGame as unknown);
+        }
+
         (operation.mock as MockedFunction<unknown>).mockRejectedValue(error);
 
         await expect(

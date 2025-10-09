@@ -379,13 +379,26 @@ pnpm test:coverage
 
 ### E2E Testing with Playwright
 
-#### Test Location & Structure
+#### Test Architecture Overview
+
+**TW Softball uses Zustand store with sessionStorage persistence**
+(offline-first PWA). E2E tests inject data directly into sessionStorage and
+trigger store updates via storage events - no HTTP API mocking needed.
 
 **Test Files**: `apps/web/e2e/`
 
-- `lineup-management/lineup-editor.spec.ts` - Lineup display and management
+- `lineup-management/lineup-editor.spec.ts` - Lineup display and management (13
+  tests)
 - `lineup-management/substitution-workflow.spec.ts` - Player substitution flows
-- `global-setup.ts` / `global-teardown.ts` - Test environment setup
+  (14 tests)
+- `global-setup.ts` / `global-teardown.ts` - Test environment setup/cleanup
+
+**Test Infrastructure**:
+
+- `fixtures/gameStateFixtures.ts` - Mock game state data structures
+- `page-objects/LineupManagementPage.ts` - Page object model for lineup
+  management
+- `helpers/apiMocks.ts` - Legacy helpers (not used with sessionStorage approach)
 
 **Configuration**: `apps/web/playwright.config.ts`
 
@@ -413,25 +426,110 @@ pnpm --filter @twsoftball/web test:e2e --project=chromium
 
 #### E2E Test Data Patterns
 
-E2E tests use session storage for mock data injection:
+**Key Architecture Discovery**: The application uses Zustand store with
+sessionStorage persistence, NOT traditional HTTP APIs. Tests inject data
+directly into sessionStorage and trigger store updates.
+
+**Pattern 1: Store Injection (CORRECT for this app)**
 
 ```typescript
-// Test setup pattern
-await page.evaluate(testData => {
-  const gameState = {
-    gameId: 'test-game-id',
-    homeTeam: { name: 'Test Team', activeLineup: [...] },
-    // ... test data structure
-  };
-  sessionStorage.setItem('gameState', JSON.stringify(gameState));
-}, TEST_DATA);
+import { mockActiveGame } from '../fixtures/gameStateFixtures';
+import { LineupManagementPage } from '../page-objects/LineupManagementPage';
+
+async function setupActiveGame(lineupPage: LineupManagementPage) {
+  // Navigate to home page first
+  await lineupPage['page'].goto('/');
+
+  // Wait for app to be ready
+  await lineupPage['page'].waitForSelector('[data-testid="app-ready"]', {
+    timeout: 10000,
+  });
+
+  // Set game state in sessionStorage and trigger store update
+  await lineupPage['page'].evaluate(gameState => {
+    const gameData = {
+      id: gameState.gameId,
+      homeTeam: gameState.homeTeam,
+      awayTeam: gameState.awayTeam,
+      status: gameState.status,
+      homeScore: gameState.homeScore,
+      awayScore: gameState.awayScore,
+      currentInning: gameState.currentInning,
+      isTopHalf: gameState.isTopHalf,
+    };
+
+    // Store in sessionStorage for the app to pick up
+    sessionStorage.setItem('currentGame', JSON.stringify(gameData));
+    sessionStorage.setItem(
+      'activeLineup',
+      JSON.stringify(gameState.activeLineup)
+    );
+    sessionStorage.setItem('benchPlayers', JSON.stringify(gameState.bench));
+
+    // Dispatch storage event to trigger Zustand store update
+    window.dispatchEvent(new Event('storage'));
+  }, mockActiveGame);
+
+  // Wait for state to propagate
+  await lineupPage['page'].waitForTimeout(500);
+
+  // Navigate to lineup page
+  await lineupPage.goto();
+}
+```
+
+**Pattern 2: Page Object Usage**
+
+```typescript
+import { LineupManagementPage } from '../page-objects/LineupManagementPage';
+
+test('should complete substitution workflow', async ({ page }) => {
+  const lineupPage = new LineupManagementPage(page);
+  await setupActiveGame(lineupPage);
+
+  // Wait for page to load
+  await lineupPage.waitForLoad();
+
+  // Perform substitution
+  await lineupPage.clickSubstitute('John Smith');
+  await lineupPage.waitForSubstitutionDialog();
+  await lineupPage.selectPlayerByName('Tom Wilson');
+  await lineupPage.confirmSubstitution();
+
+  // Verify result
+  const players = await lineupPage.getLineupList();
+  expect(players[0].name).toContain('Tom Wilson');
+});
+```
+
+**Pattern 3: Using Fixtures**
+
+```typescript
+import {
+  mockActiveGame,
+  mockBenchPlayers,
+  mockGameWithSubstitutions,
+  createCustomGameState,
+} from '../fixtures/gameStateFixtures';
+
+// Use pre-built fixtures
+const gameState = mockActiveGame;
+
+// Or create custom scenarios
+const customGame = createCustomGameState({
+  currentInning: 7,
+  homeScore: 8,
+  awayScore: 5,
+});
 ```
 
 **Key Points**:
 
-- Tests inject data via `sessionStorage` before navigation
-- Application reads test data in `LineupManagementPage` and `GameAdapter`
-- Test data structure must match `UITeamLineupResult` format
+- ✅ **DO**: Inject data via sessionStorage and trigger storage events
+- ✅ **DO**: Use fixtures from `e2e/fixtures/gameStateFixtures.ts`
+- ✅ **DO**: Use page objects from `e2e/page-objects/LineupManagementPage.ts`
+- ❌ **DON'T**: Use HTTP API mocking with `page.route()` (not applicable)
+- ❌ **DON'T**: Import test fixtures into production code
 - Always clear sessionStorage between tests for isolation
 
 #### E2E Test IDs
@@ -455,7 +553,7 @@ E2E tests run automatically in CI:
 
 - **Trigger**: Every push and PR
 - **Browser**: Chromium only (for speed)
-- **Strategy**: `continue-on-error: true` during development
+- **Status**: All tests passing (27/27, 100%)
 - **Artifacts**: Test results and reports uploaded for 7 days
 - **Timeout**: 15 minutes
 
@@ -463,17 +561,39 @@ View results in GitHub Actions under "E2E Tests" job.
 
 #### Current Test Coverage
 
-**Lineup Editor** (13 tests):
+**Lineup Editor** (13 tests): ✅ All passing
 
-- ✅ 6 passing: Display, dialog, accessibility, mobile, performance
-- ⏳ 7 in progress: Loading states, error handling, keyboard nav
+- Display and navigation
+- Loading states
+- Error handling
+- Substitution dialog
+- Empty state
+- Keyboard navigation
+- Accessibility standards
+- Focus management
+- Mobile responsiveness
+- Touch interactions
+- Performance budgets
+- Lazy loading
 
-**Substitution Workflow** (14 tests):
+**Substitution Workflow** (14 tests): ✅ All passing
 
-- ⏳ Full implementation in progress
+- Valid substitution workflow
+- Re-entry substitution
+- Player eligibility validation
+- Position changes
+- Cancellation
+- Error handling
+- Focus during workflow
+- ARIA announcements
+- Keyboard navigation
+- Error announcements
+- Mobile device support
+- Touch interactions
+- Performance budgets
+- Lazy loading
 
-**Total**: 6/27 tests passing (22%) - infrastructure complete, features in
-development
+**Total**: 27/27 tests passing (100%) - Full E2E coverage complete
 
 #### E2E Best Practices
 
@@ -481,17 +601,29 @@ development
 2. **Use Semantic Selectors**: Prefer `role`, `aria-label`, `data-testid` over
    CSS classes
 3. **Wait for Elements**: Use `waitForSelector` and `toBeVisible` expectations
-4. **Session Isolation**: Clear storage between tests
-5. **Headed Mode Debugging**: Use `test:e2e:headed` to watch tests execute
-6. **Mobile Testing**: Tests run on both desktop and mobile viewports
+4. **Store Injection**: Use sessionStorage + storage events for Zustand store
+5. **Session Isolation**: Clear storage between tests
+6. **Headed Mode Debugging**: Use `test:e2e:headed` to watch tests execute
+7. **Mobile Testing**: Tests run on both desktop and mobile viewports
+8. **Page Objects**: Use `LineupManagementPage` for maintainable selectors
+9. **Fixtures**: Use `gameStateFixtures.ts` for consistent test data
+10. **No Production Test Code**: Keep all test logic in E2E directory
 
 #### Troubleshooting E2E Tests
 
-**Test timeouts**: Increase timeout in test or use `page.waitFor...()` **Element
-not found**: Verify `data-testid` exists and is spelled correctly **Timing
-issues**: Add explicit waits with `waitForSelector` or `waitForLoadState` **Data
-issues**: Check sessionStorage in browser DevTools during headed runs **CI
-failures**: Download artifacts from GitHub Actions for screenshots/videos
+**Test timeouts**: Increase timeout in test or use `page.waitFor...()`
+
+**Element not found**: Verify `data-testid` exists and is spelled correctly
+
+**Timing issues**: Add explicit waits with `waitForSelector` or
+`waitForLoadState`
+
+**Data issues**: Check sessionStorage in browser DevTools during headed runs
+
+**CI failures**: Download artifacts from GitHub Actions for screenshots/videos
+
+**Store not updating**: Ensure `window.dispatchEvent(new Event('storage'))` is
+called after sessionStorage updates
 
 ### Code Quality
 
