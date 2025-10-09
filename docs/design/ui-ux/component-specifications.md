@@ -706,6 +706,21 @@ const handleAtBatResult = useCallback(
   },
   [recordAtBat]
 );
+
+// Memoize complex return objects in custom hooks (Phase 5.3.E pattern)
+export function useGameWithUndoRedo() {
+  const gameState = useGameStore();
+  const undoRedoState = useUndoRedo();
+
+  // Prevent unnecessary re-renders by memoizing the combined return object
+  return useMemo(
+    () => ({
+      ...gameState,
+      ...undoRedoState,
+    }),
+    [gameState, undoRedoState]
+  );
+}
 ```
 
 ### Lazy Loading
@@ -733,6 +748,152 @@ interface VirtualListProps {
 }
 
 // Only render visible items for performance
+```
+
+---
+
+## React Hook Patterns (Phase 5.3.E)
+
+### Composite Hook Pattern
+
+Combine multiple focused hooks into a unified interface for better developer
+experience:
+
+```typescript
+/**
+ * Composite hook combining game state with undo/redo functionality.
+ * Provides single interface for all game operations and state.
+ *
+ * Benefits:
+ * - Single hook instead of multiple useX() calls
+ * - Automatic state synchronization
+ * - Consistent API surface
+ */
+export function useGameWithUndoRedo() {
+  // Get state from multiple sources
+  const { currentGame, activeGameState, isLoading, error } = useGameStore();
+  const {
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    isLoading: isUndoRedoLoading,
+  } = useUndoRedo();
+
+  // Combine into unified return (memoized to prevent re-renders)
+  return useMemo(
+    () => ({
+      // Game state
+      currentGame,
+      activeGameState,
+      loading: isLoading,
+      error,
+      // Undo/redo state and actions
+      undo,
+      redo,
+      canUndo,
+      canRedo,
+      isUndoRedoLoading,
+    }),
+    [
+      currentGame,
+      activeGameState,
+      isLoading,
+      error,
+      undo,
+      redo,
+      canUndo,
+      canRedo,
+      isUndoRedoLoading,
+    ]
+  );
+}
+```
+
+### Sync Loading State Pattern
+
+Separate loading states for different lifecycle phases:
+
+```typescript
+/**
+ * Hook with distinct loading states for initial sync vs operations.
+ *
+ * Pattern:
+ * - isSyncing: True during initial state synchronization
+ * - isLoading: True during user-triggered operations
+ * - syncError: Exposes sync-specific errors to UI
+ */
+export function useUndoRedo() {
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [syncError, setSyncError] = useState<string | undefined>(undefined);
+
+  // Initial sync effect
+  useEffect(() => {
+    setIsSyncing(true);
+    syncUndoState()
+      .then(() => setSyncError(undefined))
+      .catch(err => setSyncError(err.message))
+      .finally(() => setIsSyncing(false));
+  }, [dependencies]);
+
+  // Operation handlers set isLoading
+  const undo = async () => {
+    setIsLoading(true);
+    try {
+      await undoOperation();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return {
+    isSyncing, // Initial state synchronization
+    isLoading, // User operation in progress
+    syncError, // Sync-specific errors
+    undo,
+  };
+}
+```
+
+### Error Exposure Pattern
+
+Expose specific error states for granular UI feedback:
+
+```typescript
+/**
+ * Conditional error exposure pattern.
+ *
+ * Only include error properties when they have values,
+ * allowing UI to check for presence with simple truthiness.
+ */
+export function useDataWithErrors() {
+  const [syncError, setSyncError] = useState<string | undefined>(undefined);
+  const [operationError, setOperationError] = useState<Error | undefined>(undefined);
+
+  return {
+    data,
+    // Only include error properties when they exist
+    ...(syncError !== undefined && { syncError }),
+    ...(operationError !== undefined && { operationError }),
+  };
+}
+
+// Usage in components
+function Component() {
+  const { data, syncError, operationError } = useDataWithErrors();
+
+  // Simple truthiness checks work
+  if (syncError) {
+    return <ErrorMessage>Sync failed: {syncError}</ErrorMessage>;
+  }
+
+  if (operationError) {
+    return <ErrorMessage>Operation failed: {operationError.message}</ErrorMessage>;
+  }
+
+  return <DataDisplay data={data} />;
+}
 ```
 
 ---

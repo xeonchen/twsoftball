@@ -22,6 +22,9 @@ const GameSetupTeamsPage = lazy(() =>
 const GameStatsPage = lazy(() =>
   import('../../pages/game-stats').then(m => ({ default: m.GameStatsPage }))
 );
+const LineupManagementPage = lazy(() =>
+  import('../../pages/lineup-management').then(m => ({ default: m.LineupManagementPage }))
+);
 const SettingsPage = lazy(() =>
   import('../../pages/settings').then(m => ({ default: m.SettingsPage }))
 );
@@ -40,6 +43,7 @@ const SettingsPage = lazy(() =>
  * Routes defined:
  * - `/` - Home page (Screen 1: Game List)
  * - `/settings` - Settings page (Screen 9: Configuration)
+ * - `/lineup` - Lineup management page (Phase 5.3.E)
  * - `/game/setup/teams` - Team setup wizard step 1 (Screen 2)
  * - `/game/setup/lineup` - Lineup setup wizard step 2 (Screen 3)
  * - `/game/setup/confirm` - Setup confirmation step 3 (Screen 4)
@@ -72,6 +76,16 @@ export const AppRouter = (): ReactElement => {
         element={
           <Suspense fallback={<LoadingSpinner />}>
             <SettingsPage />
+          </Suspense>
+        }
+      />
+
+      {/* Lineup management route - Phase 5.3.E */}
+      <Route
+        path="/lineup"
+        element={
+          <Suspense fallback={<LoadingSpinner />}>
+            <LineupManagementPage />
           </Suspense>
         }
       />

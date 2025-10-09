@@ -455,6 +455,124 @@ export class GameAdapter {
   }
 
   /**
+   * Analyzes the undo stack by examining ActionUndone and ActionRedone events.
+   *
+   * @remarks
+   * This private method calculates the current position in the undo/redo history
+   * by analyzing compensating events (ActionUndone) and restoration events (ActionRedone).
+   *
+   * Algorithm:
+   * - Count actual game events (excluding ActionUndone/ActionRedone markers)
+   * - Count ActionUndone events (compensating events)
+   * - Count ActionRedone events (restoration events)
+   * - Position = actual events - undone + redone
+   * - canUndo = position > 0 (have actions to undo)
+   * - canRedo = undone > redone (have undone actions available to redo)
+   *
+   * @param gameId - The game ID to analyze
+   * @returns Undo stack state information
+   */
+  private async analyzeUndoStack(gameId: GameId): Promise<{
+    canUndo: boolean;
+    canRedo: boolean;
+    historyPosition: number;
+    totalActions: number;
+  }> {
+    // Get all events for the game
+    const events = await this.config.eventStore.getEvents(gameId);
+
+    // Count compensating and restoration events
+    // Note: We need to access the event data to check event types. The stored events
+    // have their type information in the data field as a JSON string.
+    type EventWithData = { data: string };
+    const undoneEvents = events.filter(event => {
+      try {
+        const data = JSON.parse((event as unknown as EventWithData).data) as { type?: string };
+        return data.type === 'ActionUndone';
+      } catch {
+        return false;
+      }
+    });
+
+    const redoneEvents = events.filter(event => {
+      try {
+        const data = JSON.parse((event as unknown as EventWithData).data) as { type?: string };
+        return data.type === 'ActionRedone';
+      } catch {
+        return false;
+      }
+    });
+
+    const undoneCount = undoneEvents.length;
+    const redoneCount = redoneEvents.length;
+
+    // Count actual game events (excluding undo/redo markers)
+    const actualGameEvents = events.filter(event => {
+      try {
+        const data = JSON.parse((event as unknown as EventWithData).data) as { type?: string };
+        return data.type !== 'ActionUndone' && data.type !== 'ActionRedone';
+      } catch {
+        return true; // If can't parse, assume it's a game event
+      }
+    });
+    const actualEventCount = actualGameEvents.length;
+
+    // Calculate current position in undo history
+    // Start with actual events, subtract undone actions, add redone actions
+    const historyPosition = actualEventCount - undoneCount + redoneCount;
+
+    // Can undo if we have a position > 0 (something to go back to)
+    const canUndo = historyPosition > 0;
+
+    // Can redo if we have more undone actions than redone actions
+    const canRedo = undoneCount > redoneCount;
+
+    return {
+      canUndo,
+      canRedo,
+      historyPosition,
+      totalActions: events.length, // Total includes all events
+    };
+  }
+
+  /**
+   * Gets the current game state including undo/redo stack information.
+   *
+   * @param uiData - Request data containing gameId
+   * @returns Promise resolving to game state with undo stack info
+   */
+  async getGameState(uiData: { gameId: string }): Promise<{
+    undoStack?: {
+      canUndo: boolean;
+      canRedo: boolean;
+      historyPosition: number;
+      totalActions: number;
+    };
+  }> {
+    if (!uiData.gameId) {
+      throw new Error('Missing required data: gameId is required');
+    }
+
+    try {
+      const gameId = new GameId(uiData.gameId);
+
+      // Analyze undo stack by examining all events
+      const undoStack = await this.analyzeUndoStack(gameId);
+
+      return {
+        undoStack,
+      };
+    } catch (error) {
+      this.config.logger.error(
+        'Game adapter: Failed to get game state',
+        error instanceof Error ? error : new Error(String(error)),
+        { uiData }
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Ends the current inning.
    *
    * @param uiData - End inning request data from the UI

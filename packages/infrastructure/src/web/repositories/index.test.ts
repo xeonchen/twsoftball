@@ -10,6 +10,7 @@ import {
   getGameRepository,
   getTeamLineupRepository,
   getInningStateRepository,
+  getEventStore,
   resetRepositories,
   type RepositoryConfig,
 } from './index';
@@ -155,6 +156,35 @@ describe('Repository Initialization Module', () => {
       expect(gameRepo).not.toBe(teamLineupRepo);
       expect(teamLineupRepo).not.toBe(inningStateRepo);
       expect(gameRepo).not.toBe(inningStateRepo);
+    });
+
+    it('should return EventStore instance', () => {
+      const eventStore = getEventStore();
+
+      expect(eventStore).toBeDefined();
+      expect(typeof eventStore.append).toBe('function');
+      expect(typeof eventStore.getEvents).toBe('function');
+    });
+
+    it('should throw error when getting EventStore before initialization', () => {
+      resetRepositories();
+
+      expect(() => getEventStore()).toThrow(
+        'Repositories not initialized. Call initializeRepositories first.'
+      );
+    });
+
+    it('should return the same EventStore instance on multiple calls', async () => {
+      const config: RepositoryConfig = {
+        environment: 'development',
+        useInMemoryStore: true,
+      };
+      await initializeRepositories(config);
+
+      const eventStore1 = getEventStore();
+      const eventStore2 = getEventStore();
+
+      expect(eventStore1).toBe(eventStore2);
     });
   });
 });

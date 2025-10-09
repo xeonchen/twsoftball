@@ -130,6 +130,15 @@ export function AppServicesProvider({
           recordAtBat: async uiData => {
             return await featureServices.gameAdapter.recordAtBat(uiData);
           },
+          undoLastAction: async uiData => {
+            return await featureServices.gameAdapter.undoLastAction(uiData);
+          },
+          redoLastAction: async uiData => {
+            return await featureServices.gameAdapter.redoLastAction(uiData);
+          },
+          getGameState: async uiData => {
+            return await featureServices.gameAdapter.getGameState(uiData);
+          },
           logger: featureServices.applicationServices.logger,
         },
       };

@@ -40,6 +40,8 @@ Injection Container, and Event Sourcing patterns.
 
 ```bash
 pnpm test                     # Run all tests
+pnpm test:e2e                 # Run E2E tests
+pnpm test:e2e:headed          # Run E2E with UI (for debugging)
 pnpm typecheck                # TypeScript check
 pnpm lint                     # ESLint check
 pnpm format:check             # Format files
@@ -374,6 +376,295 @@ pnpm test:coverage
 # Error paths MUST be tested
 # Performance implications MUST be considered
 ```
+
+### E2E Testing with Playwright
+
+#### Test Architecture Overview
+
+**TW Softball uses Zustand store with sessionStorage persistence**
+(offline-first PWA). E2E tests inject data directly into sessionStorage and
+trigger store updates via storage events - no HTTP API mocking needed.
+
+**Test Files**: `apps/web/e2e/`
+
+- `lineup-management/lineup-editor.spec.ts` - Lineup display and management (13
+  tests)
+- `lineup-management/substitution-workflow.spec.ts` - Player substitution flows
+  (14 tests)
+- `global-setup.ts` / `global-teardown.ts` - Test environment setup/cleanup
+
+**Test Infrastructure**:
+
+- `fixtures/gameStateFixtures.ts` - Mock game state data structures
+- `page-objects/LineupManagementPage.ts` - Page object model for lineup
+  management
+- `helpers/apiMocks.ts` - Legacy helpers (not used with sessionStorage approach)
+
+**Configuration**: `apps/web/playwright.config.ts`
+
+#### Running E2E Tests
+
+```bash
+# Run all E2E tests
+pnpm --filter @twsoftball/web test:e2e
+
+# Run specific test file
+pnpm --filter @twsoftball/web test:e2e lineup-management/lineup-editor.spec.ts
+
+# Run with UI (headed mode for debugging)
+pnpm --filter @twsoftball/web test:e2e:headed
+
+# Run in debug mode
+pnpm --filter @twsoftball/web test:e2e:debug
+
+# View test report
+pnpm --filter @twsoftball/web test:e2e:report
+
+# Run specific browser
+pnpm --filter @twsoftball/web test:e2e --project=chromium
+```
+
+#### E2E Test Data Patterns
+
+**Key Architecture Discovery**: The application uses Zustand store with
+sessionStorage persistence, NOT traditional HTTP APIs. Tests inject data
+directly into sessionStorage and trigger store updates.
+
+**Pattern 1: Store Injection (CORRECT for this app)**
+
+```typescript
+import { mockActiveGame } from '../fixtures/gameStateFixtures';
+import { LineupManagementPage } from '../page-objects/LineupManagementPage';
+
+async function setupActiveGame(lineupPage: LineupManagementPage) {
+  // Navigate to home page first
+  await lineupPage['page'].goto('/');
+
+  // Wait for app to be ready
+  await lineupPage['page'].waitForSelector('[data-testid="app-ready"]', {
+    timeout: 10000,
+  });
+
+  // Set game state in sessionStorage and trigger store update
+  await lineupPage['page'].evaluate(gameState => {
+    const gameData = {
+      id: gameState.gameId,
+      homeTeam: gameState.homeTeam,
+      awayTeam: gameState.awayTeam,
+      status: gameState.status,
+      homeScore: gameState.homeScore,
+      awayScore: gameState.awayScore,
+      currentInning: gameState.currentInning,
+      isTopHalf: gameState.isTopHalf,
+    };
+
+    // Store in sessionStorage for the app to pick up
+    sessionStorage.setItem('currentGame', JSON.stringify(gameData));
+    sessionStorage.setItem(
+      'activeLineup',
+      JSON.stringify(gameState.activeLineup)
+    );
+    sessionStorage.setItem('benchPlayers', JSON.stringify(gameState.bench));
+
+    // Dispatch storage event to trigger Zustand store update
+    window.dispatchEvent(new Event('storage'));
+  }, mockActiveGame);
+
+  // Wait for state to propagate
+  await lineupPage['page'].waitForTimeout(500);
+
+  // Navigate to lineup page
+  await lineupPage.goto();
+}
+```
+
+**Pattern 2: Page Object Usage**
+
+```typescript
+import { LineupManagementPage } from '../page-objects/LineupManagementPage';
+
+test('should complete substitution workflow', async ({ page }) => {
+  const lineupPage = new LineupManagementPage(page);
+  await setupActiveGame(lineupPage);
+
+  // Wait for page to load
+  await lineupPage.waitForLoad();
+
+  // Perform substitution
+  await lineupPage.clickSubstitute('John Smith');
+  await lineupPage.waitForSubstitutionDialog();
+  await lineupPage.selectPlayerByName('Tom Wilson');
+  await lineupPage.confirmSubstitution();
+
+  // Verify result
+  const players = await lineupPage.getLineupList();
+  expect(players[0].name).toContain('Tom Wilson');
+});
+```
+
+**Pattern 3: Using Fixtures**
+
+```typescript
+import {
+  mockActiveGame,
+  mockBenchPlayers,
+  mockGameWithSubstitutions,
+  createCustomGameState,
+} from '../fixtures/gameStateFixtures';
+
+// Use pre-built fixtures
+const gameState = mockActiveGame;
+
+// Or create custom scenarios
+const customGame = createCustomGameState({
+  currentInning: 7,
+  homeScore: 8,
+  awayScore: 5,
+});
+```
+
+**Key Points**:
+
+- ✅ **DO**: Inject data via sessionStorage and trigger storage events
+- ✅ **DO**: Use fixtures from `e2e/fixtures/gameStateFixtures.ts`
+- ✅ **DO**: Use page objects from `e2e/page-objects/LineupManagementPage.ts`
+- ❌ **DON'T**: Use HTTP API mocking with `page.route()` (not applicable)
+- ❌ **DON'T**: Import test fixtures into production code
+- Always clear sessionStorage between tests for isolation
+
+#### E2E Test IDs
+
+All E2E-testable elements must have `data-testid` attributes:
+
+```typescript
+// Required test IDs
+<div data-testid="app-ready">           // App initialization complete
+<div data-testid="lineup-editor">       // Lineup editor component
+<div data-testid="lineup-list">         // Lineup list container
+<div data-testid="batting-order-label"> // Batting order label
+<button data-testid="lineup-management-nav"> // Navigation to lineup page
+```
+
+**Pattern**: Use kebab-case for test IDs, be specific and descriptive.
+
+#### CI Integration
+
+E2E tests run automatically in CI:
+
+- **Trigger**: Every push and PR
+- **Browser**: Chromium only (for speed)
+- **Status**: All tests passing (27/27, 100%)
+- **Artifacts**: Test results and reports uploaded for 7 days
+- **Timeout**: 15 minutes
+
+View results in GitHub Actions under "E2E Tests" job.
+
+#### Current Test Coverage
+
+**Lineup Editor** (13 tests): ✅ All passing
+
+- Display and navigation
+- Loading states
+- Error handling
+- Substitution dialog
+- Empty state
+- Keyboard navigation
+- Accessibility standards
+- Focus management
+- Mobile responsiveness
+- Touch interactions
+- Performance budgets
+- Lazy loading
+
+**Substitution Workflow** (14 tests): ✅ All passing
+
+- Valid substitution workflow
+- Re-entry substitution
+- Player eligibility validation
+- Position changes
+- Cancellation
+- Error handling
+- Focus during workflow
+- ARIA announcements
+- Keyboard navigation
+- Error announcements
+- Mobile device support
+- Touch interactions
+- Performance budgets
+- Lazy loading
+
+**Total**: 27/27 tests passing (100%) - Full E2E coverage complete
+
+#### E2E Best Practices
+
+1. **Test User Journeys**: Focus on complete workflows, not component details
+2. **Use Semantic Selectors**: Prefer `role`, `aria-label`, `data-testid` over
+   CSS classes
+3. **Wait for Elements**: Use `waitForSelector` and `toBeVisible` expectations
+4. **Store Injection**: Use sessionStorage + storage events for Zustand store
+5. **Session Isolation**: Clear storage between tests
+6. **Headed Mode Debugging**: Use `test:e2e:headed` to watch tests execute
+7. **Mobile Testing**: Tests run on both desktop and mobile viewports
+8. **Page Objects**: Use `LineupManagementPage` for maintainable selectors
+9. **Fixtures**: Use `gameStateFixtures.ts` for consistent test data
+10. **No Production Test Code**: Keep all test logic in E2E directory
+11. **Browser-Aware Keyboard Navigation**: Use `Alt+Tab` for WebKit, `Tab` for
+    other browsers (see WebKit Keyboard Navigation Pattern below)
+
+#### WebKit Keyboard Navigation Pattern
+
+**Important**: WebKit (Safari) requires special keyboard handling for E2E tests
+due to macOS/iOS "Full Keyboard Access" system settings.
+
+**Problem**: Safari defaults to "Text boxes and lists only" mode for keyboard
+navigation, which prevents standard `Tab` key from navigating through all
+interactive elements (buttons, links, etc.).
+
+**Solution**: Use browser-aware keyboard navigation in tests:
+
+```typescript
+test('should handle keyboard navigation', async ({ page, browserName }) => {
+  // WebKit requires Alt+Tab to simulate "All Controls" keyboard access mode
+  // Other browsers (Chromium, Firefox) use standard Tab key
+  const tabKey = browserName === 'webkit' ? 'Alt+Tab' : 'Tab';
+
+  await page.keyboard.press(tabKey);
+  await page.keyboard.press(tabKey);
+
+  // Verify focus management
+  const focusedElement = page.locator(':focus');
+  expect(await focusedElement.count()).toBeGreaterThan(0);
+});
+```
+
+**When to use**:
+
+- All keyboard navigation tests that tab through interactive elements
+- Focus management tests
+- Accessibility tests validating keyboard-only workflows
+
+**Why this works**: `Alt+Tab` in Playwright simulates the macOS "Full Keyboard
+Access" mode that allows keyboard navigation to all controls, not just text
+fields.
+
+#### Troubleshooting E2E Tests
+
+**Test timeouts**: Increase timeout in test or use `page.waitFor...()`
+
+**Element not found**: Verify `data-testid` exists and is spelled correctly
+
+**Timing issues**: Add explicit waits with `waitForSelector` or
+`waitForLoadState`
+
+**Data issues**: Check sessionStorage in browser DevTools during headed runs
+
+**CI failures**: Download artifacts from GitHub Actions for screenshots/videos
+
+**Store not updating**: Ensure `window.dispatchEvent(new Event('storage'))` is
+called after sessionStorage updates
+
+**WebKit keyboard navigation failing**: Use `Alt+Tab` for WebKit instead of
+`Tab` (see WebKit Keyboard Navigation Pattern above)
 
 ### Code Quality
 

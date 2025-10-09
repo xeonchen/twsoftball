@@ -35,7 +35,7 @@ export const App = (): ReactElement => {
         <RouterProvider>
           <div className="min-h-screen bg-gray-50" data-testid="app-ready">
             <header className="bg-field-green-600 text-white p-4">
-              <h1 className="text-2xl font-bold">TW Softball</h1>
+              <div className="text-2xl font-bold">TW Softball</div>
               <p className="text-sm opacity-90">Progressive Web App</p>
             </header>
             <main className="container mx-auto p-4">

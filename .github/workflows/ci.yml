@@ -425,12 +425,80 @@ jobs:
             apps/*/dist/
           retention-days: 7
 
+  # Phase 4.5: E2E Testing
+  e2e:
+    runs-on: ubuntu-latest
+    name: E2E Tests
+    timeout-minutes: 15
+    needs: [setup, build]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Restore pnpm store
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+
+      - name: Restore dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+            apps/*/node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Install Playwright Browsers
+        run: pnpm --filter @twsoftball/web exec playwright install --with-deps chromium
+
+      - name: Build application for E2E
+        run: pnpm build
+
+      - name: Run E2E tests
+        run: pnpm --filter @twsoftball/web test:e2e --project=chromium
+        env:
+          CI: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: apps/web/e2e/test-results/
+          retention-days: 7
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-playwright-report
+          path: apps/web/e2e/playwright-report/
+          retention-days: 7
+
   # Phase 5: Final Status Check
   ci-status:
     runs-on: ubuntu-latest
     name: CI Status Check
     timeout-minutes: 5
-    needs: [build, security-codeql]
+    needs: [build, security-codeql, e2e]
     if: always()
     steps:
       - name: Check all jobs status
@@ -439,7 +507,11 @@ jobs:
             echo "❌ CI pipeline failed"
             echo "Build status: ${{ needs.build.result }}"
             echo "CodeQL status: ${{ needs.security-codeql.result }}"
+            echo "E2E status: ${{ needs.e2e.result }}"
             exit 1
           else
             echo "✅ All CI checks passed successfully"
+            echo "Build status: ${{ needs.build.result }}"
+            echo "CodeQL status: ${{ needs.security-codeql.result }}"
+            echo "E2E status: ${{ needs.e2e.result }} (non-blocking)"
           fi

@@ -44,7 +44,11 @@ import { BrowserRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 
 import { useGameStore } from '../../../entities/game';
-import { useRecordAtBat, useRunnerAdvancement } from '../../../features/game-core';
+import {
+  useRecordAtBat,
+  useRunnerAdvancement,
+  useGameWithUndoRedo,
+} from '../../../features/game-core';
 import { useSubstitutePlayerAPI } from '../../../features/substitute-player';
 import { useErrorRecovery, useNavigationGuard } from '../../../shared/lib/hooks';
 import { useUIStore } from '../../../shared/lib/store';
@@ -91,6 +95,7 @@ vi.mock('../../../shared/lib/hooks/useNavigationGuard', () => ({
 vi.mock('../../../features/game-core', () => ({
   useRecordAtBat: vi.fn(),
   useRunnerAdvancement: vi.fn(),
+  useGameWithUndoRedo: vi.fn(),
 }));
 
 vi.mock('../../../shared/lib/hooks/useErrorRecovery', () => ({
@@ -473,6 +478,35 @@ const createGameStoreMock = (
 });
 
 /**
+ * Creates a mock for useGameWithUndoRedo hook that syncs with game store state
+ */
+const createGameWithUndoRedoMock = (
+  overrides: {
+    currentGame?: GameStateDTO | null;
+    activeGameState?: GameStateDTO | null;
+    isGameActive?: boolean;
+    loading?: boolean;
+    error?: string | null;
+    canUndo?: boolean;
+    canRedo?: boolean;
+  } = {}
+): ReturnType<typeof useGameWithUndoRedo> => ({
+  currentGame: 'currentGame' in overrides ? overrides.currentGame : mockGameData,
+  activeGameState:
+    'activeGameState' in overrides ? overrides.activeGameState : mockActiveGameStateEmpty,
+  loading: overrides.loading ?? false,
+  error: overrides.error ?? null,
+  isGameActive: overrides.isGameActive ?? true,
+  canUndo: overrides.canUndo ?? true,
+  canRedo: overrides.canRedo ?? true,
+  isUndoRedoLoading: false,
+  lastUndoRedoResult: undefined,
+  undo: vi.fn().mockResolvedValue(undefined),
+  redo: vi.fn().mockResolvedValue(undefined),
+  refreshGameState: vi.fn(),
+});
+
+/**
  * Orchestrates multi-hook test scenario setup
  */
 const setupIntegrationTest = (
@@ -508,6 +542,7 @@ describe('GameRecordingPage Component', () => {
   let mockUseRunnerAdvancement: Mock;
   let mockUseErrorRecovery: Mock;
   let mockUseSubstitutePlayerAPI: Mock;
+  let mockUseGameWithUndoRedo: Mock;
   const user = userEvent.setup();
 
   beforeEach(() => {
@@ -541,6 +576,7 @@ describe('GameRecordingPage Component', () => {
     mockUseRunnerAdvancement = vi.mocked(useRunnerAdvancement);
     mockUseErrorRecovery = vi.mocked(useErrorRecovery);
     mockUseSubstitutePlayerAPI = vi.mocked(useSubstitutePlayerAPI);
+    mockUseGameWithUndoRedo = vi.mocked(useGameWithUndoRedo);
 
     // Default mock return values
     mockUseGameStore.mockReturnValue(mockGameStoreWithActiveGame);
@@ -574,6 +610,20 @@ describe('GameRecordingPage Component', () => {
       executeSubstitution: globalMockSubstitution,
       isExecuting: false,
       substitutionError: null,
+    });
+    mockUseGameWithUndoRedo.mockReturnValue({
+      currentGame: mockGameData,
+      activeGameState: mockActiveGameStateEmpty,
+      loading: false,
+      error: null,
+      isGameActive: true,
+      canUndo: true,
+      canRedo: true,
+      isUndoRedoLoading: false,
+      lastUndoRedoResult: undefined,
+      undo: vi.fn().mockResolvedValue(undefined),
+      redo: vi.fn().mockResolvedValue(undefined),
+      refreshGameState: vi.fn(),
     });
   });
 
@@ -660,6 +710,11 @@ describe('GameRecordingPage Component', () => {
     it('should render base diamond with correct runner status', () => {
       // Use game store with runners for this test
       mockUseGameStore.mockReturnValue(mockGameStoreWithRunners);
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: mockActiveGameState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -721,6 +776,16 @@ describe('GameRecordingPage Component', () => {
   describe('Error State Handling for Missing Game Data', () => {
     it('should show error state when no game data available', () => {
       mockUseGameStore.mockReturnValue(mockGameStoreWithoutActiveGame);
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          currentGame: null,
+          activeGameState: null,
+          isGameActive: false,
+          canUndo: false,
+          canRedo: false,
+          error: null, // No error string, but hasError will be true due to null game/state
+        })
+      );
 
       render(
         <TestWrapper>
@@ -735,6 +800,16 @@ describe('GameRecordingPage Component', () => {
 
     it('should navigate to home when clicking Go Home in error state', async () => {
       mockUseGameStore.mockReturnValue(mockGameStoreWithoutActiveGame);
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          currentGame: null,
+          activeGameState: null,
+          isGameActive: false,
+          canUndo: false,
+          canRedo: false,
+          error: null, // No error string, but hasError will be true due to null game/state
+        })
+      );
 
       render(
         <TestWrapper>
@@ -754,6 +829,14 @@ describe('GameRecordingPage Component', () => {
         currentGame: mockGameData,
         activeGameState: null,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          currentGame: mockGameData,
+          activeGameState: null,
+          isGameActive: false,
+          error: 'No active game state found',
+        })
+      );
 
       render(
         <TestWrapper>
@@ -770,6 +853,14 @@ describe('GameRecordingPage Component', () => {
         currentGame: null,
         activeGameState: mockActiveGameState,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          currentGame: null,
+          activeGameState: mockActiveGameState,
+          isGameActive: false,
+          error: 'Current game not found',
+        })
+      );
 
       render(
         <TestWrapper>
@@ -893,38 +984,6 @@ describe('GameRecordingPage Component', () => {
   });
 
   describe('Undo/Redo Functionality and Controls', () => {
-    it('should log undo action when undo button is clicked', async () => {
-      render(
-        <TestWrapper>
-          <GameRecordingPage />
-        </TestWrapper>
-      );
-
-      const undoButton = screen.getByRole('button', { name: 'Undo last action' });
-      await user.click(undoButton);
-
-      expect(mockUIStore.showInfo).toHaveBeenCalledWith(
-        'Undo functionality will be available in the next release',
-        'Feature Coming Soon'
-      );
-    });
-
-    it('should log redo action when redo button is clicked', async () => {
-      render(
-        <TestWrapper>
-          <GameRecordingPage />
-        </TestWrapper>
-      );
-
-      const redoButton = screen.getByRole('button', { name: 'Redo last action' });
-      await user.click(redoButton);
-
-      expect(mockUIStore.showInfo).toHaveBeenCalledWith(
-        'Redo functionality will be available in the next release',
-        'Feature Coming Soon'
-      );
-    });
-
     it('should have correct aria-labels for undo/redo buttons', () => {
       render(
         <TestWrapper>
@@ -997,6 +1056,11 @@ describe('GameRecordingPage Component', () => {
     it('should show bases as occupied when runners are present', () => {
       // Use game store with runners for this test
       mockUseGameStore.mockReturnValue(mockGameStoreWithRunners);
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: mockActiveGameState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1027,6 +1091,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         activeGameState: emptyActiveGameState,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: emptyActiveGameState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1046,6 +1115,11 @@ describe('GameRecordingPage Component', () => {
     it('should show correct number of runner indicators', () => {
       // Use game store with runners for this test
       mockUseGameStore.mockReturnValue(mockGameStoreWithRunners);
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: mockActiveGameState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1077,6 +1151,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         activeGameState: basesLoadedState,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: basesLoadedState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1119,6 +1198,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         activeGameState: noBatterState,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: noBatterState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1154,6 +1238,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         activeGameState: secondBatterState,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: secondBatterState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1179,6 +1268,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         activeGameState: thirdBatterState,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: thirdBatterState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1204,6 +1298,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         activeGameState: fourthBatterState,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: fourthBatterState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1237,6 +1336,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         currentGame: gameWithoutScores,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          currentGame: gameWithoutScores,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1267,6 +1371,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         activeGameState: twoOutsState,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: twoOutsState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1319,6 +1428,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         isGameActive: false,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          isGameActive: false,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1346,6 +1460,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         activeGameState: firstInningState,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: firstInningState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1367,6 +1486,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         activeGameState: secondInningState,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: secondInningState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1398,6 +1522,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         activeGameState: seventhInningState,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: seventhInningState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1418,6 +1547,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         activeGameState: bottomInningState,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: bottomInningState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1451,6 +1585,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         activeGameState: emptyBasesState,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: emptyBasesState,
+        })
+      );
 
       render(
         <TestWrapper>
@@ -1487,6 +1626,11 @@ describe('GameRecordingPage Component', () => {
         ...mockGameStoreWithActiveGame,
         activeGameState: newState,
       });
+      mockUseGameWithUndoRedo.mockReturnValue(
+        createGameWithUndoRedoMock({
+          activeGameState: newState,
+        })
+      );
 
       rerender(
         <TestWrapper>
@@ -1649,6 +1793,11 @@ describe('GameRecordingPage Component', () => {
         // Apply mocks
         mockUseRecordAtBat.mockReturnValue(homeRunMocks.recordAtBat);
         mockUseGameStore.mockReturnValue(homeRunMocks.gameStore);
+        mockUseGameWithUndoRedo.mockReturnValue(
+          createGameWithUndoRedoMock({
+            activeGameState: homeRunMocks.gameStore.activeGameState,
+          })
+        );
 
         render(
           <TestWrapper>
@@ -1750,6 +1899,24 @@ describe('GameRecordingPage Component', () => {
         // Apply mocks
         mockUseRunnerAdvancement.mockReturnValue(manualAdvancementMocks.runnerAdvancement);
         mockUseGameStore.mockReturnValue(manualAdvancementMocks.gameStore);
+        mockUseGameWithUndoRedo.mockReturnValue(
+          createGameWithUndoRedoMock({
+            activeGameState: {
+              ...mockActiveGameState,
+              bases: {
+                first: {
+                  id: 'runner-1',
+                  name: 'Runner 1',
+                  jerseyNumber: '1',
+                  position: 'P',
+                  battingOrder: 1,
+                },
+                second: null,
+                third: null,
+              },
+            },
+          })
+        );
 
         render(
           <TestWrapper>
@@ -1830,6 +1997,36 @@ describe('GameRecordingPage Component', () => {
         mockUseRecordAtBat.mockReturnValue(automaticAdvancesMocks.recordAtBat);
         mockUseRunnerAdvancement.mockReturnValue(automaticAdvancesMocks.runnerAdvancement);
         mockUseGameStore.mockReturnValue(automaticAdvancesMocks.gameStore);
+        mockUseGameWithUndoRedo.mockReturnValue(
+          createGameWithUndoRedoMock({
+            activeGameState: {
+              ...mockActiveGameState,
+              bases: {
+                first: {
+                  id: 'runner-1',
+                  name: 'Runner 1',
+                  jerseyNumber: '1',
+                  position: 'P',
+                  battingOrder: 1,
+                },
+                second: {
+                  id: 'runner-2',
+                  name: 'Runner 2',
+                  jerseyNumber: '2',
+                  position: '2B',
+                  battingOrder: 2,
+                },
+                third: {
+                  id: 'runner-3',
+                  name: 'Runner 3',
+                  jerseyNumber: '3',
+                  position: '3B',
+                  battingOrder: 3,
+                },
+              },
+            },
+          })
+        );
 
         render(
           <TestWrapper>
@@ -2008,51 +2205,452 @@ describe('GameRecordingPage Component', () => {
     });
 
     describe('Undo/Redo Integration', () => {
-      it('should render undo button with placeholder functionality', async () => {
-        render(
-          <TestWrapper>
-            <GameRecordingPage />
-          </TestWrapper>
-        );
+      describe('Button States', () => {
+        it('should disable undo button when canUndo is false', () => {
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canUndo: false,
+            canRedo: false,
+          });
 
-        const undoButton = screen.getByRole('button', { name: 'Undo last action' });
-        await user.click(undoButton);
+          render(<GameRecordingPage />);
 
-        expect(mockUIStore.showInfo).toHaveBeenCalledWith(
-          'Undo functionality will be available in the next release',
-          'Feature Coming Soon'
-        );
+          const undoButton = screen.getByRole('button', { name: /undo/i });
+          expect(undoButton).toBeDisabled();
+        });
+
+        it('should enable undo button when canUndo is true', () => {
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canUndo: true,
+            canRedo: false,
+          });
+
+          render(<GameRecordingPage />);
+
+          const undoButton = screen.getByRole('button', { name: /undo/i });
+          expect(undoButton).not.toBeDisabled();
+        });
+
+        it('should disable redo button when canRedo is false', () => {
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canUndo: false,
+            canRedo: false,
+          });
+
+          render(<GameRecordingPage />);
+
+          const redoButton = screen.getByRole('button', { name: /redo/i });
+          expect(redoButton).toBeDisabled();
+        });
+
+        it('should enable redo button when canRedo is true', () => {
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canUndo: false,
+            canRedo: true,
+          });
+
+          render(<GameRecordingPage />);
+
+          const redoButton = screen.getByRole('button', { name: /redo/i });
+          expect(redoButton).not.toBeDisabled();
+        });
+
+        it('should disable both buttons during undo/redo loading', () => {
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canUndo: true,
+            canRedo: true,
+            isUndoRedoLoading: true,
+          });
+
+          render(<GameRecordingPage />);
+
+          const buttons = screen.getAllByRole('button', { name: /processing/i });
+          expect(buttons).toHaveLength(2);
+
+          const undoButton = buttons[0]; // First button is undo
+          const redoButton = buttons[1]; // Second button is redo
+
+          expect(undoButton).toBeDisabled();
+          expect(redoButton).toBeDisabled();
+        });
       });
 
-      it('should render redo button with placeholder functionality', async () => {
-        render(
-          <TestWrapper>
-            <GameRecordingPage />
-          </TestWrapper>
-        );
+      describe('Undo/Redo Operations', () => {
+        it('should call undo() when undo button clicked', async () => {
+          const mockUndo = vi.fn().mockResolvedValue(undefined);
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canUndo: true,
+            undo: mockUndo,
+          });
 
-        const redoButton = screen.getByRole('button', { name: 'Redo last action' });
-        await user.click(redoButton);
+          render(<GameRecordingPage />);
 
-        expect(mockUIStore.showInfo).toHaveBeenCalledWith(
-          'Redo functionality will be available in the next release',
-          'Feature Coming Soon'
-        );
+          const undoButton = screen.getByRole('button', { name: /undo last action/i });
+          await userEvent.click(undoButton);
+
+          await waitFor(() => {
+            expect(mockUndo).toHaveBeenCalledTimes(1);
+          });
+        });
+
+        it('should call redo() when redo button clicked', async () => {
+          const mockRedo = vi.fn().mockResolvedValue(undefined);
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canRedo: true,
+            redo: mockRedo,
+          });
+
+          render(<GameRecordingPage />);
+
+          const redoButton = screen.getByRole('button', { name: /redo last action/i });
+          await userEvent.click(redoButton);
+
+          await waitFor(() => {
+            expect(mockRedo).toHaveBeenCalledTimes(1);
+          });
+        });
+
+        it('should show loading indicator during undo operation', () => {
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canUndo: true,
+            isUndoRedoLoading: true,
+          });
+
+          render(<GameRecordingPage />);
+
+          const undoButton = screen.getByRole('button', { name: /processing undo/i });
+          expect(undoButton).toBeInTheDocument();
+          expect(undoButton).toHaveTextContent('⟳');
+        });
+
+        it('should show loading indicator during redo operation', () => {
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canRedo: true,
+            isUndoRedoLoading: true,
+          });
+
+          render(<GameRecordingPage />);
+
+          const redoButton = screen.getByRole('button', { name: /processing redo/i });
+          expect(redoButton).toBeInTheDocument();
+          expect(redoButton).toHaveTextContent('⟳');
+        });
+
+        it('should update game state after successful undo', async () => {
+          const mockUndo = vi.fn().mockResolvedValue(undefined);
+
+          // Initial state with higher score
+          const initialMock = {
+            ...mockUseGameWithUndoRedo(),
+            currentGame: {
+              id: 'game-123',
+              homeTeam: 'Warriors',
+              awayTeam: 'Eagles',
+              homeScore: 5,
+              awayScore: 3,
+            },
+            canUndo: true,
+            undo: mockUndo,
+          };
+
+          mockUseGameWithUndoRedo.mockReturnValue(initialMock);
+
+          const { rerender } = render(<GameRecordingPage />);
+
+          const undoButton = screen.getByRole('button', { name: /undo last action/i });
+          await userEvent.click(undoButton);
+
+          // Simulate state change after undo
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...initialMock,
+            currentGame: {
+              ...initialMock.currentGame,
+              homeScore: 4, // Score reverted
+            },
+          });
+
+          rerender(<GameRecordingPage />);
+
+          expect(screen.getByText(/HOME 4 - 3 AWAY/i)).toBeInTheDocument();
+        });
+
+        it('should update game state after successful redo', async () => {
+          const mockRedo = vi.fn().mockResolvedValue(undefined);
+
+          // Initial state after undo
+          const initialMock = {
+            ...mockUseGameWithUndoRedo(),
+            currentGame: {
+              id: 'game-123',
+              homeTeam: 'Warriors',
+              awayTeam: 'Eagles',
+              homeScore: 4,
+              awayScore: 3,
+            },
+            canRedo: true,
+            redo: mockRedo,
+          };
+
+          mockUseGameWithUndoRedo.mockReturnValue(initialMock);
+
+          const { rerender } = render(<GameRecordingPage />);
+
+          const redoButton = screen.getByRole('button', { name: /redo last action/i });
+          await userEvent.click(redoButton);
+
+          // Simulate state change after redo
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...initialMock,
+            currentGame: {
+              ...initialMock.currentGame,
+              homeScore: 5, // Score restored
+            },
+          });
+
+          rerender(<GameRecordingPage />);
+
+          expect(screen.getByText(/HOME 5 - 3 AWAY/i)).toBeInTheDocument();
+        });
       });
 
-      it('should render undo/redo buttons as enabled (placeholder implementation)', () => {
-        render(
-          <TestWrapper>
-            <GameRecordingPage />
-          </TestWrapper>
-        );
+      describe('Error Handling', () => {
+        it('should display error notification when undo fails', () => {
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canUndo: true,
+            lastUndoRedoResult: {
+              success: false,
+              actionsUndone: 0,
+              errors: ['Failed to undo: Network error'],
+            },
+          });
 
-        const undoButton = screen.getByRole('button', { name: 'Undo last action' });
-        const redoButton = screen.getByRole('button', { name: 'Redo last action' });
+          render(<GameRecordingPage />);
 
-        // Current implementation has placeholder buttons that are always enabled
-        expect(undoButton).toBeEnabled();
-        expect(redoButton).toBeEnabled();
+          expect(screen.getByRole('alert')).toBeInTheDocument();
+          expect(screen.getByText('Undo Failed')).toBeInTheDocument();
+          expect(screen.getByText(/Failed to undo: Network error/i)).toBeInTheDocument();
+        });
+
+        it('should display error notification when redo fails', () => {
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canRedo: true,
+            lastUndoRedoResult: {
+              success: false,
+              actionsRedone: 0,
+              errors: ['Failed to redo: Game state modified'],
+            },
+          });
+
+          render(<GameRecordingPage />);
+
+          expect(screen.getByRole('alert')).toBeInTheDocument();
+          expect(screen.getByText('Redo Failed')).toBeInTheDocument();
+          expect(screen.getByText(/Failed to redo: Game state modified/i)).toBeInTheDocument();
+        });
+
+        it('should show user-friendly error message when lastUndoRedoResult has no error property', () => {
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canUndo: true,
+            lastUndoRedoResult: {
+              success: false,
+              actionsUndone: 0,
+              // No errors array - should display default message
+            },
+          });
+
+          render(<GameRecordingPage />);
+
+          expect(screen.getByRole('alert')).toBeInTheDocument();
+          expect(
+            screen.getByText(/An error occurred while processing your request/i)
+          ).toBeInTheDocument();
+        });
+
+        it('should provide retry button after undo/redo error', () => {
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canUndo: true,
+            lastUndoRedoResult: {
+              success: false,
+              actionsUndone: 0,
+              errors: ['Network error'],
+            },
+          });
+
+          render(<GameRecordingPage />);
+
+          const retryButton = screen.getByRole('button', { name: /retry/i });
+          expect(retryButton).toBeInTheDocument();
+        });
+
+        it('should retry undo when retry button clicked after undo error', async () => {
+          const mockUndo = vi.fn().mockResolvedValue(undefined);
+
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canUndo: true,
+            undo: mockUndo,
+            lastUndoRedoResult: {
+              success: false,
+              actionsUndone: 0,
+              errors: ['Network error'],
+            },
+          });
+
+          render(<GameRecordingPage />);
+
+          const retryButton = screen.getByRole('button', { name: /retry/i });
+          await userEvent.click(retryButton);
+
+          await waitFor(() => {
+            expect(mockUndo).toHaveBeenCalled();
+          });
+        });
+
+        it('should retry redo when retry button clicked after redo error', async () => {
+          const mockRedo = vi.fn().mockResolvedValue(undefined);
+
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canRedo: true,
+            redo: mockRedo,
+            lastUndoRedoResult: {
+              success: false,
+              actionsRedone: 0,
+              errors: ['Network error'],
+            },
+          });
+
+          render(<GameRecordingPage />);
+
+          const retryButton = screen.getByRole('button', { name: /retry/i });
+          await userEvent.click(retryButton);
+
+          await waitFor(() => {
+            expect(mockRedo).toHaveBeenCalled();
+          });
+        });
+      });
+
+      describe('Integration with Game State', () => {
+        it('should enable undo after recording an at-bat', async () => {
+          const mockRecordAtBat = vi.fn().mockResolvedValue({
+            success: true,
+            gameState: {
+              score: { home: 1, away: 0 },
+            },
+          });
+
+          mockUseRecordAtBat.mockReturnValue({
+            recordAtBat: mockRecordAtBat,
+            isLoading: false,
+            error: null,
+            result: null,
+            reset: vi.fn(),
+          });
+
+          // Initially no undo available
+          const initialMock = {
+            ...mockUseGameWithUndoRedo(),
+            canUndo: false,
+          };
+
+          mockUseGameWithUndoRedo.mockReturnValue(initialMock);
+
+          const { rerender } = render(<GameRecordingPage />);
+
+          // Record an at-bat
+          const singleButton = screen.getByRole('button', { name: /record single/i });
+          await userEvent.click(singleButton);
+
+          // After at-bat, undo becomes available
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...initialMock,
+            canUndo: true,
+          });
+
+          rerender(<GameRecordingPage />);
+
+          const undoButton = screen.getByRole('button', { name: /undo last action/i });
+          expect(undoButton).not.toBeDisabled();
+        });
+
+        it('should enable redo after performing undo', async () => {
+          const mockUndo = vi.fn().mockResolvedValue(undefined);
+
+          // State with undo available
+          const initialMock = {
+            ...mockUseGameWithUndoRedo(),
+            canUndo: true,
+            canRedo: false,
+            undo: mockUndo,
+          };
+
+          mockUseGameWithUndoRedo.mockReturnValue(initialMock);
+
+          const { rerender } = render(<GameRecordingPage />);
+
+          // Perform undo
+          const undoButton = screen.getByRole('button', { name: /undo last action/i });
+          await userEvent.click(undoButton);
+
+          // After undo, redo becomes available
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...initialMock,
+            canUndo: false,
+            canRedo: true,
+          });
+
+          rerender(<GameRecordingPage />);
+
+          const redoButton = screen.getByRole('button', { name: /redo last action/i });
+          expect(redoButton).not.toBeDisabled();
+        });
+
+        it('should handle multiple undo operations correctly', async () => {
+          const mockUndo = vi.fn().mockResolvedValue(undefined);
+
+          mockUseGameWithUndoRedo.mockReturnValue({
+            ...mockUseGameWithUndoRedo(),
+            canUndo: true,
+            undo: mockUndo,
+            currentGame: {
+              id: 'game-123',
+              homeTeam: 'Warriors',
+              awayTeam: 'Eagles',
+              homeScore: 5,
+              awayScore: 3,
+            },
+          });
+
+          render(<GameRecordingPage />);
+
+          const undoButton = screen.getByRole('button', { name: /undo last action/i });
+
+          // First undo
+          await userEvent.click(undoButton);
+
+          // Second undo
+          await userEvent.click(undoButton);
+
+          // Third undo
+          await userEvent.click(undoButton);
+
+          await waitFor(() => {
+            expect(mockUndo).toHaveBeenCalledTimes(3);
+          });
+        });
       });
     });
 
@@ -2077,6 +2675,12 @@ describe('GameRecordingPage Component', () => {
           ...mockGameStoreWithActiveGame,
           activeGameState: noBatterState,
         });
+
+        mockUseGameWithUndoRedo.mockReturnValue(
+          createGameWithUndoRedoMock({
+            activeGameState: noBatterState,
+          })
+        );
 
         render(
           <TestWrapper>
@@ -2531,6 +3135,13 @@ describe('GameRecordingPage Component', () => {
           error: 'Corrupted game state detected',
         });
 
+        mockUseGameWithUndoRedo.mockReturnValue(
+          createGameWithUndoRedoMock({
+            activeGameState: corruptedGameState,
+            error: 'Corrupted game state detected',
+          })
+        );
+
         render(
           <TestWrapper>
             <GameRecordingPage />
@@ -2558,6 +3169,13 @@ describe('GameRecordingPage Component', () => {
           hasError: true,
           error: 'Essential game data is missing',
         });
+
+        mockUseGameWithUndoRedo.mockReturnValue(
+          createGameWithUndoRedoMock({
+            activeGameState: incompleteGameState,
+            error: 'Essential game data is missing',
+          })
+        );
 
         render(
           <TestWrapper>
@@ -3710,6 +4328,13 @@ describe('GameRecordingPage Component', () => {
           ...mockGameStoreWithActiveGame,
         });
 
+        mockUseGameWithUndoRedo.mockReturnValue(
+          createGameWithUndoRedoMock({
+            currentGame: mockGameData,
+            activeGameState: mockActiveGameStateEmpty,
+          })
+        );
+
         const { rerender } = render(
           <TestWrapper>
             <GameRecordingPage />
@@ -3739,6 +4364,13 @@ describe('GameRecordingPage Component', () => {
           ...mockGameStoreWithActiveGame,
           activeGameState: updatedActiveGameState,
         });
+
+        mockUseGameWithUndoRedo.mockReturnValue(
+          createGameWithUndoRedoMock({
+            currentGame: mockGameData,
+            activeGameState: updatedActiveGameState,
+          })
+        );
 
         rerender(
           <TestWrapper>
@@ -3898,6 +4530,15 @@ describe('GameRecordingPage Component', () => {
           error: 'Failed to load lineup data',
           updateScore: vi.fn(),
         });
+
+        mockUseGameWithUndoRedo.mockReturnValue(
+          createGameWithUndoRedoMock({
+            currentGame: null,
+            activeGameState: null,
+            isGameActive: false,
+            error: 'Failed to load lineup data',
+          })
+        );
 
         render(
           <TestWrapper>

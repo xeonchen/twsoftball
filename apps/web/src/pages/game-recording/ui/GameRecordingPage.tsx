@@ -10,7 +10,11 @@ import {
 import { useParams, useNavigate } from 'react-router-dom';
 
 import { useGameStore } from '../../../entities/game';
-import { useRecordAtBat, useRunnerAdvancement } from '../../../features/game-core';
+import {
+  useRecordAtBat,
+  useRunnerAdvancement,
+  useGameWithUndoRedo,
+} from '../../../features/game-core';
 import {
   LineupEditor,
   SubstitutionDialog,
@@ -23,6 +27,9 @@ import { debounce } from '../../../shared/lib/utils';
 import { BenchManagementWidget } from '../../../widgets/bench-management';
 import { ErrorBoundary } from '../../../widgets/error-boundary';
 import { RunnerAdvancementPanel } from '../../../widgets/runner-advancement';
+
+/** Duration to show RBI notification in milliseconds */
+const RBI_NOTIFICATION_DURATION_MS = 3000;
 
 /**
  * Game Recording Page Component
@@ -49,9 +56,17 @@ export function GameRecordingPage(): ReactElement {
     currentGame,
     activeGameState,
     isGameActive,
-    updateScore,
+    canUndo,
+    canRedo,
+    isUndoRedoLoading,
+    undo,
+    redo,
+    lastUndoRedoResult,
     error: gameError,
-  } = useGameStore();
+  } = useGameWithUndoRedo();
+
+  // Keep updateScore from original useGameStore for score updates
+  const { updateScore } = useGameStore();
   const { showNavigationWarning, showInfo } = useUIStore();
   const timers = useTimerManager();
 
@@ -362,20 +377,54 @@ export function GameRecordingPage(): ReactElement {
   }, [clearAdvances]);
 
   /**
-   * Handle undo action (placeholder for future undo/redo hook integration)
+   * Handle undo action with error handling and fallback notification
    */
-  const handleUndo = (): void => {
-    // Show user-friendly notification for upcoming feature
-    showInfo('Undo functionality will be available in the next release', 'Feature Coming Soon');
-  };
+  const handleUndo = useCallback(async (): Promise<void> => {
+    if (!canUndo || isUndoRedoLoading) return;
+
+    try {
+      await undo();
+      // Success feedback handled by lastUndoRedoResult
+    } catch (error) {
+      // Hook should handle error state, but provide fallback notification
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error during undo';
+
+      // eslint-disable-next-line no-console -- Error logging is necessary for debugging
+      console.error('Undo failed:', error);
+
+      // Fallback: show error notification if hook doesn't provide lastUndoRedoResult
+      // The error notification UI will display if lastUndoRedoResult updates,
+      // but this ensures users always see something if hook fails to update state
+      if (!lastUndoRedoResult || lastUndoRedoResult.success) {
+        showInfo(`Undo failed: ${errorMessage}`, 'Error');
+      }
+    }
+  }, [canUndo, isUndoRedoLoading, undo, lastUndoRedoResult, showInfo]);
 
   /**
-   * Handle redo action (placeholder for future undo/redo hook integration)
+   * Handle redo action with error handling and fallback notification
    */
-  const handleRedo = (): void => {
-    // Show user-friendly notification for upcoming feature
-    showInfo('Redo functionality will be available in the next release', 'Feature Coming Soon');
-  };
+  const handleRedo = useCallback(async (): Promise<void> => {
+    if (!canRedo || isUndoRedoLoading) return;
+
+    try {
+      await redo();
+      // Success feedback handled by lastUndoRedoResult
+    } catch (error) {
+      // Hook should handle error state, but provide fallback notification
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error during redo';
+
+      // eslint-disable-next-line no-console -- Error logging is necessary for debugging
+      console.error('Redo failed:', error);
+
+      // Fallback: show error notification if hook doesn't provide lastUndoRedoResult
+      // The error notification UI will display if lastUndoRedoResult updates,
+      // but this ensures users always see something if hook fails to update state
+      if (!lastUndoRedoResult || lastUndoRedoResult.success) {
+        showInfo(`Redo failed: ${errorMessage}`, 'Error');
+      }
+    }
+  }, [canRedo, isUndoRedoLoading, redo, lastUndoRedoResult, showInfo]);
 
   /**
    * Handle successful at-bat recording result
@@ -385,7 +434,7 @@ export function GameRecordingPage(): ReactElement {
       // Show RBI notification if applicable
       if (result.rbiAwarded && result.rbiAwarded > 0) {
         setRbiNotification(result.rbiAwarded);
-        timers.setTimeout(() => setRbiNotification(null), 3000); // Hide after 3 seconds
+        timers.setTimeout(() => setRbiNotification(null), RBI_NOTIFICATION_DURATION_MS);
       }
 
       // Update game state through store
@@ -1030,6 +1079,56 @@ export function GameRecordingPage(): ReactElement {
           </div>
         )}
 
+        {/* Undo/Redo Error State */}
+        {lastUndoRedoResult && !lastUndoRedoResult.success && (
+          <div
+            role="alert"
+            className="undo-redo-error-notification"
+            style={{
+              padding: '1rem',
+              backgroundColor: '#ffebee',
+              border: '1px solid #f44336',
+              borderRadius: '8px',
+              margin: '1rem 0',
+            }}
+          >
+            <h3 style={{ color: '#d32f2f', marginBottom: '0.5rem' }}>
+              {'actionsUndone' in lastUndoRedoResult ? 'Undo Failed' : 'Redo Failed'}
+            </h3>
+            <p style={{ marginBottom: '1rem' }}>
+              {lastUndoRedoResult.errors?.[0] || 'An error occurred while processing your request.'}
+            </p>
+            <button
+              onClick={() => {
+                if ('actionsUndone' in lastUndoRedoResult) {
+                  void handleUndo();
+                } else {
+                  void handleRedo();
+                }
+              }}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: '#1976d2',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Undo/Redo Success State - Accessibility Announcement */}
+        {lastUndoRedoResult && lastUndoRedoResult.success && (
+          <div role="status" aria-live="polite" className="sr-only">
+            {'actionsUndone' in lastUndoRedoResult
+              ? `Undo successful. ${lastUndoRedoResult.actionsUndone} action${lastUndoRedoResult.actionsUndone === 1 ? '' : 's'} undone.`
+              : `Redo successful. ${lastUndoRedoResult.actionsRedone} action${lastUndoRedoResult.actionsRedone === 1 ? '' : 's'} restored.`}
+          </div>
+        )}
+
         {/* RBI notification */}
         {rbiNotification && (
           <div className="rbi-notification">
@@ -1051,11 +1150,41 @@ export function GameRecordingPage(): ReactElement {
           </span>
           <span className="outs-info">{outs} Outs</span>
           <div className="undo-redo-controls">
-            <button className="undo-button" onClick={handleUndo} aria-label="Undo last action">
-              ↶
+            <button
+              className="undo-button"
+              onClick={() => void handleUndo()}
+              disabled={!canUndo || isUndoRedoLoading}
+              aria-label={
+                isUndoRedoLoading
+                  ? 'Processing undo...'
+                  : canUndo
+                    ? 'Undo last action'
+                    : 'No actions to undo'
+              }
+              style={{
+                opacity: !canUndo || isUndoRedoLoading ? 0.5 : 1,
+                cursor: !canUndo || isUndoRedoLoading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isUndoRedoLoading ? '⟳' : '↶'}
             </button>
-            <button className="redo-button" onClick={handleRedo} aria-label="Redo last action">
-              ↷
+            <button
+              className="redo-button"
+              onClick={() => void handleRedo()}
+              disabled={!canRedo || isUndoRedoLoading}
+              aria-label={
+                isUndoRedoLoading
+                  ? 'Processing redo...'
+                  : canRedo
+                    ? 'Redo last action'
+                    : 'No actions to redo'
+              }
+              style={{
+                opacity: !canRedo || isUndoRedoLoading ? 0.5 : 1,
+                cursor: !canRedo || isUndoRedoLoading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isUndoRedoLoading ? '⟳' : '↷'}
             </button>
           </div>
         </div>
