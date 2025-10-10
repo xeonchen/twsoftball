@@ -335,6 +335,7 @@ jobs:
         run: pnpm test:coverage
 
       - name: Upload merged coverage to Codecov
+        if: github.actor != 'dependabot[bot]'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -345,6 +346,7 @@ jobs:
           verbose: true
 
       - name: Upload domain package coverage
+        if: github.actor != 'dependabot[bot]'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -354,6 +356,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload application package coverage
+        if: github.actor != 'dependabot[bot]'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -363,7 +366,7 @@ jobs:
           fail_ci_if_error: false
 
       - name: Upload web app coverage
-        if: hashFiles('apps/web/coverage/lcov.info') != ''
+        if: hashFiles('apps/web/coverage/lcov.info') != '' && github.actor != 'dependabot[bot]'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

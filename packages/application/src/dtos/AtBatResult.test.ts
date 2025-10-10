@@ -850,9 +850,10 @@ describe('AtBatResult', () => {
       };
 
       expect(() => AtBatResultValidator.validate(invalidResult)).toThrow(
-        new AtBatResultValidationError(
-          'rbiAwarded significantly exceeds runsScored, check for data consistency'
-        )
+        expect.objectContaining({
+          message: 'rbiAwarded significantly exceeds runsScored, check for data consistency',
+          name: 'AtBatResultValidationError',
+        }) as Error
       );
     });
 
