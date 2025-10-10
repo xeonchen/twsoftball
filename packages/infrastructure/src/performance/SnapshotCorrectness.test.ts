@@ -8,7 +8,7 @@
  * Performance is NOT measured here; this uses InMemoryEventStore for fast,
  * deterministic testing focused on correctness validation.
  *
- * For performance testing with realistic I/O simulation, see SnapshotPerformanceSimulation.test.ts
+ * For performance testing with realistic I/O simulation, see SnapshotPerformanceSimulation.perf.test.ts
  *
  * Test Focus:
  * - Snapshot creation accuracy
