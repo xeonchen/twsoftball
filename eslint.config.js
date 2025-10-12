@@ -545,7 +545,7 @@ export default [
       ],
 
       // React-specific rules
-      ...reactHooks.configs.recommended.rules,
+      ...reactHooks.configs.flat.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
     settings: {

@@ -360,8 +360,8 @@ export const useErrorRecovery = (): UseErrorRecoveryReturn => {
   const [state, dispatch] = useReducer(errorRecoveryReducer, initialErrorRecoveryState);
 
   // Refs for operations
-  const lastOperationRef = useRef<() => Promise<unknown>>();
-  const retryOptionsRef = useRef<RetryOptions>();
+  const lastOperationRef = useRef<(() => Promise<unknown>) | undefined>(undefined);
+  const retryOptionsRef = useRef<RetryOptions | undefined>(undefined);
 
   /**
    * Determine error type from error instance

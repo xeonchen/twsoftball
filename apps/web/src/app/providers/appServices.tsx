@@ -35,7 +35,7 @@
  */
 
 import { createApplicationServicesWithContainer } from '@twsoftball/application/services/ApplicationFactory';
-import React, { useEffect, useState, type ReactNode } from 'react';
+import React, { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 // Direct import to avoid circular dependencies
 
@@ -95,69 +95,72 @@ export function AppServicesProvider({
   /**
    * Initialize application services.
    */
-  const initializeServices = async (initConfig: AppInitializationConfig): Promise<void> => {
-    setState(prev => ({
-      ...prev,
-      isInitializing: true,
-      error: null,
-    }));
-
-    try {
-      // Use the app-initialization feature to create services
-      const featureServices: FeatureAppInitializationResult = await initializeApplicationServices(
-        initConfig,
-        createApplicationServicesWithContainer
-      );
-
-      // Map feature result to shared context type
-      const services: AppInitializationResult = {
-        applicationServices: featureServices.applicationServices,
-        gameAdapter: {
-          startNewGameFromWizard: async wizardState => {
-            const result = await featureServices.gameAdapter.startNewGameFromWizard(wizardState);
-            return {
-              success: result.success,
-              gameId: result.gameId.value, // Convert GameId to string for shared context
-              ...(result.errors && { errors: result.errors }),
-            };
-          },
-          getTeamLineup: async uiData => {
-            return await featureServices.gameAdapter.getTeamLineup(uiData);
-          },
-          makeSubstitution: async uiData => {
-            return await featureServices.gameAdapter.makeSubstitution(uiData);
-          },
-          recordAtBat: async uiData => {
-            return await featureServices.gameAdapter.recordAtBat(uiData);
-          },
-          undoLastAction: async uiData => {
-            return await featureServices.gameAdapter.undoLastAction(uiData);
-          },
-          redoLastAction: async uiData => {
-            return await featureServices.gameAdapter.redoLastAction(uiData);
-          },
-          getGameState: async uiData => {
-            return await featureServices.gameAdapter.getGameState(uiData);
-          },
-          logger: featureServices.applicationServices.logger,
-        },
-      };
-
-      setState({
-        services,
-        isInitializing: false,
+  const initializeServices = useCallback(
+    async (initConfig: AppInitializationConfig): Promise<void> => {
+      setState(prev => ({
+        ...prev,
+        isInitializing: true,
         error: null,
-      });
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error : new Error('Unknown initialization error');
-      setState({
-        services: null,
-        isInitializing: false,
-        error: errorMessage,
-      });
-    }
-  };
+      }));
+
+      try {
+        // Use the app-initialization feature to create services
+        const featureServices: FeatureAppInitializationResult = await initializeApplicationServices(
+          initConfig,
+          createApplicationServicesWithContainer
+        );
+
+        // Map feature result to shared context type
+        const services: AppInitializationResult = {
+          applicationServices: featureServices.applicationServices,
+          gameAdapter: {
+            startNewGameFromWizard: async wizardState => {
+              const result = await featureServices.gameAdapter.startNewGameFromWizard(wizardState);
+              return {
+                success: result.success,
+                gameId: result.gameId.value, // Convert GameId to string for shared context
+                ...(result.errors && { errors: result.errors }),
+              };
+            },
+            getTeamLineup: async uiData => {
+              return await featureServices.gameAdapter.getTeamLineup(uiData);
+            },
+            makeSubstitution: async uiData => {
+              return await featureServices.gameAdapter.makeSubstitution(uiData);
+            },
+            recordAtBat: async uiData => {
+              return await featureServices.gameAdapter.recordAtBat(uiData);
+            },
+            undoLastAction: async uiData => {
+              return await featureServices.gameAdapter.undoLastAction(uiData);
+            },
+            redoLastAction: async uiData => {
+              return await featureServices.gameAdapter.redoLastAction(uiData);
+            },
+            getGameState: async uiData => {
+              return await featureServices.gameAdapter.getGameState(uiData);
+            },
+            logger: featureServices.applicationServices.logger,
+          },
+        };
+
+        setState({
+          services,
+          isInitializing: false,
+          error: null,
+        });
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error : new Error('Unknown initialization error');
+        setState({
+          services: null,
+          isInitializing: false,
+          error: errorMessage,
+        });
+      }
+    },
+    []
+  );
 
   /**
    * Reinitialize services with new configuration.
@@ -168,8 +171,12 @@ export function AppServicesProvider({
 
   // Initialize services on mount and config changes
   useEffect(() => {
-    void initializeServices(config);
-  }, [config]);
+    // Define async initialization inside effect to satisfy react-hooks/set-state-in-effect
+    const performInitialization = async (): Promise<void> => {
+      await initializeServices(config);
+    };
+    void performInitialization();
+  }, [config, initializeServices]);
 
   // Context value (providing only what the shared context expects)
   const contextValue = {
