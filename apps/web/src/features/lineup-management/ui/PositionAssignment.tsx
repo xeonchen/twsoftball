@@ -33,7 +33,7 @@
  */
 
 import { FieldPosition } from '@twsoftball/application';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 
 import type { PositionAssignment as PositionData, FieldLayout } from '../../../shared/lib/types';
 
@@ -726,13 +726,15 @@ function PositionEditDialog({
   error,
 }: PositionEditDialogProps): React.JSX.Element | null {
   const [selectedPlayerId, setSelectedPlayerId] = useState(currentAssignment.playerId);
+  const [lastOpenState, setLastOpenState] = useState(isOpen);
 
-  // Reset the selected player when the dialog opens
-  useEffect(() => {
+  // Reset the selected player when the dialog opens (using a ref pattern to avoid cascading renders)
+  if (isOpen !== lastOpenState) {
+    setLastOpenState(isOpen);
     if (isOpen) {
       setSelectedPlayerId(currentAssignment.playerId);
     }
-  }, [isOpen, currentAssignment.playerId]);
+  }
 
   if (!isOpen) return null;
 

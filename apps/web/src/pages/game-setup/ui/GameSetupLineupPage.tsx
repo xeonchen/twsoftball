@@ -328,84 +328,75 @@ export function GameSetupLineupPage(): ReactElement {
   /**
    * Handle position change for a player (memoized for performance with debounced validation)
    */
-  const handlePositionChange = useCallback(
-    (playerIndex: number, newPosition: string): void => {
-      const newLineup = [...lineup];
-      newLineup[playerIndex] = {
-        ...newLineup[playerIndex],
-        position: newPosition,
-      } as Player;
-      setLocalLineup(newLineup);
-      if (realTimeValidation) {
-        timers.setTimeout(() => {
-          const result = validateFieldPosition(newPosition);
-          setPositionValidations(prev => {
-            const newValidations = [...prev];
-            newValidations[playerIndex] = result;
-            return newValidations;
-          });
+  const handlePositionChange = (playerIndex: number, newPosition: string): void => {
+    const newLineup = [...lineup];
+    newLineup[playerIndex] = {
+      ...newLineup[playerIndex],
+      position: newPosition,
+    } as Player;
+    setLocalLineup(newLineup);
+    if (realTimeValidation) {
+      timers.setTimeout(() => {
+        const result = validateFieldPosition(newPosition);
+        setPositionValidations(prev => {
+          const newValidations = [...prev];
+          newValidations[playerIndex] = result;
+          return newValidations;
+        });
 
-          const lineupResult = validateLineup(newLineup);
-          setLineupValidation(lineupResult);
-        }, 300);
-      }
-    },
-    [lineup, realTimeValidation, timers]
-  );
+        const lineupResult = validateLineup(newLineup);
+        setLineupValidation(lineupResult);
+      }, 300);
+    }
+  };
 
   /**
    * Handle player name change (memoized for performance with debounced validation)
    */
-  const handlePlayerNameChange = useCallback(
-    (playerIndex: number, newName: string): void => {
-      const newLineup = [...lineup];
-      newLineup[playerIndex] = {
-        ...newLineup[playerIndex],
-        name: newName,
-      } as Player;
-      setLocalLineup(newLineup);
-      if (realTimeValidation) {
-        timers.setTimeout(() => {
-          const result = validateLineup(newLineup);
-          setLineupValidation(result);
-        }, 300);
-      }
-    },
-    [lineup, realTimeValidation, timers]
-  );
+  const handlePlayerNameChange = (playerIndex: number, newName: string): void => {
+    const newLineup = [...lineup];
+    newLineup[playerIndex] = {
+      ...newLineup[playerIndex],
+      name: newName,
+    } as Player;
+    setLocalLineup(newLineup);
+    if (realTimeValidation) {
+      timers.setTimeout(() => {
+        const result = validateLineup(newLineup);
+        setLineupValidation(result);
+      }, 300);
+    }
+  };
 
   /**
    * Handle jersey number change (memoized for performance with debounced validation)
    */
-  const handleJerseyNumberChange = useCallback(
-    (playerIndex: number, newJerseyNumber: string): void => {
-      const newLineup = [...lineup];
-      newLineup[playerIndex] = {
-        ...newLineup[playerIndex],
-        jerseyNumber: newJerseyNumber,
-      } as Player;
-      setLocalLineup(newLineup);
-      if (realTimeValidation) {
-        timers.setTimeout(() => {
-          const usedJerseys = newLineup
-            .filter((_, i) => i !== playerIndex)
-            .map(p => p.jerseyNumber)
-            .filter(Boolean);
+  const handleJerseyNumberChange = (playerIndex: number, newJerseyNumber: string): void => {
+    const newLineup = [...lineup];
+    newLineup[playerIndex] = {
+      ...newLineup[playerIndex],
+      jerseyNumber: newJerseyNumber,
+    } as Player;
+    setLocalLineup(newLineup);
+    if (realTimeValidation) {
+      timers.setTimeout(() => {
+        const usedJerseys = newLineup
+          .filter((_, i) => i !== playerIndex)
+          .map(p => p.jerseyNumber)
+          .filter(Boolean);
 
-          const jerseyResult = validateJerseyNumber(newJerseyNumber, usedJerseys);
-          setJerseyValidations(prev => {
-            const newValidations = [...prev];
-            newValidations[playerIndex] = jerseyResult;
-            return newValidations;
-          });
+        const jerseyResult = validateJerseyNumber(newJerseyNumber, usedJerseys);
+        setJerseyValidations(prev => {
+          const newValidations = [...prev];
+          newValidations[playerIndex] = jerseyResult;
+          return newValidations;
+        });
 
-          const lineupResult = validateLineup(newLineup);
-          setLineupValidation(lineupResult);
-        }, 300);
-      }
-    },
-    [lineup, realTimeValidation, timers]
-  );
+        const lineupResult = validateLineup(newLineup);
+        setLineupValidation(lineupResult);
+      }, 300);
+    }
+  };
 
   /**
    * Handle back navigation
@@ -475,28 +466,27 @@ export function GameSetupLineupPage(): ReactElement {
   /**
    * Stable event handler for player input changes (avoids inline functions)
    */
-  const handlePlayerInputChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>): void => {
-      const { value } = event.target;
-      const playerIndex = Number(event.target.dataset['playerIndex']);
-      const fieldType = event.target.dataset['fieldType'];
+  const handlePlayerInputChange = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ): void => {
+    const { value } = event.target;
+    const playerIndex = Number(event.target.dataset['playerIndex']);
+    const fieldType = event.target.dataset['fieldType'];
 
-      if (isNaN(playerIndex)) return;
+    if (isNaN(playerIndex)) return;
 
-      switch (fieldType) {
-        case 'name':
-          handlePlayerNameChange(playerIndex, value);
-          break;
-        case 'jersey':
-          handleJerseyNumberChange(playerIndex, value);
-          break;
-        case 'position':
-          handlePositionChange(playerIndex, value);
-          break;
-      }
-    },
-    [handlePlayerNameChange, handleJerseyNumberChange, handlePositionChange]
-  );
+    switch (fieldType) {
+      case 'name':
+        handlePlayerNameChange(playerIndex, value);
+        break;
+      case 'jersey':
+        handleJerseyNumberChange(playerIndex, value);
+        break;
+      case 'position':
+        handlePositionChange(playerIndex, value);
+        break;
+    }
+  };
 
   /**
    * Apply suggested jersey number

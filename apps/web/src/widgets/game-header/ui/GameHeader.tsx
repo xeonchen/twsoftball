@@ -107,19 +107,25 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
 
   // Animate score changes
   useEffect(() => {
-    if (homeScore !== prevHomeScore) {
-      setAnimateHomeScore(true);
-      setPrevHomeScore(homeScore);
-      timers.setTimeout(() => setAnimateHomeScore(false), 1000);
-    }
+    const handleScoreAnimation = (): void => {
+      if (homeScore !== prevHomeScore) {
+        setAnimateHomeScore(true);
+        setPrevHomeScore(homeScore);
+        timers.setTimeout(() => setAnimateHomeScore(false), 1000);
+      }
+    };
+    handleScoreAnimation();
   }, [homeScore, prevHomeScore, timers]);
 
   useEffect(() => {
-    if (awayScore !== prevAwayScore) {
-      setAnimateAwayScore(true);
-      setPrevAwayScore(awayScore);
-      timers.setTimeout(() => setAnimateAwayScore(false), 1000);
-    }
+    const handleScoreAnimation = (): void => {
+      if (awayScore !== prevAwayScore) {
+        setAnimateAwayScore(true);
+        setPrevAwayScore(awayScore);
+        timers.setTimeout(() => setAnimateAwayScore(false), 1000);
+      }
+    };
+    handleScoreAnimation();
   }, [awayScore, prevAwayScore, timers]);
 
   // Helper function to format ordinal numbers

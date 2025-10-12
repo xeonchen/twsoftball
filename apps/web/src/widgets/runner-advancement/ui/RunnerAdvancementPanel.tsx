@@ -137,7 +137,7 @@ export const RunnerAdvancementPanel: React.FC<RunnerAdvancementPanelProps> = ({
     }
 
     return runners;
-  }, [currentGameState?.bases]);
+  }, [currentGameState]);
 
   /**
    * Get forced advances for current at-bat result

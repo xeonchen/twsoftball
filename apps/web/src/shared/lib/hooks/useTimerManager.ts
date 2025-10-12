@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { timerManager } from '../../../timer-manager';
 
@@ -32,33 +32,35 @@ export function useTimerManager(): {
 } {
   const timerIdsRef = useRef<Set<number>>(new Set());
 
-  const componentTimerManager = useRef({
-    setTimeout: (callback: () => void, delay: number): number => {
-      const timerId = timerManager.setTimeout(callback, delay);
-      timerIdsRef.current.add(timerId);
-      return timerId;
-    },
+  const componentTimerManager = useMemo(
+    () => ({
+      setTimeout: (callback: () => void, delay: number): number => {
+        const timerId = timerManager.setTimeout(callback, delay);
+        timerIdsRef.current.add(timerId);
+        return timerId;
+      },
 
-    clearTimeout: (timerId: number): void => {
-      timerManager.clearTimeout(timerId);
-      timerIdsRef.current.delete(timerId);
-    },
-
-    clearAllTimers: (): void => {
-      timerIdsRef.current.forEach(timerId => {
+      clearTimeout: (timerId: number): void => {
         timerManager.clearTimeout(timerId);
-      });
-      timerIdsRef.current.clear();
-    },
-  });
+        timerIdsRef.current.delete(timerId);
+      },
+
+      clearAllTimers: (): void => {
+        timerIdsRef.current.forEach(timerId => {
+          timerManager.clearTimeout(timerId);
+        });
+        timerIdsRef.current.clear();
+      },
+    }),
+    []
+  );
 
   // Clean up all component timers on unmount
   useEffect((): (() => void) => {
-    const manager = componentTimerManager.current;
     return (): void => {
-      manager.clearAllTimers();
+      componentTimerManager.clearAllTimers();
     };
-  }, []);
+  }, [componentTimerManager]);
 
-  return componentTimerManager.current;
+  return componentTimerManager;
 }

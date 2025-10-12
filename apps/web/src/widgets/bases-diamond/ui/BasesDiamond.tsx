@@ -36,6 +36,83 @@ export interface BasesDiamondProps {
 }
 
 /**
+ * Helper function to get player display name (shortened for space)
+ */
+const getPlayerDisplayName = (player: Player): string => {
+  if (!player?.name) return '';
+  const nameParts = player.name.split(' ');
+  if (nameParts.length >= 2) {
+    return `${nameParts[0]?.[0] || ''}. ${nameParts[nameParts.length - 1] || ''}`;
+  }
+  return player.name;
+};
+
+/**
+ * Base component for individual bases
+ */
+const BaseComponent: React.FC<{
+  player: Player | null;
+  baseKey: 'first' | 'second' | 'third';
+  label: string;
+  testId: string;
+  position: string;
+  showLabels: boolean;
+  interactive: boolean;
+  onBaseClick: (baseKey: 'first' | 'second' | 'third') => void;
+}> = ({ player, baseKey, label, testId, position, showLabels, interactive, onBaseClick }) => {
+  const isOccupied = player !== null;
+  const baseClasses = [
+    'absolute',
+    'flex',
+    'flex-col',
+    'items-center',
+    'justify-center',
+    'min-w-8',
+    'min-h-8',
+    'w-12',
+    'h-12',
+    'rounded-lg',
+    'border-2',
+    'border-gray-600',
+    'transition-colors',
+    'duration-200',
+    position,
+    isOccupied ? 'bg-warning-500' : 'bg-gray-300',
+    interactive ? 'cursor-pointer hover:opacity-80' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <div
+      data-testid={testId}
+      className={baseClasses}
+      onClick={() => onBaseClick(baseKey)}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onKeyDown={
+        interactive
+          ? (e): void => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onBaseClick(baseKey);
+              }
+            }
+          : undefined
+      }
+    >
+      {showLabels && <span className="text-xs font-bold text-gray-700">{label}</span>}
+      {isOccupied && player && (
+        <div className="text-center">
+          <div className="text-xs font-semibold text-gray-800">{getPlayerDisplayName(player)}</div>
+          <div className="text-xs text-gray-600">#{player.jerseyNumber}</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
  * BasesDiamond Component
  *
  * Displays the softball diamond with correct 4-base layout per wireframes:
@@ -82,83 +159,11 @@ export const BasesDiamond: React.FC<BasesDiamondProps> = ({
     large: 'w-80 h-80',
   };
 
-  // Helper function to get player display name (shortened for space)
-  const getPlayerDisplayName = (player: Player): string => {
-    if (!player?.name) return '';
-    const nameParts = player.name.split(' ');
-    if (nameParts.length >= 2) {
-      return `${nameParts[0]?.[0] || ''}. ${nameParts[nameParts.length - 1] || ''}`;
-    }
-    return player.name;
-  };
-
   // Helper function to handle base clicks
   const handleBaseClick = (baseKey: 'first' | 'second' | 'third'): void => {
     if (interactive && onBaseClick) {
       onBaseClick(baseKey);
     }
-  };
-
-  // Base component for individual bases
-  const BaseComponent: React.FC<{
-    player: Player | null;
-    baseKey: 'first' | 'second' | 'third';
-    label: string;
-    testId: string;
-    position: string;
-  }> = ({ player, baseKey, label, testId, position }) => {
-    const isOccupied = player !== null;
-    const baseClasses = [
-      'absolute',
-      'flex',
-      'flex-col',
-      'items-center',
-      'justify-center',
-      'min-w-8',
-      'min-h-8',
-      'w-12',
-      'h-12',
-      'rounded-lg',
-      'border-2',
-      'border-gray-600',
-      'transition-colors',
-      'duration-200',
-      position,
-      isOccupied ? 'bg-warning-500' : 'bg-gray-300',
-      interactive ? 'cursor-pointer hover:opacity-80' : '',
-    ]
-      .filter(Boolean)
-      .join(' ');
-
-    return (
-      <div
-        data-testid={testId}
-        className={baseClasses}
-        onClick={() => handleBaseClick(baseKey)}
-        role={interactive ? 'button' : undefined}
-        tabIndex={interactive ? 0 : undefined}
-        onKeyDown={
-          interactive
-            ? (e): void => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleBaseClick(baseKey);
-                }
-              }
-            : undefined
-        }
-      >
-        {showLabels && <span className="text-xs font-bold text-gray-700">{label}</span>}
-        {isOccupied && player && (
-          <div className="text-center">
-            <div className="text-xs font-semibold text-gray-800">
-              {getPlayerDisplayName(player)}
-            </div>
-            <div className="text-xs text-gray-600">#{player.jerseyNumber}</div>
-          </div>
-        )}
-      </div>
-    );
   };
 
   return (
@@ -176,6 +181,9 @@ export const BasesDiamond: React.FC<BasesDiamondProps> = ({
         label="2B"
         testId="base-2b"
         position="top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-full"
+        showLabels={showLabels}
+        interactive={interactive}
+        onBaseClick={handleBaseClick}
       />
 
       {/* Third Base - Left */}
@@ -185,6 +193,9 @@ export const BasesDiamond: React.FC<BasesDiamondProps> = ({
         label="3B"
         testId="base-3b"
         position="top-1/2 left-0 transform -translate-y-1/2 -translate-x-1/2"
+        showLabels={showLabels}
+        interactive={interactive}
+        onBaseClick={handleBaseClick}
       />
 
       {/* First Base - Right */}
@@ -194,6 +205,9 @@ export const BasesDiamond: React.FC<BasesDiamondProps> = ({
         label="1B"
         testId="base-1b"
         position="top-1/2 right-0 transform -translate-y-1/2 translate-x-1/2"
+        showLabels={showLabels}
+        interactive={interactive}
+        onBaseClick={handleBaseClick}
       />
 
       {/* Home Plate - Bottom */}

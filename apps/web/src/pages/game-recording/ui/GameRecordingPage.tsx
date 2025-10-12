@@ -211,7 +211,7 @@ export function GameRecordingPage(): ReactElement {
       ];
       return hitsRequiringAdvancement.includes(atBatResult);
     },
-    [activeGameState?.bases]
+    [activeGameState]
   );
 
   /**
@@ -279,7 +279,7 @@ export function GameRecordingPage(): ReactElement {
 
       return advances;
     },
-    [activeGameState?.currentBatter, activeGameState?.bases]
+    [activeGameState]
   );
 
   /**
@@ -430,24 +430,27 @@ export function GameRecordingPage(): ReactElement {
    * Handle successful at-bat recording result
    */
   useEffect(() => {
-    if (result) {
-      // Show RBI notification if applicable
-      if (result.rbiAwarded && result.rbiAwarded > 0) {
-        setRbiNotification(result.rbiAwarded);
-        timers.setTimeout(() => setRbiNotification(null), RBI_NOTIFICATION_DURATION_MS);
-      }
+    const handleResult = (): void => {
+      if (result) {
+        // Show RBI notification if applicable
+        if (result.rbiAwarded && result.rbiAwarded > 0) {
+          setRbiNotification(result.rbiAwarded);
+          timers.setTimeout(() => setRbiNotification(null), RBI_NOTIFICATION_DURATION_MS);
+        }
 
-      // Update game state through store
-      if (result.gameState) {
-        updateScore({
-          home: result.gameState.score.home,
-          away: result.gameState.score.away,
-        });
-      }
+        // Update game state through store
+        if (result.gameState) {
+          updateScore({
+            home: result.gameState.score.home,
+            away: result.gameState.score.away,
+          });
+        }
 
-      // Reset recording state
-      reset();
-    }
+        // Reset recording state
+        reset();
+      }
+    };
+    handleResult();
   }, [result, reset, updateScore, timers]);
 
   /**
