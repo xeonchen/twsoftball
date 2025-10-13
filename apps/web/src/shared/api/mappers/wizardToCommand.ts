@@ -99,13 +99,17 @@ export function wizardToCommand(wizardState: SetupWizardState): StartNewGameComm
   // Generate unique game ID
   const gameId = new GameId(`game-${uuidv4()}`);
 
+  // Set game date to near future (5 minutes from now) to avoid "date in past" validation errors
+  // This is realistic for game scheduling - games typically start soon, not exactly at creation time
+  const gameDate = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+
   // Create command with validated data
   return {
     gameId,
     homeTeamName: teamData.homeTeamName,
     awayTeamName: teamData.awayTeamName,
     ourTeamSide: teamData.ourTeamSide,
-    gameDate: new Date(), // Current timestamp
+    gameDate,
     initialLineup: processedLineup,
   };
 }

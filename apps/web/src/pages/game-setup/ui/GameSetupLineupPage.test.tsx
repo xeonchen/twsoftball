@@ -58,6 +58,7 @@ vi.mock('../../../features/game-setup', () => ({
   validateFieldPosition: vi.fn(),
   validateLineup: vi.fn(),
   getJerseyNumberSuggestions: vi.fn(),
+  countIncompletePlayers: vi.fn(() => 0),
 }));
 
 // Mock the game store
@@ -621,25 +622,33 @@ describe('GameSetupLineupPage Component', () => {
     });
 
     it('should show lineup validation summary when invalid', () => {
-      // Since validation is called on state change, we need to trigger it
+      // Validation is now triggered on mount via useEffect
       render(
         <TestWrapper>
           <GameSetupLineupPage />
         </TestWrapper>
       );
 
-      // The validation summary only shows when the lineup is actually invalid
-      // and the validation has run. Let's check it's not shown by default
-      expect(screen.queryByTestId('lineup-validation-summary')).not.toBeInTheDocument();
+      // Validation summary should be shown since lineup is empty (invalid)
+      expect(screen.getByTestId('lineup-validation-summary')).toBeInTheDocument();
+      expect(screen.getByText('Need at least 9 players to start game')).toBeInTheDocument();
     });
 
     it('should not show validation summary when lineup is valid', () => {
+      // Mock a valid lineup (9+ players)
+      mockValidateLineup.mockReturnValue({
+        isValid: true,
+        playerCount: 10,
+        error: null,
+      });
+
       render(
         <TestWrapper>
           <GameSetupLineupPage />
         </TestWrapper>
       );
 
+      // Validation summary should not be shown since lineup is valid
       expect(screen.queryByTestId('lineup-validation-summary')).not.toBeInTheDocument();
     });
   });
@@ -894,9 +903,9 @@ describe('GameSetupLineupPage Component', () => {
         </TestWrapper>
       );
 
-      // Initially lineup is empty, so validation summary shouldn't show
-      // since the component uses initial state rather than calling validation immediately
-      expect(screen.queryByTestId('lineup-validation-summary')).not.toBeInTheDocument();
+      // With useEffect validation on mount, validation summary should be shown for empty lineup
+      expect(screen.getByTestId('lineup-validation-summary')).toBeInTheDocument();
+      expect(screen.getByText('Need at least 9 players to start game')).toBeInTheDocument();
     });
 
     it('should handle validation function errors gracefully', () => {

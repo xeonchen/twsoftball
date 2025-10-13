@@ -27,6 +27,16 @@ export interface JerseyValidationResult {
 }
 
 /**
+ * Result of player name validation
+ */
+export interface PlayerNameValidationResult {
+  /** Whether the player name is valid */
+  isValid: boolean;
+  /** Error message if validation failed */
+  error?: string;
+}
+
+/**
  * Result of field position validation
  */
 export interface FieldPositionValidationResult {
@@ -204,15 +214,34 @@ export function validateLineup(lineup: (Player | null | undefined)[]): LineupVal
   // Filter out null/undefined entries
   const nonNullPlayers = lineup.filter((player): player is Player => player != null);
 
-  // Count players with names
-  const validPlayers = nonNullPlayers.filter(player => player.name.trim() !== '');
+  // Identify players that have started being filled (at least one field has data)
+  const startedPlayers = nonNullPlayers.filter(
+    player =>
+      player.name.trim() !== '' ||
+      player.jerseyNumber.trim() !== '' ||
+      player.position.trim() !== ''
+  );
+
+  // Count complete players (with name AND jersey number)
+  const validPlayers = nonNullPlayers.filter(
+    player => player.name.trim() !== '' && player.jerseyNumber.trim() !== ''
+  );
   const playerCount = validPlayers.length;
 
-  // Check if all non-null players have names (priority over minimum count)
-  if (nonNullPlayers.some(player => player.name.trim() === '')) {
+  // Check if players that have been started are missing required fields (priority over minimum count)
+  if (startedPlayers.some(player => player.name.trim() === '')) {
     return {
       isValid: false,
       error: 'All players must have names',
+      playerCount,
+    };
+  }
+
+  // Check if players that have been started are missing jersey numbers (priority over minimum count)
+  if (startedPlayers.some(player => player.jerseyNumber.trim() === '')) {
+    return {
+      isValid: false,
+      error: 'All players must have jersey numbers',
       playerCount,
     };
   }
@@ -433,4 +462,70 @@ function calculatePositionCoverage(players: Player[]): {
     covered: uniqueCoveredPositions,
     missing: missingPositions,
   };
+}
+
+/**
+ * Validates a player name according to domain rules
+ *
+ * @param name - Player name as string (user input)
+ * @returns Validation result with error message
+ *
+ * @remarks
+ * UX enhancement to provide field-level validation feedback.
+ * Helps users understand which specific fields need attention.
+ */
+export function validatePlayerName(name: string | null | undefined): PlayerNameValidationResult {
+  // Handle null/undefined input
+  if (name == null) {
+    return {
+      isValid: false,
+      error: 'Player name is required',
+    };
+  }
+
+  // Check for empty or whitespace
+  if (!name.trim()) {
+    return {
+      isValid: false,
+      error: 'Player name is required',
+    };
+  }
+
+  return {
+    isValid: true,
+  };
+}
+
+/**
+ * Checks if a player has all required fields filled
+ *
+ * @param player - Player object to check
+ * @returns True if name, jersey, and position are all filled
+ *
+ * @remarks
+ * UX enhancement to identify incomplete player entries.
+ * A player is considered complete when all three fields have values.
+ */
+export function isPlayerComplete(player: Player): boolean {
+  return (
+    player.name.trim() !== '' && player.jerseyNumber.trim() !== '' && player.position.trim() !== ''
+  );
+}
+
+/**
+ * Counts the number of incomplete players in a lineup
+ *
+ * @param lineup - Array of players (may include null/undefined)
+ * @returns Number of players with missing required fields
+ *
+ * @remarks
+ * UX enhancement to show users exactly how many players need attention.
+ * Helps with progress tracking during lineup setup.
+ */
+export function countIncompletePlayers(lineup: (Player | null | undefined)[]): number {
+  // Filter out null/undefined entries
+  const nonNullPlayers = lineup.filter((player): player is Player => player != null);
+
+  // Count players that are incomplete
+  return nonNullPlayers.filter(player => !isPlayerComplete(player)).length;
 }

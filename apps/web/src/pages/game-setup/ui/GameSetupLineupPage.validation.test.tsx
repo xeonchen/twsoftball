@@ -493,4 +493,323 @@ describe('GameSetupLineupPage Validation Integration', () => {
       });
     });
   });
+
+  describe('Enhanced UX Validation Feedback', () => {
+    it('should show enhanced validation feedback above continue button', async () => {
+      renderWithRouter(<GameSetupLineupPage />);
+
+      // Change to 9 players
+      const playerCountSelector = screen.getByTestId('player-count-selector');
+      fireEvent.change(playerCountSelector, { target: { value: '9' } });
+
+      // Fill only positions for first 5 players (no names/jerseys)
+      for (let i = 0; i < 5; i++) {
+        const positionSelect = screen.getByTestId(`position-select-${i}`);
+        fireEvent.change(positionSelect, { target: { value: 'P' } });
+      }
+
+      // Should show enhanced feedback
+      // Note: All 9 players are incomplete because they all have empty names/jerseys
+      // (5 have positions but no names/jerseys, 4 have nothing)
+      await waitFor(() => {
+        const feedback = screen.getByTestId('lineup-validation-feedback');
+        expect(feedback).toBeInTheDocument();
+        expect(feedback).toHaveTextContent(/9 players? missing required fields/);
+      });
+    });
+
+    it('should show progress indicator with player count', () => {
+      renderWithRouter(<GameSetupLineupPage />);
+
+      // Should show progress indicator
+      const progressIndicator = screen.getByTestId('lineup-progress-indicator');
+      expect(progressIndicator).toBeInTheDocument();
+      expect(progressIndicator).toHaveTextContent('0 of 9+ completed');
+    });
+
+    it('should update progress indicator as players are completed', async () => {
+      renderWithRouter(<GameSetupLineupPage />);
+
+      // Change to 9 players
+      const playerCountSelector = screen.getByTestId('player-count-selector');
+      fireEvent.change(playerCountSelector, { target: { value: '9' } });
+
+      // Complete 3 players
+      for (let i = 0; i < 3; i++) {
+        const nameInput = screen.getByTestId(`player-name-input-${i}`);
+        const jerseyInput = screen.getByTestId(`jersey-input-${i}`);
+        const positionSelect = screen.getByTestId(`position-select-${i}`);
+
+        fireEvent.change(nameInput, { target: { value: `Player ${i + 1}` } });
+        fireEvent.change(jerseyInput, { target: { value: `${i + 1}` } });
+        fireEvent.change(positionSelect, { target: { value: 'P' } });
+      }
+
+      // Should show 3 completed
+      await waitFor(() => {
+        const progressIndicator = screen.getByTestId('lineup-progress-indicator');
+        expect(progressIndicator).toHaveTextContent('3 of 9+ completed');
+      });
+    });
+
+    it('should show field-level required indicators for incomplete players', async () => {
+      renderWithRouter(<GameSetupLineupPage />);
+
+      // Fill only position for first player
+      const positionSelect = screen.getByTestId('position-select-0');
+      fireEvent.change(positionSelect, { target: { value: 'P' } });
+
+      // Should show required indicators
+      await waitFor(() => {
+        expect(screen.getByTestId('name-required-0')).toBeInTheDocument();
+        expect(screen.getByTestId('jersey-required-0')).toBeInTheDocument();
+      });
+    });
+
+    it('should highlight empty fields with red border when position is filled', async () => {
+      renderWithRouter(<GameSetupLineupPage />);
+
+      // Fill only position for first player
+      const positionSelect = screen.getByTestId('position-select-0');
+      fireEvent.change(positionSelect, { target: { value: 'SS' } });
+
+      // Check that name and jersey inputs have red border styling
+      await waitFor(() => {
+        const nameInput = screen.getByTestId('player-name-input-0');
+        const jerseyInput = screen.getByTestId('jersey-input-0');
+
+        // Inputs should have inline styles for red border
+        expect(nameInput).toHaveStyle({ border: '2px solid #dc3545' });
+        expect(jerseyInput).toHaveStyle({ border: '2px solid #dc3545' });
+      });
+    });
+
+    it('should remove field highlighting when fields are filled', async () => {
+      renderWithRouter(<GameSetupLineupPage />);
+
+      // Fill only position first
+      const positionSelect = screen.getByTestId('position-select-0');
+      fireEvent.change(positionSelect, { target: { value: 'P' } });
+
+      // Verify highlighting appears
+      await waitFor(() => {
+        expect(screen.getByTestId('name-required-0')).toBeInTheDocument();
+      });
+
+      // Fill name and jersey
+      const nameInput = screen.getByTestId('player-name-input-0');
+      const jerseyInput = screen.getByTestId('jersey-input-0');
+      fireEvent.change(nameInput, { target: { value: 'John Smith' } });
+      fireEvent.change(jerseyInput, { target: { value: '23' } });
+
+      // Highlighting should be removed
+      await waitFor(() => {
+        expect(screen.queryByTestId('name-required-0')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('jersey-required-0')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should show improved validation summary styling', async () => {
+      renderWithRouter(<GameSetupLineupPage />);
+
+      // Change to 9 players
+      const playerCountSelector = screen.getByTestId('player-count-selector');
+      fireEvent.change(playerCountSelector, { target: { value: '9' } });
+
+      // Fill only 3 players (not enough)
+      for (let i = 0; i < 3; i++) {
+        const nameInput = screen.getByTestId(`player-name-input-${i}`);
+        const jerseyInput = screen.getByTestId(`jersey-input-${i}`);
+        const positionSelect = screen.getByTestId(`position-select-${i}`);
+
+        fireEvent.change(nameInput, { target: { value: `Player ${i + 1}` } });
+        fireEvent.change(jerseyInput, { target: { value: `${i + 1}` } });
+        fireEvent.change(positionSelect, { target: { value: 'P' } });
+      }
+
+      // Should show improved validation summary with styling
+      await waitFor(() => {
+        const summary = screen.getByTestId('lineup-validation-summary');
+        expect(summary).toBeInTheDocument();
+        expect(summary).toHaveStyle({ backgroundColor: '#f8d7da' });
+        expect(summary).toHaveTextContent('⚠️ Lineup Issues:');
+      });
+    });
+
+    it('should prioritize incomplete player feedback over minimum count', async () => {
+      renderWithRouter(<GameSetupLineupPage />);
+
+      // Change to 9 players
+      const playerCountSelector = screen.getByTestId('player-count-selector');
+      fireEvent.change(playerCountSelector, { target: { value: '9' } });
+
+      // Fill positions but no names/jerseys for all 9
+      for (let i = 0; i < 9; i++) {
+        const positionSelect = screen.getByTestId(`position-select-${i}`);
+        fireEvent.change(positionSelect, { target: { value: 'P' } });
+      }
+
+      // Should show incomplete feedback (not "not enough players")
+      await waitFor(() => {
+        const feedback = screen.getByTestId('lineup-validation-feedback');
+        expect(feedback).toHaveTextContent(/9 players? missing required fields/);
+        expect(feedback).not.toHaveTextContent(/Not enough players/);
+      });
+    });
+  });
+
+  describe('Available Players Quick-Add', () => {
+    it('should trigger validation when adding player from Available section', async () => {
+      renderWithRouter(<GameSetupLineupPage />);
+
+      // Change to 9 players
+      const playerCountSelector = screen.getByTestId('player-count-selector');
+      fireEvent.change(playerCountSelector, { target: { value: '9' } });
+
+      // Initially should show 0 completed
+      expect(screen.getByTestId('lineup-progress-indicator')).toHaveTextContent(
+        '0 of 9+ completed'
+      );
+
+      // Click add button for first available player (Mike Chen #8 SS)
+      const addButton = screen.getByTestId('add-player-1');
+      fireEvent.click(addButton);
+
+      // Validation should trigger and show 1 completed
+      await waitFor(() => {
+        expect(screen.getByTestId('lineup-progress-indicator')).toHaveTextContent(
+          '1 of 9+ completed'
+        );
+      });
+    });
+
+    it('should update CONTINUE button state when adding players via Available section', async () => {
+      renderWithRouter(<GameSetupLineupPage />);
+
+      // Change to 9 players
+      const playerCountSelector = screen.getByTestId('player-count-selector');
+      fireEvent.change(playerCountSelector, { target: { value: '9' } });
+
+      // Initially CONTINUE should be disabled
+      expect(screen.getByTestId('continue-button')).toBeDisabled();
+
+      // Add 9 players from Available section (there are 11 available)
+      for (let i = 1; i <= 9; i++) {
+        const addButton = screen.getByTestId(`add-player-${i}`);
+        fireEvent.click(addButton);
+      }
+
+      // CONTINUE should now be enabled
+      await waitFor(() => {
+        expect(screen.getByTestId('continue-button')).toBeEnabled();
+      });
+    });
+
+    it('should update position coverage when adding players via Available section', async () => {
+      renderWithRouter(<GameSetupLineupPage />);
+
+      // Change to 10 players
+      const playerCountSelector = screen.getByTestId('player-count-selector');
+      fireEvent.change(playerCountSelector, { target: { value: '10' } });
+
+      // Add first 10 available players (covers all positions)
+      for (let i = 1; i <= 10; i++) {
+        const addButton = screen.getByTestId(`add-player-${i}`);
+        fireEvent.click(addButton);
+      }
+
+      // Position coverage should show all positions covered
+      await waitFor(() => {
+        expect(screen.getByTestId('lineup-progress-indicator')).toHaveTextContent(
+          '10 of 9+ completed'
+        );
+      });
+
+      // Check specific position coverage (first player is Mike Chen - SS)
+      const positionCoverageP = screen.getByTestId('position-coverage-P');
+      const positionCoverageSS = screen.getByTestId('position-coverage-SS');
+
+      expect(positionCoverageP).toHaveClass('covered');
+      expect(positionCoverageSS).toHaveClass('covered');
+    });
+
+    it('should show enhanced feedback after adding incomplete players via Available section', async () => {
+      renderWithRouter(<GameSetupLineupPage />);
+
+      // Change to 9 players
+      const playerCountSelector = screen.getByTestId('player-count-selector');
+      fireEvent.change(playerCountSelector, { target: { value: '9' } });
+
+      // Add only 5 complete players (4 slots remain empty - these count as incomplete)
+      for (let i = 1; i <= 5; i++) {
+        const addButton = screen.getByTestId(`add-player-${i}`);
+        fireEvent.click(addButton);
+      }
+
+      // Should show validation feedback about incomplete players (empty slots)
+      await waitFor(() => {
+        const feedback = screen.getByTestId('lineup-validation-feedback');
+        expect(feedback).toBeInTheDocument();
+        expect(feedback).toHaveTextContent(/4 players? missing required fields/);
+      });
+    });
+
+    it('should correctly validate when mixing manual input and quick-add', async () => {
+      renderWithRouter(<GameSetupLineupPage />);
+
+      // Change to 9 players
+      const playerCountSelector = screen.getByTestId('player-count-selector');
+      fireEvent.change(playerCountSelector, { target: { value: '9' } });
+
+      // Manually fill first 3 players
+      for (let i = 0; i < 3; i++) {
+        const nameInput = screen.getByTestId(`player-name-input-${i}`);
+        const jerseyInput = screen.getByTestId(`jersey-input-${i}`);
+        const positionSelect = screen.getByTestId(`position-select-${i}`);
+
+        fireEvent.change(nameInput, { target: { value: `Manual Player ${i + 1}` } });
+        fireEvent.change(jerseyInput, { target: { value: `${i + 1}` } });
+        fireEvent.change(positionSelect, { target: { value: 'P' } });
+      }
+
+      // Quick-add 6 more players (slots 3-8)
+      for (let i = 1; i <= 6; i++) {
+        const addButton = screen.getByTestId(`add-player-${i}`);
+        fireEvent.click(addButton);
+      }
+
+      // Should have 9 completed players
+      await waitFor(() => {
+        expect(screen.getByTestId('lineup-progress-indicator')).toHaveTextContent(
+          '9 of 9+ completed'
+        );
+        expect(screen.getByTestId('continue-button')).toBeEnabled();
+      });
+    });
+
+    it('should handle adding players to empty slots correctly', async () => {
+      renderWithRouter(<GameSetupLineupPage />);
+
+      // Manually fill slot 0
+      fireEvent.change(screen.getByTestId('player-name-input-0'), {
+        target: { value: 'First Player' },
+      });
+      fireEvent.change(screen.getByTestId('jersey-input-0'), { target: { value: '99' } });
+      fireEvent.change(screen.getByTestId('position-select-0'), { target: { value: 'P' } });
+
+      // Quick-add should go to slot 1 (first empty)
+      const addButton = screen.getByTestId('add-player-1');
+      fireEvent.click(addButton);
+
+      // Verify slot 1 was filled
+      await waitFor(() => {
+        const nameInput1 = screen.getByTestId('player-name-input-1');
+        expect(nameInput1).toHaveValue('Mike Chen');
+      });
+
+      // Verify slot 0 wasn't overwritten
+      const nameInput0 = screen.getByTestId('player-name-input-0');
+      expect(nameInput0).toHaveValue('First Player');
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { type ReactElement, useEffect } from 'react';
+import { type ReactElement, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useGameStore } from '../../../entities/game';
@@ -26,7 +26,11 @@ import { Button } from '../../../shared/ui/button';
 export function GameSetupConfirmPage(): ReactElement {
   const navigate = useNavigate();
   const { setupWizard, completeSetup, startActiveGame } = useGameStore();
-  const { startGame, isLoading, error, gameId, validationErrors, clearError } = useGameSetup();
+  const { startGame, isLoading, error, gameId, validationErrors, clearError, reset } =
+    useGameSetup();
+
+  // Ref to track if we've already processed this gameId
+  const processedGameIdRef = useRef<string | null>(null);
 
   /**
    * Format current date and time
@@ -65,7 +69,10 @@ export function GameSetupConfirmPage(): ReactElement {
    * Navigate to game recording when game is successfully created
    */
   useEffect(() => {
-    if (gameId) {
+    // Only process each gameId once to prevent infinite loop
+    if (gameId && processedGameIdRef.current !== gameId) {
+      processedGameIdRef.current = gameId;
+
       // Complete the setup wizard
       completeSetup();
 
@@ -87,7 +94,51 @@ export function GameSetupConfirmPage(): ReactElement {
       // Navigate to game recording
       void navigate(`/game/${gameId}/record`);
     }
-  }, [gameId, completeSetup, startActiveGame, setupWizard, navigate]);
+
+    // Only depend on gameId - other values are captured from render scope
+    // Zustand functions (completeSetup, startActiveGame, navigate) are stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Zustand functions are stable and setupWizard values are captured from render scope
+  }, [gameId]);
+
+  /**
+   * Clear stale gameId on mount to prevent unwanted auto-navigation
+   *
+   * @remarks
+   * This handles the case where:
+   * 1. A previous game was created (gameId set)
+   * 2. User navigates back to confirm page (component may be reused by React Router)
+   * 3. Old gameId triggers immediate navigation before user can interact
+   *
+   * We only clear if:
+   * - gameId exists (there's state to clean)
+   * - isLoading is false (not in the middle of creating a game)
+   * - Component is mounting (not in the middle of a game creation flow)
+   */
+  useEffect(() => {
+    if (gameId && !isLoading) {
+      reset(); // Clear stale gameId from previous operation
+    }
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only check for stale state on mount
+  }, []);
+
+  /**
+   * Reset gameId state when component unmounts to prevent state leakage
+   *
+   * @remarks
+   * This cleanup prevents the following issues:
+   * - E2E tests: gameId persisting between test runs causing auto-navigation
+   * - Production: Back button returning to confirm page with stale gameId
+   * - Multiple game setups: Previous gameId triggering unintended navigation
+   *
+   * The reset() function clears all useGameSetup state including gameId,
+   * ensuring clean state for the next game setup workflow.
+   */
+  useEffect(() => {
+    return (): void => {
+      reset(); // Clean up gameId when leaving confirm page
+    };
+  }, [reset]);
 
   /**
    * Handle starting the game using the useGameSetup hook

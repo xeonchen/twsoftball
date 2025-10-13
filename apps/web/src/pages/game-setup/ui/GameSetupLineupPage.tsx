@@ -1,4 +1,4 @@
-import React, { useState, useCallback, memo, type ReactElement } from 'react';
+import React, { useState, useCallback, useEffect, memo, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useGameStore } from '../../../entities/game';
@@ -7,6 +7,7 @@ import {
   validateFieldPosition,
   validateLineup,
   getJerseyNumberSuggestions,
+  countIncompletePlayers,
   type JerseyValidationResult,
   type FieldPositionValidationResult,
   type LineupValidationResult,
@@ -55,6 +56,11 @@ const PlayerSlot = memo(function PlayerSlot({
   onJerseyFocus,
   onJerseyBlur,
 }: PlayerSlotProps): ReactElement {
+  // Check if player has position but missing name or jersey (field-level highlighting)
+  const hasPosition = player.position.trim() !== '';
+  const missingName = hasPosition && player.name.trim() === '';
+  const missingJersey = hasPosition && player.jerseyNumber.trim() === '';
+
   return (
     <div
       key={`batting-${index}`}
@@ -65,7 +71,18 @@ const PlayerSlot = memo(function PlayerSlot({
         <div className="batting-position">{index + 1}.</div>
 
         <div className="input-group">
-          <label htmlFor={`player-name-${index}`}>Name:</label>
+          <label htmlFor={`player-name-${index}`}>
+            Name:{' '}
+            {missingName && (
+              <span
+                className="field-required-indicator"
+                data-testid={`name-required-${index}`}
+                style={{ color: '#dc3545', fontWeight: 'bold', fontSize: '12px' }}
+              >
+                (Required)
+              </span>
+            )}
+          </label>
           <input
             id={`player-name-${index}`}
             type="text"
@@ -76,11 +93,30 @@ const PlayerSlot = memo(function PlayerSlot({
             placeholder="Enter player name"
             data-testid={`player-name-input-${index}`}
             className="player-name-input"
+            style={
+              missingName
+                ? {
+                    border: '2px solid #dc3545',
+                    backgroundColor: '#fff5f5',
+                  }
+                : undefined
+            }
           />
         </div>
 
         <div className="input-group">
-          <label htmlFor={`jersey-${index}`}>Jersey #:</label>
+          <label htmlFor={`jersey-${index}`}>
+            Jersey #:{' '}
+            {missingJersey && (
+              <span
+                className="field-required-indicator"
+                data-testid={`jersey-required-${index}`}
+                style={{ color: '#dc3545', fontWeight: 'bold', fontSize: '12px' }}
+              >
+                (Required)
+              </span>
+            )}
+          </label>
           <input
             id={`jersey-${index}`}
             type="text"
@@ -93,6 +129,14 @@ const PlayerSlot = memo(function PlayerSlot({
             placeholder="1-99"
             data-testid={`jersey-input-${index}`}
             className={`jersey-input ${jerseyValidation?.isValid === false ? 'error' : jerseyValidation?.isValid ? 'valid' : ''}`}
+            style={
+              missingJersey
+                ? {
+                    border: '2px solid #dc3545',
+                    backgroundColor: '#fff5f5',
+                  }
+                : undefined
+            }
           />
           {jerseyValidation && (
             <div className="validation-feedback" data-testid={`jersey-validation-${index}`}>
@@ -233,9 +277,19 @@ export function GameSetupLineupPage(): ReactElement {
     );
   }, []);
 
+  // Initialize lineup from store or generate empty lineup
+  const getInitialLineup = (): Player[] => {
+    if (setupWizard.lineup.length > 0) {
+      return setupWizard.lineup;
+    }
+    return generateEmptyLineup(10);
+  };
+
   // Local state
-  const [playerCount, setPlayerCount] = useState(10);
-  const [lineup, setLocalLineup] = useState<Player[]>(generateEmptyLineup(10));
+  const [playerCount, setPlayerCount] = useState(
+    setupWizard.lineup.length > 0 ? setupWizard.lineup.length : 10
+  );
+  const [lineup, setLocalLineup] = useState<Player[]>(getInitialLineup());
   const [availablePlayers] = useState<Player[]>(generateSamplePlayers());
 
   // Validation state
@@ -250,6 +304,19 @@ export function GameSetupLineupPage(): ReactElement {
   const [realTimeValidation, setRealTimeValidation] = useState(true);
   const [focusedJerseyInput, setFocusedJerseyInput] = useState<number | null>(null);
   const [showJerseySuggestions, setShowJerseySuggestions] = useState(false);
+
+  /**
+   * Trigger validation when component mounts with existing lineup data
+   * This ensures validation state reflects the lineup loaded from store
+   */
+  useEffect(() => {
+    if (lineup.length > 0) {
+      const lineupResult = validateLineup(lineup);
+      setLineupValidation(lineupResult);
+    }
+    // Only run on mount - lineup and setLineupValidation are stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only trigger validation on initial mount, not on every lineup change
+  }, []);
 
   /**
    * Generate sample available players
@@ -309,14 +376,25 @@ export function GameSetupLineupPage(): ReactElement {
   /**
    * Handle adding player to lineup
    */
-  const handleAddPlayer = (player: Player, position: number): void => {
-    const newLineup = [...lineup];
-    newLineup[position] = {
-      ...player,
-      battingOrder: position + 1,
-    };
-    setLocalLineup(newLineup);
-  };
+  const handleAddPlayer = useCallback(
+    (player: Player, position: number): void => {
+      const newLineup = [...lineup];
+      newLineup[position] = {
+        ...player,
+        battingOrder: position + 1,
+      };
+      setLocalLineup(newLineup);
+
+      // Trigger validation when player is added
+      if (realTimeValidation) {
+        timers.setTimeout(() => {
+          const lineupResult = validateLineup(newLineup);
+          setLineupValidation(lineupResult);
+        }, 300);
+      }
+    },
+    [lineup, realTimeValidation, timers]
+  );
 
   /**
    * Find first empty slot in lineup (memoized for performance)
@@ -529,6 +607,19 @@ export function GameSetupLineupPage(): ReactElement {
               </option>
             ))}
           </select>
+          {/* Progress indicator */}
+          <div
+            className="lineup-progress-indicator"
+            data-testid="lineup-progress-indicator"
+            style={{
+              marginLeft: '12px',
+              fontSize: '14px',
+              color: lineupValidation.playerCount >= 9 ? '#28a745' : '#dc3545',
+              fontWeight: 'bold',
+            }}
+          >
+            {lineupValidation.playerCount} of 9+ completed
+          </div>
         </div>
         <button className="load-previous-button" type="button">
           📋 Load Previous
@@ -557,10 +648,27 @@ export function GameSetupLineupPage(): ReactElement {
           <li>Standard: 10 players (with SHORT_FIELDER), Minimum: 9 players</li>
         </ul>
         {lineupValidation && !lineupValidation.isValid && (
-          <div className="lineup-validation-summary" data-testid="lineup-validation-summary">
-            <strong>Lineup Issues:</strong>
-            <p>Current player count: {lineupValidation.playerCount}</p>
-            {lineupValidation.error && <p className="error-message">{lineupValidation.error}</p>}
+          <div
+            className="lineup-validation-summary"
+            data-testid="lineup-validation-summary"
+            style={{
+              backgroundColor: '#f8d7da',
+              border: '2px solid #dc3545',
+              borderRadius: '4px',
+              padding: '12px',
+              marginTop: '12px',
+              color: '#721c24',
+            }}
+          >
+            <strong style={{ fontSize: '16px' }}>⚠️ Lineup Issues:</strong>
+            <p style={{ margin: '8px 0 4px 0' }}>
+              Current player count: {lineupValidation.playerCount}
+            </p>
+            {lineupValidation.error && (
+              <p className="error-message" style={{ fontWeight: 'bold', margin: '4px 0' }}>
+                {lineupValidation.error}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -638,6 +746,59 @@ export function GameSetupLineupPage(): ReactElement {
       </main>
 
       <footer className="setup-footer">
+        {/* Enhanced validation feedback */}
+        {!isLineupValid() && (
+          <div
+            className="lineup-validation-feedback"
+            data-testid="lineup-validation-feedback"
+            style={{
+              backgroundColor: '#fff3cd',
+              border: '2px solid #ffc107',
+              borderRadius: '4px',
+              padding: '12px 16px',
+              marginBottom: '16px',
+              fontSize: '14px',
+            }}
+          >
+            {((): ReactElement | null => {
+              const incompleteCount = countIncompletePlayers(lineup);
+              const validPlayerCount = lineupValidation.playerCount;
+              const minRequired = 9;
+
+              // Priority 1: Show if there are incomplete players (missing name/jersey)
+              if (incompleteCount > 0) {
+                return (
+                  <div style={{ color: '#856404' }}>
+                    <strong>⚠️ Lineup incomplete:</strong> {incompleteCount} player
+                    {incompleteCount > 1 ? 's' : ''} missing required fields (name or jersey number)
+                  </div>
+                );
+              }
+
+              // Priority 2: Show if not enough valid players
+              if (validPlayerCount < minRequired) {
+                return (
+                  <div style={{ color: '#856404' }}>
+                    <strong>⚠️ Not enough players:</strong> {validPlayerCount} of {minRequired}{' '}
+                    minimum players completed
+                  </div>
+                );
+              }
+
+              // Priority 3: Show other validation errors
+              if (lineupValidation.error) {
+                return (
+                  <div style={{ color: '#856404' }}>
+                    <strong>⚠️ Validation error:</strong> {lineupValidation.error}
+                  </div>
+                );
+              }
+
+              return null;
+            })()}
+          </div>
+        )}
+
         <div className="footer-actions">
           <Button
             onClick={handleBack}
