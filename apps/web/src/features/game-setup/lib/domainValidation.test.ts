@@ -13,6 +13,9 @@ import {
   validateTeamNames,
   getJerseyNumberSuggestions,
   getFieldPositionSuggestions,
+  validatePlayerName,
+  isPlayerComplete,
+  countIncompletePlayers,
 } from './domainValidation';
 
 /**
@@ -473,6 +476,236 @@ describe('Domain Validation in UI', () => {
       ] as (Player | null | undefined)[];
 
       expect(() => validateLineup(lineupWithNull)).not.toThrow();
+    });
+  });
+
+  describe('Per-field Validation Helpers (UX Enhancement)', () => {
+    it('should validate player names', () => {
+      // Valid names
+      expect(validatePlayerName('John Smith')).toEqual({
+        isValid: true,
+      });
+
+      expect(validatePlayerName('A')).toEqual({
+        isValid: true,
+      });
+
+      // Invalid names - empty
+      expect(validatePlayerName('')).toEqual({
+        isValid: false,
+        error: 'Player name is required',
+      });
+
+      expect(validatePlayerName('   ')).toEqual({
+        isValid: false,
+        error: 'Player name is required',
+      });
+
+      // Invalid names - null/undefined
+      expect(validatePlayerName(null as unknown as string)).toEqual({
+        isValid: false,
+        error: 'Player name is required',
+      });
+
+      expect(validatePlayerName(undefined as unknown as string)).toEqual({
+        isValid: false,
+        error: 'Player name is required',
+      });
+    });
+
+    it('should check if player is complete', () => {
+      // Complete player
+      expect(
+        isPlayerComplete({
+          id: '1',
+          name: 'John Smith',
+          jerseyNumber: '23',
+          position: 'P',
+          battingOrder: 1,
+        })
+      ).toBe(true);
+
+      // Incomplete - missing name
+      expect(
+        isPlayerComplete({
+          id: '1',
+          name: '',
+          jerseyNumber: '23',
+          position: 'P',
+          battingOrder: 1,
+        })
+      ).toBe(false);
+
+      // Incomplete - missing jersey
+      expect(
+        isPlayerComplete({
+          id: '1',
+          name: 'John Smith',
+          jerseyNumber: '',
+          position: 'P',
+          battingOrder: 1,
+        })
+      ).toBe(false);
+
+      // Incomplete - missing position
+      expect(
+        isPlayerComplete({
+          id: '1',
+          name: 'John Smith',
+          jerseyNumber: '23',
+          position: '',
+          battingOrder: 1,
+        })
+      ).toBe(false);
+
+      // Incomplete - all empty
+      expect(
+        isPlayerComplete({
+          id: '1',
+          name: '',
+          jerseyNumber: '',
+          position: '',
+          battingOrder: 1,
+        })
+      ).toBe(false);
+
+      // Incomplete - whitespace only
+      expect(
+        isPlayerComplete({
+          id: '1',
+          name: '   ',
+          jerseyNumber: '   ',
+          position: '   ',
+          battingOrder: 1,
+        })
+      ).toBe(false);
+    });
+
+    it('should count incomplete players in lineup', () => {
+      const lineup = [
+        {
+          id: '1',
+          name: 'John Smith',
+          jerseyNumber: '23',
+          position: 'P',
+          battingOrder: 1,
+        },
+        {
+          id: '2',
+          name: 'Jane Doe',
+          jerseyNumber: '',
+          position: 'C',
+          battingOrder: 2,
+        },
+        {
+          id: '3',
+          name: '',
+          jerseyNumber: '',
+          position: 'SS',
+          battingOrder: 3,
+        },
+        {
+          id: '4',
+          name: 'Bob Wilson',
+          jerseyNumber: '15',
+          position: '',
+          battingOrder: 4,
+        },
+      ];
+
+      expect(countIncompletePlayers(lineup)).toBe(3);
+    });
+
+    it('should handle empty lineup when counting incomplete players', () => {
+      expect(countIncompletePlayers([])).toBe(0);
+      expect(countIncompletePlayers([null, null, null] as (Player | null)[])).toBe(0);
+    });
+  });
+
+  describe('Lineup Validation - Jersey Number Requirements (Bug Fix)', () => {
+    it('should reject lineup with players missing jersey numbers', () => {
+      // BUG: validateLineup currently only checks for names, not jersey numbers
+      // This test should FAIL before the fix and PASS after
+      const lineupWithMissingJerseys: Player[] = Array.from({ length: 9 }, (_, i) => ({
+        id: `player-${i}`,
+        name: `Player ${i + 1}`,
+        jerseyNumber: '', // Missing jersey numbers!
+        position: 'P',
+        battingOrder: i + 1,
+      }));
+
+      const result = validateLineup(lineupWithMissingJerseys);
+
+      // Should be invalid because jersey numbers are missing
+      expect(result.isValid).toBe(false);
+      expect(result.error).toContain('jersey');
+      expect(result.playerCount).toBe(0); // No complete players
+    });
+
+    it('should reject lineup with some players missing jersey numbers', () => {
+      const lineup: Player[] = [
+        {
+          id: '1',
+          name: 'Player 1',
+          jerseyNumber: '1',
+          position: 'P',
+          battingOrder: 1,
+        },
+        {
+          id: '2',
+          name: 'Player 2',
+          jerseyNumber: '', // Missing jersey
+          position: 'C',
+          battingOrder: 2,
+        },
+        {
+          id: '3',
+          name: 'Player 3',
+          jerseyNumber: '3',
+          position: 'SS',
+          battingOrder: 3,
+        },
+      ];
+
+      const result = validateLineup(lineup);
+
+      // Should be invalid because one player is missing jersey
+      expect(result.isValid).toBe(false);
+      expect(result.error).toContain('jersey');
+      expect(result.playerCount).toBe(2); // Only 2 complete players
+    });
+
+    it('should count only complete players (with name AND jersey)', () => {
+      const lineup: Player[] = Array.from({ length: 10 }, (_, i) => ({
+        id: `player-${i}`,
+        name: `Player ${i + 1}`,
+        jerseyNumber: i < 5 ? `${i + 1}` : '', // Only first 5 have jerseys
+        position: 'P',
+        battingOrder: i + 1,
+      }));
+
+      const result = validateLineup(lineup);
+
+      // Should count only complete players (first 5)
+      expect(result.playerCount).toBe(5);
+      expect(result.isValid).toBe(false); // Less than 9 complete
+      expect(result.error).toContain('jersey');
+    });
+
+    it('should accept lineup with 9 complete players (name + jersey + position)', () => {
+      const completeLineup: Player[] = Array.from({ length: 9 }, (_, i) => ({
+        id: `player-${i}`,
+        name: `Player ${i + 1}`,
+        jerseyNumber: `${i + 1}`,
+        position: 'P',
+        battingOrder: i + 1,
+      }));
+
+      const result = validateLineup(completeLineup);
+
+      // Should be valid - all players complete
+      expect(result.isValid).toBe(true);
+      expect(result.playerCount).toBe(9);
     });
   });
 });

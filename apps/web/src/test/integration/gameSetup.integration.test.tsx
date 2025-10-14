@@ -118,6 +118,18 @@ vi.mock('../../features/game-setup', (): unknown => ({
     isValid: true,
     message: '',
   })),
+  validateJerseyNumber: vi.fn(() => ({
+    isValid: true,
+  })),
+  validateFieldPosition: vi.fn(() => ({
+    isValid: true,
+  })),
+  validateLineup: vi.fn(() => ({
+    isValid: true,
+    playerCount: 9,
+  })),
+  getJerseyNumberSuggestions: vi.fn(() => ['1', '2', '3']),
+  countIncompletePlayers: vi.fn(() => 0),
 }));
 
 // Mock the DI container using global setup

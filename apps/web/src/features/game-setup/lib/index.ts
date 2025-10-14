@@ -12,9 +12,13 @@ export {
   validateTeamNames,
   getJerseyNumberSuggestions,
   getFieldPositionSuggestions,
+  validatePlayerName,
+  isPlayerComplete,
+  countIncompletePlayers,
   type JerseyValidationResult,
   type FieldPositionValidationResult,
   type LineupValidationResult,
   type TeamValidationResult,
+  type PlayerNameValidationResult,
   type Player,
 } from './domainValidation';

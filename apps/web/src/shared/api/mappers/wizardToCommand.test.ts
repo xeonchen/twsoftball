@@ -126,13 +126,18 @@ describe('Wizard to Command Mapping', () => {
       expect(command1.gameId.value).toMatch(/^game-[a-f0-9-]+$/);
     });
 
-    it('should set current date/time as gameDate', () => {
-      const beforeCall = new Date();
+    it('should set game date to near future (5 minutes from now)', () => {
+      const beforeCall = Date.now();
       const command = wizardToCommand(validWizardState);
-      const afterCall = new Date();
+      const afterCall = Date.now();
 
-      expect(command.gameDate.getTime()).toBeGreaterThanOrEqual(beforeCall.getTime());
-      expect(command.gameDate.getTime()).toBeLessThanOrEqual(afterCall.getTime());
+      // Game date should be approximately 5 minutes in the future
+      const fiveMinutesInMs = 5 * 60 * 1000;
+      const expectedMinDate = beforeCall + fiveMinutesInMs;
+      const expectedMaxDate = afterCall + fiveMinutesInMs;
+
+      expect(command.gameDate.getTime()).toBeGreaterThanOrEqual(expectedMinDate);
+      expect(command.gameDate.getTime()).toBeLessThanOrEqual(expectedMaxDate);
     });
   });
 

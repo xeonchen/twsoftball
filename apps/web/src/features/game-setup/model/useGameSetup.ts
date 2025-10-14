@@ -183,6 +183,9 @@ export function useGameSetup(): UseGameSetupReturn {
 
   // Cleanup on unmount
   useEffect((): (() => void) => {
+    // Set to true on mount (and remount in StrictMode)
+    isMountedRef.current = true;
+
     return () => {
       isMountedRef.current = false;
       // Cancel any ongoing operations

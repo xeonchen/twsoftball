@@ -103,34 +103,37 @@ export function GameRecordingPage(): ReactElement {
   // Phase 4: Error handling and recovery
   const errorRecovery = useErrorRecovery();
 
+  // Destructure methods from errorRecovery to get stable references
+  const { preserveUserInput, reset: resetErrorRecovery } = errorRecovery;
+
   // Preserve user input during errors
   useEffect(() => {
     if (pendingAtBatResult) {
-      errorRecovery.preserveUserInput({
+      preserveUserInput({
         atBatResult: pendingAtBatResult,
         runnerAdvances,
         gameState: activeGameState,
       });
     }
-  }, [pendingAtBatResult, runnerAdvances, activeGameState, errorRecovery]);
+  }, [pendingAtBatResult, runnerAdvances, activeGameState, preserveUserInput]);
 
   // Reset error recovery when game state changes significantly
   useEffect(() => {
-    if (activeGameState?.currentInning || activeGameState?.outs !== undefined) {
-      errorRecovery.reset();
-      reset(); // Also reset useRecordAtBat state
+    if (gameId && !isLoading) {
+      reset(); // Clear stale gameId from previous operation
     }
-  }, [activeGameState?.currentInning, activeGameState?.outs, errorRecovery, reset]);
+  }, [gameId, isLoading, reset]);
 
   // Cleanup error recovery on component unmount
   useEffect(() => {
     return (): void => {
-      errorRecovery.reset();
+      resetErrorRecovery();
       reset(); // Also reset useRecordAtBat state
     };
-  }, [errorRecovery, reset]);
+  }, [resetErrorRecovery, reset]);
 
   // Sync errors from useRecordAtBat with error recovery
+  const { setError: setErrorRecovery } = errorRecovery;
   useEffect(() => {
     if (error) {
       const errorObj = new Error(error);
@@ -150,11 +153,11 @@ export function GameRecordingPage(): ReactElement {
         errorObj.name = 'GameStateError';
       }
 
-      errorRecovery.setError(errorObj);
+      setErrorRecovery(errorObj);
     } else {
-      errorRecovery.reset();
+      resetErrorRecovery();
     }
-  }, [error, errorRecovery]);
+  }, [error, setErrorRecovery, resetErrorRecovery]);
 
   /**
    * Map action button IDs to domain at-bat result types
@@ -458,7 +461,7 @@ export function GameRecordingPage(): ReactElement {
    */
   const handleRetry = useCallback((): void => {
     reset();
-    errorRecovery.reset();
+    resetErrorRecovery();
 
     // Restore preserved user input if available
     if (errorRecovery.hasPreservedInput) {
@@ -468,14 +471,15 @@ export function GameRecordingPage(): ReactElement {
         setPendingAtBatResult(restored.atBatResult);
       }
     }
-  }, [reset, errorRecovery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- errorRecovery properties are accessed directly for conditional logic
+  }, [reset, resetErrorRecovery]);
 
   /**
    * Handle refresh page for concurrency errors
    */
   const handleRefreshPage = useCallback((): void => {
-    window.location.reload();
-  }, []);
+    void navigate(0); // React Router v6 way to refresh current route
+  }, [navigate]);
 
   /**
    * Handle error reporting
@@ -496,7 +500,8 @@ export function GameRecordingPage(): ReactElement {
         inning: activeGameState?.currentInning,
       }
     );
-  }, [errorRecovery, gameId, activeGameState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- errorRecovery.reportError is accessed directly, activeGameState is accessed for context
+  }, [gameId]);
 
   /**
    * Enhanced error handler for component-level errors
@@ -510,7 +515,7 @@ export function GameRecordingPage(): ReactElement {
       const componentStack = errorInfo.componentStack || 'Unknown component';
 
       // Preserve current state before error
-      errorRecovery.preserveUserInput({
+      preserveUserInput({
         atBatResult: pendingAtBatResult,
         runnerAdvances,
         gameState: activeGameState,
@@ -518,7 +523,7 @@ export function GameRecordingPage(): ReactElement {
         componentStack, // Include component stack for debugging
       });
     },
-    [errorRecovery, pendingAtBatResult, runnerAdvances, activeGameState]
+    [preserveUserInput, pendingAtBatResult, runnerAdvances, activeGameState]
   );
 
   /**

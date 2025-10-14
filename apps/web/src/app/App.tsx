@@ -1,4 +1,4 @@
-import { type ReactElement } from 'react';
+import { type ReactElement, useMemo } from 'react';
 
 import { QueryProvider, RouterProvider, AppRouter, AppServicesProvider } from './providers';
 
@@ -22,12 +22,17 @@ import { QueryProvider, RouterProvider, AppRouter, AppServicesProvider } from '.
  * separation of concerns for scalable PWA development.
  */
 export const App = (): ReactElement => {
-  // Configuration for application services
-  const appConfig = {
-    environment: (import.meta.env.MODE as 'development' | 'production') || 'development',
-    storage: 'indexeddb' as const,
-    debug: import.meta.env.MODE === 'development',
-  };
+  // Memoize configuration to prevent unnecessary service reinitialization
+  // This ensures AppServicesProvider doesn't reinitialize on every render,
+  // which would interrupt async operations like game creation
+  const appConfig = useMemo(
+    () => ({
+      environment: (import.meta.env.MODE as 'development' | 'production') || 'development',
+      storage: 'indexeddb' as const,
+      debug: import.meta.env.MODE === 'development',
+    }),
+    []
+  ); // Empty deps - config is static and never changes
 
   return (
     <AppServicesProvider config={appConfig}>
