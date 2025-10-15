@@ -38,7 +38,7 @@
     "eslint": "^9.37.0",
     "eslint-config-airbnb-extended": "^2.3.2",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-boundaries": "^5.0.2",
+    "eslint-plugin-boundaries": "^5.1.0",
     "eslint-plugin-eslint-comments": "^3.2.0",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react-hooks": "^7.0.0",
