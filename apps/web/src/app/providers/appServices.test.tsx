@@ -12,7 +12,6 @@
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createApplicationServicesWithContainer } from '@twsoftball/application/services/ApplicationFactory';
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 
@@ -23,7 +22,23 @@ import { AppServicesProvider } from './appServices';
 
 // Mock dependencies
 vi.mock('@twsoftball/application/services/ApplicationFactory', () => ({
-  createApplicationServicesWithContainer: vi.fn(),
+  createApplicationServicesWithContainerAndFactory: vi.fn(),
+}));
+
+vi.mock('@twsoftball/infrastructure/web', () => ({
+  createIndexedDBFactory: vi.fn(() => ({
+    createServices: vi.fn(),
+    getStorageType: (): string => 'indexeddb',
+    getDescription: (): string => 'Mock IndexedDB Factory',
+  })),
+}));
+
+vi.mock('@twsoftball/infrastructure/memory', () => ({
+  createMemoryFactory: vi.fn(() => ({
+    createServices: vi.fn(),
+    getStorageType: (): string => 'memory',
+    getDescription: (): string => 'Mock Memory Factory',
+  })),
 }));
 
 vi.mock('../../features/app-initialization', () => ({
@@ -151,10 +166,8 @@ describe('AppServicesProvider', () => {
         expect(screen.getByTestId('services-ready')).toBeInTheDocument();
       });
 
-      expect(initializeApplicationServices).toHaveBeenCalledWith(
-        mockConfig,
-        createApplicationServicesWithContainer
-      );
+      // Verify initialization was called with config and a factory function
+      expect(initializeApplicationServices).toHaveBeenCalledWith(mockConfig, expect.any(Function));
     });
 
     it('should provide initialized services to children', async () => {
@@ -224,11 +237,8 @@ describe('AppServicesProvider', () => {
         expect(screen.getByTestId('services-ready')).toBeInTheDocument();
       });
 
-      // Verify initialization was called correctly
-      expect(initializeApplicationServices).toHaveBeenCalledWith(
-        mockConfig,
-        createApplicationServicesWithContainer
-      );
+      // Verify initialization was called with config and a factory function
+      expect(initializeApplicationServices).toHaveBeenCalledWith(mockConfig, expect.any(Function));
     });
   });
 

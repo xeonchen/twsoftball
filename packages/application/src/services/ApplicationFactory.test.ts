@@ -1,279 +1,47 @@
 /**
  * @file ApplicationFactory Unit Tests
- * Comprehensive test suite for the ApplicationFactory with dynamic infrastructure loading.
+ * Comprehensive test suite for the ApplicationFactory with infrastructure loading.
  *
  * @remarks
  * These tests ensure the ApplicationFactory correctly creates application services
- * with proper dynamic infrastructure loading, error handling, and architectural
+ * with proper infrastructure loading, error handling, and architectural
  * compliance. Tests cover success paths, error scenarios, and edge cases to
  * ensure reliable service creation.
  */
 
+import { createMemoryFactory } from '@twsoftball/infrastructure/memory';
+import { createIndexedDBFactory } from '@twsoftball/infrastructure/web';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { createTestInfrastructureFactory } from '../test-factories/test-infrastructure-factory.js';
 import type { ApplicationConfig } from '../types/ApplicationTypes.js';
 
-import {
-  createApplicationServicesWithContainer,
-  createApplicationServicesWithContainerAndFactory,
-} from './ApplicationFactory.js';
+import { createApplicationServicesWithContainerAndFactory } from './ApplicationFactory.js';
 import type { InfrastructureFactory, InfrastructureServices } from './InfrastructureFactory.js';
 
+// Mock infrastructure modules with static imports
+vi.mock('@twsoftball/infrastructure/memory', () => ({
+  createMemoryFactory: vi.fn(),
+}));
+
+vi.mock('@twsoftball/infrastructure/web', () => ({
+  createIndexedDBFactory: vi.fn(),
+}));
+
 describe('ApplicationFactory', () => {
-  let mockMemoryModule: { createMemoryFactory: () => InfrastructureFactory };
-  let mockIndexedDBModule: { createIndexedDBFactory: () => InfrastructureFactory };
   let mockInfrastructureFactory: InfrastructureFactory;
 
   beforeEach(() => {
     // Create mock infrastructure factory
     mockInfrastructureFactory = createTestInfrastructureFactory();
 
-    // Mock the memory infrastructure module
-    mockMemoryModule = {
-      createMemoryFactory: vi.fn(() => mockInfrastructureFactory),
-    };
-
-    // Mock the IndexedDB infrastructure module
-    mockIndexedDBModule = {
-      createIndexedDBFactory: vi.fn(() => mockInfrastructureFactory),
-    };
-
-    // Mock dynamic imports for infrastructure modules
-    vi.doMock('@twsoftball/infrastructure/memory', () => mockMemoryModule);
-    vi.doMock('@twsoftball/infrastructure/web', () => mockIndexedDBModule);
+    // Setup mock implementations
+    vi.mocked(createMemoryFactory).mockReturnValue(mockInfrastructureFactory);
+    vi.mocked(createIndexedDBFactory).mockReturnValue(mockInfrastructureFactory);
   });
 
   afterEach(() => {
     vi.clearAllMocks();
-    vi.doUnmock('@twsoftball/infrastructure/memory');
-    vi.doUnmock('@twsoftball/infrastructure/web');
-  });
-
-  describe('createApplicationServicesWithContainer', () => {
-    describe('Success paths', () => {
-      it('should create application services with memory storage configuration', async () => {
-        // Arrange
-        const config: ApplicationConfig = {
-          environment: 'test',
-          storage: 'memory',
-          debug: false,
-        };
-
-        // Act
-        const services = await createApplicationServicesWithContainer(config);
-
-        // Assert
-        expect(services).toBeDefined();
-        expect(services).toHaveProperty('startNewGame');
-        expect(services).toHaveProperty('recordAtBat');
-        expect(services).toHaveProperty('substitutePlayer');
-        expect(services).toHaveProperty('undoLastAction');
-        expect(services).toHaveProperty('redoLastAction');
-        expect(services).toHaveProperty('endInning');
-        expect(services).toHaveProperty('gameRepository');
-        expect(services).toHaveProperty('teamLineupRepository');
-        expect(services).toHaveProperty('inningStateRepository');
-        expect(services).toHaveProperty('eventStore');
-        expect(services).toHaveProperty('logger');
-        expect(services).toHaveProperty('config');
-
-        expect(services.config).toEqual(config);
-        expect(mockMemoryModule.createMemoryFactory).toHaveBeenCalledTimes(1);
-      });
-
-      it('should create application services with indexeddb storage configuration', async () => {
-        // Arrange
-        const config: ApplicationConfig = {
-          environment: 'production',
-          storage: 'indexeddb',
-          debug: true,
-          storageConfig: { dbName: 'test-db' },
-        };
-
-        // Act
-        const services = await createApplicationServicesWithContainer(config);
-
-        // Assert
-        expect(services).toBeDefined();
-        expect(services.config).toEqual(config);
-        expect(mockIndexedDBModule.createIndexedDBFactory).toHaveBeenCalledTimes(1);
-      });
-
-      it('should verify proper container initialization and service resolution', async () => {
-        // Arrange
-        const config: ApplicationConfig = {
-          environment: 'development',
-          storage: 'memory',
-        };
-
-        // Act
-        const services = await createApplicationServicesWithContainer(config);
-
-        // Assert
-        // Verify all use cases are properly initialized
-        expect(typeof services.startNewGame.execute).toBe('function');
-        expect(typeof services.recordAtBat.execute).toBe('function');
-        expect(typeof services.substitutePlayer.execute).toBe('function');
-        expect(typeof services.undoLastAction.execute).toBe('function');
-        expect(typeof services.redoLastAction.execute).toBe('function');
-        expect(typeof services.endInning.execute).toBe('function');
-
-        // Verify repositories have expected methods
-        expect(typeof services.gameRepository.save).toBe('function');
-        expect(typeof services.teamLineupRepository.save).toBe('function');
-        expect(typeof services.inningStateRepository.save).toBe('function');
-        expect(typeof services.eventStore.append).toBe('function');
-        expect(typeof services.logger.info).toBe('function');
-      });
-
-      it('should handle development environment with debug enabled', async () => {
-        // Arrange
-        const config: ApplicationConfig = {
-          environment: 'development',
-          storage: 'memory',
-          debug: true,
-        };
-
-        // Act
-        const services = await createApplicationServicesWithContainer(config);
-
-        // Assert
-        expect(services).toBeDefined();
-        expect(services.config.debug).toBe(true);
-        expect(services.config.environment).toBe('development');
-      });
-
-      it('should handle production environment configuration', async () => {
-        // Arrange
-        const config: ApplicationConfig = {
-          environment: 'production',
-          storage: 'indexeddb',
-          debug: false,
-          storageConfig: {
-            version: 1,
-            upgradeNeeded: true,
-          },
-        };
-
-        // Act
-        const services = await createApplicationServicesWithContainer(config);
-
-        // Assert
-        expect(services).toBeDefined();
-        expect(services.config.environment).toBe('production');
-        expect(services.config.storageConfig).toEqual({
-          version: 1,
-          upgradeNeeded: true,
-        });
-      });
-    });
-
-    describe('Error handling scenarios', () => {
-      it('should throw error for unsupported storage type', async () => {
-        // Arrange
-        const config: ApplicationConfig = {
-          environment: 'test',
-          storage: 'unsupported' as 'memory' | 'indexeddb',
-        };
-
-        // Act & Assert
-        await expect(createApplicationServicesWithContainer(config)).rejects.toThrow(
-          'Unsupported storage: unsupported'
-        );
-      });
-
-      it('should handle error when sqlite storage is requested', async () => {
-        // Arrange
-        const config: ApplicationConfig = {
-          environment: 'test',
-          storage: 'sqlite',
-        };
-
-        // Act & Assert
-        await expect(createApplicationServicesWithContainer(config)).rejects.toThrow(
-          'Unsupported storage: sqlite'
-        );
-      });
-
-      it('should handle error when cloud storage is requested', async () => {
-        // Arrange
-        const config: ApplicationConfig = {
-          environment: 'test',
-          storage: 'cloud',
-        };
-
-        // Act & Assert
-        await expect(createApplicationServicesWithContainer(config)).rejects.toThrow(
-          'Unsupported storage: cloud'
-        );
-      });
-
-      it('should propagate factory creation errors', async () => {
-        // Arrange
-        const failingFactory = {
-          createMemoryFactory: vi.fn(() => {
-            throw new Error('Memory factory creation failed');
-          }),
-        };
-
-        vi.doMock('@twsoftball/infrastructure/memory', () => failingFactory);
-
-        const config: ApplicationConfig = {
-          environment: 'test',
-          storage: 'memory',
-        };
-
-        // Act & Assert
-        await expect(createApplicationServicesWithContainer(config)).rejects.toThrow(
-          'Memory factory creation failed'
-        );
-
-        vi.doUnmock('@twsoftball/infrastructure/memory');
-      });
-
-      it('should handle factory creation errors in container initialization', async () => {
-        // Arrange
-        const config: ApplicationConfig = {
-          environment: 'test',
-          storage: 'memory',
-        };
-
-        // Mock a factory that throws during createServices
-        const failingInfraFactory = createTestInfrastructureFactory();
-        vi.spyOn(failingInfraFactory, 'createServices').mockRejectedValue(
-          new Error('Infrastructure initialization failed')
-        );
-
-        // Act & Assert
-        await expect(
-          createApplicationServicesWithContainerAndFactory(config, failingInfraFactory)
-        ).rejects.toThrow('Failed to resolve dependencies for service');
-      });
-
-      it('should handle error cases during service resolution', async () => {
-        // Arrange
-        const config: ApplicationConfig = {
-          environment: 'test',
-          storage: 'memory',
-        };
-
-        // This tests the error handling path when container initialization fails
-        const invalidFactory: InfrastructureFactory = {
-          createServices: () =>
-            Promise.resolve({
-              // Missing required services to trigger resolution errors
-            } as InfrastructureServices),
-          getDescription: () => 'Invalid factory',
-          getStorageType: () => 'invalid',
-        };
-
-        // Act & Assert
-        await expect(
-          createApplicationServicesWithContainerAndFactory(config, invalidFactory)
-        ).rejects.toThrow();
-      });
-    });
   });
 
   describe('createApplicationServicesWithContainerAndFactory', () => {
@@ -444,139 +212,6 @@ describe('ApplicationFactory', () => {
           createApplicationServicesWithContainerAndFactory(config, invalidFactory)
         ).rejects.toThrow();
       });
-    });
-  });
-
-  describe('Dynamic import resolution scenarios', () => {
-    it('should successfully resolve memory storage dynamic import', async () => {
-      // Arrange
-      const config: ApplicationConfig = {
-        environment: 'test',
-        storage: 'memory',
-      };
-
-      // Act
-      const services = await createApplicationServicesWithContainer(config);
-
-      // Assert
-      expect(services).toBeDefined();
-      expect(mockMemoryModule.createMemoryFactory).toHaveBeenCalledTimes(1);
-      // IndexedDB module should not be called for memory storage
-      expect(mockIndexedDBModule.createIndexedDBFactory).not.toHaveBeenCalled();
-    });
-
-    it('should successfully resolve indexeddb storage dynamic import', async () => {
-      // Arrange
-      const config: ApplicationConfig = {
-        environment: 'test',
-        storage: 'indexeddb',
-      };
-
-      // Act
-      const services = await createApplicationServicesWithContainer(config);
-
-      // Assert
-      expect(services).toBeDefined();
-      expect(mockIndexedDBModule.createIndexedDBFactory).toHaveBeenCalledTimes(1);
-      // Memory module should not be called for IndexedDB storage
-      expect(mockMemoryModule.createMemoryFactory).not.toHaveBeenCalled();
-    });
-
-    it('should handle module with incorrect export structure', async () => {
-      // Arrange
-      const malformedModule = {
-        wrongExportName: (): InfrastructureFactory => mockInfrastructureFactory,
-      };
-
-      vi.doMock('@twsoftball/infrastructure/memory', () => malformedModule);
-
-      const config: ApplicationConfig = {
-        environment: 'test',
-        storage: 'memory',
-      };
-
-      // Act & Assert
-      await expect(createApplicationServicesWithContainer(config)).rejects.toThrow();
-
-      vi.doUnmock('@twsoftball/infrastructure/memory');
-    });
-
-    it('should handle module returning undefined factory function', async () => {
-      // Arrange
-      const moduleWithUndefinedFactory = {
-        createMemoryFactory: undefined,
-      };
-
-      vi.doMock('@twsoftball/infrastructure/memory', () => moduleWithUndefinedFactory);
-
-      const config: ApplicationConfig = {
-        environment: 'test',
-        storage: 'memory',
-      };
-
-      // Act & Assert
-      await expect(createApplicationServicesWithContainer(config)).rejects.toThrow();
-
-      vi.doUnmock('@twsoftball/infrastructure/memory');
-    });
-  });
-
-  describe('Integration scenarios', () => {
-    it('should create different services with different configurations', async () => {
-      // Arrange
-      const memoryConfig: ApplicationConfig = {
-        environment: 'test',
-        storage: 'memory',
-        debug: false,
-      };
-
-      const indexedDBConfig: ApplicationConfig = {
-        environment: 'development',
-        storage: 'indexeddb',
-        debug: true,
-        storageConfig: { dbName: 'dev-db' },
-      };
-
-      // Act
-      const memoryServices = await createApplicationServicesWithContainer(memoryConfig);
-      const indexedDBServices = await createApplicationServicesWithContainer(indexedDBConfig);
-
-      // Assert
-      expect(memoryServices).toBeDefined();
-      expect(indexedDBServices).toBeDefined();
-      expect(memoryServices.config.storage).toBe('memory');
-      expect(indexedDBServices.config.storage).toBe('indexeddb');
-      expect(memoryServices.config.debug).toBe(false);
-      expect(indexedDBServices.config.debug).toBe(true);
-
-      // Verify both configurations called appropriate modules
-      expect(mockMemoryModule.createMemoryFactory).toHaveBeenCalledTimes(1);
-      expect(mockIndexedDBModule.createIndexedDBFactory).toHaveBeenCalledTimes(1);
-    });
-
-    it('should handle mixed factory approaches in sequence', async () => {
-      // Arrange
-      const config: ApplicationConfig = {
-        environment: 'test',
-        storage: 'memory',
-      };
-      const explicitFactory = createTestInfrastructureFactory();
-
-      // Act
-      const servicesWithAutoFactory = await createApplicationServicesWithContainer(config);
-      const servicesWithExplicitFactory = await createApplicationServicesWithContainerAndFactory(
-        config,
-        explicitFactory
-      );
-
-      // Assert
-      expect(servicesWithAutoFactory).toBeDefined();
-      expect(servicesWithExplicitFactory).toBeDefined();
-      expect(servicesWithAutoFactory.config).toEqual(config);
-      expect(servicesWithExplicitFactory.config).toEqual(config);
-
-      // Verify auto factory approach called dynamic import
-      expect(mockMemoryModule.createMemoryFactory).toHaveBeenCalledTimes(1);
     });
   });
 });

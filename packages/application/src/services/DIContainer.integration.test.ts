@@ -14,7 +14,7 @@ import { createStartNewGameCommand } from '../test-factories/command-factories.j
 import { createTestInfrastructureFactory } from '../test-factories/test-infrastructure-factory.js';
 import type { ApplicationConfig, ApplicationServices } from '../types/ApplicationTypes.js';
 
-import { createApplicationServicesWithContainer } from './ApplicationFactory.js';
+import { createApplicationServicesWithContainerAndFactory } from './ApplicationFactory.js';
 import { DIContainer } from './DIContainer.js';
 
 describe('DIContainer Integration Tests', () => {
@@ -38,12 +38,12 @@ describe('DIContainer Integration Tests', () => {
         storage: 'memory',
       };
 
-      // Override infrastructure factory with test implementation
+      // Act - Use composition root pattern with explicit factory
       const testInfraFactory = createTestInfrastructureFactory();
-      container.register('infrastructureFactory', () => Promise.resolve(testInfraFactory));
-
-      // Act
-      const containerServices = await createApplicationServicesWithContainer(config);
+      const containerServices = await createApplicationServicesWithContainerAndFactory(
+        config,
+        testInfraFactory
+      );
 
       // Assert - Should have complete interface
       expect(typeof containerServices.startNewGame.execute).toBe('function');

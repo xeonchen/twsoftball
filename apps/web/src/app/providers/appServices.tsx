@@ -34,7 +34,10 @@
  * ```
  */
 
-import { createApplicationServicesWithContainer } from '@twsoftball/application/services/ApplicationFactory';
+import type { ApplicationConfig } from '@twsoftball/application';
+import { createApplicationServicesWithContainerAndFactory } from '@twsoftball/application/services/ApplicationFactory';
+import { createMemoryFactory } from '@twsoftball/infrastructure/memory';
+import { createIndexedDBFactory } from '@twsoftball/infrastructure/web';
 import React, { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 // Direct import to avoid circular dependencies
@@ -54,6 +57,36 @@ interface AppServicesProviderProps {
   config: AppInitializationConfig;
   /** Child components to render */
   children: ReactNode;
+}
+
+/**
+ * Creates application services factory using composition root pattern.
+ *
+ * @remarks
+ * This function implements the composition root pattern by selecting the
+ * infrastructure factory at the Web layer (entry point) instead of having
+ * the Application layer import Infrastructure. This eliminates circular
+ * dependencies while maintaining hexagonal architecture compliance.
+ *
+ * **Architecture Benefits**:
+ * - Application layer no longer imports Infrastructure (no circular dependency)
+ * - Web layer (composition root) wires all dependencies together
+ * - Infrastructure selection happens at the highest layer
+ * - Maintains clean hexagonal architecture boundaries
+ *
+ * @returns Factory function for creating ApplicationServices
+ */
+function createApplicationServicesFactory() {
+  return async (
+    appConfig: ApplicationConfig
+  ): Promise<Awaited<ReturnType<typeof createApplicationServicesWithContainerAndFactory>>> => {
+    // Composition root: Select infrastructure factory based on configuration
+    const factory =
+      appConfig.storage === 'memory' ? createMemoryFactory() : createIndexedDBFactory();
+
+    // Use DI container with explicit factory (no infrastructure import in Application layer)
+    return await createApplicationServicesWithContainerAndFactory(appConfig, factory);
+  };
 }
 
 /**
@@ -105,9 +138,11 @@ export function AppServicesProvider({
 
       try {
         // Use the app-initialization feature to create services
+        // Composition root: Infrastructure selection happens here at the Web layer
+        const serviceFactory = createApplicationServicesFactory();
         const featureServices: FeatureAppInitializationResult = await initializeApplicationServices(
           initConfig,
-          createApplicationServicesWithContainer
+          serviceFactory
         );
 
         // Map feature result to shared context type

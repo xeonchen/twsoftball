@@ -79,7 +79,6 @@ export default defineConfig({
     sourcemap: true,
     target: 'es2020',
     rollupOptions: {
-      external: ['@twsoftball/infrastructure/memory', '@twsoftball/infrastructure/web'],
       output: {
         manualChunks: id => {
           // Vendor libraries chunk - largest dependencies
@@ -130,6 +129,10 @@ export default defineConfig({
           // Shared utilities chunk
           if (id.includes('shared/lib') || id.includes('shared/ui')) {
             return 'shared';
+          }
+          // Infrastructure layer chunk (dynamically loaded)
+          if (id.includes('@twsoftball/infrastructure')) {
+            return 'infrastructure';
           }
         },
       },

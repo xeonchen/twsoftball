@@ -304,7 +304,7 @@ inner layers, but inner layers know nothing about the outside world.
 graph TD
     subgraph " "
         direction LR
-        A["Web Layer<br/>e.g., React Components, Hooks"]
+        A["Web Layer<br/>Composition Root"]
     end
 
     subgraph " "
@@ -319,27 +319,28 @@ graph TD
 
     subgraph " "
         direction LR
-        D["Infrastructure Layer<br/>Adapters + Implementations"]
+        D["Infrastructure Layer<br/>Factories + Implementations"]
     end
 
-    A -- "calls only" --> B
+    A -- "imports factories" --> D
+    A -- "calls with factory" --> B
     B -- "depends on" --> C
-    B -. "dynamic import at runtime" .-> D
+    D -- "implements ports from" --> B
 ```
 
 **Key Rules:**
 
-1.  **Web Layer**: Only calls Application layer services, never imports
-    Infrastructure directly
-2.  **Application Layer**: Uses **DI Container with Dynamic Import** pattern to
-    load Infrastructure at runtime
+1.  **Web Layer**: Acts as Composition Root - imports Infrastructure factories
+    and wires dependencies at entry point
+2.  **Application Layer**: Uses **DI Container with Factory Injection**
+    pattern - accepts Infrastructure factories as parameters
 3.  **Domain Is Independent**: The `Domain` layer has **zero** dependencies on
     any other layer
-4.  **Infrastructure Layer**: Provides factory implementations that Application
-    dynamically imports
+4.  **Infrastructure Layer**: Provides factory implementations that Web layer
+    imports and passes to Application
 
-**For complete architectural patterns and DI Container implementation details,
-see [Architecture Patterns](../architecture-patterns.md)**
+**For complete architectural patterns and Composition Root implementation
+details, see [Architecture Patterns](../architecture-patterns.md)**
 
 ## Architecture Enforcement Rules
 
@@ -408,23 +409,30 @@ import { WebConfig } from '../../web/config'; // ERROR
 
 #### 4. Web Layer Restrictions (`web-layer-restrictions`)
 
-- **Rule**: Web layer can only depend on application layer via DI Container
-- **Severity**: ERROR
-- **Rationale**: Web uses DI Container pattern - never imports Infrastructure
-  directly
+- **Rule**: Web layer acts as Composition Root - can import Infrastructure
+  factory functions
+- **Severity**: ERROR (with exceptions for factory imports)
+- **Rationale**: Web uses Composition Root pattern - imports factories to wire
+  dependencies at entry point
 
 ```javascript
-// ✅ ALLOWED: DI Container pattern
-import { createApplicationServicesWithContainer } from '@twsoftball/application';
+// ✅ ALLOWED: Composition Root pattern - importing factories
+import { createIndexedDBFactory } from '@twsoftball/infrastructure/web';
+import { createMemoryFactory } from '@twsoftball/infrastructure/memory';
+import { createApplicationServicesWithContainerAndFactory } from '@twsoftball/application';
 
-const services = await createApplicationServicesWithContainer({
-  environment: 'production',
-  storage: 'indexeddb',
-});
+const factory =
+  config.storage === 'memory'
+    ? createMemoryFactory()
+    : createIndexedDBFactory();
+const services = await createApplicationServicesWithContainerAndFactory(
+  config,
+  factory
+);
 
-// ❌ FORBIDDEN: Direct infrastructure access
+// ❌ FORBIDDEN: Direct repository/implementation imports
 import { IndexedDBRepository } from '../../infrastructure/persistence'; // ERROR
-import { createIndexedDBFactory } from '@twsoftball/infrastructure/web'; // ERROR
+import { IndexedDBGameRepository } from '@twsoftball/infrastructure/web'; // ERROR
 ```
 
 #### 5. Shared Layer Isolation (`shared-layer-isolation`)
