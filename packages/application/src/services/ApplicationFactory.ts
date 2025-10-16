@@ -1,28 +1,37 @@
 /**
  * @file Application Factory
- * Factory for creating application services with dynamic infrastructure loading.
+ * Factory for creating application services using the DI Container with Composition Root pattern.
  *
  * @remarks
- * This factory is specifically excluded from circular dependency rules in
- * dependency-cruiser.cjs because it uses dynamic imports to load infrastructure
- * modules at runtime. This maintains hexagonal architecture principles while
- * allowing the Application layer to create infrastructure services without
- * compile-time dependencies.
+ * This factory implements the **Composition Root pattern** to eliminate circular dependencies
+ * between Application and Infrastructure packages while maintaining hexagonal architecture.
  *
  * **Architecture Compliance:**
- * - Uses dynamic imports to avoid compile-time dependencies
- * - Excluded from circular dependency detection
+ * - Application layer NO LONGER imports Infrastructure (no circular dependency)
+ * - Web layer (composition root) selects and injects infrastructure factories
  * - Maintains clean separation between Application and Infrastructure layers
- * - Provides factory methods for different infrastructure implementations
+ * - Infrastructure selection happens at the highest layer (Web/entry point)
+ *
+ * **Composition Root Pattern:**
+ * The Web layer (entry point) is responsible for:
+ * 1. Importing infrastructure factories (createIndexedDBFactory, createMemoryFactory)
+ * 2. Selecting the appropriate factory based on configuration
+ * 3. Passing the factory to createApplicationServicesWithContainerAndFactory
  *
  * **Usage:**
  * ```typescript
- * import { createApplicationServicesWithContainer } from '@twsoftball/application';
+ * // In Web layer (apps/web/src/app/providers/appServices.tsx)
+ * import { createApplicationServicesWithContainerAndFactory } from '@twsoftball/application';
+ * import { createIndexedDBFactory } from '@twsoftball/infrastructure/web';
+ * import { createMemoryFactory } from '@twsoftball/infrastructure/memory';
  *
- * const services = await createApplicationServicesWithContainer({
- *   environment: 'production',
- *   storage: 'indexeddb'
- * });
+ * // Composition root: Select infrastructure at Web layer
+ * const factory = config.storage === 'memory'
+ *   ? createMemoryFactory()
+ *   : createIndexedDBFactory();
+ *
+ * // Pass explicit factory (no infrastructure import in Application layer)
+ * const services = await createApplicationServicesWithContainerAndFactory(config, factory);
  * ```
  */
 
@@ -30,36 +39,6 @@ import type { ApplicationConfig, ApplicationServices } from '../types/Applicatio
 
 import { createInitializedContainer } from './DIContainer.js';
 import type { InfrastructureFactory } from './InfrastructureFactory.js';
-
-/**
- * Creates application services using the DI container approach with dynamic infrastructure loading.
- *
- * @param config - Application configuration
- * @returns Promise resolving to configured application services
- *
- * @remarks
- * This function provides a convenient way to create application services using
- * the DI container approach with automatic infrastructure factory selection based
- * on configuration. Infrastructure modules are loaded dynamically to maintain
- * proper architectural boundaries.
- *
- * @example
- * ```typescript
- * // Create application services with DI container (automatic factory selection)
- * const services = await createApplicationServicesWithContainer({
- *   environment: 'production',
- *   storage: 'indexeddb'
- * });
- * ```
- */
-export async function createApplicationServicesWithContainer(
-  config: ApplicationConfig
-): Promise<ApplicationServices> {
-  // Create infrastructure factory based on configuration
-  const factory = await createInfrastructureFactory(config.storage);
-  const container = await createInitializedContainer(config, factory);
-  return await container.resolve<ApplicationServices>('applicationServices');
-}
 
 /**
  * Creates application services using the DI container approach with explicit factory.
@@ -90,39 +69,4 @@ export async function createApplicationServicesWithContainerAndFactory(
 ): Promise<ApplicationServices> {
   const container = await createInitializedContainer(config, factory);
   return await container.resolve<ApplicationServices>('applicationServices');
-}
-
-/**
- * Creates an infrastructure factory based on storage type.
- *
- * @param storage - Storage type configuration
- * @returns Promise resolving to infrastructure factory
- * @private
- *
- * @remarks
- * This function uses dynamic imports to load infrastructure modules at runtime,
- * maintaining clean architectural boundaries. It's excluded from circular
- * dependency detection in dependency-cruiser.cjs.
- */
-async function createInfrastructureFactory(storage: string): Promise<InfrastructureFactory> {
-  switch (storage) {
-    case 'memory': {
-      // @ts-expect-error Dynamic import resolved at runtime by bundler
-      const module: unknown = await import('@twsoftball/infrastructure/memory');
-      const { createMemoryFactory } = module as {
-        createMemoryFactory: () => InfrastructureFactory;
-      };
-      return createMemoryFactory();
-    }
-    case 'indexeddb': {
-      // @ts-expect-error Dynamic import resolved at runtime by bundler
-      const module: unknown = await import('@twsoftball/infrastructure/web');
-      const { createIndexedDBFactory } = module as {
-        createIndexedDBFactory: () => InfrastructureFactory;
-      };
-      return createIndexedDBFactory();
-    }
-    default:
-      throw new Error(`Unsupported storage: ${storage}`);
-  }
 }

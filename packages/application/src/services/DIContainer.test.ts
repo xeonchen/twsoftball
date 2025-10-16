@@ -13,7 +13,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import type { ApplicationConfig } from '../types/ApplicationTypes.js';
 
-import { createApplicationServicesWithContainer } from './ApplicationFactory.js';
 import {
   DIContainer,
   CircularDependencyError,
@@ -569,62 +568,6 @@ describe('Container Factory Functions', () => {
 
       // Cleanup
       container.dispose();
-    });
-  });
-
-  describe('createApplicationServicesWithContainer', () => {
-    it('should create ApplicationServices using DI container', async () => {
-      // Arrange
-      const config: ApplicationConfig = {
-        environment: 'test',
-        storage: 'memory',
-      };
-
-      // Act
-      const services = await createApplicationServicesWithContainer(config);
-
-      // Assert
-      expect(services).toBeDefined();
-      expect(services.config).toEqual(config);
-      expect(services.startNewGame).toBeDefined();
-      expect(services.recordAtBat).toBeDefined();
-      expect(services.substitutePlayer).toBeDefined();
-      expect(services.undoLastAction).toBeDefined();
-      expect(services.redoLastAction).toBeDefined();
-      expect(services.endInning).toBeDefined();
-      expect(services.gameRepository).toBeDefined();
-      expect(services.teamLineupRepository).toBeDefined();
-      expect(services.inningStateRepository).toBeDefined();
-      expect(services.eventStore).toBeDefined();
-      expect(services.logger).toBeDefined();
-    });
-
-    it('should handle different storage types', async () => {
-      // Arrange
-      const memoryConfig: ApplicationConfig = {
-        environment: 'test',
-        storage: 'memory',
-      };
-
-      // Act
-      const services = await createApplicationServicesWithContainer(memoryConfig);
-
-      // Assert
-      expect(services).toBeDefined();
-      expect(services.config.storage).toBe('memory');
-    });
-
-    it('should handle invalid storage type', async () => {
-      // Arrange
-      const invalidConfig: ApplicationConfig = {
-        environment: 'test',
-        storage: 'unsupported' as 'memory' | 'indexeddb' | 'sqlite' | 'cloud',
-      };
-
-      // Act & Assert
-      await expect(createApplicationServicesWithContainer(invalidConfig)).rejects.toThrow(
-        'Unsupported storage: unsupported'
-      );
     });
   });
 });

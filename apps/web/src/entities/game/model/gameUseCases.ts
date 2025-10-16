@@ -15,7 +15,8 @@ import {
   type Logger,
 } from '@twsoftball/application';
 // Direct import to avoid circular dependencies
-import { createApplicationServicesWithContainer } from '@twsoftball/application/services/ApplicationFactory';
+import { createApplicationServicesWithContainerAndFactory } from '@twsoftball/application/services/ApplicationFactory';
+import { createIndexedDBFactory } from '@twsoftball/infrastructure/web';
 import { useCallback, useEffect, useState } from 'react';
 
 import type { Player } from '../../../shared/lib/types';
@@ -106,7 +107,12 @@ const APPLICATION_CONFIG: ApplicationConfig = {
  */
 async function initializeApplicationServices(): Promise<ApplicationServices> {
   if (!applicationServices) {
-    applicationServices = await createApplicationServicesWithContainer(APPLICATION_CONFIG);
+    // Use composition root pattern: create factory at Web layer
+    const factory = createIndexedDBFactory();
+    applicationServices = await createApplicationServicesWithContainerAndFactory(
+      APPLICATION_CONFIG,
+      factory
+    );
     logger = applicationServices.logger;
   }
   return applicationServices;

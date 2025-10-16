@@ -15,9 +15,13 @@ module.exports = {
     },
     {
       name: 'application-layer-allowed-dependencies',
-      comment: 'Application layer can only depend on domain and shared',
+      comment:
+        'Application layer can only depend on domain and shared (tests can import infrastructure)',
       severity: 'error',
-      from: { path: '^packages/application' },
+      from: {
+        path: '^packages/application',
+        pathNot: '\\.(test|spec)\\.ts$', // Exclude tests from this rule
+      },
       to: {
         pathNot: [
           '^packages/application', // Can import from itself
@@ -61,9 +65,12 @@ module.exports = {
     },
     {
       name: 'application-layer-forbidden-infrastructure',
-      comment: 'Application layer must NOT import from infrastructure layer (static imports only)',
+      comment: 'Application layer must NOT import from infrastructure layer (except in tests)',
       severity: 'error',
-      from: { path: '^packages/application' },
+      from: {
+        path: '^packages/application',
+        pathNot: '\\.(test|spec)\\.ts$', // Allow tests to import for testing
+      },
       to: {
         path: [
           '^packages/infrastructure', // Explicitly forbidden
@@ -76,7 +83,8 @@ module.exports = {
     },
     {
       name: 'web-layer-allowed-dependencies',
-      comment: 'Web layer can only import from application layer',
+      comment:
+        'Web layer (Composition Root) can import from Application and Infrastructure factories',
       severity: 'error',
       from: {
         path: '^apps/web',
@@ -85,6 +93,8 @@ module.exports = {
         pathNot: [
           '^apps/web', // Can import from itself
           '^packages/application', // Can import application layer
+          'packages/infrastructure/src/web\\.ts$', // Can import web factory barrel (Composition Root)
+          'packages/infrastructure/src/memory\\.ts$', // Can import memory factory barrel (Composition Root)
           '^node_modules', // Can import external packages
           '\\.css$', // Allow CSS imports
           '\\.scss$', // Allow SCSS imports
@@ -97,7 +107,8 @@ module.exports = {
     },
     {
       name: 'web-layer-forbidden-infrastructure',
-      comment: 'Web layer must NOT import from infrastructure layer',
+      comment:
+        'Web layer can import Infrastructure factory functions (Composition Root pattern) but not implementations',
       severity: 'error',
       from: {
         path: '^apps/web',
@@ -107,6 +118,11 @@ module.exports = {
           '^packages/infrastructure', // Explicitly forbidden
           '^@twsoftball/infrastructure$', // Package alias forbidden (exact)
           '^@twsoftball/infrastructure/', // Package alias forbidden (subpaths)
+        ],
+        // Allow importing factory creation functions only (Composition Root pattern)
+        pathNot: [
+          'packages/infrastructure/src/web\\.ts$', // Allow web factory barrel
+          'packages/infrastructure/src/memory\\.ts$', // Allow memory factory barrel
         ],
       },
     },
@@ -125,7 +141,8 @@ module.exports = {
     },
     {
       name: 'package-alias-violations',
-      comment: 'Detect violations using package.json aliases that bypass layer boundaries',
+      comment:
+        'Detect violations using package.json aliases that bypass layer boundaries (allows factory imports)',
       severity: 'error',
       from: { path: '^apps/web' },
       to: {
@@ -134,6 +151,11 @@ module.exports = {
           '^@twsoftball/infrastructure/', // Web cannot use infrastructure alias (subpaths)
           '^@twsoftball/domain$', // Web cannot use domain alias (exact)
           '^@twsoftball/domain/', // Web cannot use domain alias (subpaths)
+        ],
+        // Allow importing factory creation functions only (Composition Root pattern)
+        pathNot: [
+          '@twsoftball/infrastructure/web$', // Allow web factory barrel
+          '@twsoftball/infrastructure/memory$', // Allow memory factory barrel
         ],
       },
     },

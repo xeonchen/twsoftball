@@ -64,19 +64,22 @@ interface FormState {
 }
 
 /**
- * Initial form state
+ * Creates initial form state with default values
+ * Factory function to avoid module-level initialization of FieldPosition
  */
-const initialFormState: FormState = {
-  battingSlot: 1,
-  outgoingPlayerId: '',
-  incomingPlayerId: '',
-  incomingPlayerName: '',
-  incomingJerseyNumber: '',
-  position: FieldPosition.PITCHER,
-  inning: 1,
-  isReentry: false,
-  notes: '',
-};
+function createInitialFormState(): FormState {
+  return {
+    battingSlot: 1,
+    outgoingPlayerId: '',
+    incomingPlayerId: '',
+    incomingPlayerName: '',
+    incomingJerseyNumber: '',
+    position: FieldPosition.PITCHER,
+    inning: 1,
+    isReentry: false,
+    notes: '',
+  };
+}
 
 /**
  * SubstitutePlayerForm component for standalone substitution operations
@@ -92,7 +95,7 @@ export function SubstitutePlayerForm({
   const { substitutePlayer, isLoading, error } = useSubstitutePlayer();
 
   // Local state
-  const [formState, setFormState] = useState<FormState>(initialFormState);
+  const [formState, setFormState] = useState<FormState>(createInitialFormState);
 
   /**
    * Handle form field changes
@@ -144,7 +147,7 @@ export function SubstitutePlayerForm({
         if (result.success) {
           onSuccess?.(result);
           // Reset form on success
-          setFormState(initialFormState);
+          setFormState(createInitialFormState());
         } else {
           const errorMessage = result.errors?.[0] || 'Substitution failed';
           onError?.(errorMessage);

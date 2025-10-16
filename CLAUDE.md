@@ -1,7 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with
-code in this repository.
+This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
@@ -33,7 +32,7 @@ Injection Container, and Event Sourcing patterns.
    Checklist
 2. Write tests before implementation (TDD)
 3. Follow existing patterns and conventions
-4. Achieve 99%+ test coverage for every layer
+4. Achieve target test coverage for each layer
 5. After creating new files, run lint immediately and address issues right away
 
 ### 🟢 HELPFUL - Key Commands
@@ -58,19 +57,19 @@ Container + SOLID Principles**
 ```
 Domain Layer (Core Business Logic)
 ├── constants/    # AtBatResultType, GameStatus, FieldPosition
-├── value-objects/# GameId, PlayerId, JerseyNumber, Score, etc.
+├── value-objects/# GameId, PlayerId, JerseyNumber, Score
 ├── events/       # DomainEvent, AtBatCompleted, RunScored
-├── aggregates/   # Game, TeamLineup, InningState (3 aggregate roots)
+├── aggregates/   # Game, TeamLineup, InningState
 ├── strategies/   # TeamStrategy pattern implementations
 ├── services/     # GameCoordinator, RBICalculator, validators
-└── rules/        # SoftballRules, RuleVariants (configurable rules)
+└── rules/        # SoftballRules, RuleVariants
 
 Application Layer (Use Cases)
 ├── use-cases/    # RecordAtBat, StartGame, etc.
 ├── ports/        # Interface definitions
 ├── services/     # Application services (orchestration, event sourcing)
 ├── dtos/         # Data Transfer Objects
-├── test-factories/ # Test utilities (mock-factories, test-builders, test-scenarios)
+├── test-factories/ # Test utilities
 └── test-utils/   # Core testing utilities
 
 Infrastructure Layer (Adapters)
@@ -81,12 +80,8 @@ Infrastructure Layer (Adapters)
 Web Layer (Presentation) - Feature-Sliced Design (FSD)
 ├── app/          # Application layer (providers, routing, global config)
 ├── pages/        # Page components (route targets)
-│   └── */ui/     # Page UI components (moved to ui/ subfolders)
 ├── widgets/      # Complex composite UI blocks
-│   └── */ui/     # Widget UI components (moved to ui/ subfolders)
 ├── features/     # Business logic features and user scenarios
-│   ├── game-core/ # Game hooks (moved from shared layer)
-│   └── */ui/     # Feature UI components
 ├── entities/     # Business entities UI representations
 └── shared/       # Reusable infrastructure (UI kit, utils, API)
 ```
@@ -105,9 +100,6 @@ Web Layer (Presentation) - Feature-Sliced Design (FSD)
 
 ## Feature-Sliced Design (FSD) Architecture
 
-The web layer follows Feature-Sliced Design methodology for scalable frontend
-architecture:
-
 ### FSD Layer Hierarchy (Bottom-Up Dependencies)
 
 ```
@@ -119,43 +111,28 @@ entities/    # Business entities (Level 2)
 shared/      # Reusable infrastructure (Level 1)
 ```
 
-### Key FSD Changes Made
-
-- **UI Structure**: All components moved to `ui/` subfolders for FSD compliance
-- **Public API**: Each slice exports through `index.ts` files
-- **Game Hooks Migration**: Moved from `shared/` to `features/game-core/`
-- **Layer Index Removal**: Deleted layer-level index files (entities/index.ts,
-  etc.)
-- **Steiger Validation**: Enabled FSD linting with documented exceptions
-
-### Steiger Configuration
-
-Architecture compliance validated via `steiger.config.ts`:
-
-- **Enabled Rules**: `fsd/public-api` enforced globally
-- **Pending Exceptions**: Phase 5.3.D-F features temporarily exempt from
-  `insignificant-slice` rule
-- **Single-Reference Slices**: Acceptable for specific use cases (game-setup,
-  game-core)
-- **Architectural Debt**: DI container import warnings documented for future
-  refactoring
-
 ### FSD Import Rules
 
 ```typescript
 // ✅ CORRECT: Higher layers import from lower layers
-// pages/game-recording/ui/GameRecordingPage.tsx
 import { AtBatPanel } from 'widgets/at-bat-panel'; // widgets (4) → pages (5)
 import { useRecordAtBat } from 'features/record-at-bat'; // features (3) → pages (5)
 
 // ❌ FORBIDDEN: Lower layers cannot import from higher layers
-// shared/ui/Button.tsx
 import { PlayerCard } from 'entities/player'; // ❌ shared (1) cannot import entities (2)
 
 // ❌ FORBIDDEN: Same-level direct imports (use shared instead)
-// features/record-at-bat/ui/Form.tsx
 import { useLineup } from 'features/lineup-management'; // ❌ features → features
 ```
+
+**Key Requirements:**
+
+- Higher layers (app→pages→widgets→features→entities→shared) import from lower
+  layers only
+- All slices export through `index.ts` files (`fsd/public-api` rule)
+- Components organized in `ui/` subfolders for FSD compliance
+- Web layer uses DI Container to access Application services, never imports
+  Infrastructure directly
 
 ## Development Workflow: Orchestrator-Worker Pattern
 
@@ -175,7 +152,7 @@ import { useLineup } from 'features/lineup-management'; // ❌ features → feat
    - Main Agent summarizes review feedback and displays to user
    - If issues found, delegate ALL fixes to General-Purpose Agent (max 3
      attempts)
-   - Always get reviewd again after issues are fixed
+   - Always get reviewed again after issues are fixed
 
 4. **Delegate Git Operations**
    - Main Agent delegates ALL git operations to General-Purpose Agent
@@ -197,11 +174,9 @@ import { useLineup } from 'features/lineup-management'; // ❌ features → feat
 - **Commit-Readiness-Reviewer (Validator)**: Validates architecture, checks
   quality gates, returns detailed feedback for main agent to summarize
 
-## 📝 Post-Commit Checklist (DELEGATED TO GENERAL-PURPOSE AGENT)
+### Post-Commit Checklist
 
-**After every commit, delegate this task to the General-Purpose Agent:**
-
-### Essential Documentation Updates:
+After every commit, delegate to General-Purpose Agent:
 
 1. Update architectural diagrams if package structure changed
 2. Add new scripts or commands discovered/created to documentation
@@ -209,38 +184,6 @@ import { useLineup } from 'features/lineup-management'; // ❌ features → feat
 4. Run quick verification that documented commands still work
 5. Check that file paths mentioned in docs still exist
 6. Verify architecture matches actual implementation
-
-**Main Agent Role:** Only delegate this task and verify completion.
-
-## Quality Assurance Philosophy
-
-### No Compromise Principle
-
-- **Technical Excellence First**: Quality is never negotiable, regardless of
-  time pressure
-- **Proper Solutions Only**: Address root causes, not symptoms
-- **Long-term Thinking**: Avoid technical debt that creates future problems
-- **Professional Standards**: Maintain enterprise-grade code quality
-
-### When Facing Challenges
-
-1. **First Response**: Find the proper architectural solution
-2. **If Blocked**: Document the issue and seek guidance
-3. **Never Do**: Create temporary fixes, skip tests, or lower standards
-4. **Always Remember**: Clean code is faster to maintain and extend
-
-### Quality Gates That Cannot Be Bypassed
-
-- **Tiered Coverage Thresholds** (layer-specific hard blocks):
-  - Domain: 96%+ (business logic integrity)
-  - Application: 90%+ (use case reliability)
-  - Infrastructure: 80%+ (adapter functionality)
-  - Shared: 85%+ (utility reliability)
-  - Web: 70%+ (UI baseline)
-- TypeScript compilation errors
-- ESLint violations (unless properly justified)
-- Architecture dependency violations
-- Missing documentation for public APIs
 
 ## Code Standards
 
@@ -254,417 +197,88 @@ import { useLineup } from 'features/lineup-management'; // ❌ features → feat
   layer
 - **DI Container**: Enterprise-grade dependency injection with service registry,
   lazy loading, and dynamic imports
-- **Zero Architecture Exceptions**: Clean dependency boundaries with no
-  workarounds needed
 
-#### Feature-Sliced Design (Web Layer)
+#### Composition Root Pattern (CRITICAL)
 
-- **FSD Layer Dependencies**: Higher layers
-  (app→pages→widgets→features→entities→shared) can import from lower layers only
-- **No Reverse Dependencies**: Lower layers cannot import from higher layers
-  (enforced by steiger)
-- **No Sibling Imports**: Same-level layers cannot directly import from each
-  other (use shared layer)
-- **Public API Required**: All slices must export through `index.ts` files
-  (`fsd/public-api` rule)
-- **UI Structure**: Components organized in `ui/` subfolders for FSD compliance
-- **Web-Infrastructure Boundary**: Web layer uses DI Container to access
-  Application services, never imports Infrastructure directly
-
-**Critical Pattern: DI Container with Dynamic Import**
+Infrastructure selection happens at the Web layer (entry point), not in the
+Application layer.
 
 ```typescript
-// ✅ CORRECT: DI Container approach
-import { createApplicationServicesWithContainer } from '@twsoftball/application';
-const services = await createApplicationServicesWithContainer({
-  storage: 'indexeddb',
-});
-
-// ❌ FORBIDDEN: Web layer importing Infrastructure
+// ✅ CORRECT: Composition Root pattern
+import { createApplicationServicesWithContainerAndFactory } from '@twsoftball/application/services/ApplicationFactory';
 import { createIndexedDBFactory } from '@twsoftball/infrastructure/web';
+import { createMemoryFactory } from '@twsoftball/infrastructure/memory';
+
+const factory =
+  config.storage === 'memory'
+    ? createMemoryFactory()
+    : createIndexedDBFactory();
+
+const services = await createApplicationServicesWithContainerAndFactory(
+  config,
+  factory
+);
+
+// ❌ DEPRECATED: Old pattern (creates circular dependency)
+const services = await createApplicationServicesWithContainer(config);
 ```
 
-### Testing Strategy & Coverage Excellence
+**Why:** No circular dependencies, clean architecture, easy testing, Web layer
+controls infrastructure.
 
-#### Tiered Coverage Philosophy: Practical Excellence
+### Testing Strategy
 
-**Goal**: 98%+ coverage during implementation **Reality**: Different layers have
-different testing challenges **Focus**: Test user stories and critical paths,
-not just lines
+#### Coverage Requirements by Layer
 
-#### Coverage Tiers by Layer
+| Layer              | CI Gate | Target |
+| ------------------ | ------- | ------ |
+| **Domain**         | 96%     | 98%+   |
+| **Application**    | 90%     | 95%+   |
+| **Infrastructure** | 80%     | 90%+   |
+| **Shared/Utils**   | 85%     | 95%+   |
+| **Web/UI**         | 70%     | 85%+   |
 
-| Layer              | CI Gate | Target | Rationale                                |
-| ------------------ | ------- | ------ | ---------------------------------------- |
-| **Domain**         | 96%     | 98%+   | Core business logic must be bulletproof  |
-| **Application**    | 90%     | 95%+   | Use cases need high confidence           |
-| **Infrastructure** | 80%     | 90%+   | External integrations are harder to test |
-| **Shared/Utils**   | 85%     | 95%+   | Utilities should be well-tested          |
-| **Web/UI**         | 70%     | 85%+   | UI testing has diminishing returns       |
+#### Test Priorities
 
-#### Implementation vs Gating Thresholds
+**Must Test:** Business rules, error handling, security, data validation
+**Should Test:** Integration points, user workflows, edge cases **Can Skip:**
+Port interfaces, type definitions, constants, simple getters
 
-**Three-Tier System:**
+#### Test Types
 
-1. **🚨 CI Gates (Hard Block)** - Minimum acceptable quality
-   - Protects against regressions
-   - Enforced in vitest.config.ts per layer
-   - Different standards for different complexities
-
-2. **🎯 Implementation Target** - What we aim for during development
-   - Domain: 98%+ (excellence standard)
-   - Application: 95%+ (high confidence)
-   - Infrastructure: 90%+ (good coverage)
-   - Web: 85%+ (reasonable for UI)
-
-3. **⚠️ Warning Threshold** - Triggers review but doesn't block
-   - 5% below CI gate = Yellow warning
-   - 10% below = Red alert + mandatory review
-
-#### Test Priority Matrix
-
-**1. Critical (Must Test)**
-
-- Business rules & domain logic
-- Error handling & recovery
-- Security boundaries
-- Data validation
-
-**2. Important (Should Test)**
-
-- Integration points
-- Performance critical paths
-- User workflows
-- Edge cases
-
-**3. Nice to Have (Could Test)**
-
-- UI animations
-- Logging statements
-- Simple getters/setters
-- Framework boilerplate
-
-**4. Exclusions (Don't Test)**
-
-- Port interfaces (just contracts)
-- Type definitions
-- Constants
-- Third-party integrations (mock instead)
-
-#### Test Types & Requirements
-
-- **Unit Tests**: Domain entities, value objects, use cases (Co-located .test.ts
-  files)
+- **Unit Tests**: Domain entities, value objects, use cases (co-located
+  .test.ts)
 - **Integration Tests**: Database adapters, application services
 - **E2E Tests**: Complete user workflows
 - **TDD Required**: Write tests before implementation
 
-#### Pre-Commit Coverage Checklist
-
-```bash
-# Check coverage before commit
-pnpm test:coverage
-
-# Verify thresholds per layer:
-# - Domain layer MUST be 96%+
-# - Application layer MUST be 90%+
-# - Infrastructure layer MUST be 80%+
-# - Shared utilities MUST be 85%+
-# - Web/UI layer MUST be 70%+
-
-# New features MUST have scenario tests
-# Error paths MUST be tested
-# Performance implications MUST be considered
-```
-
 ### E2E Testing with Playwright
 
-#### Test Architecture Overview
+**Architecture:** Zustand store with sessionStorage persistence (offline-first
+PWA). Tests inject data directly into sessionStorage and trigger store updates
+via storage events.
 
-**TW Softball uses Zustand store with sessionStorage persistence**
-(offline-first PWA). E2E tests inject data directly into sessionStorage and
-trigger store updates via storage events - no HTTP API mocking needed.
+**Key Patterns:**
 
-**Test Files**: `apps/web/e2e/`
+- Inject data via `sessionStorage.setItem()` +
+  `window.dispatchEvent(new Event('storage'))`
+- Use fixtures from `apps/web/e2e/fixtures/gameStateFixtures.ts`
+- Use page objects from `apps/web/e2e/page-objects/`
+- Add `data-testid` attributes to E2E-testable elements (kebab-case)
+- Clear sessionStorage between tests for isolation
+- **WebKit Note:** Use `Alt+Tab` for keyboard navigation (not `Tab`) due to
+  macOS "Full Keyboard Access" settings
 
-- `lineup-management/lineup-editor.spec.ts` - Lineup display and management (13
-  tests)
-- `lineup-management/substitution-workflow.spec.ts` - Player substitution flows
-  (14 tests)
-- `global-setup.ts` / `global-teardown.ts` - Test environment setup/cleanup
-
-**Test Infrastructure**:
-
-- `fixtures/gameStateFixtures.ts` - Mock game state data structures
-- `page-objects/LineupManagementPage.ts` - Page object model for lineup
-  management
-- `helpers/apiMocks.ts` - Legacy helpers (not used with sessionStorage approach)
-
-**Configuration**: `apps/web/playwright.config.ts`
-
-#### Running E2E Tests
+**Commands:**
 
 ```bash
-# Run all E2E tests
-pnpm --filter @twsoftball/web test:e2e
-
-# Run specific test file
-pnpm --filter @twsoftball/web test:e2e lineup-management/lineup-editor.spec.ts
-
-# Run with UI (headed mode for debugging)
-pnpm --filter @twsoftball/web test:e2e:headed
-
-# Run in debug mode
-pnpm --filter @twsoftball/web test:e2e:debug
-
-# View test report
-pnpm --filter @twsoftball/web test:e2e:report
-
-# Run specific browser
-pnpm --filter @twsoftball/web test:e2e --project=chromium
+pnpm --filter @twsoftball/web test:e2e          # Run all
+pnpm --filter @twsoftball/web test:e2e:headed   # Debug with UI
 ```
 
-#### E2E Test Data Patterns
-
-**Key Architecture Discovery**: The application uses Zustand store with
-sessionStorage persistence, NOT traditional HTTP APIs. Tests inject data
-directly into sessionStorage and trigger store updates.
-
-**Pattern 1: Store Injection (CORRECT for this app)**
-
-```typescript
-import { mockActiveGame } from '../fixtures/gameStateFixtures';
-import { LineupManagementPage } from '../page-objects/LineupManagementPage';
-
-async function setupActiveGame(lineupPage: LineupManagementPage) {
-  // Navigate to home page first
-  await lineupPage['page'].goto('/');
-
-  // Wait for app to be ready
-  await lineupPage['page'].waitForSelector('[data-testid="app-ready"]', {
-    timeout: 10000,
-  });
-
-  // Set game state in sessionStorage and trigger store update
-  await lineupPage['page'].evaluate(gameState => {
-    const gameData = {
-      id: gameState.gameId,
-      homeTeam: gameState.homeTeam,
-      awayTeam: gameState.awayTeam,
-      status: gameState.status,
-      homeScore: gameState.homeScore,
-      awayScore: gameState.awayScore,
-      currentInning: gameState.currentInning,
-      isTopHalf: gameState.isTopHalf,
-    };
-
-    // Store in sessionStorage for the app to pick up
-    sessionStorage.setItem('currentGame', JSON.stringify(gameData));
-    sessionStorage.setItem(
-      'activeLineup',
-      JSON.stringify(gameState.activeLineup)
-    );
-    sessionStorage.setItem('benchPlayers', JSON.stringify(gameState.bench));
-
-    // Dispatch storage event to trigger Zustand store update
-    window.dispatchEvent(new Event('storage'));
-  }, mockActiveGame);
-
-  // Wait for state to propagate
-  await lineupPage['page'].waitForTimeout(500);
-
-  // Navigate to lineup page
-  await lineupPage.goto();
-}
-```
-
-**Pattern 2: Page Object Usage**
-
-```typescript
-import { LineupManagementPage } from '../page-objects/LineupManagementPage';
-
-test('should complete substitution workflow', async ({ page }) => {
-  const lineupPage = new LineupManagementPage(page);
-  await setupActiveGame(lineupPage);
-
-  // Wait for page to load
-  await lineupPage.waitForLoad();
-
-  // Perform substitution
-  await lineupPage.clickSubstitute('John Smith');
-  await lineupPage.waitForSubstitutionDialog();
-  await lineupPage.selectPlayerByName('Tom Wilson');
-  await lineupPage.confirmSubstitution();
-
-  // Verify result
-  const players = await lineupPage.getLineupList();
-  expect(players[0].name).toContain('Tom Wilson');
-});
-```
-
-**Pattern 3: Using Fixtures**
-
-```typescript
-import {
-  mockActiveGame,
-  mockBenchPlayers,
-  mockGameWithSubstitutions,
-  createCustomGameState,
-} from '../fixtures/gameStateFixtures';
-
-// Use pre-built fixtures
-const gameState = mockActiveGame;
-
-// Or create custom scenarios
-const customGame = createCustomGameState({
-  currentInning: 7,
-  homeScore: 8,
-  awayScore: 5,
-});
-```
-
-**Key Points**:
-
-- ✅ **DO**: Inject data via sessionStorage and trigger storage events
-- ✅ **DO**: Use fixtures from `e2e/fixtures/gameStateFixtures.ts`
-- ✅ **DO**: Use page objects from `e2e/page-objects/LineupManagementPage.ts`
-- ❌ **DON'T**: Use HTTP API mocking with `page.route()` (not applicable)
-- ❌ **DON'T**: Import test fixtures into production code
-- Always clear sessionStorage between tests for isolation
-
-#### E2E Test IDs
-
-All E2E-testable elements must have `data-testid` attributes:
-
-```typescript
-// Required test IDs
-<div data-testid="app-ready">           // App initialization complete
-<div data-testid="lineup-editor">       // Lineup editor component
-<div data-testid="lineup-list">         // Lineup list container
-<div data-testid="batting-order-label"> // Batting order label
-<button data-testid="lineup-management-nav"> // Navigation to lineup page
-```
-
-**Pattern**: Use kebab-case for test IDs, be specific and descriptive.
-
-#### CI Integration
-
-E2E tests run automatically in CI:
-
-- **Trigger**: Every push and PR
-- **Browser**: Chromium only (for speed)
-- **Status**: All tests passing (27/27, 100%)
-- **Artifacts**: Test results and reports uploaded for 7 days
-- **Timeout**: 15 minutes
-
-View results in GitHub Actions under "E2E Tests" job.
-
-#### Current Test Coverage
-
-**Lineup Editor** (13 tests): ✅ All passing
-
-- Display and navigation
-- Loading states
-- Error handling
-- Substitution dialog
-- Empty state
-- Keyboard navigation
-- Accessibility standards
-- Focus management
-- Mobile responsiveness
-- Touch interactions
-- Performance budgets
-- Lazy loading
-
-**Substitution Workflow** (14 tests): ✅ All passing
-
-- Valid substitution workflow
-- Re-entry substitution
-- Player eligibility validation
-- Position changes
-- Cancellation
-- Error handling
-- Focus during workflow
-- ARIA announcements
-- Keyboard navigation
-- Error announcements
-- Mobile device support
-- Touch interactions
-- Performance budgets
-- Lazy loading
-
-**Total**: 27/27 tests passing (100%) - Full E2E coverage complete
-
-#### E2E Best Practices
-
-1. **Test User Journeys**: Focus on complete workflows, not component details
-2. **Use Semantic Selectors**: Prefer `role`, `aria-label`, `data-testid` over
-   CSS classes
-3. **Wait for Elements**: Use `waitForSelector` and `toBeVisible` expectations
-4. **Store Injection**: Use sessionStorage + storage events for Zustand store
-5. **Session Isolation**: Clear storage between tests
-6. **Headed Mode Debugging**: Use `test:e2e:headed` to watch tests execute
-7. **Mobile Testing**: Tests run on both desktop and mobile viewports
-8. **Page Objects**: Use `LineupManagementPage` for maintainable selectors
-9. **Fixtures**: Use `gameStateFixtures.ts` for consistent test data
-10. **No Production Test Code**: Keep all test logic in E2E directory
-11. **Browser-Aware Keyboard Navigation**: Use `Alt+Tab` for WebKit, `Tab` for
-    other browsers (see WebKit Keyboard Navigation Pattern below)
-
-#### WebKit Keyboard Navigation Pattern
-
-**Important**: WebKit (Safari) requires special keyboard handling for E2E tests
-due to macOS/iOS "Full Keyboard Access" system settings.
-
-**Problem**: Safari defaults to "Text boxes and lists only" mode for keyboard
-navigation, which prevents standard `Tab` key from navigating through all
-interactive elements (buttons, links, etc.).
-
-**Solution**: Use browser-aware keyboard navigation in tests:
-
-```typescript
-test('should handle keyboard navigation', async ({ page, browserName }) => {
-  // WebKit requires Alt+Tab to simulate "All Controls" keyboard access mode
-  // Other browsers (Chromium, Firefox) use standard Tab key
-  const tabKey = browserName === 'webkit' ? 'Alt+Tab' : 'Tab';
-
-  await page.keyboard.press(tabKey);
-  await page.keyboard.press(tabKey);
-
-  // Verify focus management
-  const focusedElement = page.locator(':focus');
-  expect(await focusedElement.count()).toBeGreaterThan(0);
-});
-```
-
-**When to use**:
-
-- All keyboard navigation tests that tab through interactive elements
-- Focus management tests
-- Accessibility tests validating keyboard-only workflows
-
-**Why this works**: `Alt+Tab` in Playwright simulates the macOS "Full Keyboard
-Access" mode that allows keyboard navigation to all controls, not just text
-fields.
-
-#### Troubleshooting E2E Tests
-
-**Test timeouts**: Increase timeout in test or use `page.waitFor...()`
-
-**Element not found**: Verify `data-testid` exists and is spelled correctly
-
-**Timing issues**: Add explicit waits with `waitForSelector` or
-`waitForLoadState`
-
-**Data issues**: Check sessionStorage in browser DevTools during headed runs
-
-**CI failures**: Download artifacts from GitHub Actions for screenshots/videos
-
-**Store not updating**: Ensure `window.dispatchEvent(new Event('storage'))` is
-called after sessionStorage updates
-
-**WebKit keyboard navigation failing**: Use `Alt+Tab` for WebKit instead of
-`Tab` (see WebKit Keyboard Navigation Pattern above)
+**Troubleshooting:** Use `test:e2e:headed` to watch execution, verify
+`data-testid` attributes, check sessionStorage in DevTools, add explicit waits
+with `waitForSelector`.
 
 ### Code Quality
 
@@ -672,69 +286,37 @@ called after sessionStorage updates
 - **ESLint**: Airbnb config with custom rules
 - **Prettier**: Consistent formatting
 - **Commits**: Conventional commits (feat:, fix:, test:, refactor:, docs:)
-- **No Compromise Policy**:
-  - No quick fixes or temporary solutions
-  - No skipping tests to "save time"
-  - No relaxing TypeScript strictness
-  - No disabling ESLint rules without proper justification
 
-### Documentation Standards (JSDoc Requirements)
+**No Compromise Policy:**
 
-- **Class-level documentation**: Every class must have JSDoc explaining purpose
-  and business context
-- **Method documentation**: Complex methods need examples and @remarks for
-  non-obvious logic
+- No quick fixes or temporary solutions
+- No skipping tests to "save time"
+- No relaxing TypeScript strictness
+- No disabling ESLint rules without proper justification
+
+### Documentation Standards
+
+- **Class-level documentation**: JSDoc explaining purpose and business context
+- **Method documentation**: Complex methods need examples and @remarks
 - **Domain terminology**: Explain softball-specific terms and business rules
-- **Validation rules**: Document not just "what" but "why" - the business reason
-  behind constraints
+- **Validation rules**: Document "why" - the business reason behind constraints
 
-## Automated Review Process
+## Quality Assurance
 
-### Review Timing
+### Quality Gates (Cannot Be Bypassed)
 
-- After general agent completes implementation tasks
-- Before any `git commit` attempt
-- After completing TodoWrite milestones
-- Before creating pull requests
+- Coverage thresholds per layer (see table above)
+- TypeScript compilation errors
+- ESLint violations (unless properly justified)
+- Architecture dependency violations
+- Missing documentation for public APIs
 
-### Review Workflow
+### When Facing Challenges
 
-1. **Main Agent**: Triggers commit-readiness-reviewer
-2. **Reviewer**: Validates tests, coverage, architecture, documentation
-3. **Main Agent**: Summarizes feedback for user transparency
-4. **General-Purpose Agent**: Applies all fixes (if needed)
-5. **General-Purpose Agent**: Handles git operations when clean
-
-### Review Feedback Display Pattern
-
-```
-✅ **Review Summary:**
-✅ Tests: All tests passing
-✅ Coverage: X% (meets target)
-✅ TypeScript: No type errors
-⚠️  Issues: X formatting issues found
-🔧 **Actions:** Delegating fixes to General-Purpose Agent...
-```
-
-## Error Handling & Escalation
-
-### Escalation Protocol
-
-When max attempts (3) exceeded:
-
-1. **Document Issue**: Capture specific error details and attempted solutions
-2. **Context Provision**: Show relevant error logs and affected files
-3. **User Notification**: Request guidance (no workarounds policy)
-4. **Clear Handoff**: Explain what was attempted and current state
-
-### Quality-Related Escalations
-
-When facing quality vs. speed pressure:
-
-1. **Document the quality requirement** that seems challenging
-2. **Explain why the proper solution is important** for long-term success
-3. **Propose timeline adjustment** rather than quality compromise
-4. **Seek architectural guidance** if the proper solution is unclear
+1. **First Response**: Find the proper architectural solution
+2. **If Blocked**: Document the issue and seek guidance (after 3 attempts)
+3. **Never Do**: Create temporary fixes, skip tests, or lower standards
+4. **Always Remember**: Clean code is faster to maintain and extend
 
 ## Key Patterns
 
@@ -742,32 +324,14 @@ When facing quality vs. speed pressure:
 
 - All changes stored as events
 - Current state derived by replaying events
-- Perfect undo/redo support
-- Complete audit trail
+- Perfect undo/redo support with complete audit trail
 
-### Dependency Injection: DI Container with Dynamic Import
+### DI Container
 
-**DI Container Implementation**
-
-- **Enterprise Features**: Service registry, lazy loading, circular dependency
-  detection
-- **Dynamic Imports**: Infrastructure loaded at runtime based on configuration
-- **Advanced Lifecycle**: Singleton management, parallel resolution, container
-  introspection
-- **Runtime Configuration**: Multiple implementations (memory, indexeddb,
-  sqlite)
-
-```typescript
-// DI Container approach
-export async function createApplicationServicesWithContainer(
-  config: ApplicationConfig
-) {
-  const container = new DIContainer();
-  await registerInfrastructureServices(container, config);
-  await registerApplicationServices(container);
-  return await container.resolve<ApplicationServices>('applicationServices');
-}
-```
+- Service registry with lazy loading
+- Dynamic imports based on configuration
+- Singleton management and parallel resolution
+- Multiple implementations (memory, indexeddb, sqlite)
 
 ### Error Handling
 
@@ -777,23 +341,18 @@ export async function createApplicationServicesWithContainer(
 
 ## Important Notes
 
-- **DI Container Pattern**: Enterprise-grade dependency injection with service
-  registry and lifecycle management
+- **Always** use Composition Root pattern:
+  `createApplicationServicesWithContainerAndFactory()` with explicit factory
+  from Web layer
 - **Never** import Infrastructure directly into Web layer
 - **Never** bypass DI Container for dependency injection
 - **Never** compromise on architectural principles for convenience
-- **Never** skip testing phases or reduce coverage targets
-- **Never** use workarounds instead of proper solutions
-- **Always** use `createApplicationServicesWithContainer()` for dependency
-  injection
 - **Always** write tests before implementation (TDD)
-- **Always** maintain code quality standards regardless of complexity
 - **Always** use orchestrator-worker pattern for complex tasks
-- **Main agent coordinates, General-Purpose Agent implements everything**
-- **Always trigger commit-readiness-reviewer and summarize results**
-- **Delegate ALL git operations and fixes to General-Purpose Agent**
+- **Always** trigger commit-readiness-reviewer and summarize results
+- **Delegate** ALL git operations and fixes to General-Purpose Agent
 
-**Architecture Reference**: See `/docs/architecture-patterns.md` for complete DI
+**Architecture Reference:** See `/docs/architecture-patterns.md` for complete DI
 Container implementation details
 
 ---

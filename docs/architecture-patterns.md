@@ -20,39 +20,62 @@ Infrastructure Layer (packages/infrastructure)
 **Dependency Rules:**
 
 - **Domain Layer**: No external dependencies (pure business logic)
-- **Application Layer**: Only imports from Domain layer
+- **Application Layer**: Only imports from Domain layer (never imports
+  Infrastructure)
 - **Infrastructure Layer**: Imports from Domain + Application (implements ports)
-- **Web Layer**: Only imports from Application layer
+- **Web Layer**: Acts as Composition Root - imports from Application +
+  Infrastructure factory functions
 
-## Dependency Injection Pattern: DI Container with Dynamic Import
+## Dependency Injection Pattern: Composition Root with DI Container
 
 ### The Problem
 
-Traditional DI approaches violate hexagonal architecture:
+Traditional DI approaches violate hexagonal architecture or create circular
+dependencies:
 
-- **Composition Root in main.tsx**: Web layer imports from ALL layers ❌
-- **Abstract Factory Injection**: Web layer still imports Infrastructure ❌
+- **Application imports Infrastructure**: Creates circular dependencies ❌
 - **Service Locator**: Creates hidden dependencies ❌
+- **Dynamic Import with string paths**: Brittle and hard to maintain ❌
 
-### The Solution: DI Container with Dynamic Import
+### The Solution: Composition Root Pattern with DI Container
+
+The **Composition Root** pattern places all dependency wiring at the
+application's entry point (Web layer). This eliminates circular dependencies
+while maintaining clean architecture.
 
 ```typescript
-// DI Container with Dynamic Import
-import { createApplicationServicesWithContainer } from '@twsoftball/application';
+// Web Layer (Composition Root) - Selects infrastructure factory
+import { createApplicationServicesWithContainerAndFactory } from '@twsoftball/application';
+import { createIndexedDBFactory } from '@twsoftball/infrastructure/web';
+import { createMemoryFactory } from '@twsoftball/infrastructure/memory';
 
-const services = await createApplicationServicesWithContainer({
-  environment: 'production',
-  storage: 'indexeddb',
-});
+function createApplicationServicesFactory() {
+  return async (appConfig: ApplicationConfig) => {
+    // Composition root: Select infrastructure factory based on configuration
+    const factory =
+      appConfig.storage === 'memory'
+        ? createMemoryFactory()
+        : createIndexedDBFactory();
 
-// Application Layer - DI Container with Dynamic Infrastructure Loading
-export async function createApplicationServicesWithContainer(
-  config: ApplicationConfig
+    // Use DI container with explicit factory (no infrastructure import in Application layer)
+    return await createApplicationServicesWithContainerAndFactory(
+      appConfig,
+      factory
+    );
+  };
+}
+
+// Application Layer - Accepts factory as parameter (no Infrastructure import)
+export async function createApplicationServicesWithContainerAndFactory(
+  config: ApplicationConfig,
+  infrastructureFactory: InfrastructureFactory
 ): Promise<ApplicationServices> {
   const container = new DIContainer();
 
-  // Register infrastructure services based on config.storage
-  await registerInfrastructureServices(container, config);
+  // Register infrastructure services using provided factory
+  await container.register('infrastructureServices', async () => {
+    return await infrastructureFactory.createServices(config);
+  });
 
   // Register application services
   await registerApplicationServices(container);
@@ -75,40 +98,50 @@ export function createIndexedDBFactory(): InfrastructureFactory {
 }
 ```
 
-### DI Container Benefits
+### Composition Root Benefits
 
+- ✅ **No Circular Dependencies**: Application never imports Infrastructure
+- ✅ **Explicit Dependencies**: All wiring happens at single entry point
 - ✅ **Enterprise-grade DI**: Service registry, lazy loading, circular
   dependency detection
 - ✅ **Multiple implementations**: Memory, IndexedDB, SQLite, Cloud
-- ✅ **Zero Architecture violations**: Web layer NEVER imports Infrastructure
-- ✅ **Advanced features**: Singleton management, parallel resolution, container
-  introspection
-- ✅ **Clean testing**: Mock implementations easily tested
-- ✅ **Future-proof**: New implementations added without changing Web layer
-- ✅ **No dependency-cruiser exceptions**: Clean architectural compliance
+- ✅ **Type-safe**: Infrastructure factories are strongly typed
+- ✅ **Clean testing**: Easy to inject test doubles at composition root
+- ✅ **Clear flow**: Dependency direction is obvious (Web → Application ←
+  Infrastructure)
+- ✅ **Maintainable**: All dependency decisions in one place
 
-## No Architecture Exceptions Needed
+## Architecture Rules for Composition Root Pattern
 
-**The Dynamic Import pattern eliminates the need for any architectural
-exceptions:**
+**The Composition Root pattern requires specific dependency rules:**
 
 ```typescript
-// DI Container with Dynamic Import
-import { createApplicationServicesWithContainer } from '@twsoftball/application';
-
-const services = await createApplicationServicesWithContainer(config);
+// Web Layer (Composition Root) - Imports Infrastructure factories
+import { createIndexedDBFactory } from '@twsoftball/infrastructure/web';
+import { createMemoryFactory } from '@twsoftball/infrastructure/memory';
+import { createApplicationServicesWithContainerAndFactory } from '@twsoftball/application';
 ```
 
-**Why DI Container is architecturally superior:**
+**Why Composition Root is architecturally sound:**
 
-1. **Enterprise DI features**: Service registry, lazy loading, circular
+1. **Single Wiring Point**: All dependency decisions made at application entry
+   point
+2. **No Circular Dependencies**: Application never imports Infrastructure
+3. **Explicit Flow**: Web → Infrastructure (factory selection) + Application →
+   Infrastructure (port implementation)
+4. **Type Safety**: Infrastructure factories are strongly typed at compile time
+5. **Testability**: Easy to inject test doubles at composition root
+6. **Enterprise DI features**: Service registry, lazy loading, circular
    dependency detection
-2. **Zero exceptions**: No dependency-cruiser exceptions needed
-3. **Dynamic loading**: Infrastructure loaded at runtime, not compile-time
-4. **Pure inversion**: Application controls Infrastructure, not Web layer
-5. **Advanced lifecycle**: Singleton management, parallel resolution, container
-   introspection
-6. **Future-proof**: Adding new storage backends requires no Web layer changes
+7. **Clear Ownership**: Web layer owns infrastructure selection, Application
+   owns business logic
+
+**Dependency-Cruiser Rules Required:**
+
+- Web layer must be allowed to import Infrastructure factory functions
+  (composition root exception)
+- Application layer must NOT import Infrastructure (enforced, no exceptions)
+- Infrastructure layer provides factories but doesn't control selection
 
 ## File Locations
 
@@ -244,18 +277,20 @@ pnpm build
 
 ## Summary
 
-**THE DI Container Pattern with Dynamic Import is THE standard dependency
+**THE Composition Root Pattern with DI Container is THE standard dependency
 injection approach for this project.**
 
-### DI Container Implementation
+### Composition Root Implementation
 
 - Enterprise-grade dependency injection with service registry and lifecycle
   management
-- Web layer only calls Application layer, never imports Infrastructure
-- Application layer dynamically imports Infrastructure at runtime based on
-  config
+- Web layer acts as Composition Root - imports Infrastructure factories and
+  wires dependencies at entry point
+- Application layer accepts factories as parameters, never imports
+  Infrastructure directly
+- No circular dependencies - clean unidirectional flow
 - Advanced features: lazy loading, circular dependency detection, singleton
   management
-- Clean, testable, and architecturally compliant with zero exceptions
+- Type-safe, explicit, and maintainable dependency management
 - Domain layer remains pure with no dependencies
-- Multiple implementations supported through dynamic import pattern
+- Multiple implementations supported through factory pattern

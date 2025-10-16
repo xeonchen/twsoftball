@@ -145,7 +145,7 @@ class SessionManager {
   private readonly sessionId: string;
   private readonly startTime: number;
 
-  constructor() {
+  constructor(private readonly monitoringService: MonitoringService) {
     this.sessionId = this.generateSessionId();
     this.startTime = Date.now();
     this.setupSessionTracking();
@@ -178,20 +178,20 @@ class SessionManager {
 
   private trackSessionEnd(duration: number): void {
     // Track session end event
-    monitoring.track('session_ended', {
+    this.monitoringService.track('session_ended', {
       duration,
       sessionId: this.sessionId,
     });
   }
 
   private trackSessionPause(): void {
-    monitoring.track('session_paused', {
+    this.monitoringService.track('session_paused', {
       sessionId: this.sessionId,
     });
   }
 
   private trackSessionResume(): void {
-    monitoring.track('session_resumed', {
+    this.monitoringService.track('session_resumed', {
       sessionId: this.sessionId,
     });
   }
@@ -203,7 +203,7 @@ class SessionManager {
 class PerformanceMonitor {
   private observer: PerformanceObserver | null = null;
 
-  constructor() {
+  constructor(private readonly monitoringService: MonitoringService) {
     this.setupPerformanceObserver();
     this.trackInitialMetrics();
   }
@@ -247,7 +247,7 @@ class PerformanceMonitor {
       this.trackPaintTiming(entry as PerformancePaintTiming);
     }
 
-    monitoring.sendPerformanceData(performanceData);
+    this.monitoringService.sendPerformanceData(performanceData);
   }
 
   private trackNavigationTiming(entry: PerformanceNavigationTiming): void {
@@ -260,12 +260,12 @@ class PerformanceMonitor {
     };
 
     Object.entries(metrics).forEach(([metric, value]) => {
-      monitoring.timing(metric, value);
+      this.monitoringService.timing(metric, value);
     });
   }
 
   private trackPaintTiming(entry: PerformancePaintTiming): void {
-    monitoring.timing(entry.name.replace('-', '_'), entry.startTime);
+    this.monitoringService.timing(entry.name.replace('-', '_'), entry.startTime);
   }
 
   private trackInitialMetrics(): void {
@@ -296,9 +296,9 @@ class PerformanceMonitor {
       tags: tags || {},
     };
 
-    // Use provided service instance or fall back to global monitoring
-    const monitoringService = service || monitoring;
-    monitoringService.sendPerformanceData(performanceData);
+    // Use provided service instance for flexibility in testing
+    const monitoringServiceToUse = service || this.monitoringService;
+    monitoringServiceToUse.sendPerformanceData(performanceData);
   }
 }
 
@@ -315,8 +315,8 @@ class MonitoringService {
 
   constructor() {
     this.config = this.getConfig();
-    this.sessionManager = new SessionManager();
-    this.performanceMonitor = new PerformanceMonitor();
+    this.sessionManager = new SessionManager(this);
+    this.performanceMonitor = new PerformanceMonitor(this);
     this.setupEventFlushing();
     this.setupErrorTracking();
   }
@@ -582,8 +582,46 @@ class MonitoringService {
   }
 }
 
-// Export singleton instance
-export const monitoring = new MonitoringService();
+// Lazy initialization pattern to avoid circular dependency issues
+let monitoringInstance: MonitoringService | null = null;
+
+function getMonitoringInstance(): MonitoringService {
+  if (!monitoringInstance) {
+    monitoringInstance = new MonitoringService();
+  }
+  return monitoringInstance;
+}
+
+// Export proxy object that implements the same interface as MonitoringService
+export const monitoring = {
+  track(event: string, properties?: Record<string, unknown>): void {
+    getMonitoringInstance().track(event, properties);
+  },
+  error(error: Error, metadata?: Record<string, unknown>): void {
+    getMonitoringInstance().error(error, metadata);
+  },
+  timing(metric: string, value: number, tags?: Record<string, string>): void {
+    getMonitoringInstance().timing(metric, value, tags);
+  },
+  sendPerformanceData(data: PerformanceData): void {
+    getMonitoringInstance().sendPerformanceData(data);
+  },
+  pageView(path?: string): void {
+    getMonitoringInstance().pageView(path);
+  },
+  feature(featureName: string, action: string, properties?: Record<string, unknown>): void {
+    getMonitoringInstance().feature(featureName, action, properties);
+  },
+  setUser(userData: UserData): void {
+    getMonitoringInstance().setUser(userData);
+  },
+  destroy(): void {
+    if (monitoringInstance) {
+      monitoringInstance.destroy();
+      monitoringInstance = null;
+    }
+  },
+};
 
 // Convenience exports
 export { MonitoringService };
