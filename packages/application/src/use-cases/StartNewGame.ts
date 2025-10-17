@@ -182,6 +182,14 @@ export class StartNewGame {
    * 6. **Atomic Persistence**: Save all aggregates and events consistently
    * 7. **State Assembly**: Build complete initial game state for presentation
    *
+   * **Automatic First Batter Selection**:
+   * After game creation, the system automatically selects the first batter
+   * (away team, batting slot #1) so the game is immediately ready to record
+   * the first at-bat. No manual batter selection is required.
+   *
+   * For complete game flow documentation, see:
+   * {@link file://../../../docs/design/game-flow.md#automatic-batter-selection Automatic Batter Selection}
+   *
    * **Error Handling Strategy**:
    * - Input validation errors provide specific field-level feedback
    * - Business rule violations include detailed explanations

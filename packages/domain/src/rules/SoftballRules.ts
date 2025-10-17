@@ -294,6 +294,12 @@ export class SoftballRules {
    * - Current inning >= tier.afterInning (inclusive - rule applies AT the specified inning)
    * - Score differential >= tier.differential
    *
+   * The mercy rule prevents unnecessarily lopsided games by automatically terminating
+   * games when the score differential becomes excessive after a minimum number of innings.
+   *
+   * For complete mercy rule documentation, see:
+   * {@link file://../../../docs/design/game-flow.md#scenario-2-mercy-rule-automatic-termination Scenario 2: Mercy Rule Automatic Termination}
+   *
    * The mercy rule applies regardless of which team is ahead, preventing
    * both blowout wins and losses from continuing unnecessarily.
    *
@@ -356,6 +362,12 @@ export class SoftballRules {
    * 3. Tied games continue into extra innings (if allowed)
    * 4. Extra innings end when one team leads after any complete inning
    * 5. Games can end in ties if maxExtraInnings reached and allowTieGames enabled
+   *
+   * This method evaluates multiple completion scenarios including natural completion
+   * after regulation, mercy rule automatic termination, and tie game handling.
+   *
+   * For complete game completion scenarios, see:
+   * {@link file://../../../docs/design/game-flow.md#game-completion-scenarios Game Completion Scenarios}
    *
    * **Business Rules**:
    * - Must complete minimum regulation innings

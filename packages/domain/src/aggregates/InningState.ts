@@ -671,6 +671,15 @@ export class InningState {
    * - **State Reset**: Clears bases, resets outs to 0, batting slot to 1
    * - **Event Emission**: Emits HalfInningEnded and possibly InningAdvanced events
    *
+   * **Batting Position Preservation:**
+   * IMPORTANT: The batting slot position is maintained (NOT reset to 1) when the
+   * half-inning ends. Each team maintains their current batting position independently,
+   * and resumes from that position when their next turn to bat comes around. This
+   * ensures continuous batting order progression throughout the game.
+   *
+   * For complete half-inning transition documentation, see:
+   * {@link file://../../../docs/design/game-flow.md#half-inning-transitions Half-Inning Transitions}
+   *
    * **Business Rules:**
    * - Called automatically when 3rd out is recorded during at-bat processing
    * - Can be called manually for special situations (forfeit, walk-off, etc.)
@@ -1482,6 +1491,18 @@ export class InningState {
    *
    * @param currentSlot - The slot that just batted
    * @returns Updated InningState with advanced batting order
+   *
+   * @remarks
+   * After each at-bat is recorded, the batting order automatically advances to the next
+   * slot in sequence (1 → 2 → 3 → ... → N → 1). This automatic progression means the
+   * system always knows who bats next without requiring manual user selection.
+   *
+   * The batting order cycles continuously through the entire game and does NOT reset
+   * between innings - teams continue from where they left off when their turn to bat
+   * comes around again.
+   *
+   * For complete game flow documentation, see:
+   * {@link file://../../../docs/design/game-flow.md#automatic-batter-advancement-after-each-at-bat Automatic Batter Advancement After Each At-Bat}
    */
   private advanceBattingOrder(currentSlot: number): InningState {
     // Determine lineup size based on current slot
