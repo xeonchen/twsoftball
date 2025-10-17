@@ -573,6 +573,199 @@ interface EventStore {
 This domain model provides the foundation for implementing our softball game
 recording system using DDD principles within a Hexagonal Architecture.
 
+## Batter Selection and Automatic Advancement
+
+One of the core behavioral aspects of the domain is how the system manages
+batting order progression. This section clarifies the automatic batter selection
+behavior that is fundamental to the game recording workflow.
+
+### Core Principle: Deterministic Batting Order
+
+The batting order in softball is **legally binding** once submitted to the
+umpire. Teams must follow the order sequentially throughout the game. The system
+models this constraint through automatic batter selection and advancement—there
+is no manual "select next batter" step in the normal flow.
+
+### Automatic Initialization at Game Start
+
+**When**: `StartNewGame` use case completes **Behavior**: System automatically
+initializes the first batter **Implementation**: `StartNewGame.ts:816-819`,
+`StartNewGame.ts:842`
+
+```typescript
+// First batter is automatically set to away team's slot #1 player
+const firstBattingSlot = awayLineupDTO.battingSlots.find(
+  slot => slot.slotNumber === 1
+);
+const currentBatter = firstBattingSlot?.currentPlayer || null;
+// ...
+currentBatterSlot: 1,  // Always starts at slot 1
+isTopHalf: true,       // Away team bats first
+```
+
+**Business Rule**: In softball, the away team always bats first (top of the
+inning), and the leadoff hitter (slot #1) is always the first batter. This is
+not a user choice—it's a rule of the game.
+
+**Expected Behavior**: After game initialization, the UI should immediately show
+the current batter and enable action buttons. No "select batter" step required.
+
+### Automatic Advancement After Each At-Bat
+
+**When**: After any at-bat is recorded (via `RecordAtBat` use case)
+**Behavior**: System automatically advances to next batting slot
+**Implementation**: `InningState.ts:1486-1520`
+
+```typescript
+advanceBattingOrder(): void {
+  const totalSlots = this.teamLineup.getTotalBattingSlots();
+  this.currentBatterSlot = (this.currentBatterSlot % totalSlots) + 1;
+  this.emitCurrentBatterChanged();
+}
+```
+
+**Advancement Sequence**: 1 → 2 → 3 → 4 → ... → N → 1 (circular sequence)
+
+**Business Rule**: Batting order advances sequentially after each at-bat,
+regardless of the at-bat outcome (hit, walk, out, etc.). The order wraps around
+after the last slot.
+
+### Batting Order Persistence Across Innings
+
+**When**: Half-inning ends (3 outs recorded) **Behavior**: Batting order
+continues where it left off **Implementation**: `InningState.ts:730`
+
+```typescript
+endHalfInning(): void {
+  // currentBatterSlot is NOT reset to 1
+  // Slot position is maintained for when this team bats again
+}
+```
+
+**Example Flow**:
+
+- Top of 1st: Away team bats slots 1, 2, 3 (slot #3 makes 3rd out)
+- Bottom of 1st: Home team starts from slot #1 (their first time batting)
+- Top of 2nd: Away team resumes from **slot #4** (not slot #1)
+- Bottom of 2nd: Home team continues from where they left off
+
+**Business Rule**: The batting order is a continuous sequence across all
+innings. It doesn't reset at the beginning of each inning—teams pick up where
+they left off.
+
+### Half-Inning Transitions
+
+**When**: Teams switch between batting and fielding **Behavior**: System
+automatically selects the appropriate next batter
+
+When a half-inning ends:
+
+1. Outs reset to 0
+2. Bases cleared
+3. Batting team switches (away ↔ home)
+4. **currentBatterSlot** loads from the new batting team's state
+5. **currentBatter** automatically set to the player in that slot
+
+**Implementation Note**: Each team (HOME and AWAY) maintains its own
+`currentBatterSlot` value independently in the `TeamLineup` aggregate. The
+`InningState` tracks which team is currently batting and references their
+current slot.
+
+### Domain Events for Batter Transitions
+
+**CurrentBatterChanged Event**: Emitted after each at-bat completion to track
+batting order progression.
+
+```typescript
+export class CurrentBatterChanged extends DomainEvent {
+  constructor(
+    readonly gameId: GameId,
+    readonly previousBatterId: PlayerId | null,
+    readonly currentBatterId: PlayerId,
+    readonly previousBattingSlot: number,
+    readonly currentBattingSlot: number,
+    readonly inning: number,
+    readonly half: 'TOP' | 'BOTTOM'
+  )
+}
+```
+
+**Documentation**: See `packages/domain/src/events/CurrentBatterChanged.ts` for
+comprehensive JSDoc (65 lines) explaining all business rules around batter
+advancement, including:
+
+- Sequential slot progression (1 → 2 → 3 → ...)
+- Wraparound behavior (slot N → slot 1)
+- Away team always bats first
+- Cross-inning persistence
+
+### Substitution Integration
+
+**When**: User initiates player substitution **Behavior**: Replaces player in
+current batter's slot, automatic advancement resumes
+
+**Key Points**:
+
+- Substitution replaces the **player** in a **slot**, not the slot itself
+- The batting slot number remains unchanged
+- After substitution, automatic advancement continues normally
+- Example: If slot #5 player is substituted, the new player occupies slot #5 and
+  will bat when slot #5 comes up in the order
+
+**Implementation**: `PlayerSubstitutedIntoGame` event records the slot number
+and player change, maintaining batting order continuity.
+
+### Invariants Related to Batter Selection
+
+- **currentBatterSlot** must always be between 1 and N (total batting slots)
+- **currentBatter** must always be a valid PlayerId when game is IN_PROGRESS
+- Each team maintains its own **currentBatterSlot** independently
+- Batting slot advancement is the only way to change the current batter (except
+  substitutions)
+- No "skip batter" or "go back" operations exist in normal game flow
+- Undo/redo operations restore exact batter state from events
+
+### UI State Management
+
+**Critical Integration Point**: The Web layer must correctly reflect the
+domain's automatic batter initialization.
+
+**Common Bug Pattern**: UI shows "Select next batter" when game starts, even
+though domain has already set `currentBatter` in the game state.
+
+**Root Cause**: UI not reading initialized `currentBatter` from game state after
+`StartNewGame` completes.
+
+**Expected UI Behavior**:
+
+- After game starts: Display current batter name, enable action buttons
+- After at-bat recorded: Display next batter automatically (no user action)
+- No manual "next batter" button needed in normal flow
+- "Select next batter" message should NEVER appear during normal game play
+
+**Fix**: Web layer should read `currentBatter` from game state and enable action
+buttons when `currentBatter` is not null. See `/docs/design/game-flow.md` for
+complete game lifecycle and state transition specifications.
+
+### Reference Implementation
+
+| Component                           | Location                                                          | Purpose                                       |
+| ----------------------------------- | ----------------------------------------------------------------- | --------------------------------------------- |
+| `StartNewGame` use case             | `packages/application/src/use-cases/StartNewGame.ts:816-819, 842` | Sets first batter at game initialization      |
+| `InningState.advanceBattingOrder()` | `packages/domain/src/aggregates/InningState.ts:1486-1520`         | Advances to next slot after at-bat            |
+| `InningState.endHalfInning()`       | `packages/domain/src/aggregates/InningState.ts:730`               | Preserves slot position across innings        |
+| `CurrentBatterChanged` event        | `packages/domain/src/events/CurrentBatterChanged.ts`              | Tracks all batter transitions (65-line JSDoc) |
+| `TeamLineup` aggregate              | `packages/domain/src/aggregates/TeamLineup.ts`                    | Stores batting slots and player assignments   |
+
+### See Also
+
+- **[Game Flow](game-flow.md)** - Complete game lifecycle with state transition
+  diagrams
+- **[Use Cases](use-cases.md)** - UC-001 (Start Game) and UC-002 (Record At-Bat)
+  specify automatic behavior
+- **[CurrentBatterChanged Event](../../packages/domain/src/events/CurrentBatterChanged.ts)** -
+  Comprehensive documentation of batter advancement rules
+
 ## Implementation Examples
 
 ### Value Object Implementation Pattern
