@@ -534,6 +534,12 @@ export class SubstitutePlayer {
    * substitution. It updates the appropriate domain aggregates and calculates
    * the results of the substitution.
    *
+   * **Important Note on Batting Position:**
+   * Player substitutions replace a player in their batting slot but do not
+   * change the team's currentBatterSlot position. The batting order continues
+   * from where it left off, with the substitute player now occupying that slot.
+   * TeamLineup.currentBatterSlot remains unchanged during substitutions.
+   *
    * In a full implementation, this would:
    * - Update TeamLineup aggregate with substitution
    * - Adjust field position assignments

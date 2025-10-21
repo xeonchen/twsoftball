@@ -79,19 +79,21 @@ import {
   AtBatResultType,
   GameStatus,
   DomainEvent,
-  AtBatCompleted,
   RunScored,
-  RunnerAdvanced,
-  AdvanceReason,
 } from '@twsoftball/domain';
 
 import { AtBatResult } from '../dtos/AtBatResult.js';
 import { GameStateDTO } from '../dtos/GameStateDTO.js';
+import { PlayerInGameDTO } from '../dtos/PlayerInGameDTO.js';
+import { PlayerStatisticsDTO, FieldingStatisticsDTO } from '../dtos/PlayerStatisticsDTO.js';
 import { RecordAtBatCommand, RecordAtBatCommandValidator } from '../dtos/RecordAtBatCommand.js';
 import { RunnerAdvanceDTO } from '../dtos/RunnerAdvanceDTO.js';
+import { TeamLineupDTO, BattingSlotDTO } from '../dtos/TeamLineupDTO.js';
 import { EventStore } from '../ports/out/EventStore.js';
 import { GameRepository } from '../ports/out/GameRepository.js';
+import { InningStateRepository } from '../ports/out/InningStateRepository.js';
 import { Logger } from '../ports/out/Logger.js';
+import { TeamLineupRepository } from '../ports/out/TeamLineupRepository.js';
 import { UseCaseErrorHandler } from '../utils/UseCaseErrorHandler.js';
 // Note: Reverted to direct logging to maintain architecture compliance
 
@@ -136,16 +138,26 @@ export class RecordAtBat {
    * concurrent execution with different command inputs.
    *
    * @param gameRepository - Port for Game aggregate persistence operations
+   * @param inningStateRepository - Port for InningState aggregate persistence operations
+   * @param teamLineupRepository - Port for TeamLineup aggregate persistence operations
    * @param eventStore - Port for domain event storage and retrieval
    * @param logger - Port for structured application logging
    */
   constructor(
     private readonly gameRepository: GameRepository,
+    private readonly inningStateRepository: InningStateRepository,
+    private readonly teamLineupRepository: TeamLineupRepository,
     private readonly eventStore: EventStore,
     private readonly logger: Logger
   ) {
     if (!gameRepository) {
       throw new Error('GameRepository is required');
+    }
+    if (!inningStateRepository) {
+      throw new Error('InningStateRepository is required');
+    }
+    if (!teamLineupRepository) {
+      throw new Error('TeamLineupRepository is required');
     }
     if (!eventStore) {
       throw new Error('EventStore is required');
@@ -229,7 +241,7 @@ export class RecordAtBat {
           validationError:
             validationError instanceof Error ? validationError.message : 'Unknown validation error',
         });
-        return this.createFailureResult(null, [
+        return await this.createFailureResult(null, [
           validationError instanceof Error ? validationError.message : 'Invalid command structure',
         ]);
       }
@@ -237,7 +249,7 @@ export class RecordAtBat {
       // Step 1: Load and validate game
       const game = await this.loadAndValidateGame(command.gameId);
       if (!game) {
-        return this.createFailureResult(null, [`Game not found: ${command.gameId.value}`]);
+        return await this.createFailureResult(null, [`Game not found: ${command.gameId.value}`]);
       }
 
       // Step 2: Capture original state for transaction compensation
@@ -246,14 +258,17 @@ export class RecordAtBat {
       // Step 3: Validate game state
       const gameStateValidation = this.validateGameState(game);
       if (!gameStateValidation.valid) {
-        return this.createFailureResult(game, gameStateValidation.errors);
+        return await this.createFailureResult(game, gameStateValidation.errors);
       }
 
-      // Step 4: Load aggregates (in real implementation, would load TeamLineup and InningState)
-      // For now, we'll create a simplified implementation focusing on the core logic
+      // Step 4: Load aggregates and process at-bat with full aggregate coordination
+      // Note: Batting position persistence is now handled internally by InningState aggregate.
+      // InningState tracks both awayTeamBatterSlot and homeTeamBatterSlot internally,
+      // and endHalfInning() automatically preserves both slots without requiring parameters.
+      // No cross-aggregate coordination needed for batting position persistence.
 
       // Step 5: Apply business logic and calculate results
-      const result = this.processAtBat(game, command);
+      const result = await this.processAtBat(game, command);
 
       // Step 6: Generate events
       const events = this.generateEvents(command, result);
@@ -270,7 +285,7 @@ export class RecordAtBat {
         rbiAwarded: result.rbiAwarded,
       });
 
-      return this.createSuccessResult(game, result);
+      return await this.createSuccessResult(game, result);
     } catch (error) {
       return UseCaseErrorHandler.handleError(
         error,
@@ -347,27 +362,67 @@ export class RecordAtBat {
    *
    * @remarks
    * This method contains the core business logic for recording an at-bat.
-   * It applies domain rules, calculates statistics, and determines the
-   * impact on game state.
+   * It coordinates with the InningState aggregate to properly advance the
+   * batting order and update inning state.
    *
-   * In a full implementation, this would:
-   * - Validate batter is in lineup and current batter
-   * - Apply runner movements using domain services
-   * - Calculate RBI using RBICalculator domain service
-   * - Update inning state (outs, bases, current batter)
-   * - Check for inning/game ending conditions
+   * **Cross-Aggregate Coordination:**
+   * - Loads InningState and TeamLineup aggregates from repositories
+   * - Determines current batter from InningState and TeamLineup
+   * - Calls InningState.recordAtBat() to process domain logic
+   * - Persists updated InningState aggregate
+   * - Returns updated state for use by buildGameStateDTO
    *
    * @param game - Current game aggregate
    * @param command - At-bat command with all details
    * @returns Processed result with statistics and state changes
    */
-  private processAtBat(_game: Game, command: RecordAtBatCommand): ProcessedAtBatResult {
-    // Simplified implementation for core logic
-    // In full implementation, would coordinate with TeamLineup and InningState aggregates
+  private async processAtBat(
+    game: Game,
+    command: RecordAtBatCommand
+  ): Promise<ProcessedAtBatResult> {
+    // Step 1: Load InningState aggregate
+    const inningState = await this.inningStateRepository.findCurrentByGameId(game.id);
+    if (!inningState) {
+      throw new Error(`InningState not found for game: ${game.id.value}`);
+    }
 
+    // Step 2: Determine batting team and load their lineup
+    const battingTeamSide = inningState.isTopHalf ? 'AWAY' : 'HOME';
+    const battingTeamLineup = await this.teamLineupRepository.findByGameIdAndSide(
+      game.id,
+      battingTeamSide
+    );
+    if (!battingTeamLineup) {
+      throw new Error(`TeamLineup not found for game ${game.id.value} and side ${battingTeamSide}`);
+    }
+
+    // Step 3: Get current batting slot and validate batter
+    const battingSlot = inningState.isTopHalf
+      ? inningState.awayBatterSlot
+      : inningState.homeBatterSlot;
+    const currentBatterPlayerId = battingTeamLineup.getPlayerAtSlot(battingSlot);
+    if (!currentBatterPlayerId) {
+      throw new Error(`No player found at batting slot ${battingSlot}`);
+    }
+
+    // Step 4: Coordinate with InningState aggregate to record the at-bat
+    // This will advance batting order and update inning state
+    const updatedInningState = inningState.recordAtBat(
+      command.batterId,
+      battingSlot,
+      command.result,
+      inningState.inning
+    );
+
+    // Step 5: Persist updated InningState
+    await this.inningStateRepository.save(updatedInningState);
+
+    // Step 6: Calculate additional results
     const runsScored = this.calculateRunsScored(command.runnerAdvances || []);
     const rbiAwarded = this.calculateRBI(command.result, command.runnerAdvances || []);
-    const inningEnded = this.determineInningEnd(command);
+    // Check domain events instead of post-transition state
+    const events = updatedInningState.getUncommittedEvents();
+    const inningEnded = events.some(e => e.type === 'HalfInningEnded');
     const gameEnded = false; // Would implement full game ending logic
 
     return {
@@ -375,6 +430,8 @@ export class RecordAtBat {
       rbiAwarded,
       inningEnded,
       gameEnded,
+      updatedInningState,
+      currentBattingSlot: battingSlot, // Slot BEFORE advancement
     };
   }
 
@@ -430,89 +487,33 @@ export class RecordAtBat {
   }
 
   /**
-   * Determines if the at-bat ended the inning (3rd out recorded).
-   *
-   * @remarks
-   * Checks if the at-bat result created the third out of the inning.
-   * This would typically involve checking the current out count from
-   * InningState and determining if the at-bat added an out.
-   *
-   * @param command - At-bat command to analyze
-   * @returns True if inning ended due to this at-bat
-   */
-  private determineInningEnd(command: RecordAtBatCommand): boolean {
-    // Simplified logic - in full implementation would coordinate with InningState
-    const outsCreated =
-      command.runnerAdvances?.filter(advance => advance.toBase === 'OUT').length || 0;
-
-    // For testing purposes, assume 3rd out ends inning
-    // Real implementation would track current out count
-    return outsCreated > 0 && this.isLikelyThirdOut(command);
-  }
-
-  /**
-   * Heuristic to determine if this might be the third out (for testing).
-   *
-   * @remarks
-   * This is a simplified heuristic for testing. Real implementation
-   * would maintain proper inning state and track outs precisely.
-   *
-   * @param command - At-bat command to analyze
-   * @returns True if this might be the third out
-   */
-  private isLikelyThirdOut(command: RecordAtBatCommand): boolean {
-    // Simplified heuristic - assume ground outs with multiple outs could be 3rd
-    if (command.result === AtBatResultType.GROUND_OUT) {
-      const outsCreated =
-        command.runnerAdvances?.filter(advance => advance.toBase === 'OUT').length || 0;
-      return outsCreated >= 2; // Double play scenario
-    }
-
-    return false;
-  }
-
-  /**
    * Generates domain events for the at-bat and its consequences.
    *
    * @remarks
-   * Creates appropriate domain events to capture all state changes resulting
-   * from the at-bat. Events enable event sourcing, audit trails, and
-   * downstream system integration.
+   * Extracts domain events from the updated InningState aggregate and combines
+   * them with additional application-level events (RunScored, GameEnded).
+   * The InningState aggregate already generates proper domain events
+   * (AtBatCompleted, RunnerAdvanced, CurrentBatterChanged, etc.) through
+   * its recordAtBat() method, so we don't need to recreate them.
    *
    * **Generated Events**:
-   * - AtBatCompleted: Core at-bat result and details
-   * - RunScored: For each run that crossed home plate
-   * - RunnerAdvanced: For each significant base advancement
-   * - InningEnded: If the at-bat ended the inning
-   * - GameEnded: If the at-bat ended the game
+   * - From InningState: AtBatCompleted, RunnerAdvanced, CurrentBatterChanged
+   * - From Application: RunScored (for scoring tracking), GameEnded (if game ends)
    *
    * @param command - Original at-bat command
-   * @param result - Processed result with calculated statistics
+   * @param result - Processed result with calculated statistics and updated InningState
    * @returns Array of domain events representing all state changes
    */
   private generateEvents(command: RecordAtBatCommand, result: ProcessedAtBatResult): DomainEvent[] {
     const events: DomainEvent[] = [];
 
-    // Use result statistics for enhanced event generation (result.runsScored: ${result.runsScored})
+    // Extract domain events from InningState aggregate
+    // These include AtBatCompleted, RunnerAdvanced, CurrentBatterChanged, etc.
+    const inningStateEvents = result.updatedInningState.getUncommittedEvents();
+    events.push(...inningStateEvents);
 
-    // Core at-bat completed event
-    events.push(
-      new AtBatCompleted(
-        command.gameId,
-        command.batterId,
-        1, // battingSlot - simplified for now
-        command.result,
-        1, // inning - simplified for now
-        0 // outs - simplified for now
-      )
-    );
-
-    // Generate RunScored events for each run (using result.runsScored for validation)
+    // Generate RunScored events for each run
     const runsScored = command.runnerAdvances?.filter(advance => advance.toBase === 'HOME') || [];
-    // Verify that calculated runs match our expectations
-    if (runsScored.length !== result.runsScored) {
-      // In full implementation, this would be a consistency check
-    }
     runsScored.forEach(runnerAdvance => {
       events.push(
         new RunScored(
@@ -521,23 +522,6 @@ export class RecordAtBat {
           'HOME', // battingTeam - simplified for now
           command.batterId, // rbiCreditedTo
           { home: 0, away: 0 } // newScore - simplified for now
-        )
-      );
-    });
-
-    // Generate RunnerAdvanced events for significant movements
-    const significantAdvances =
-      command.runnerAdvances?.filter(
-        advance => advance.toBase !== 'HOME' && advance.toBase !== 'OUT'
-      ) || [];
-    significantAdvances.forEach(runnerAdvance => {
-      events.push(
-        new RunnerAdvanced(
-          command.gameId,
-          runnerAdvance.playerId,
-          runnerAdvance.fromBase,
-          runnerAdvance.toBase as 'FIRST' | 'SECOND' | 'THIRD',
-          AdvanceReason.HIT // simplified for now
         )
       );
     });
@@ -701,12 +685,19 @@ export class RecordAtBat {
    *
    * @param game - Updated game aggregate
    * @param result - Processed at-bat result
-   * @param command - Original command for context
-   * @returns Complete success result
+   * @returns Promise resolving to complete success result
    */
-  private createSuccessResult(game: Game, result: ProcessedAtBatResult): AtBatResult {
-    // In full implementation, would build complete GameStateDTO from all aggregates
-    const gameStateDTO = this.buildGameStateDTO(game);
+  private async createSuccessResult(
+    game: Game,
+    result: ProcessedAtBatResult
+  ): Promise<AtBatResult> {
+    // Build complete GameStateDTO from all aggregates, using updated InningState
+    // Pass currentBattingSlot to show the batter who JUST batted (pre-advancement)
+    const gameStateDTO = await this.buildGameStateDTO(
+      game.id,
+      result.updatedInningState,
+      result.currentBattingSlot
+    );
 
     return {
       success: true,
@@ -729,10 +720,12 @@ export class RecordAtBat {
    *
    * @param game - Current game state (may be null if not loaded)
    * @param errors - Array of error messages describing the failures
-   * @returns Complete failure result with error details
+   * @returns Promise resolving to complete failure result with error details
    */
-  private createFailureResult(game: Game | null, errors: string[]): AtBatResult {
-    const gameStateDTO = game ? this.buildGameStateDTO(game) : this.buildEmptyGameStateDTO();
+  private async createFailureResult(game: Game | null, errors: string[]): Promise<AtBatResult> {
+    const gameStateDTO = game
+      ? await this.buildGameStateDTO(game.id)
+      : this.buildEmptyGameStateDTO();
 
     return {
       success: false,
@@ -746,64 +739,249 @@ export class RecordAtBat {
   }
 
   /**
-   * Builds a complete GameStateDTO from the current game aggregate.
+   * Builds complete GameStateDTO by loading and coordinating all aggregates.
    *
    * @remarks
-   * In a full implementation, this would coordinate with TeamLineup and
-   * InningState aggregates to build a comprehensive game state DTO.
-   * For now, provides a simplified implementation focusing on Game data.
+   * Constructs comprehensive game state after at-bat recording by loading
+   * Game, InningState, and TeamLineup aggregates, then deriving current batter
+   * information. The currentBatter represents the player who will bat AFTER
+   * this at-bat completes (next batter up).
    *
-   * @param game - Game aggregate to convert
-   * @returns Complete game state DTO
+   * This follows the pattern established in StartNewGame.buildInitialGameState()
+   * for consistency across the Application layer.
+   *
+   * **Data Sources**:
+   * - Game aggregate: Overall status, score, team names
+   * - InningState aggregate: Current inning, half, outs, bases, batter slot
+   * - TeamLineup aggregates: Complete lineup information for both teams
+   * - Derived: Current batter from batting slot + lineup combination
+   *
+   * @param gameId - Unique identifier for the game to load
+   * @param updatedInningState - Optional updated InningState from processAtBat (avoids stale data)
+   * @returns Promise resolving to complete game state DTO
+   * @throws Error if any required aggregate cannot be loaded
    */
-  private buildGameStateDTO(game: Game): GameStateDTO {
-    // Simplified implementation - full version would integrate all aggregates
-    return {
+  private async buildGameStateDTO(
+    gameId: GameId,
+    updatedInningState?: import('@twsoftball/domain').InningState,
+    currentBattingSlot?: number
+  ): Promise<GameStateDTO> {
+    // Load all necessary aggregates
+    const game = await this.gameRepository.findById(gameId);
+    if (!game) {
+      throw new Error(`Game not found: ${gameId.value}`);
+    }
+
+    // Use provided updatedInningState if available, otherwise load from repository
+    const inningState =
+      updatedInningState || (await this.inningStateRepository.findCurrentByGameId(gameId));
+    if (!inningState) {
+      throw new Error(`InningState not found for game: ${gameId.value}`);
+    }
+
+    const homeLineup = await this.teamLineupRepository.findByGameIdAndSide(gameId, 'HOME');
+    const awayLineup = await this.teamLineupRepository.findByGameIdAndSide(gameId, 'AWAY');
+    if (!homeLineup || !awayLineup) {
+      throw new Error(`Team lineups not found for game: ${gameId.value}`);
+    }
+
+    // Determine current batter based on provided slot (pre-advancement) or inning state
+    // If currentBattingSlot is provided, use it (shows batter who JUST batted)
+    // Otherwise, use inningState's current slot (shows batter who's UP NEXT)
+    const battingSlot =
+      currentBattingSlot ??
+      (inningState.isTopHalf ? inningState.awayBatterSlot : inningState.homeBatterSlot);
+    const battingTeamLineup = inningState.isTopHalf ? awayLineup : homeLineup;
+    const currentBatterPlayerId = battingTeamLineup.getPlayerAtSlot(battingSlot);
+
+    const currentBatter = currentBatterPlayerId
+      ? this.mapPlayerToDTO(battingTeamLineup, currentBatterPlayerId, battingSlot)
+      : null;
+
+    // Build complete GameStateDTO
+    // [FAIL FAST] Validate Domain layer provided complete state
+    if (inningState.isTopHalf === undefined || inningState.isTopHalf === null) {
+      throw new Error(
+        '[Application] CRITICAL: InningState.isTopHalf is undefined/null. ' +
+          `Domain layer must provide complete state. Inning: ${inningState.inning}, Outs: ${inningState.outs}`
+      );
+    }
+
+    const dto: GameStateDTO = {
       gameId: game.id,
       status: game.status,
-      score: {
-        home: 0, // Would come from game.score
-        away: 0,
-        leader: 'TIE',
-        difference: 0,
-      },
-      gameStartTime: new Date(), // Would come from game.startTime
-      currentInning: 1, // Would come from InningState
-      isTopHalf: false, // Would come from InningState
-      battingTeam: 'HOME', // Would be calculated from inning state
-      outs: 0, // Would come from InningState
-      bases: {
-        first: null,
-        second: null,
-        third: null,
-        runnersInScoringPosition: [],
-        basesLoaded: false,
-      }, // Would come from InningState
-      currentBatterSlot: 1, // Would come from InningState
-      homeLineup: {
-        teamLineupId: new TeamLineupId('home'),
-        gameId: game.id,
-        teamSide: 'HOME',
-        teamName: 'Home Team',
-        strategy: 'SIMPLE',
-        battingSlots: [],
-        fieldPositions: {} as Record<FieldPosition, PlayerId | null>,
-        benchPlayers: [],
-        substitutionHistory: [],
-      }, // Would come from TeamLineup aggregate
-      awayLineup: {
-        teamLineupId: new TeamLineupId('away'),
-        gameId: game.id,
-        teamSide: 'AWAY',
-        teamName: 'Away Team',
-        strategy: 'SIMPLE',
-        battingSlots: [],
-        fieldPositions: {} as Record<FieldPosition, PlayerId | null>,
-        benchPlayers: [],
-        substitutionHistory: [],
-      }, // Would come from TeamLineup aggregate
-      currentBatter: null, // Would be derived from current batter slot and lineup
+      score: game.getScoreDTO(),
+      gameStartTime: game.startTime,
+      currentInning: inningState.inning,
+      isTopHalf: inningState.isTopHalf,
+      battingTeam: inningState.isTopHalf ? 'AWAY' : 'HOME',
+      outs: inningState.outs,
+      bases: inningState.getBases(),
+      currentBatterSlot: battingSlot,
+      homeLineup: this.mapTeamLineupToDTO(homeLineup, 'HOME'),
+      awayLineup: this.mapTeamLineupToDTO(awayLineup, 'AWAY'),
+      currentBatter,
       lastUpdated: new Date(),
+    };
+
+    return dto;
+  }
+
+  /**
+   * Maps TeamLineup aggregate to TeamLineupDTO for presentation layer.
+   *
+   * @remarks
+   * Converts domain TeamLineup aggregate into DTO format suitable for
+   * presentation layer consumption. Includes all batting slots, field
+   * positions, and player information with statistics.
+   *
+   * @param teamLineup - The TeamLineup aggregate to convert
+   * @param teamSide - Whether this is HOME or AWAY team
+   * @returns Complete TeamLineupDTO
+   */
+  private mapTeamLineupToDTO(
+    teamLineup: import('@twsoftball/domain').TeamLineup,
+    teamSide: 'HOME' | 'AWAY'
+  ): TeamLineupDTO {
+    // Convert domain batting slots to DTO format
+    const activeLineup = teamLineup.getActiveLineup();
+    const battingSlots: BattingSlotDTO[] = activeLineup.map(battingSlot => {
+      const currentPlayerId = battingSlot.getCurrentPlayer();
+      const playerInfo = teamLineup.getPlayerInfo(currentPlayerId);
+
+      return {
+        slotNumber: battingSlot.position,
+        currentPlayer: playerInfo
+          ? {
+              playerId: currentPlayerId,
+              name: playerInfo.playerName,
+              jerseyNumber: playerInfo.jerseyNumber,
+              battingOrderPosition: battingSlot.position,
+              currentFieldPosition: playerInfo.currentPosition || FieldPosition.EXTRA_PLAYER,
+              preferredPositions: playerInfo.currentPosition ? [playerInfo.currentPosition] : [],
+              plateAppearances: [], // Would be populated from game history
+              statistics: this.createEmptyStatistics(
+                currentPlayerId,
+                playerInfo.playerName,
+                playerInfo.jerseyNumber
+              ),
+            }
+          : null,
+        history: battingSlot.history.map(h => {
+          const historyPlayerInfo = teamLineup.getPlayerInfo(h.playerId);
+          return {
+            playerId: h.playerId,
+            playerName: historyPlayerInfo?.playerName || 'Unknown',
+            enteredInning: h.enteredInning,
+            exitedInning: h.exitedInning,
+            wasStarter: h.wasStarter,
+            isReentry: h.isReentry,
+          };
+        }),
+      };
+    });
+
+    // Convert domain field positions to DTO format
+    const fieldPositionsMap = teamLineup.getFieldingPositions();
+    const fieldPositions: Record<FieldPosition, PlayerId | null> = {} as Record<
+      FieldPosition,
+      PlayerId | null
+    >;
+    for (const [position, playerId] of fieldPositionsMap.entries()) {
+      fieldPositions[position] = playerId;
+    }
+
+    return {
+      teamLineupId: teamLineup.id,
+      gameId: teamLineup.gameId,
+      teamSide,
+      teamName: teamLineup.teamName,
+      strategy: 'SIMPLE', // Default strategy
+      battingSlots,
+      fieldPositions,
+      benchPlayers: [], // Would be implemented in full version
+      substitutionHistory: [], // Would be implemented in full version
+    };
+  }
+
+  /**
+   * Maps player information to PlayerInGameDTO.
+   *
+   * @remarks
+   * Converts domain player information into DTO format for current batter
+   * display. Includes complete player details, position, and statistics.
+   *
+   * @param teamLineup - The TeamLineup aggregate containing player info
+   * @param playerId - Player identifier
+   * @param battingSlot - Current batting slot number
+   * @returns Complete PlayerInGameDTO or null if player not found
+   */
+  private mapPlayerToDTO(
+    teamLineup: import('@twsoftball/domain').TeamLineup,
+    playerId: PlayerId,
+    battingSlot: number
+  ): PlayerInGameDTO | null {
+    const playerInfo = teamLineup.getPlayerInfo(playerId);
+    if (!playerInfo) {
+      return null;
+    }
+
+    return {
+      playerId,
+      name: playerInfo.playerName,
+      jerseyNumber: playerInfo.jerseyNumber,
+      battingOrderPosition: battingSlot,
+      currentFieldPosition: playerInfo.currentPosition || FieldPosition.EXTRA_PLAYER,
+      preferredPositions: playerInfo.currentPosition ? [playerInfo.currentPosition] : [],
+      plateAppearances: [], // Would be populated from game history
+      statistics: this.createEmptyStatistics(
+        playerId,
+        playerInfo.playerName,
+        playerInfo.jerseyNumber
+      ),
+    };
+  }
+
+  /**
+   * Creates empty player statistics for display.
+   *
+   * @param playerId - Player identifier
+   * @param name - Player display name
+   * @param jerseyNumber - Player jersey number
+   * @returns Empty PlayerStatisticsDTO with zero values
+   */
+  private createEmptyStatistics(
+    playerId: PlayerId,
+    name: string,
+    jerseyNumber: import('@twsoftball/domain').JerseyNumber
+  ): PlayerStatisticsDTO {
+    const emptyFielding: FieldingStatisticsDTO = {
+      positions: [],
+      putouts: 0,
+      assists: 0,
+      errors: 0,
+      fieldingPercentage: 1.0,
+    };
+
+    return {
+      playerId,
+      name,
+      jerseyNumber,
+      plateAppearances: 0,
+      atBats: 0,
+      hits: 0,
+      singles: 0,
+      doubles: 0,
+      triples: 0,
+      homeRuns: 0,
+      walks: 0,
+      strikeouts: 0,
+      rbi: 0,
+      runs: 0,
+      battingAverage: 0.0,
+      onBasePercentage: 0.0,
+      sluggingPercentage: 0.0,
+      fielding: emptyFielding,
     };
   }
 
@@ -888,4 +1066,10 @@ interface ProcessedAtBatResult {
 
   /** Whether this at-bat ended the entire game */
   readonly gameEnded: boolean;
+
+  /** Updated InningState aggregate after recording the at-bat */
+  readonly updatedInningState: import('@twsoftball/domain').InningState;
+
+  /** Batting slot BEFORE advancement (the slot of the batter who just batted) */
+  readonly currentBattingSlot: number;
 }

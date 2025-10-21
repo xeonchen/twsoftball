@@ -506,6 +506,27 @@ describe('InningState - Core Operations', () => {
         isTopHalf: true,
       });
     });
+
+    it('should preserve batting positions for both teams when switching halves', () => {
+      // Setup: Away team is on slot 5, home team is on slot 3
+      let inningState = InningState.createNew(inningStateId, gameId).withCurrentBattingSlot(5); // Away team on slot 5 (top half)
+
+      // Manually set home team slot to 3 using withInningHalf to switch and set slot
+      inningState = inningState
+        .withInningHalf(1, false) // Switch to bottom
+        .withCurrentBattingSlot(3); // Home team on slot 3
+
+      // Switch back to top to end it
+      inningState = inningState.withInningHalf(1, true).withCurrentBattingSlot(5);
+
+      // End top half
+      const updated = inningState.endHalfInning();
+
+      // Should switch to bottom half and preserve home team's slot (3)
+      expect(updated.isTopHalf).toBe(false);
+      expect(updated.currentBattingSlot).toBe(3); // Home team continues from slot 3
+      expect(updated.inning).toBe(1);
+    });
   });
 
   describe('getCurrentSituation', () => {

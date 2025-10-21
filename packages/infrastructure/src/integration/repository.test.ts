@@ -76,7 +76,7 @@ describe('Repository Integration Tests', () => {
       const game = Game.createNew(gameId, 'Home Eagles', 'Away Hawks');
 
       const homeLineupId = TeamLineupId.generate();
-      const homeLineup = TeamLineup.createNew(homeLineupId, gameId, 'Home Eagles');
+      const homeLineup = TeamLineup.createNew(homeLineupId, gameId, 'Home Eagles', 'HOME');
 
       // When: Saving through repositories
       await gameRepository.save(game);
@@ -109,9 +109,9 @@ describe('Repository Integration Tests', () => {
       const gameId = GameId.generate();
       const game = Game.createNew(gameId, 'Team A', 'Team B');
 
-      const homeLineup = TeamLineup.createNew(TeamLineupId.generate(), gameId, 'Team A');
+      const homeLineup = TeamLineup.createNew(TeamLineupId.generate(), gameId, 'Team A', 'HOME');
 
-      const awayLineup = TeamLineup.createNew(TeamLineupId.generate(), gameId, 'Team B');
+      const awayLineup = TeamLineup.createNew(TeamLineupId.generate(), gameId, 'Team B', 'AWAY');
 
       // When: Saving in specific order
       await gameRepository.save(game);
@@ -147,9 +147,9 @@ describe('Repository Integration Tests', () => {
       const game1 = Game.createNew(gameId1, 'Eagles', 'Hawks');
       const game2 = Game.createNew(gameId2, 'Lions', 'Bears');
 
-      const lineup1 = TeamLineup.createNew(TeamLineupId.generate(), gameId1, 'Eagles');
+      const lineup1 = TeamLineup.createNew(TeamLineupId.generate(), gameId1, 'Eagles', 'HOME');
 
-      const lineup2 = TeamLineup.createNew(TeamLineupId.generate(), gameId2, 'Lions');
+      const lineup2 = TeamLineup.createNew(TeamLineupId.generate(), gameId2, 'Lions', 'AWAY');
 
       // When: Saving entities for both games
       await gameRepository.save(game1);
@@ -183,9 +183,19 @@ describe('Repository Integration Tests', () => {
       const gameId = GameId.generate();
       const game = Game.createNew(gameId, 'Concurrent Team A', 'Concurrent Team B');
 
-      const homeLineup = TeamLineup.createNew(TeamLineupId.generate(), gameId, 'Concurrent Team A');
+      const homeLineup = TeamLineup.createNew(
+        TeamLineupId.generate(),
+        gameId,
+        'Concurrent Team A',
+        'HOME'
+      );
 
-      const awayLineup = TeamLineup.createNew(TeamLineupId.generate(), gameId, 'Concurrent Team B');
+      const awayLineup = TeamLineup.createNew(
+        TeamLineupId.generate(),
+        gameId,
+        'Concurrent Team B',
+        'AWAY'
+      );
 
       // When: Saving concurrently across repositories
       await Promise.all([
@@ -221,7 +231,12 @@ describe('Repository Integration Tests', () => {
       const gameId = GameId.generate();
       const game = Game.createNew(gameId, 'Query Team A', 'Query Team B');
 
-      const homeLineup = TeamLineup.createNew(TeamLineupId.generate(), gameId, 'Query Team A');
+      const homeLineup = TeamLineup.createNew(
+        TeamLineupId.generate(),
+        gameId,
+        'Query Team A',
+        'HOME'
+      );
 
       // When: Saving through different repositories
       await gameRepository.save(game);
@@ -245,13 +260,15 @@ describe('Repository Integration Tests', () => {
       const homeLineup = TeamLineup.createNew(
         TeamLineupId.generate(),
         gameId,
-        'Consistency Team A'
+        'Consistency Team A',
+        'HOME'
       );
 
       const awayLineup = TeamLineup.createNew(
         TeamLineupId.generate(),
         gameId,
-        'Consistency Team B'
+        'Consistency Team B',
+        'AWAY'
       );
 
       // When: Saving all aggregates
@@ -286,9 +303,19 @@ describe('Repository Integration Tests', () => {
         const gameId = GameId.generate();
         const game = Game.createNew(gameId, `Home Team ${i}`, `Away Team ${i}`);
 
-        const homeLineup = TeamLineup.createNew(TeamLineupId.generate(), gameId, `Home Team ${i}`);
+        const homeLineup = TeamLineup.createNew(
+          TeamLineupId.generate(),
+          gameId,
+          `Home Team ${i}`,
+          'HOME'
+        );
 
-        const awayLineup = TeamLineup.createNew(TeamLineupId.generate(), gameId, `Away Team ${i}`);
+        const awayLineup = TeamLineup.createNew(
+          TeamLineupId.generate(),
+          gameId,
+          `Away Team ${i}`,
+          'AWAY'
+        );
 
         games.push(game);
         lineups.push(homeLineup, awayLineup);
@@ -329,7 +356,7 @@ describe('Repository Integration Tests', () => {
       const game = Game.createNew(gameId, 'Home Team', 'Away Team');
 
       const homeLineupId = TeamLineupId.generate();
-      const homeLineup = TeamLineup.createNew(homeLineupId, gameId, 'Home Team');
+      const homeLineup = TeamLineup.createNew(homeLineupId, gameId, 'Home Team', 'HOME');
 
       const inningStateId = InningStateId.generate();
       const inningState = InningState.createNew(inningStateId, gameId);
@@ -366,10 +393,10 @@ describe('Repository Integration Tests', () => {
       const game = Game.createNew(gameId, 'Concurrent Home', 'Concurrent Away');
 
       const homeLineupId = TeamLineupId.generate();
-      const homeLineup = TeamLineup.createNew(homeLineupId, gameId, 'Concurrent Home');
+      const homeLineup = TeamLineup.createNew(homeLineupId, gameId, 'Concurrent Home', 'HOME');
 
       const awayLineupId = TeamLineupId.generate();
-      const awayLineup = TeamLineup.createNew(awayLineupId, gameId, 'Concurrent Away');
+      const awayLineup = TeamLineup.createNew(awayLineupId, gameId, 'Concurrent Away', 'AWAY');
 
       const inningStateId = InningStateId.generate();
       const inningState = InningState.createNew(inningStateId, gameId);
@@ -411,7 +438,7 @@ describe('Repository Integration Tests', () => {
       const game = Game.createNew(gameId, 'Consistency Team A', 'Consistency Team B');
 
       const lineupId = TeamLineupId.generate();
-      const lineup = TeamLineup.createNew(lineupId, gameId, 'Consistency Team A');
+      const lineup = TeamLineup.createNew(lineupId, gameId, 'Consistency Team A', 'HOME');
 
       const inningStateId = InningStateId.generate();
       const inningState = InningState.createNew(inningStateId, gameId);
@@ -454,14 +481,14 @@ describe('Repository Integration Tests', () => {
       const game1Id = GameId.generate();
       const game1 = Game.createNew(game1Id, 'Eagles', 'Hawks');
       const game1LineupId = TeamLineupId.generate();
-      const game1Lineup = TeamLineup.createNew(game1LineupId, game1Id, 'Eagles');
+      const game1Lineup = TeamLineup.createNew(game1LineupId, game1Id, 'Eagles', 'HOME');
       const game1InningId = InningStateId.generate();
       const game1Inning = InningState.createNew(game1InningId, game1Id);
 
       const game2Id = GameId.generate();
       const game2 = Game.createNew(game2Id, 'Lions', 'Bears');
       const game2LineupId = TeamLineupId.generate();
-      const game2Lineup = TeamLineup.createNew(game2LineupId, game2Id, 'Lions');
+      const game2Lineup = TeamLineup.createNew(game2LineupId, game2Id, 'Lions', 'AWAY');
       const game2InningId = InningStateId.generate();
       const game2Inning = InningState.createNew(game2InningId, game2Id);
 
@@ -508,10 +535,10 @@ describe('Repository Integration Tests', () => {
       const game = Game.createNew(gameId, 'Home Starters', 'Away Starters');
 
       const homeLineupId = TeamLineupId.generate();
-      const homeLineup = TeamLineup.createNew(homeLineupId, gameId, 'Home Starters');
+      const homeLineup = TeamLineup.createNew(homeLineupId, gameId, 'Home Starters', 'HOME');
 
       const awayLineupId = TeamLineupId.generate();
-      const awayLineup = TeamLineup.createNew(awayLineupId, gameId, 'Away Starters');
+      const awayLineup = TeamLineup.createNew(awayLineupId, gameId, 'Away Starters', 'AWAY');
 
       const inningStateId = InningStateId.generate();
       const inningState = InningState.createNew(inningStateId, gameId);
@@ -556,7 +583,7 @@ describe('Repository Integration Tests', () => {
       const game = Game.createNew(gameId, 'Batting Team', 'Fielding Team');
 
       const battingLineupId = TeamLineupId.generate();
-      const battingLineup = TeamLineup.createNew(battingLineupId, gameId, 'Batting Team');
+      const battingLineup = TeamLineup.createNew(battingLineupId, gameId, 'Batting Team', 'HOME');
 
       const inningStateId = InningStateId.generate();
       const inningState = InningState.createNew(inningStateId, gameId);
@@ -595,13 +622,13 @@ describe('Repository Integration Tests', () => {
 
       // Multiple lineups for substitutions
       const homeLineup1Id = TeamLineupId.generate();
-      const homeLineup1 = TeamLineup.createNew(homeLineup1Id, gameId, 'Complex Home');
+      const homeLineup1 = TeamLineup.createNew(homeLineup1Id, gameId, 'Complex Home', 'HOME');
 
       const homeLineup2Id = TeamLineupId.generate();
-      const homeLineup2 = TeamLineup.createNew(homeLineup2Id, gameId, 'Complex Home');
+      const homeLineup2 = TeamLineup.createNew(homeLineup2Id, gameId, 'Complex Home', 'HOME');
 
       const awayLineupId = TeamLineupId.generate();
-      const awayLineup = TeamLineup.createNew(awayLineupId, gameId, 'Complex Away');
+      const awayLineup = TeamLineup.createNew(awayLineupId, gameId, 'Complex Away', 'AWAY');
 
       // Multiple inning states for progression
       const inning1Id = InningStateId.generate();
@@ -671,7 +698,7 @@ describe('Repository Integration Tests', () => {
         const game = Game.createNew(gameId, `Home Team ${i}`, `Away Team ${i}`);
 
         const homeLineupId = TeamLineupId.generate();
-        const homeLineup = TeamLineup.createNew(homeLineupId, gameId, `Home Team ${i}`);
+        const homeLineup = TeamLineup.createNew(homeLineupId, gameId, `Home Team ${i}`, 'HOME');
 
         const inningStateId = InningStateId.generate();
         const inningState = InningState.createNew(inningStateId, gameId);
@@ -724,7 +751,12 @@ describe('Repository Integration Tests', () => {
         );
 
         const lineupId = TeamLineupId.generate();
-        const lineup = TeamLineup.createNew(lineupId, gameId, `Performance Home ${gameIndex}`);
+        const lineup = TeamLineup.createNew(
+          lineupId,
+          gameId,
+          `Performance Home ${gameIndex}`,
+          'HOME'
+        );
 
         const inningStateId = InningStateId.generate();
         const inningState = InningState.createNew(inningStateId, gameId);
@@ -769,7 +801,7 @@ describe('Repository Integration Tests', () => {
       const game = Game.createNew(gameId, 'Version Team A', 'Version Team B');
 
       const lineupId = TeamLineupId.generate();
-      const lineup = TeamLineup.createNew(lineupId, gameId, 'Version Team A');
+      const lineup = TeamLineup.createNew(lineupId, gameId, 'Version Team A', 'HOME');
 
       const inningStateId = InningStateId.generate();
       const inningState = InningState.createNew(inningStateId, gameId);
@@ -837,10 +869,10 @@ describe('Repository Integration Tests', () => {
       const game = Game.createNew(gameId, 'No Innings Home', 'No Innings Away');
 
       const homeLineupId = TeamLineupId.generate();
-      const homeLineup = TeamLineup.createNew(homeLineupId, gameId, 'No Innings Home');
+      const homeLineup = TeamLineup.createNew(homeLineupId, gameId, 'No Innings Home', 'HOME');
 
       const awayLineupId = TeamLineupId.generate();
-      const awayLineup = TeamLineup.createNew(awayLineupId, gameId, 'No Innings Away');
+      const awayLineup = TeamLineup.createNew(awayLineupId, gameId, 'No Innings Away', 'AWAY');
 
       // When: Saving without inning state
       await gameRepository.save(game);
@@ -881,7 +913,7 @@ describe('Repository Integration Tests', () => {
       const game2 = Game.createNew(gameId2, 'Success Team C', 'Success Team D');
 
       const lineupId1 = TeamLineupId.generate();
-      const lineup1 = TeamLineup.createNew(lineupId1, gameId1, 'Success Team A');
+      const lineup1 = TeamLineup.createNew(lineupId1, gameId1, 'Success Team A', 'HOME');
 
       // When: Some operations succeed
       await gameRepository.save(game1);
@@ -924,7 +956,7 @@ describe('Repository Integration Tests', () => {
       const gameId = GameId.generate();
       const game = Game.createNew(gameId, 'Eagles', 'Hawks');
       const lineupId = TeamLineupId.generate();
-      const lineup = TeamLineup.createNew(lineupId, gameId, 'Eagles');
+      const lineup = TeamLineup.createNew(lineupId, gameId, 'Eagles', 'HOME');
 
       // Simulate event store failure after first save
       let saveCount = 0;
@@ -1015,7 +1047,7 @@ describe('Repository Integration Tests', () => {
       const gameId = GameId.generate();
       const game = Game.createNew(gameId, 'Connection Test Home', 'Connection Test Away');
       const lineupId = TeamLineupId.generate();
-      const lineup = TeamLineup.createNew(lineupId, gameId, 'Connection Test Home');
+      const lineup = TeamLineup.createNew(lineupId, gameId, 'Connection Test Home', 'HOME');
 
       // Mock connection failure
       vi.spyOn(eventStore, 'append').mockRejectedValue(new Error('Connection timeout'));
@@ -1081,7 +1113,7 @@ describe('Repository Integration Tests', () => {
         lineupIds.push(lineupId);
 
         const game = Game.createNew(gameId, `Race Home ${i}`, `Race Away ${i}`);
-        const lineup = TeamLineup.createNew(lineupId, gameId, `Race Home ${i}`);
+        const lineup = TeamLineup.createNew(lineupId, gameId, `Race Home ${i}`, 'HOME');
 
         // Execute operations concurrently
         operations.push(
@@ -1430,7 +1462,7 @@ describe('Repository Integration Tests', () => {
         const game = Game.createNew(gameId, `Memory Test Home ${i}`, `Memory Test Away ${i}`);
 
         const lineupId = TeamLineupId.generate();
-        const lineup = TeamLineup.createNew(lineupId, gameId, `Memory Test Home ${i}`);
+        const lineup = TeamLineup.createNew(lineupId, gameId, `Memory Test Home ${i}`, 'HOME');
 
         const inningStateId = InningStateId.generate();
         const inningState = InningState.createNew(inningStateId, gameId);

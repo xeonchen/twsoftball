@@ -281,10 +281,31 @@ export class GameRecordingPageObject {
   async recordAtBat(data: AtBatData): Promise<void> {
     const actionButtonSelector = `[data-testid="action-${data.result.toLowerCase()}"]`;
     const actionButton = this.page.locator(actionButtonSelector);
+
+    // Click the action button
     await actionButton.click();
 
-    // Wait for action to complete (loading spinner to disappear)
-    await this.page.waitForTimeout(500); // Give UI time to update
+    // Wait for the complete async flow to complete:
+    // - Use case execution
+    // - DTO return
+    // - React state update (useEffect triggers)
+    // - Store sync (useGameStateSync)
+    // - UI re-render with new currentBatter
+    // We wait for the button to NOT be disabled (i.e., re-enabled for next action)
+    await actionButton.waitFor({ state: 'attached', timeout: 10000 });
+
+    // Wait for the button to be enabled (not have disabled attribute)
+    await this.page.waitForFunction(
+      selector => {
+        const button = document.querySelector(selector);
+        return button && !button.hasAttribute('disabled');
+      },
+      actionButtonSelector,
+      { timeout: 10000 }
+    );
+
+    // Small buffer to ensure React has fully rendered
+    await this.page.waitForTimeout(100);
   }
 
   // ==================== Assertion / Getter Methods ====================
@@ -382,5 +403,181 @@ export class GameRecordingPageObject {
    */
   async evaluate<T>(fn: () => T): Promise<T> {
     return await this.page.evaluate(fn);
+  }
+
+  // ==================== Game Simulation Methods ====================
+
+  /**
+   * Simulate a complete half-inning (3 outs)
+   *
+   * @param options - Scoring options for the half-inning
+   * @returns Promise that resolves when half-inning is complete
+   *
+   * @remarks
+   * Records at-bats until 3 outs are recorded, simulating a complete half-inning.
+   * If runs are specified, records hits that score runs before recording outs.
+   * Uses the recordAtBat method to interact with the UI.
+   *
+   * **Race Condition Fix:**
+   * After recording the 3rd out, we wait for sessionStorage to show outs === 0.
+   * This proves that Zustand's persist middleware has completed writing the
+   * updated state (after InningState.endHalfInning() resets outs to 0).
+   * Without this wait, subsequent assertions may read stale sessionStorage data.
+   *
+   * @example
+   * ```typescript
+   * // Simulate half-inning with 2 runs scored
+   * await gamePageObject.simulateHalfInning({ runs: 2 });
+   *
+   * // Simulate half-inning with no runs
+   * await gamePageObject.simulateHalfInning();
+   * ```
+   */
+  async simulateHalfInning(options?: { runs?: number }): Promise<void> {
+    const runsToScore = options?.runs || 0;
+
+    // Record hits to score runs (if specified)
+    for (let i = 0; i < runsToScore; i++) {
+      await this.recordAtBat({ result: 'HOMERUN' });
+    }
+
+    // Record 3 outs to end the half-inning
+    for (let i = 0; i < 3; i++) {
+      await this.recordAtBat({ result: 'OUT' });
+    }
+
+    // Wait for Zustand persist middleware to write updated state to sessionStorage
+    // After 3rd out, InningState.endHalfInning() resets outs to 0 and flips isTopHalf
+    // We poll sessionStorage until we see outs === 0 AND correct isTopHalf value
+    // This proves persist completed AND merge finished
+    const wasTopHalf = await this.isTopOfInning();
+
+    await this.page.waitForFunction(
+      expectedIsTopHalf => {
+        const stateJson = sessionStorage.getItem('game-state');
+        if (!stateJson) {
+          console.log('[E2E waitForFunction] No game-state in sessionStorage');
+          return false;
+        }
+        const state = JSON.parse(stateJson);
+        // Check both Zustand persist format and flat fixture format
+        const outs = state.state?.activeGameState?.outs ?? state.outs ?? -1;
+        const isTopHalf = state.state?.activeGameState?.isTopHalf ?? state.isTopHalf ?? true;
+
+        console.log('[E2E waitForFunction] Polling sessionStorage:', {
+          outs,
+          isTopHalf,
+          expectedIsTopHalf,
+          matches: outs === 0 && isTopHalf === expectedIsTopHalf,
+        });
+
+        // Wait for BOTH outs to reset AND isTopHalf to flip
+        return outs === 0 && isTopHalf === expectedIsTopHalf;
+      },
+      !wasTopHalf, // Expect the opposite of what we had
+      { timeout: 5000, polling: 100 }
+    );
+  }
+
+  /**
+   * Get current inning number from game state
+   *
+   * @returns Current inning (1-7)
+   *
+   * @remarks
+   * Reads the current inning from sessionStorage game state.
+   * Supports both flat fixture format and Zustand persist format.
+   *
+   * @example
+   * ```typescript
+   * const inning = await gamePageObject.getCurrentInning();
+   * expect(inning).toBe(5);
+   * ```
+   */
+  async getCurrentInning(): Promise<number> {
+    return await this.page.evaluate(() => {
+      const stateJson = sessionStorage.getItem('game-state');
+      if (!stateJson) return 1;
+      const state = JSON.parse(stateJson);
+      // Check Zustand persist format first, then flat fixture format
+      return state.state?.activeGameState?.currentInning || state.currentInning || 1;
+    });
+  }
+
+  /**
+   * Get current half-inning indicator
+   *
+   * @returns true if top of inning, false if bottom
+   *
+   * @remarks
+   * Reads the isTopHalf flag from sessionStorage game state.
+   * Supports both flat fixture format and Zustand persist format.
+   *
+   * @example
+   * ```typescript
+   * const isTop = await gamePageObject.isTopOfInning();
+   * expect(isTop).toBe(true); // Top of inning
+   * ```
+   */
+  async isTopOfInning(): Promise<boolean> {
+    return await this.page.evaluate(() => {
+      const stateJson = sessionStorage.getItem('game-state');
+      if (!stateJson) return true;
+      const state = JSON.parse(stateJson);
+      // Check Zustand persist format first, then flat fixture format
+      const isTopHalf = state.state?.activeGameState?.isTopHalf ?? state.isTopHalf ?? true;
+      return isTopHalf !== false;
+    });
+  }
+
+  /**
+   * Check if game is completed
+   *
+   * @returns true if game status is 'completed'
+   *
+   * @remarks
+   * Checks the game status from sessionStorage game state.
+   * Supports both flat fixture format and Zustand persist format.
+   *
+   * @example
+   * ```typescript
+   * const isComplete = await gamePageObject.isGameComplete();
+   * expect(isComplete).toBe(true);
+   * ```
+   */
+  async isGameComplete(): Promise<boolean> {
+    return await this.page.evaluate(() => {
+      const stateJson = sessionStorage.getItem('game-state');
+      if (!stateJson) return false;
+      const state = JSON.parse(stateJson);
+      // Check Zustand persist format first, then flat fixture format
+      const status = state.state?.currentGame?.status || state.status;
+      return status === 'completed';
+    });
+  }
+
+  /**
+   * Get current outs count
+   *
+   * @returns Number of outs (0-3)
+   *
+   * @remarks
+   * Reads the outs count from sessionStorage game state.
+   * Supports both flat fixture format and Zustand persist format.
+   *
+   * @example
+   * ```typescript
+   * const outs = await gamePageObject.getOuts();
+   * expect(outs).toBe(2);
+   * ```
+   */
+  async getOuts(): Promise<number> {
+    return await this.page.evaluate(() => {
+      const stateJson = sessionStorage.getItem('game-state');
+      if (!stateJson) return 0;
+      const state = JSON.parse(stateJson);
+      // Check Zustand persist format first, then flat fixture format
+      return state.state?.activeGameState?.outs ?? state.outs ?? 0;
+    });
   }
 }

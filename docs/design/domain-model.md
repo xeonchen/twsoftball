@@ -60,8 +60,10 @@ InningState (Aggregate Root) - Current Play State
 ├── Inning (number)
 ├── Half (TOP | BOTTOM)
 ├── Outs (number)
+├── AwayTeamBatterSlot (number)
+├── HomeTeamBatterSlot (number)
 ├── BasesState (Value Object - Immutable)
-└── CurrentBatterSlot (number)
+└── CurrentBatterSlot (computed getter)
 ```
 
 **Aggregate Boundary Rules:**
@@ -240,13 +242,14 @@ class FieldPositionChanged extends DomainEvent {
   )
 }
 
-class InningEnded extends DomainEvent {
+class HalfInningEnded extends DomainEvent {
   constructor(
     gameId: GameId,
     readonly inning: number,
-    readonly half: 'TOP' | 'BOTTOM',
-    readonly runsScored: number,
-    readonly leftOnBase: number
+    readonly wasTopHalf: boolean,
+    readonly finalOuts: number,
+    readonly awayTeamBatterSlot: number,
+    readonly homeTeamBatterSlot: number
   )
 }
 
@@ -439,25 +442,30 @@ class InningState {
     private inning: number,
     private half: 'TOP' | 'BOTTOM',
     private outs: number,
-    private bases: BasesState,  // Value Object
-    private currentBatterSlot: number
+    private awayTeamBatterSlot: number,
+    private homeTeamBatterSlot: number,
+    private bases: BasesState  // Value Object
   )
 
+  // Computed property - not a stored field
+  get currentBatterSlot(): number {
+    return this.isTopHalf ? this.awayTeamBatterSlot : this.homeTeamBatterSlot;
+  }
+
   // Factory Methods
-  static createFirst(id: InningStateId, gameId: GameId): InningState
-  static reconstitute(id: InningStateId, events: DomainEvent[]): InningState
+  static createNew(id: InningStateId, gameId: GameId): InningState
+  static fromEvents(events: DomainEvent[]): InningState
 
   // Commands
-  recordOut(): void
-  advanceRunners(advances: RunnerAdvance[]): void
-  endInning(): void
-  startNewInning(): void
+  recordAtBat(batterId: PlayerId, battingSlot: number, result: AtBatResultType, inning: number): InningState
+  advanceRunners(atBatResult: AtBatResultType, movements: RunnerMovement[]): InningState
+  endHalfInning(): InningState
 
   // Queries
-  getCurrentInning(): { number: number; half: 'TOP' | 'BOTTOM' }
+  getCurrentSituation(): InningGameSituation
   getOuts(): number
-  getBasesState(): BasesState
-  isInningOver(): boolean
+  get basesState(): BasesState
+  isInningComplete(): boolean
 }
 ```
 

@@ -73,15 +73,21 @@ import {
   GameId,
   GameStatus,
   DomainEvent,
+  FieldPosition,
   // Restoration event types (these would need to be created in domain layer)
 } from '@twsoftball/domain';
 
 import { GameStateDTO } from '../dtos/GameStateDTO.js';
+import { PlayerInGameDTO } from '../dtos/PlayerInGameDTO.js';
+import { PlayerStatisticsDTO, FieldingStatisticsDTO } from '../dtos/PlayerStatisticsDTO.js';
 import { RedoCommand, RedoCommandValidator } from '../dtos/RedoCommand.js';
 import { RedoResult, RedoStackInfo, RedoneActionDetail } from '../dtos/RedoResult.js';
+import { TeamLineupDTO, BattingSlotDTO } from '../dtos/TeamLineupDTO.js';
 import { EventStore, StoredEvent } from '../ports/out/EventStore.js';
 import { GameRepository } from '../ports/out/GameRepository.js';
+import { InningStateRepository } from '../ports/out/InningStateRepository.js';
 import { Logger } from '../ports/out/Logger.js';
+import { TeamLineupRepository } from '../ports/out/TeamLineupRepository.js';
 import { UseCaseErrorHandler } from '../utils/UseCaseErrorHandler.js';
 
 /**
@@ -122,17 +128,27 @@ export class RedoLastAction {
    * concurrent execution with different command inputs.
    *
    * @param gameRepository - Port for Game aggregate persistence operations
+   * @param inningStateRepository - Port for InningState aggregate persistence operations
+   * @param teamLineupRepository - Port for TeamLineup aggregate persistence operations
    * @param eventStore - Port for domain event storage and retrieval
    * @param logger - Port for structured application logging
    * @throws {Error} If any required dependency is null or undefined
    */
   constructor(
     private readonly gameRepository: GameRepository,
+    private readonly inningStateRepository: InningStateRepository,
+    private readonly teamLineupRepository: TeamLineupRepository,
     private readonly eventStore: EventStore,
     private readonly logger: Logger
   ) {
     if (!gameRepository) {
       throw new Error('GameRepository is required');
+    }
+    if (!inningStateRepository) {
+      throw new Error('InningStateRepository is required');
+    }
+    if (!teamLineupRepository) {
+      throw new Error('TeamLineupRepository is required');
     }
     if (!eventStore) {
       throw new Error('EventStore is required');
@@ -294,7 +310,7 @@ export class RedoLastAction {
 
       // Step 9: Build result with undo stack information
       const undoStackInfo = await this.buildRedoStackInfo(command.gameId, eventsToRedo.length);
-      const restoredState = this.buildGameStateDTO();
+      const restoredState = await this.buildGameStateDTO(command.gameId);
 
       const duration = Date.now() - startTime;
 
@@ -944,12 +960,207 @@ export class RedoLastAction {
   }
 
   /**
-   * Builds the game state DTO for the result (placeholder implementation).
+   * Builds complete game state DTO after redo operation.
+   *
+   * @param gameId - The game identifier
+   * @returns Complete game state including current batter
+   *
+   * @remarks
+   * Loads Game, InningState, and both TeamLineup aggregates to construct
+   * the complete state. The currentBatter field represents the player who
+   * will bat NEXT after the redo completes.
    */
-  private buildGameStateDTO(): GameStateDTO {
-    // This would build a proper GameStateDTO from the game aggregate
-    // For now, return a minimal implementation
-    return {} as GameStateDTO;
+  private async buildGameStateDTO(gameId: GameId): Promise<GameStateDTO> {
+    // 1. Load all necessary aggregates
+    const game = await this.gameRepository.findById(gameId);
+    if (!game) throw new Error('Game not found');
+
+    const inningState = await this.inningStateRepository.findCurrentByGameId(gameId);
+    if (!inningState) throw new Error('InningState not found');
+
+    const homeLineup = await this.teamLineupRepository.findByGameIdAndSide(gameId, 'HOME');
+    const awayLineup = await this.teamLineupRepository.findByGameIdAndSide(gameId, 'AWAY');
+    if (!homeLineup || !awayLineup) throw new Error('Team lineups not found');
+
+    // 2. Determine current batter
+    const battingSlot = inningState.isTopHalf
+      ? inningState.awayBatterSlot
+      : inningState.homeBatterSlot;
+    const battingTeamLineup = inningState.isTopHalf ? awayLineup : homeLineup;
+    const currentBatterPlayerId = battingTeamLineup.getPlayerAtSlot(battingSlot);
+    const currentBatter = currentBatterPlayerId
+      ? this.mapPlayerToDTO(battingTeamLineup, currentBatterPlayerId, battingSlot)
+      : null;
+
+    // 3. Build complete GameStateDTO
+    return {
+      gameId: game.id,
+      status: game.status,
+      score: game.getScoreDTO(),
+      gameStartTime: game.startTime,
+      currentInning: inningState.inning,
+      isTopHalf: inningState.isTopHalf,
+      battingTeam: inningState.isTopHalf ? 'AWAY' : 'HOME',
+      outs: inningState.outs,
+      bases: inningState.getBases(),
+      currentBatterSlot: battingSlot,
+      homeLineup: this.mapTeamLineupToDTO(homeLineup, 'HOME'),
+      awayLineup: this.mapTeamLineupToDTO(awayLineup, 'AWAY'),
+      currentBatter,
+      lastUpdated: new Date(),
+    };
+  }
+
+  /**
+   * Maps TeamLineup aggregate to TeamLineupDTO for presentation layer.
+   *
+   * @param teamLineup - The TeamLineup aggregate to convert
+   * @param teamSide - Whether this is HOME or AWAY team
+   * @returns Complete TeamLineupDTO
+   */
+  private mapTeamLineupToDTO(
+    teamLineup: import('@twsoftball/domain').TeamLineup,
+    teamSide: 'HOME' | 'AWAY'
+  ): TeamLineupDTO {
+    // Convert domain batting slots to DTO format
+    const activeLineup = teamLineup.getActiveLineup();
+    const battingSlots: BattingSlotDTO[] = activeLineup.map(battingSlot => {
+      const currentPlayerId = battingSlot.getCurrentPlayer();
+      const playerInfo = teamLineup.getPlayerInfo(currentPlayerId);
+
+      return {
+        slotNumber: battingSlot.position,
+        currentPlayer: playerInfo
+          ? {
+              playerId: currentPlayerId,
+              name: playerInfo.playerName,
+              jerseyNumber: playerInfo.jerseyNumber,
+              battingOrderPosition: battingSlot.position,
+              currentFieldPosition: playerInfo.currentPosition || FieldPosition.EXTRA_PLAYER,
+              preferredPositions: playerInfo.currentPosition ? [playerInfo.currentPosition] : [],
+              plateAppearances: [],
+              statistics: this.createEmptyStatistics(
+                currentPlayerId,
+                playerInfo.playerName,
+                playerInfo.jerseyNumber
+              ),
+            }
+          : null,
+        history: battingSlot.history.map(h => {
+          const historyPlayerInfo = teamLineup.getPlayerInfo(h.playerId);
+          return {
+            playerId: h.playerId,
+            playerName: historyPlayerInfo?.playerName || 'Unknown',
+            enteredInning: h.enteredInning,
+            exitedInning: h.exitedInning,
+            wasStarter: h.wasStarter,
+            isReentry: h.isReentry,
+          };
+        }),
+      };
+    });
+
+    // Convert domain field positions to DTO format
+    const fieldPositionsMap = teamLineup.getFieldingPositions();
+    const fieldPositions: Record<
+      import('@twsoftball/domain').FieldPosition,
+      import('@twsoftball/domain').PlayerId | null
+    > = {} as Record<
+      import('@twsoftball/domain').FieldPosition,
+      import('@twsoftball/domain').PlayerId | null
+    >;
+    for (const [position, playerId] of fieldPositionsMap.entries()) {
+      fieldPositions[position] = playerId;
+    }
+
+    return {
+      teamLineupId: teamLineup.id,
+      gameId: teamLineup.gameId,
+      teamSide,
+      teamName: teamLineup.teamName,
+      strategy: 'SIMPLE',
+      battingSlots,
+      fieldPositions,
+      benchPlayers: [],
+      substitutionHistory: [],
+    };
+  }
+
+  /**
+   * Maps player information to PlayerInGameDTO.
+   *
+   * @param teamLineup - The TeamLineup aggregate containing player info
+   * @param playerId - Player identifier
+   * @param battingSlot - Current batting slot number
+   * @returns Complete PlayerInGameDTO or null if player not found
+   */
+  private mapPlayerToDTO(
+    teamLineup: import('@twsoftball/domain').TeamLineup,
+    playerId: import('@twsoftball/domain').PlayerId,
+    battingSlot: number
+  ): PlayerInGameDTO | null {
+    const playerInfo = teamLineup.getPlayerInfo(playerId);
+    if (!playerInfo) {
+      return null;
+    }
+
+    return {
+      playerId,
+      name: playerInfo.playerName,
+      jerseyNumber: playerInfo.jerseyNumber,
+      battingOrderPosition: battingSlot,
+      currentFieldPosition: playerInfo.currentPosition || FieldPosition.EXTRA_PLAYER,
+      preferredPositions: playerInfo.currentPosition ? [playerInfo.currentPosition] : [],
+      plateAppearances: [],
+      statistics: this.createEmptyStatistics(
+        playerId,
+        playerInfo.playerName,
+        playerInfo.jerseyNumber
+      ),
+    };
+  }
+
+  /**
+   * Creates empty player statistics for display.
+   *
+   * @param playerId - Player identifier
+   * @param name - Player display name
+   * @param jerseyNumber - Player jersey number
+   * @returns Empty PlayerStatisticsDTO with zero values
+   */
+  private createEmptyStatistics(
+    playerId: import('@twsoftball/domain').PlayerId,
+    name: string,
+    jerseyNumber: import('@twsoftball/domain').JerseyNumber
+  ): PlayerStatisticsDTO {
+    const emptyFielding: FieldingStatisticsDTO = {
+      positions: [],
+      putouts: 0,
+      assists: 0,
+      errors: 0,
+      fieldingPercentage: 1.0,
+    };
+
+    return {
+      playerId,
+      name,
+      jerseyNumber,
+      plateAppearances: 0,
+      atBats: 0,
+      hits: 0,
+      singles: 0,
+      doubles: 0,
+      triples: 0,
+      homeRuns: 0,
+      walks: 0,
+      strikeouts: 0,
+      rbi: 0,
+      runs: 0,
+      battingAverage: 0.0,
+      onBasePercentage: 0.0,
+      sluggingPercentage: 0.0,
+      fielding: emptyFielding,
+    };
   }
 
   /**

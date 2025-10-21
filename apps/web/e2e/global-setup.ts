@@ -46,14 +46,27 @@ async function globalSetup() {
  * Setup test data for E2E tests
  */
 async function setupTestData(page: any) {
-  // Clear any existing data
-  await page.evaluate(() => {
+  // Clear any existing data (localStorage, sessionStorage, IndexedDB)
+  await page.evaluate(async () => {
     localStorage.clear();
     sessionStorage.clear();
+
+    // Clear IndexedDB - delete all databases
+    // eslint-disable-next-line no-undef
+    const databases = await indexedDB.databases();
+    for (const db of databases) {
+      if (db.name) {
+        // eslint-disable-next-line no-undef
+        indexedDB.deleteDatabase(db.name);
+      }
+    }
   });
 
+  // Wait a bit for IndexedDB deletion to complete
+  await page.waitForTimeout(500);
+
   // Initialize with clean state
-  console.log('🧹 Test environment cleaned');
+  console.log('🧹 Test environment cleaned (localStorage, sessionStorage, IndexedDB)');
 }
 
 export default globalSetup;

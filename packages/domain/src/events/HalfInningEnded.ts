@@ -79,6 +79,8 @@ export class HalfInningEnded extends DomainEvent {
    * @param inning - The inning number that just completed a half (1 or greater)
    * @param wasTopHalf - True if top half just ended (away team finished batting), false if bottom half ended (home team finished)
    * @param finalOuts - Number of outs recorded when the half-inning ended (typically 3, but could be less in certain scenarios)
+   * @param awayTeamBatterSlot - Away team's current batting slot position to preserve (1-20)
+   * @param homeTeamBatterSlot - Home team's current batting slot position to preserve (1-20)
    * @throws {DomainError} When parameters violate softball business rules
    *
    * @remarks
@@ -86,25 +88,37 @@ export class HalfInningEnded extends DomainEvent {
    * - `wasTopHalf`: Indicates which team just finished batting (critical for state transitions)
    * - `finalOuts`: Usually 3, but may be less in walkoff scenarios or forfeit situations
    * - `inning`: Must be positive, no upper limit (extra innings allowed)
+   * - `awayTeamBatterSlot`: Preserved for event sourcing reconstruction
+   * - `homeTeamBatterSlot`: Preserved for event sourcing reconstruction
    *
    * **Business Rules:**
    * - Inning must be valid (1 or greater)
    * - Out count should be reasonable (0-3, though edge cases may exist)
    * - Game ID must reference valid, active game
+   * - Both batting slots must be between 1 and 20
    *
    * **State Transition Logic:**
    * - If wasTopHalf=true → transition to bottom half of same inning
    * - If wasTopHalf=false → advance to top half of next inning
    * - Always reset outs to 0 and clear bases for next half-inning
+   * - Batting slots are preserved for both teams
    */
   constructor(
     readonly gameId: GameId,
     readonly inning: number,
     readonly wasTopHalf: boolean,
-    readonly finalOuts: number
+    readonly finalOuts: number,
+    readonly awayTeamBatterSlot: number,
+    readonly homeTeamBatterSlot: number
   ) {
     super();
-    HalfInningEnded.validateParameters(gameId, inning, finalOuts);
+    HalfInningEnded.validateParameters(
+      gameId,
+      inning,
+      finalOuts,
+      awayTeamBatterSlot,
+      homeTeamBatterSlot
+    );
   }
 
   /**
@@ -113,6 +127,8 @@ export class HalfInningEnded extends DomainEvent {
    * @param gameId - The game ID to validate
    * @param inning - The inning number to validate
    * @param finalOuts - The final out count to validate
+   * @param awayTeamBatterSlot - The away team's batting slot to validate
+   * @param homeTeamBatterSlot - The home team's batting slot to validate
    * @throws {DomainError} When parameters are invalid
    *
    * @remarks
@@ -120,13 +136,20 @@ export class HalfInningEnded extends DomainEvent {
    * - GameId cannot be null (must reference valid game)
    * - Inning must be positive integer (softball starts at inning 1)
    * - Final outs typically 3, but allowing 0-5 for edge cases
+   * - Both batting slots must be between 1 and 20
    *
    * **Edge Cases Considered:**
    * - Walkoff scenarios may end with fewer than 3 outs
    * - Forfeit situations may have unusual out counts
    * - Extra-long innings due to errors or special rules
    */
-  private static validateParameters(gameId: GameId, inning: number, finalOuts: number): void {
+  private static validateParameters(
+    gameId: GameId,
+    inning: number,
+    finalOuts: number,
+    awayTeamBatterSlot: number,
+    homeTeamBatterSlot: number
+  ): void {
     if (!gameId) {
       throw new DomainError('GameId cannot be null or undefined');
     }
@@ -155,6 +178,34 @@ export class HalfInningEnded extends DomainEvent {
     }
     if (!Number.isInteger(finalOuts)) {
       throw new DomainError('Final outs must be an integer');
+    }
+
+    // Validate away team batting slot
+    if (typeof awayTeamBatterSlot !== 'number' || Number.isNaN(awayTeamBatterSlot)) {
+      throw new DomainError('Away team batter slot must be a valid number');
+    }
+    if (!Number.isFinite(awayTeamBatterSlot)) {
+      throw new DomainError('Away team batter slot must be a finite number');
+    }
+    if (awayTeamBatterSlot < 1 || awayTeamBatterSlot > 20) {
+      throw new DomainError('Away team batter slot must be between 1 and 20');
+    }
+    if (!Number.isInteger(awayTeamBatterSlot)) {
+      throw new DomainError('Away team batter slot must be an integer');
+    }
+
+    // Validate home team batting slot
+    if (typeof homeTeamBatterSlot !== 'number' || Number.isNaN(homeTeamBatterSlot)) {
+      throw new DomainError('Home team batter slot must be a valid number');
+    }
+    if (!Number.isFinite(homeTeamBatterSlot)) {
+      throw new DomainError('Home team batter slot must be a finite number');
+    }
+    if (homeTeamBatterSlot < 1 || homeTeamBatterSlot > 20) {
+      throw new DomainError('Home team batter slot must be between 1 and 20');
+    }
+    if (!Number.isInteger(homeTeamBatterSlot)) {
+      throw new DomainError('Home team batter slot must be an integer');
     }
   }
 }

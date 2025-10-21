@@ -153,7 +153,8 @@ export function AppServicesProvider({
               const result = await featureServices.gameAdapter.startNewGameFromWizard(wizardState);
               return {
                 success: result.success,
-                gameId: result.gameId.value, // Convert GameId to string for shared context
+                ...(result.gameId && { gameId: result.gameId }),
+                ...(result.initialState && { initialState: result.initialState }),
                 ...(result.errors && { errors: result.errors }),
               };
             },

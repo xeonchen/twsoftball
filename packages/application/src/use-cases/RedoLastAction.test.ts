@@ -8,7 +8,17 @@
  * centralized test utilities to reduce code duplication.
  */
 
-import { GameId, Game, GameStatus, DomainEvent, DomainError } from '@twsoftball/domain';
+import {
+  GameId,
+  Game,
+  GameStatus,
+  DomainEvent,
+  DomainError,
+  InningState,
+  InningStateId,
+  TeamLineup,
+  TeamLineupId,
+} from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Disable unbound-method rule for this file as vi.mocked() is designed to work with unbound methods
@@ -18,6 +28,8 @@ import { EventStore, StoredEvent } from '../ports/out/EventStore.js';
 import { GameRepository } from '../ports/out/GameRepository.js';
 import {
   createMockDependencies,
+  createMockInningStateRepository,
+  createMockTeamLineupRepository,
   GameTestBuilder,
   CommandTestBuilder,
   EnhancedMockGameRepository,
@@ -33,9 +45,35 @@ function createMockGame(gameId: string, status: GameStatus): Game {
   return GameTestBuilder.create().withId(gameId).withStatus(status).build();
 }
 
+/**
+ * Helper to create minimal InningState for testing.
+ * Provides the required InningState aggregate for buildGameStateDTO().
+ */
+function createMockInningState(testGameId: GameId): InningState {
+  return InningState.createNew(
+    InningStateId.generate(),
+    testGameId,
+    1, // inning
+    true, // isTopHalf
+    1, // away batter slot
+    1 // home batter slot
+  );
+}
+
+/**
+ * Helper to create minimal TeamLineup for testing.
+ * Provides the required TeamLineup aggregate for buildGameStateDTO().
+ */
+function createMockTeamLineup(testGameId: GameId, side: 'HOME' | 'AWAY'): TeamLineup {
+  const teamName = side === 'HOME' ? 'Home Team' : 'Away Team';
+  return TeamLineup.createNew(TeamLineupId.generate(), testGameId, teamName, side);
+}
+
 describe('RedoLastAction', () => {
   let redoLastAction: RedoLastAction;
   let mockGameRepository: EnhancedMockGameRepository;
+  let mockInningStateRepository: ReturnType<typeof createMockInningStateRepository>;
+  let mockTeamLineupRepository: ReturnType<typeof createMockTeamLineupRepository>;
   let mockEventStore: EnhancedMockEventStore;
   let mockLogger: EnhancedMockLogger;
 
@@ -49,7 +87,28 @@ describe('RedoLastAction', () => {
     mockEventStore = mocks.eventStore;
     mockLogger = mocks.logger;
 
-    redoLastAction = new RedoLastAction(mockGameRepository, mockEventStore, mockLogger);
+    // Create mock aggregates for buildGameStateDTO()
+    const mockInningState = createMockInningState(testGameId);
+    const mockHomeLineup = createMockTeamLineup(testGameId, 'HOME');
+    const mockAwayLineup = createMockTeamLineup(testGameId, 'AWAY');
+
+    // Create mock repositories with configured overrides
+    mockInningStateRepository = createMockInningStateRepository({
+      findCurrentByGameId: vi.fn().mockResolvedValue(mockInningState),
+    });
+    mockTeamLineupRepository = createMockTeamLineupRepository({
+      findByGameIdAndSide: vi.fn().mockImplementation((gid, side) => {
+        return Promise.resolve(side === 'HOME' ? mockHomeLineup : mockAwayLineup);
+      }),
+    });
+
+    redoLastAction = new RedoLastAction(
+      mockGameRepository,
+      mockInningStateRepository,
+      mockTeamLineupRepository,
+      mockEventStore,
+      mockLogger
+    );
   });
 
   describe('Constructor and Dependency Injection', () => {
@@ -58,12 +117,55 @@ describe('RedoLastAction', () => {
     });
 
     it('should require all dependencies', () => {
-      expect(() => new RedoLastAction(undefined as never, mockEventStore, mockLogger)).toThrow();
       expect(
-        () => new RedoLastAction(mockGameRepository, undefined as never, mockLogger)
+        () =>
+          new RedoLastAction(
+            undefined as never,
+            mockInningStateRepository,
+            mockTeamLineupRepository,
+            mockEventStore,
+            mockLogger
+          )
       ).toThrow();
       expect(
-        () => new RedoLastAction(mockGameRepository, mockEventStore, undefined as never)
+        () =>
+          new RedoLastAction(
+            mockGameRepository,
+            undefined as never,
+            mockTeamLineupRepository,
+            mockEventStore,
+            mockLogger
+          )
+      ).toThrow();
+      expect(
+        () =>
+          new RedoLastAction(
+            mockGameRepository,
+            mockInningStateRepository,
+            undefined as never,
+            mockEventStore,
+            mockLogger
+          )
+      ).toThrow();
+      expect(
+        () =>
+          new RedoLastAction(
+            mockGameRepository,
+            mockInningStateRepository,
+            mockTeamLineupRepository,
+            undefined as never,
+            mockLogger
+          )
+      ).toThrow();
+      expect(
+        () =>
+          new RedoLastAction(
+            mockGameRepository,
+            mockInningStateRepository,
+            mockTeamLineupRepository,
+            mockEventStore,
+            undefined as never
+          )
       ).toThrow();
     });
   });
@@ -630,7 +732,13 @@ describe('RedoLastAction', () => {
         save: vi.fn().mockRejectedValue(new Error('Save failed')),
       } as Partial<GameRepository> as GameRepository;
 
-      const redoWithFailingRepo = new RedoLastAction(failingRepository, mockEventStore, mockLogger);
+      const redoWithFailingRepo = new RedoLastAction(
+        failingRepository,
+        mockInningStateRepository,
+        mockTeamLineupRepository,
+        mockEventStore,
+        mockLogger
+      );
 
       const command: RedoCommand = {
         gameId: testGameId,
@@ -654,6 +762,8 @@ describe('RedoLastAction', () => {
 
       const redoWithFailingEventStore = new RedoLastAction(
         mockGameRepository,
+        mockInningStateRepository,
+        mockTeamLineupRepository,
         failingEventStore,
         mockLogger
       );
@@ -684,6 +794,8 @@ describe('RedoLastAction', () => {
 
       const redoWithDomainError = new RedoLastAction(
         repositoryWithDomainError,
+        mockInningStateRepository,
+        mockTeamLineupRepository,
         mockEventStore,
         mockLogger
       );
@@ -717,6 +829,8 @@ describe('RedoLastAction', () => {
 
       const redoWithConcurrencyError = new RedoLastAction(
         repositoryWithConcurrencyError,
+        mockInningStateRepository,
+        mockTeamLineupRepository,
         mockEventStore,
         mockLogger
       );
@@ -967,7 +1081,13 @@ describe('RedoLastAction', () => {
         save: vi.fn().mockRejectedValue(new Error('Database connection failed')),
       } as Partial<GameRepository> as GameRepository;
 
-      const redoWithError = new RedoLastAction(repositoryWithError, mockEventStore, mockLogger);
+      const redoWithError = new RedoLastAction(
+        repositoryWithError,
+        mockInningStateRepository,
+        mockTeamLineupRepository,
+        mockEventStore,
+        mockLogger
+      );
 
       const command: RedoCommand = { gameId: testGameId };
 

@@ -41,6 +41,16 @@ interface MockEventStore {
   getEventsByGameId: ReturnType<typeof vi.fn>;
 }
 
+interface MockInningStateRepository {
+  findCurrentByGameId: ReturnType<typeof vi.fn>;
+  save: ReturnType<typeof vi.fn>;
+}
+
+interface MockTeamLineupRepository {
+  findByGameIdAndSide: ReturnType<typeof vi.fn>;
+  save: ReturnType<typeof vi.fn>;
+}
+
 interface MockLogger {
   debug: ReturnType<typeof vi.fn>;
   info: ReturnType<typeof vi.fn>;
@@ -192,8 +202,30 @@ describe('Services Index', () => {
         getEventsByGameId: vi.fn(),
       };
 
-      const mockUndoLastAction = new UndoLastAction(mockGameRepository, mockEventStore, mockLogger);
-      const mockRedoLastAction = new RedoLastAction(mockGameRepository, mockEventStore, mockLogger);
+      const mockInningStateRepository: MockInningStateRepository = {
+        findCurrentByGameId: vi.fn(),
+        save: vi.fn(),
+      };
+
+      const mockTeamLineupRepository: MockTeamLineupRepository = {
+        findByGameIdAndSide: vi.fn(),
+        save: vi.fn(),
+      };
+
+      const mockUndoLastAction = new UndoLastAction(
+        mockGameRepository,
+        mockInningStateRepository,
+        mockTeamLineupRepository,
+        mockEventStore,
+        mockLogger
+      );
+      const mockRedoLastAction = new RedoLastAction(
+        mockGameRepository,
+        mockInningStateRepository,
+        mockTeamLineupRepository,
+        mockEventStore,
+        mockLogger
+      );
 
       // Test GameApplicationService instantiation
       expect(() => {

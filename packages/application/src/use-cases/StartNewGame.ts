@@ -582,17 +582,29 @@ export class StartNewGame {
     game.startGame();
 
     // Create home team lineup
+    // TeamLineup.createNew() initializes currentBatterSlot to 1 (leadoff batter)
     const homeLineupId = new TeamLineupId(`${command.gameId.value}-home`);
-    const homeLineup = TeamLineup.createNew(homeLineupId, command.gameId, command.homeTeamName);
+    const homeLineup = TeamLineup.createNew(
+      homeLineupId,
+      command.gameId,
+      command.homeTeamName,
+      'HOME'
+    );
 
     // Create away team lineup
+    // Both home and away teams start from batting slot 1 at game start
     const awayLineupId = new TeamLineupId(`${command.gameId.value}-away`);
-    const awayLineup = TeamLineup.createNew(awayLineupId, command.gameId, command.awayTeamName);
+    const awayLineup = TeamLineup.createNew(
+      awayLineupId,
+      command.gameId,
+      command.awayTeamName,
+      'AWAY'
+    );
 
     // Create softball rules from command or use defaults
     const softballRules = this.createSoftballRules(command.gameRules);
 
-    // Add players to the managed team lineup
+    // Add players to the managed team lineup (our team with full roster)
     let managedLineup = command.ourTeamSide === 'HOME' ? homeLineup : awayLineup;
     for (const player of command.initialLineup) {
       managedLineup = managedLineup.addPlayer(
@@ -605,18 +617,30 @@ export class StartNewGame {
       );
     }
 
-    // Update the managed lineup reference
+    // Create minimal opponent lineup with placeholder players
+    // This ensures both teams have valid lineups for game start
+    // In future: wizard will collect both team lineups, making this logic unnecessary
+    let opponentLineup = command.ourTeamSide === 'HOME' ? awayLineup : homeLineup;
+    opponentLineup = this.createOpponentPlaceholderLineup(
+      opponentLineup,
+      command.gameId,
+      command.ourTeamSide === 'HOME' ? command.awayTeamName : command.homeTeamName,
+      command.ourTeamSide === 'HOME' ? 'AWAY' : 'HOME',
+      softballRules
+    );
+
+    // Return aggregates with both lineups populated
     if (command.ourTeamSide === 'HOME') {
       return {
         game,
         homeLineup: managedLineup,
-        awayLineup,
+        awayLineup: opponentLineup,
         inningState: this.createInningState(command.gameId),
       };
     } else {
       return {
         game,
-        homeLineup,
+        homeLineup: opponentLineup,
         awayLineup: managedLineup,
         inningState: this.createInningState(command.gameId),
       };
@@ -666,6 +690,81 @@ export class StartNewGame {
   private createInningState(gameId: GameId): InningState {
     const inningStateId = new InningStateId(`${gameId.value}-inning`);
     return InningState.createNew(inningStateId, gameId);
+  }
+
+  /**
+   * Creates a minimal opponent lineup with placeholder players.
+   *
+   * @remarks
+   * This is a temporary solution while the wizard only collects one team's lineup.
+   * Creates 9 generic players (one per defensive position) to satisfy the domain
+   * model's expectation that both teams have valid lineups.
+   *
+   * **Future Enhancement**: When the wizard is updated to collect both team lineups,
+   * this method can be removed entirely.
+   *
+   * **Design Decisions**:
+   * - Uses generic player names ("Player 1", "Player 2", etc.)
+   * - Assigns sequential jersey numbers (1-9)
+   * - Maps each player to required defensive positions
+   * - Sets batting order to match jersey number for simplicity
+   * - Generates unique PlayerId for each placeholder
+   *
+   * @param opponentLineup - Empty TeamLineup aggregate for opponent
+   * @param gameId - Game identifier for generating player IDs
+   * @param teamName - Opponent team name
+   * @param teamSide - Which side opponent plays on (HOME or AWAY)
+   * @param softballRules - Game rules for lineup validation
+   * @returns TeamLineup with 9 placeholder players
+   */
+  private createOpponentPlaceholderLineup(
+    opponentLineup: TeamLineup,
+    gameId: GameId,
+    _teamName: string,
+    _teamSide: 'HOME' | 'AWAY',
+    softballRules: SoftballRules
+  ): TeamLineup {
+    // Required defensive positions in batting order
+    const positions: FieldPosition[] = [
+      FieldPosition.PITCHER,
+      FieldPosition.CATCHER,
+      FieldPosition.FIRST_BASE,
+      FieldPosition.SECOND_BASE,
+      FieldPosition.THIRD_BASE,
+      FieldPosition.SHORTSTOP,
+      FieldPosition.LEFT_FIELD,
+      FieldPosition.CENTER_FIELD,
+      FieldPosition.RIGHT_FIELD,
+      FieldPosition.SHORT_FIELDER,
+    ];
+
+    let lineup = opponentLineup;
+
+    // Create one placeholder player per position
+    for (let i = 0; i < positions.length; i++) {
+      const battingOrder = i + 1; // 1-based batting order
+      const jerseyNum = battingOrder; // Jersey number matches batting order
+      const position = positions[i];
+      if (!position) {
+        throw new Error(`Missing position at index ${i}`);
+      }
+
+      // Generate unique player ID: gameId-opp-{battingOrder}
+      const playerId = new PlayerId(`${gameId.value}-opp-${battingOrder}`);
+      const jerseyNumber = new JerseyNumber(jerseyNum.toString());
+      const playerName = `Player ${battingOrder}`;
+
+      lineup = lineup.addPlayer(
+        playerId,
+        jerseyNumber,
+        playerName,
+        battingOrder,
+        position,
+        softballRules
+      );
+    }
+
+    return lineup;
   }
 
   /**
@@ -821,10 +920,33 @@ export class StartNewGame {
     const homeLineupDTO = this.buildTeamLineupDTO(aggregates.homeLineup, 'HOME');
     const awayLineupDTO = this.buildTeamLineupDTO(aggregates.awayLineup, 'AWAY');
 
-    // Determine current batter (first in away team for top of 1st)
-    // Since away team bats first, get the first batting slot from away team
-    const firstBattingSlot = awayLineupDTO.battingSlots.find(slot => slot.slotNumber === 1);
-    const currentBatter = firstBattingSlot?.currentPlayer || null;
+    // Determine current batter for top of 1st inning (away team bats first)
+    // Both teams now have valid lineups (our team + opponent placeholders)
+    // Current batter should ALWAYS be set at game start
+    const currentBatterSlot = awayLineupDTO.battingSlots.find(slot => slot.slotNumber === 1);
+    const currentBatter = currentBatterSlot?.currentPlayer || null;
+
+    // VALIDATION: Current batter must be set at game start
+    // If this fails, it indicates a critical bug in lineup initialization
+    if (currentBatter === null) {
+      this.logger.error(
+        'Game initialization failed: currentBatter is null',
+        new Error('Invalid game state'),
+        {
+          gameId: aggregates.game.id.value,
+          ourTeamSide: command.ourTeamSide,
+          battingTeam: 'AWAY',
+          awayLineupSize: awayLineupDTO.battingSlots.length,
+          homeLineupSize: homeLineupDTO.battingSlots.length,
+          operation: 'buildInitialGameState',
+        }
+      );
+
+      throw new Error(
+        'Game initialization failed: No current batter available. ' +
+          'This indicates a bug in lineup setup. Please report this issue.'
+      );
+    }
 
     return {
       gameId: aggregates.game.id,

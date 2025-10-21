@@ -21,6 +21,7 @@ import {
   SubstitutionHistory,
 } from '../../../features/lineup-management';
 import { useSubstitutePlayerAPI } from '../../../features/substitute-player';
+import { createLogger } from '../../../shared/api';
 import { useErrorRecovery, useNavigationGuard, useTimerManager } from '../../../shared/lib/hooks';
 import { useUIStore } from '../../../shared/lib/store';
 import { debounce } from '../../../shared/lib/utils';
@@ -30,6 +31,9 @@ import { RunnerAdvancementPanel } from '../../../widgets/runner-advancement';
 
 /** Duration to show RBI notification in milliseconds */
 const RBI_NOTIFICATION_DURATION_MS = 3000;
+
+/** Logger for this component */
+const logger = createLogger('development', 'GameRecordingPage');
 
 /**
  * Game Recording Page Component
@@ -290,9 +294,8 @@ export function GameRecordingPage(): ReactElement {
    */
   const handleActionInternal = useCallback(
     async (actionType: string): Promise<void> => {
-      // Action recording started - would be logged via DI container logger in full implementation
-      // eslint-disable-next-line no-console -- Required for action logging in tests
-      console.log(`Recording action: ${actionType}`);
+      // Action recording started - logged via logger
+      logger.debug(`Recording action: ${actionType}`);
 
       if (isLoading || !activeGameState?.currentBatter) return;
 
@@ -392,8 +395,8 @@ export function GameRecordingPage(): ReactElement {
       // Hook should handle error state, but provide fallback notification
       const errorMessage = error instanceof Error ? error.message : 'Unknown error during undo';
 
-      // eslint-disable-next-line no-console -- Error logging is necessary for debugging
-      console.error('Undo failed:', error);
+      // Log error for debugging
+      logger.error('Undo failed', error instanceof Error ? error : new Error(String(error)));
 
       // Fallback: show error notification if hook doesn't provide lastUndoRedoResult
       // The error notification UI will display if lastUndoRedoResult updates,
@@ -417,8 +420,8 @@ export function GameRecordingPage(): ReactElement {
       // Hook should handle error state, but provide fallback notification
       const errorMessage = error instanceof Error ? error.message : 'Unknown error during redo';
 
-      // eslint-disable-next-line no-console -- Error logging is necessary for debugging
-      console.error('Redo failed:', error);
+      // Log error for debugging
+      logger.error('Redo failed', error instanceof Error ? error : new Error(String(error)));
 
       // Fallback: show error notification if hook doesn't provide lastUndoRedoResult
       // The error notification UI will display if lastUndoRedoResult updates,
@@ -488,8 +491,7 @@ export function GameRecordingPage(): ReactElement {
     void errorRecovery.reportError(
       data => {
         // In a real app, this would send to error tracking service
-        // eslint-disable-next-line no-console -- Error reporting requires console output for debugging
-        console.error('Error Report:', data);
+        logger.error('Error Report', new Error(JSON.stringify(data)));
         return Promise.resolve({ reportId: `ERR-${Date.now()}` });
       },
       {
@@ -508,8 +510,8 @@ export function GameRecordingPage(): ReactElement {
    */
   const handleComponentError = useCallback(
     (error: Error, errorInfo: ErrorInfo) => {
-      // eslint-disable-next-line no-console -- Error logging is necessary for debugging
-      console.error('GameRecordingPage component error:', error, errorInfo);
+      // Log component error for debugging
+      logger.error('GameRecordingPage component error', error);
 
       // Handle nullable componentStack from React's ErrorInfo
       const componentStack = errorInfo.componentStack || 'Unknown component';
@@ -605,8 +607,7 @@ export function GameRecordingPage(): ReactElement {
         // Process substitution data if provided
         if (data) {
           // Log substitution data for debugging in development
-          // eslint-disable-next-line no-console -- Required for debugging substitution data
-          console.log('Substitution completed with data:', data);
+          logger.debug('Substitution completed with data', { data });
         }
 
         // Close dialogs
@@ -619,8 +620,10 @@ export function GameRecordingPage(): ReactElement {
         // The game state will be updated automatically through the store
       } catch (error) {
         // Error handling is managed by the substitute player feature
-        // eslint-disable-next-line no-console -- Error logging is necessary for debugging
-        console.error('Substitution completion error:', error);
+        logger.error(
+          'Substitution completion error',
+          error instanceof Error ? error : new Error(String(error))
+        );
       }
     },
     [showInfo]

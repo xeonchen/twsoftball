@@ -37,7 +37,7 @@ describe('TeamLineup - Substitutions and Position Changes', () => {
     let lineup: TeamLineup;
 
     beforeEach(() => {
-      lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
       lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER, rules);
     });
@@ -296,7 +296,7 @@ describe('TeamLineup - Substitutions and Position Changes', () => {
     let lineup: TeamLineup;
 
     beforeEach(() => {
-      lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
       lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER, rules);
       lineup = lineup.addPlayer(
@@ -361,7 +361,7 @@ describe('TeamLineup - Substitutions and Position Changes', () => {
     let lineup: TeamLineup;
 
     beforeEach(() => {
-      lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
     });
 

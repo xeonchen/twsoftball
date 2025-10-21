@@ -33,6 +33,7 @@
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { GameId, GameStatus, TeamLineupId } from '@twsoftball/application';
 import { type ReactElement } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
@@ -50,6 +51,11 @@ vi.mock('../../../features/game-setup', () => ({
 // Mock the game store
 vi.mock('../../../entities/game', () => ({
   useGameStore: vi.fn(),
+}));
+
+// Mock the shared API mappers
+vi.mock('../../../shared/api', () => ({
+  toUIGameState: vi.fn((dto: unknown) => dto), // Pass through for testing
 }));
 
 // Mock react-router-dom navigate
@@ -112,6 +118,7 @@ const mockGameStore = {
   setupWizard: mockValidSetupWizard,
   completeSetup: vi.fn(),
   startActiveGame: vi.fn(),
+  updateFromDTO: vi.fn(),
 };
 
 describe('GameSetupConfirmPage Integration', () => {
@@ -402,12 +409,54 @@ describe('GameSetupConfirmPage Integration', () => {
     it('should navigate to game recording on success', async () => {
       const gameId = 'game-123-success';
 
-      // Mock successful game creation
+      // Mock successful game creation with complete DTO
       mockUseGameSetup.mockReturnValue({
         startGame: vi.fn(),
         isLoading: false,
         error: null,
         gameId,
+        initialGameState: {
+          gameId: new GameId(gameId),
+          status: GameStatus.NOT_STARTED,
+          score: { home: 0, away: 0, leader: 'TIE' as const, difference: 0 },
+          gameStartTime: new Date(),
+          currentInning: 1,
+          isTopHalf: true,
+          battingTeam: 'AWAY' as const,
+          outs: 0,
+          bases: {
+            first: null,
+            second: null,
+            third: null,
+            runnersInScoringPosition: [],
+            basesLoaded: false,
+          },
+          currentBatterSlot: 1,
+          homeLineup: {
+            teamLineupId: TeamLineupId.generate(),
+            gameId: new GameId(gameId),
+            teamSide: 'HOME' as const,
+            teamName: 'Home Team',
+            strategy: 'SIMPLE' as const,
+            battingSlots: [],
+            fieldPositions: {},
+            benchPlayers: [],
+            substitutionHistory: [],
+          },
+          awayLineup: {
+            teamLineupId: TeamLineupId.generate(),
+            gameId: new GameId(gameId),
+            teamSide: 'AWAY' as const,
+            teamName: 'Away Team',
+            strategy: 'SIMPLE' as const,
+            battingSlots: [],
+            fieldPositions: {},
+            benchPlayers: [],
+            substitutionHistory: [],
+          },
+          currentBatter: null,
+          lastUpdated: new Date(),
+        },
         validationErrors: null,
         clearError: vi.fn(),
         reset: vi.fn(),

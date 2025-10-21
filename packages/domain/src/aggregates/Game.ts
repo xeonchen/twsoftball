@@ -84,6 +84,8 @@ export class Game {
 
   private currentOuts: number;
 
+  private gameStartTime: Date | null = null;
+
   private uncommittedEvents: DomainEvent[] = [];
 
   private version: number = 0;
@@ -137,6 +139,39 @@ export class Game {
   }
 
   /**
+   * Gets the current game score as a DTO suitable for the application layer.
+   *
+   * @returns GameScore data as a plain object with leader and difference calculated
+   *
+   * @remarks
+   * This method provides a DTO representation of the score that includes:
+   * - home: Home team runs
+   * - away: Away team runs
+   * - leader: Which team is ahead ('HOME', 'AWAY', or 'TIE')
+   * - difference: Absolute run differential
+   *
+   * The DTO format is required by the application layer for building GameStateDTO.
+   */
+  getScoreDTO(): {
+    home: number;
+    away: number;
+    leader: 'HOME' | 'AWAY' | 'TIE';
+    difference: number;
+  } {
+    const home = this.gameScore.getHomeRuns();
+    const away = this.gameScore.getAwayRuns();
+    const leader: 'HOME' | 'AWAY' | 'TIE' = this.gameScore.isHomeWinning()
+      ? 'HOME'
+      : this.gameScore.isAwayWinning()
+        ? 'AWAY'
+        : 'TIE';
+
+    const difference = Math.abs(this.gameScore.getRunDifferential());
+
+    return { home, away, leader, difference };
+  }
+
+  /**
    * Gets the current inning number.
    */
   get currentInning(): number {
@@ -156,6 +191,15 @@ export class Game {
    */
   get outs(): number {
     return this.currentOuts;
+  }
+
+  /**
+   * Gets the timestamp when the game was started.
+   *
+   * @returns The game start timestamp, or null if the game hasn't started yet
+   */
+  get startTime(): Date | null {
+    return this.gameStartTime;
   }
 
   /**
@@ -199,6 +243,7 @@ export class Game {
     }
 
     this.gameStatus = GameStatus.IN_PROGRESS;
+    this.gameStartTime = new Date();
     this.addEvent(new GameStarted(this.id));
   }
 
@@ -639,6 +684,7 @@ export class Game {
       currentInning: number;
       isTopHalf: boolean;
       outs: number;
+      startTime?: Date | string | null;
     };
 
     // Validate required fields exist
@@ -709,6 +755,14 @@ export class Game {
       snapshotData.isTopHalf,
       snapshotData.outs
     );
+
+    // Set startTime if present in snapshot
+    if (snapshotData.startTime) {
+      game.gameStartTime =
+        snapshotData.startTime instanceof Date
+          ? snapshotData.startTime
+          : new Date(snapshotData.startTime);
+    }
 
     // Set version from snapshot
     game.version = snapshot.version;
@@ -786,6 +840,7 @@ export class Game {
     switch (event.type) {
       case 'GameStarted':
         this.gameStatus = GameStatus.IN_PROGRESS;
+        this.gameStartTime = event.timestamp;
         break;
 
       case 'ScoreUpdated': {
