@@ -202,7 +202,7 @@ describe('InningState - Event Sourcing', () => {
       it('should handle inning transitions correctly', () => {
         const events = [
           new InningStateCreated(inningStateId, gameId, 1, true),
-          new HalfInningEnded(gameId, 1, true, 3),
+          new HalfInningEnded(gameId, 1, true, 3, 1, 1),
         ];
 
         const reconstructed = InningState.fromEvents(events);
@@ -495,7 +495,7 @@ describe('InningState - Event Sourcing', () => {
           new InningStateCreated(inningStateId, gameId, 2, true),
           new AtBatCompleted(gameId, batterId1, 1, AtBatResultType.STRIKEOUT, 2, 2),
           new RunnerAdvanced(gameId, runner1, null, 'FIRST', AdvanceReason.HIT),
-          new HalfInningEnded(gameId, 2, true, 3),
+          new HalfInningEnded(gameId, 2, true, 3, 1, 1),
         ];
 
         const reconstructed = InningState.fromEvents(events);
@@ -513,7 +513,7 @@ describe('InningState - Event Sourcing', () => {
           new AtBatCompleted(gameId, batterId1, 7, AtBatResultType.STRIKEOUT, 1, 1),
           new CurrentBatterChanged(gameId, 7, 8, 1, true),
           new RunnerAdvanced(gameId, runner1, null, 'SECOND', AdvanceReason.HIT),
-          new HalfInningEnded(gameId, 1, true, 3),
+          new HalfInningEnded(gameId, 1, true, 3, 1, 1),
         ];
 
         const reconstructed = InningState.fromEvents(events);
@@ -528,7 +528,7 @@ describe('InningState - Event Sourcing', () => {
       it('should advance to next inning and set to top half', () => {
         const events = [
           new InningStateCreated(inningStateId, gameId, 3, false),
-          new HalfInningEnded(gameId, 3, false, 3),
+          new HalfInningEnded(gameId, 3, false, 3, 1, 1),
           new InningAdvanced(gameId, 4, true),
         ];
 

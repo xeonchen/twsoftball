@@ -19,7 +19,20 @@
  * - Comprehensive logging verification
  */
 
-import { GameId, PlayerId, AtBatResultType, Game, GameStatus } from '@twsoftball/domain';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/require-await */
+
+import {
+  GameId,
+  PlayerId,
+  AtBatResultType,
+  Game,
+  GameStatus,
+  JerseyNumber,
+  FieldPosition,
+} from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Disable unbound-method rule for this file as vi.mocked() is designed to work with unbound methods
@@ -32,15 +45,75 @@ import {
   setupGameNotFoundScenario,
   SecureTestUtils,
   EnhancedMockGameRepository,
+  EnhancedMockInningStateRepository,
+  EnhancedMockTeamLineupRepository,
   EnhancedMockEventStore,
   EnhancedMockLogger,
 } from '../test-factories/index.js';
 
 import { RecordAtBat } from './RecordAtBat.js';
 
+/**
+ * Helper to create a minimal mock InningState for testing.
+ * Returns mock data that satisfies the interface methods used by RecordAtBat.
+ */
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+function createMockInningState(gameIdParam: GameId) {
+  return {
+    id: { value: `inning-state-${gameIdParam.value}` },
+    gameId: gameIdParam,
+    inning: 1,
+    isTopHalf: true,
+    outs: 0,
+    awayBatterSlot: 1,
+    homeBatterSlot: 1,
+    getBases: vi.fn().mockReturnValue({
+      first: null,
+      second: null,
+      third: null,
+      runnersInScoringPosition: [],
+      basesLoaded: false,
+    }),
+  };
+}
+
+/**
+ * Helper to create a minimal mock TeamLineup for testing.
+ * Returns mock data that satisfies the interface methods used by RecordAtBat.
+ */
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+function createMockTeamLineup(
+  gameIdParam: GameId,
+  teamSide: 'HOME' | 'AWAY',
+  playerIdParam: PlayerId
+) {
+  return {
+    id: { value: `lineup-${teamSide.toLowerCase()}-${gameIdParam.value}` },
+    gameId: gameIdParam,
+    teamName: teamSide === 'HOME' ? 'Home Dragons' : 'Away Tigers',
+    getPlayerAtSlot: vi.fn().mockReturnValue(playerIdParam),
+    getPlayerInfo: vi.fn().mockReturnValue({
+      playerName: 'Test Player',
+      jerseyNumber: new JerseyNumber('10'),
+      currentPosition: FieldPosition.SHORTSTOP,
+    }),
+    getActiveLineup: vi.fn().mockReturnValue([
+      {
+        position: 1,
+        getCurrentPlayer: vi.fn().mockReturnValue(playerIdParam),
+        history: [],
+      },
+    ]),
+    getBattingSlots: vi.fn().mockReturnValue([]),
+    getFieldingPositions: vi.fn().mockReturnValue(new Map()),
+  };
+}
+
 describe('RecordAtBat Use Case', () => {
   // Test dependencies (mocks)
   let mockGameRepository: EnhancedMockGameRepository;
+  let mockInningStateRepository: EnhancedMockInningStateRepository;
+  let mockTeamLineupRepository: EnhancedMockTeamLineupRepository;
   let mockEventStore: EnhancedMockEventStore;
   let mockLogger: EnhancedMockLogger;
 
@@ -54,20 +127,74 @@ describe('RecordAtBat Use Case', () => {
 
   // Common test setup helpers using centralized builders
   const createTestGame = (status: GameStatus = GameStatus.IN_PROGRESS): Game => {
-    return GameTestBuilder.create()
+    const game = GameTestBuilder.create()
       .withId(gameId)
       .withStatus(status)
       .withTeamNames('Home Dragons', 'Away Tigers')
       .build();
+
+    // Add getScore() method for compatibility with RecordAtBat.buildGameStateDTO()
+    // This is needed because the implementation calls game.getScore()
+    (game as any).getScore = vi.fn().mockReturnValue({
+      home: game.score.getHomeRuns(),
+      away: game.score.getAwayRuns(),
+      leader: game.score.isHomeWinning() ? 'HOME' : game.score.isAwayWinning() ? 'AWAY' : 'TIE',
+      difference: Math.abs(game.score.getRunDifferential()),
+    });
+
+    return game;
   };
 
   beforeEach(() => {
     const mocks = createMockDependencies();
     mockGameRepository = mocks.gameRepository;
+    mockInningStateRepository = mocks.inningStateRepository;
+    mockTeamLineupRepository = mocks.teamLineupRepository;
     mockEventStore = mocks.eventStore;
     mockLogger = mocks.logger;
 
-    recordAtBat = new RecordAtBat(mockGameRepository, mockEventStore, mockLogger);
+    // Set up default mock data for InningState and TeamLineup
+    // These are needed for buildGameStateDTO() calls in successful test scenarios
+    const mockInningState = createMockInningState(gameId);
+    const mockHomeLineup = createMockTeamLineup(gameId, 'HOME', batterId);
+    const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY', batterId);
+
+    // Add recordAtBat method to mockInningState for processAtBat coordination
+    const updatedMockInningState = {
+      ...mockInningState,
+      awayBatterSlot: 2, // Advanced from 1 to 2
+      getUncommittedEvents: vi.fn().mockReturnValue([
+        {
+          type: 'AtBatCompleted',
+          gameId,
+          batterId,
+          battingSlot: 1,
+          result: 'SINGLE',
+          inning: 1,
+          outs: 0,
+        },
+        { type: 'RunnerAdvanced', gameId, runnerId: batterId, from: null, to: 'FIRST' },
+        { type: 'CurrentBatterChanged', gameId, previousSlot: 1, newSlot: 2 },
+      ]),
+    };
+    (mockInningState as any).recordAtBat = vi.fn().mockReturnValue(updatedMockInningState);
+
+    vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(
+      mockInningState as any
+    );
+    vi.mocked(mockTeamLineupRepository.findByGameIdAndSide).mockImplementation(
+      async (_gId, side) => {
+        return side === 'HOME' ? (mockHomeLineup as any) : (mockAwayLineup as any);
+      }
+    );
+
+    recordAtBat = new RecordAtBat(
+      mockGameRepository,
+      mockInningStateRepository,
+      mockTeamLineupRepository,
+      mockEventStore,
+      mockLogger
+    );
   });
 
   describe('Successful At-Bat Scenarios', () => {
@@ -123,6 +250,18 @@ describe('RecordAtBat Use Case', () => {
         withRunners: true,
       });
 
+      // Add getScore() method to the scenario game for compatibility
+      (scenario.testData.game as any).getScore = vi.fn().mockReturnValue({
+        home: scenario.testData.game.score.getHomeRuns(),
+        away: scenario.testData.game.score.getAwayRuns(),
+        leader: scenario.testData.game.score.isHomeWinning()
+          ? 'HOME'
+          : scenario.testData.game.score.isAwayWinning()
+            ? 'AWAY'
+            : 'TIE',
+        difference: Math.abs(scenario.testData.game.score.getRunDifferential()),
+      });
+
       vi.mocked(mockGameRepository.findById).mockResolvedValue(scenario.testData.game);
       vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
       vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
@@ -151,6 +290,18 @@ describe('RecordAtBat Use Case', () => {
         withRunners: false,
       });
 
+      // Add getScore() method to the scenario game for compatibility
+      (scenario.testData.game as any).getScore = vi.fn().mockReturnValue({
+        home: scenario.testData.game.score.getHomeRuns(),
+        away: scenario.testData.game.score.getAwayRuns(),
+        leader: scenario.testData.game.score.isHomeWinning()
+          ? 'HOME'
+          : scenario.testData.game.score.isAwayWinning()
+            ? 'AWAY'
+            : 'TIE',
+        difference: Math.abs(scenario.testData.game.score.getRunDifferential()),
+      });
+
       vi.mocked(mockGameRepository.findById).mockResolvedValue(scenario.testData.game);
       vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
       vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
@@ -169,6 +320,76 @@ describe('RecordAtBat Use Case', () => {
       expect(result.errors).toBeUndefined();
       expect(mockGameRepository.save).toHaveBeenCalled();
       expect(mockEventStore.append).toHaveBeenCalled();
+    });
+
+    it('should return gameState with correct currentBatter after recording at-bat', async () => {
+      // Arrange - Set up game with batter #1 at batting slot 1
+      const game = createTestGame();
+      const batter1Id = new PlayerId(SecureTestUtils.generatePlayerId('batter-1'));
+
+      // Create mock InningState with slot 1 currently batting
+      const mockInningState = createMockInningState(gameId);
+      (mockInningState as any).awayBatterSlot = 1;
+      (mockInningState as any).isTopHalf = true;
+
+      // Create mock lineup with batter #1 at slot 1
+      const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY', batter1Id);
+      vi.mocked(mockAwayLineup.getPlayerAtSlot).mockImplementation((slot: number) => {
+        if (slot === 1) return batter1Id;
+        if (slot === 2) return new PlayerId(SecureTestUtils.generatePlayerId('batter-2'));
+        return null as any;
+      });
+
+      // Mock recordAtBat to advance batting order (slot 1 → 2)
+      const updatedMockInningState = {
+        ...mockInningState,
+        awayBatterSlot: 2, // ADVANCED to slot 2
+        getUncommittedEvents: vi.fn().mockReturnValue([
+          {
+            type: 'AtBatCompleted',
+            gameId,
+            batterId: batter1Id,
+            battingSlot: 1,
+            result: AtBatResultType.SINGLE,
+            inning: 1,
+            outs: 0,
+          },
+          { type: 'RunnerAdvanced', gameId, runnerId: batter1Id, from: null, to: 'FIRST' },
+          { type: 'CurrentBatterChanged', gameId, previousSlot: 1, newSlot: 2 },
+        ]),
+      };
+      (mockInningState as any).recordAtBat = vi.fn().mockReturnValue(updatedMockInningState);
+
+      // Set up mocks
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(
+        mockInningState as any
+      );
+      vi.mocked(mockTeamLineupRepository.findByGameIdAndSide).mockImplementation(
+        async (_gId, side) => {
+          return side === 'AWAY'
+            ? (mockAwayLineup as any)
+            : (createMockTeamLineup(gameId, 'HOME', batter1Id) as any);
+        }
+      );
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockInningStateRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batter1Id)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - gameState.currentBatter should be batter #1 (who just batted)
+      // NOT batter #2 (who's up next)
+      expect(result.success).toBe(true);
+      expect(result.gameState?.currentBatter?.playerId.value).toBe(batter1Id.value);
+      expect(result.gameState?.currentBatter?.battingOrderPosition).toBe(1);
     });
   });
 
@@ -440,9 +661,47 @@ describe('RecordAtBat Use Case', () => {
 
   describe('Edge Cases and Error Recovery', () => {
     it('should handle double play scenarios that end the inning', async () => {
-      // Arrange - Create a scenario where ground out with multiple outs might be 3rd out
+      // Arrange - Create a scenario where ground out with multiple outs creates 3rd out
       const game = createTestGame();
+      const mockInningState = createMockInningState(gameId);
+
+      // Mock InningState with 1 out already (double play will create 2 more for total of 3)
+      (mockInningState as any).outs = 1;
+
+      const updatedMockInningState = {
+        ...mockInningState,
+        outs: 3, // After double play
+        awayBatterSlot: 2,
+        getUncommittedEvents: vi.fn().mockReturnValue([
+          {
+            type: 'AtBatCompleted',
+            gameId,
+            batterId,
+            battingSlot: 1,
+            result: AtBatResultType.GROUND_OUT,
+            inning: 1,
+            outs: 1,
+          },
+          { type: 'CurrentBatterChanged', gameId, previousSlot: 1, newSlot: 2 },
+          {
+            type: 'HalfInningEnded',
+            gameId,
+            inningNumber: 1,
+            isTopHalf: true,
+            outsCount: 3,
+            awayTeamBatterSlot: 2,
+            homeTeamBatterSlot: 1,
+          },
+        ]),
+      };
+
+      (mockInningState as any).recordAtBat = vi.fn().mockReturnValue(updatedMockInningState);
+
       vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(
+        mockInningState as any
+      );
+      vi.mocked(mockInningStateRepository.save).mockResolvedValue(undefined);
       vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
       vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
 
@@ -471,7 +730,7 @@ describe('RecordAtBat Use Case', () => {
 
       // Assert
       expect(result.success).toBe(true);
-      expect(result.inningEnded).toBe(true); // Should end inning due to double play heuristic
+      expect(result.inningEnded).toBe(true); // Should end inning due to 3 outs
     });
 
     it('should not detect third out for non-ground out results', async () => {
@@ -874,6 +1133,300 @@ describe('RecordAtBat Use Case', () => {
     });
   });
 
+  describe('Aggregate Coordination Tests', () => {
+    it('should load InningState aggregate in processAtBat', async () => {
+      // Arrange
+      const game = createTestGame();
+      const mockInningState = createMockInningState(gameId);
+      const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY', batterId);
+
+      // Mock recordAtBat on InningState
+      const updatedMockInningState = {
+        ...mockInningState,
+        awayBatterSlot: 2, // Advanced from slot 1 to 2
+        getUncommittedEvents: vi.fn().mockReturnValue([
+          {
+            type: 'AtBatCompleted',
+            gameId,
+            batterId,
+            battingSlot: 1,
+            result: AtBatResultType.SINGLE,
+            inning: 1,
+            outs: 0,
+          },
+          { type: 'RunnerAdvanced', gameId, runnerId: batterId, from: null, to: 'FIRST' },
+          { type: 'CurrentBatterChanged', gameId, previousSlot: 1, newSlot: 2 },
+        ]),
+      };
+
+      (mockInningState as any).recordAtBat = vi.fn().mockReturnValue(updatedMockInningState);
+
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(
+        mockInningState as any
+      );
+      vi.mocked(mockInningStateRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockTeamLineupRepository.findByGameIdAndSide).mockImplementation(
+        async (_gId, side) => {
+          return side === 'AWAY'
+            ? (mockAwayLineup as any)
+            : (createMockTeamLineup(gameId, 'HOME', batterId) as any);
+        }
+      );
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(mockInningStateRepository.findCurrentByGameId).toHaveBeenCalledWith(gameId);
+      expect(mockTeamLineupRepository.findByGameIdAndSide).toHaveBeenCalledWith(gameId, 'AWAY');
+    });
+
+    it('should call InningState.recordAtBat() with correct parameters', async () => {
+      // Arrange
+      const game = createTestGame();
+      const mockInningState = createMockInningState(gameId);
+      const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY', batterId);
+
+      const updatedMockInningState = {
+        ...mockInningState,
+        awayBatterSlot: 2,
+        getUncommittedEvents: vi.fn().mockReturnValue([]),
+      };
+
+      (mockInningState as any).recordAtBat = vi.fn().mockReturnValue(updatedMockInningState);
+
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(
+        mockInningState as any
+      );
+      vi.mocked(mockInningStateRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockTeamLineupRepository.findByGameIdAndSide).mockResolvedValue(
+        mockAwayLineup as any
+      );
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect((mockInningState as any).recordAtBat).toHaveBeenCalledWith(
+        batterId,
+        1, // battingSlot
+        AtBatResultType.SINGLE,
+        1 // inning
+      );
+    });
+
+    it('should persist updated InningState after recordAtBat', async () => {
+      // Arrange
+      const game = createTestGame();
+      const mockInningState = createMockInningState(gameId);
+      const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY', batterId);
+
+      const updatedMockInningState = {
+        ...mockInningState,
+        awayBatterSlot: 2,
+        getUncommittedEvents: vi.fn().mockReturnValue([]),
+      };
+
+      (mockInningState as any).recordAtBat = vi.fn().mockReturnValue(updatedMockInningState);
+
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(
+        mockInningState as any
+      );
+      vi.mocked(mockInningStateRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockTeamLineupRepository.findByGameIdAndSide).mockResolvedValue(
+        mockAwayLineup as any
+      );
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(mockInningStateRepository.save).toHaveBeenCalledWith(updatedMockInningState);
+    });
+
+    it('should advance batting order from slot 1 to 2', async () => {
+      // Arrange
+      const game = createTestGame();
+      const mockInningState = createMockInningState(gameId);
+      const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY', batterId);
+
+      const updatedMockInningState = {
+        ...mockInningState,
+        awayBatterSlot: 2, // Advanced from 1 to 2
+        getUncommittedEvents: vi
+          .fn()
+          .mockReturnValue([{ type: 'CurrentBatterChanged', gameId, previousSlot: 1, newSlot: 2 }]),
+      };
+
+      (mockInningState as any).recordAtBat = vi.fn().mockReturnValue(updatedMockInningState);
+
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId)
+        .mockResolvedValueOnce(mockInningState as any) // processAtBat call
+        .mockResolvedValueOnce(updatedMockInningState as any); // buildGameStateDTO call
+      vi.mocked(mockInningStateRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockTeamLineupRepository.findByGameIdAndSide).mockResolvedValue(
+        mockAwayLineup as any
+      );
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.gameState.currentBatterSlot).toBe(1); // Should be 1 (batter who just batted, pre-advancement)
+    });
+
+    it('should use InningState domain events instead of generating stub events', async () => {
+      // Arrange
+      const game = createTestGame();
+      const mockInningState = createMockInningState(gameId);
+      const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY', batterId);
+
+      const domainEvents = [
+        {
+          type: 'AtBatCompleted',
+          gameId,
+          batterId,
+          battingSlot: 1,
+          result: AtBatResultType.SINGLE,
+          inning: 1,
+          outs: 0,
+        },
+        { type: 'RunnerAdvanced', gameId, runnerId: batterId, from: null, to: 'FIRST' },
+        {
+          type: 'CurrentBatterChanged',
+          gameId,
+          previousSlot: 1,
+          newSlot: 2,
+          inning: 1,
+          isTopHalf: true,
+        },
+      ];
+
+      const updatedMockInningState = {
+        ...mockInningState,
+        awayBatterSlot: 2,
+        getUncommittedEvents: vi.fn().mockReturnValue(domainEvents),
+      };
+
+      (mockInningState as any).recordAtBat = vi.fn().mockReturnValue(updatedMockInningState);
+
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(
+        mockInningState as any
+      );
+      vi.mocked(mockInningStateRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockTeamLineupRepository.findByGameIdAndSide).mockResolvedValue(
+        mockAwayLineup as any
+      );
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(true);
+      // Verify that event store was called with events including BatterAdvanced
+      expect(mockEventStore.append).toHaveBeenCalledWith(
+        gameId,
+        'Game',
+        expect.arrayContaining([expect.objectContaining({ type: 'CurrentBatterChanged' })])
+      );
+    });
+
+    it('should handle batting order wrapping from slot 10 to 1', async () => {
+      // Arrange
+      const game = createTestGame();
+      const mockInningState = {
+        ...createMockInningState(gameId),
+        awayBatterSlot: 10, // Starting at slot 10
+      };
+      const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY', batterId);
+
+      const updatedMockInningState = {
+        ...mockInningState,
+        awayBatterSlot: 1, // Wrapped back to 1
+        getUncommittedEvents: vi
+          .fn()
+          .mockReturnValue([
+            { type: 'CurrentBatterChanged', gameId, previousSlot: 10, newSlot: 1 },
+          ]),
+      };
+
+      (mockInningState as any).recordAtBat = vi.fn().mockReturnValue(updatedMockInningState);
+
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId)
+        .mockResolvedValueOnce(mockInningState as any)
+        .mockResolvedValueOnce(updatedMockInningState as any);
+      vi.mocked(mockInningStateRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockTeamLineupRepository.findByGameIdAndSide).mockResolvedValue(
+        mockAwayLineup as any
+      );
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.gameState.currentBatterSlot).toBe(10); // Should be 10 (batter who just batted, pre-advancement)
+    });
+  });
+
   describe('Compensation Failure Handling', () => {
     it('should handle compensation failure when event store fails after game save', async () => {
       // Arrange - Setup scenario where game save succeeds but event store fails
@@ -1025,6 +1578,129 @@ describe('RecordAtBat Use Case', () => {
           operation: 'compensateFailedTransaction',
         })
       );
+    });
+  });
+
+  describe('Inning Transition Bug Investigation', () => {
+    it('should flip isTopHalf from true to false when top half ends with 3rd out', async () => {
+      // Arrange - Create a scenario with 2 outs already, top of 1st inning
+      const game = createTestGame();
+      const batter1Id = new PlayerId(SecureTestUtils.generatePlayerId('batter-1'));
+      const batter2Id = new PlayerId(SecureTestUtils.generatePlayerId('batter-2'));
+      const batter3Id = new PlayerId(SecureTestUtils.generatePlayerId('batter-3'));
+
+      // Mock InningState with 2 outs already (top of 1st)
+      const mockInningState = createMockInningState(gameId);
+      (mockInningState as any).outs = 2; // 2 outs already
+      (mockInningState as any).isTopHalf = true; // Top half
+      (mockInningState as any).inning = 1;
+      (mockInningState as any).awayBatterSlot = 3; // Batter #3 is up
+
+      // Mock lineup
+      const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY', batter3Id);
+      vi.mocked(mockAwayLineup.getPlayerAtSlot).mockImplementation((slot: number) => {
+        if (slot === 1) return batter1Id;
+        if (slot === 2) return batter2Id;
+        if (slot === 3) return batter3Id;
+        return null as any;
+      });
+
+      // Log BEFORE recording 3rd out
+      console.log('\n[TEST] ============ BEFORE RECORDING 3RD OUT ============');
+      console.log('[TEST] BEFORE - inning:', (mockInningState as any).inning);
+      console.log('[TEST] BEFORE - isTopHalf:', (mockInningState as any).isTopHalf);
+      console.log('[TEST] BEFORE - outs:', (mockInningState as any).outs);
+      console.log('[TEST] BEFORE - awayBatterSlot:', (mockInningState as any).awayBatterSlot);
+
+      // Mock the result AFTER recording the 3rd out
+      // The domain layer should transition to bottom of 1st with 0 outs
+      const updatedMockInningState = {
+        ...mockInningState,
+        outs: 0, // Reset to 0 after half-inning ends
+        isTopHalf: false, // THIS SHOULD BE FALSE after top half ends
+        inning: 1, // Same inning
+        awayBatterSlot: 3, // Batter slot might stay the same or advance
+        getUncommittedEvents: vi.fn().mockReturnValue([
+          {
+            type: 'AtBatCompleted',
+            gameId,
+            batterId: batter3Id,
+            battingSlot: 3,
+            result: AtBatResultType.FLY_OUT,
+            inning: 1,
+            outs: 2,
+          },
+          {
+            type: 'HalfInningEnded',
+            gameId,
+            inning: 1,
+            isTopHalf: true, // The half that ENDED
+            finalOuts: 3,
+          },
+          {
+            type: 'HalfInningStarted',
+            gameId,
+            inning: 1,
+            isTopHalf: false, // New half that STARTED
+          },
+        ]),
+      };
+
+      (mockInningState as any).recordAtBat = vi.fn().mockReturnValue(updatedMockInningState);
+
+      // Set up repository mocks
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId)
+        .mockResolvedValueOnce(mockInningState as any) // processAtBat call
+        .mockResolvedValueOnce(updatedMockInningState as any); // buildGameStateDTO call
+      vi.mocked(mockInningStateRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockTeamLineupRepository.findByGameIdAndSide).mockImplementation(
+        async (_gId, side) => {
+          return side === 'AWAY'
+            ? (mockAwayLineup as any)
+            : (createMockTeamLineup(gameId, 'HOME', batter1Id) as any);
+        }
+      );
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batter3Id)
+        .withResult(AtBatResultType.FLY_OUT)
+        .withRunnerAdvances([
+          {
+            playerId: batter3Id,
+            fromBase: null,
+            toBase: 'OUT',
+            advanceReason: 'FLY_OUT',
+          },
+        ])
+        .build();
+
+      // Act - Record the 3rd out
+      const result = await recordAtBat.execute(command);
+
+      // Log AFTER recording 3rd out
+      console.log('\n[TEST] ============ AFTER RECORDING 3RD OUT ============');
+      console.log('[TEST] AFTER - result.success:', result.success);
+      console.log('[TEST] AFTER - result.inningEnded:', result.inningEnded);
+      console.log('[TEST] AFTER - gameState.currentInning:', result.gameState.currentInning);
+      console.log('[TEST] AFTER - gameState.isTopHalf:', result.gameState.isTopHalf);
+      console.log('[TEST] AFTER - gameState.outs:', result.gameState.outs);
+      console.log(
+        '[TEST] AFTER - updatedMockInningState.isTopHalf:',
+        updatedMockInningState.isTopHalf
+      );
+      console.log('[TEST] AFTER - updatedMockInningState.outs:', updatedMockInningState.outs);
+      console.log('[TEST] ===============================================\n');
+
+      // Assert - These will FAIL if the bug exists, showing us actual values
+      expect(result.success).toBe(true);
+      expect(result.inningEnded).toBe(true); // Half-inning should have ended
+      expect(result.gameState.outs).toBe(0); // Outs should reset to 0
+      expect(result.gameState.isTopHalf).toBe(false); // THIS IS THE BUG - should be false but might be true
+      expect(result.gameState.currentInning).toBe(1); // Should still be inning 1
     });
   });
 });

@@ -253,7 +253,7 @@ describe('StartNewGame Core', () => {
 
       expect(result.success).toBe(true);
       expect(result.initialState?.awayLineup.battingSlots).toHaveLength(10);
-      expect(result.initialState?.homeLineup.battingSlots).toHaveLength(0); // Minimal tracking
+      expect(result.initialState?.homeLineup.battingSlots).toHaveLength(10); // Placeholder lineup with 10 positions
     });
 
     it('should create game with custom game rules', async () => {
@@ -517,8 +517,8 @@ describe('StartNewGame Core', () => {
 
       // Home team should have complete lineup
       expect(result.initialState?.homeLineup.battingSlots).toHaveLength(10);
-      // Away team should have minimal tracking
-      expect(result.initialState?.awayLineup.battingSlots).toHaveLength(0);
+      // Away team should have placeholder lineup with 10 positions
+      expect(result.initialState?.awayLineup.battingSlots).toHaveLength(10);
     });
 
     it('should handle coordination when our team is away', async () => {
@@ -530,8 +530,8 @@ describe('StartNewGame Core', () => {
 
       // Away team should have complete lineup
       expect(result.initialState?.awayLineup.battingSlots).toHaveLength(10);
-      // Home team should have minimal tracking
-      expect(result.initialState?.homeLineup.battingSlots).toHaveLength(0);
+      // Home team should have placeholder lineup with 10 positions
+      expect(result.initialState?.homeLineup.battingSlots).toHaveLength(10);
     });
 
     it('should ensure consistent state across all aggregates', async () => {

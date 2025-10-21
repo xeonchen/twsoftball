@@ -1450,7 +1450,7 @@ export class EventSourcingService {
 
       // Create basic lineup for now - in reality would parse from LineupCreated event
       const gameId = GameId.generate(); // Would be parsed from event in real implementation
-      const lineup = TeamLineup.createNew(teamLineupId, gameId, 'Team Name');
+      const lineup = TeamLineup.createNew(teamLineupId, gameId, 'Team Name', 'HOME');
 
       this.logger.debug('TeamLineup aggregate reconstructed successfully', {
         teamLineupId: teamLineupId.value,

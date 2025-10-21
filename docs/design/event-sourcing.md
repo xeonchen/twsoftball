@@ -104,7 +104,19 @@ Events describe what happened, not what should happen:
 class GameStarted extends DomainEvent {}
 class AtBatRecorded extends DomainEvent {}
 class PlayerSubstituted extends DomainEvent {}
-class InningEnded extends DomainEvent {}
+class HalfInningEnded extends DomainEvent {
+  constructor(
+    gameId: GameId,
+    readonly inning: number,
+    readonly wasTopHalf: boolean,
+    readonly finalOuts: number,
+    readonly awayTeamBatterSlot: number,
+    readonly homeTeamBatterSlot: number
+  ) {
+    super();
+    this.gameId = gameId;
+  }
+}
 class GameCompleted extends DomainEvent {}
 
 // ❌ Bad - Present/future tense, sounds like commands
@@ -524,8 +536,8 @@ class Game extends EventSourcedAggregate {
       case 'AtBatRecorded':
         this.whenAtBatRecorded(event as AtBatRecorded);
         break;
-      case 'InningEnded':
-        this.whenInningEnded(event as InningEnded);
+      case 'HalfInningEnded':
+        this.whenHalfInningEnded(event as HalfInningEnded);
         break;
       case 'GameCompleted':
         this.whenGameCompleted(event as GameCompleted);

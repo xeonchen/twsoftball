@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 // Import shared types
+import type { UIGameState } from '../../../shared/api';
 import type { Player, SetupWizardState } from '../../../shared/lib/types';
 
 // Re-export types for external use
@@ -49,6 +50,9 @@ interface GameState {
   setupWizard: SetupWizardState;
   activeGameState: ActiveGameState | null;
   isGameActive: boolean;
+
+  // Phase 5.3.F hydration tracking
+  _hasHydrated: boolean;
 }
 
 /**
@@ -77,6 +81,9 @@ interface GameActions {
   clearBase: (base: 'first' | 'second' | 'third') => void;
   advanceHalfInning: () => void;
   addOut: () => void;
+
+  // Phase 5.3.F DTO sync
+  updateFromDTO: (uiState: UIGameState) => void;
 }
 
 /**
@@ -102,6 +109,9 @@ const initialState: GameState = {
   },
   activeGameState: null,
   isGameActive: false,
+
+  // Phase 5.3.F hydration tracking
+  _hasHydrated: true, // No persist middleware yet, so always hydrated
 };
 
 /**
@@ -353,6 +363,38 @@ export const useGameStore = create<GameStore>((set, get) => ({
         };
       }
     });
+  },
+
+  // Phase 5.3.F DTO sync
+  updateFromDTO: (uiState: UIGameState): void => {
+    set(state => ({
+      currentGame: {
+        id: uiState.gameId,
+        homeTeam: uiState.teams.home.name,
+        awayTeam: uiState.teams.away.name,
+        status:
+          uiState.status === 'IN_PROGRESS'
+            ? 'active'
+            : uiState.status === 'COMPLETED'
+              ? 'completed'
+              : 'waiting',
+        homeScore: uiState.score.home,
+        awayScore: uiState.score.away,
+        currentInning: uiState.inning.number,
+        isTopHalf: uiState.inning.half === 'top',
+      },
+      activeGameState: uiState.currentBatter
+        ? {
+            currentInning: uiState.inning.number,
+            isTopHalf: uiState.inning.half === 'top',
+            currentBatter: uiState.currentBatter || null,
+            bases: uiState.bases || { first: null, second: null, third: null },
+            outs: uiState.outs || 0,
+          }
+        : state.activeGameState,
+      isGameActive: uiState.status === 'IN_PROGRESS',
+      error: null,
+    }));
   },
 
   // Enhanced reset that clears all state

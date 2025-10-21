@@ -134,7 +134,7 @@ endHalfInning(): InningState {
     newInning,
     newIsTopHalf,
     0, // Reset outs
-    1, // Reset to leadoff batter (INCORRECT in docs - actually maintained)
+    currentBatterSlot, // Maintained - NOT reset to 1
     BasesState.empty(), // Clear bases
     ...
   );
@@ -248,21 +248,24 @@ next batter from batting order **UI Behavior**:
    ├─ Clears bases
    └─ Team continues from their current batting position next time they bat
 
-🔍 **Technical Note: Batting Position Continuation Behavior**
+🔍 **Technical Note: Dual-Slot Batting Position Architecture**
 
-The system maintains batting position across innings - each team continues from
-where they left off:
-- **Current Implementation**: Single `currentBatterSlot` value in InningState
-- **Continuation Logic**: When half-inning ends, `currentBatterSlot` is
-  maintained (NOT reset)
+The system maintains batting position across innings using a dual-slot design:
+- **Dual-Slot Storage**: InningState tracks `awayTeamBatterSlot` and
+  `homeTeamBatterSlot` internally
+- **Computed Accessor**: `currentBatterSlot` is a getter that returns the
+  appropriate slot based on `isTopHalf`
+- **No Cross-Aggregate Queries**: Both teams' batting positions are preserved
+  within InningState
 - **Team Independence**: Each team maintains their own batting position
   independently throughout the game
 
 When teams switch at half-inning transitions:
 1. System ends the current half-inning (3 outs reached)
 2. System resets outs to 0, clears bases
-3. System maintains currentBatterSlot position (continues batting order)
+3. System preserves both awayTeamBatterSlot and homeTeamBatterSlot (NOT reset)
 4. System switches teams (isTopHalf toggles)
+5. System continues batting order from the appropriate preserved slot
 
 Example:
 - Top 1st: Away bats slots 1, 2, 3, 4 → Slot #4 makes 3rd out
@@ -271,12 +274,13 @@ Example:
   to #1)
 
 4. InningState.endHalfInning() execution
+   ├─ Emits HalfInningEnded event with both team slots preserved
    ├─ Toggles isTopHalf (TOP → BOTTOM or BOTTOM → TOP)
    ├─ Resets outs to 0
    ├─ Clears bases
-   ├─ Maintains currentBatterSlot position ✅
+   ├─ Preserves both awayTeamBatterSlot and homeTeamBatterSlot ✅
    │  └─ Each team continues from where they left off
-   └─ Sets currentBatter from new team's lineup at maintained slot ✅ AUTOMATIC
+   └─ currentBatterSlot getter returns the appropriate team's slot ✅ AUTOMATIC
 
 5. UI updates to show new half-inning
    ├─ Scoreboard: "Bottom 1st" or "Top 2nd"
@@ -1223,9 +1227,16 @@ happen.** Business rule violation.
 
 ```typescript
 // InningState.advanceBattingOrder() method
-this.currentBatterSlot = (this.currentBatterSlot % totalSlots) + 1;
+const maxSlot = InningState.determineMaxBattingSlot(currentSlot);
+
+let nextSlot: number;
+if (currentSlot >= maxSlot) {
+  nextSlot = 1; // Cycle back to 1
+} else {
+  nextSlot = currentSlot + 1;
+}
 // If totalSlots = 10, currentBatterSlot = 10:
-// (10 % 10) + 1 = 0 + 1 = 1 ✅
+// currentSlot (10) >= maxSlot (10) → nextSlot = 1 ✅
 ```
 
 **Business Rationale**: Batting order is a circular sequence. After the last
@@ -1326,12 +1337,13 @@ private advanceBattingOrder(currentSlot: number): InningState {
   // Emits CurrentBatterChanged event
 }
 
-// 4. Half-inning transition maintains slot position
+// 4. Half-inning transition preserves both team slots
 // File: packages/domain/src/aggregates/InningState.ts
 // Method: InningState.endHalfInning()
-endHalfInning(): void {
-  // Does NOT reset currentBatterSlot to 1
-  // Slot position maintained for next time this team bats
+endHalfInning(): InningState {
+  // Both teams' batting slots are preserved (NOT reset to 1)
+  // Each team continues from where they left off when their turn comes again
+  // Returns new InningState with both awayTeamBatterSlot and homeTeamBatterSlot maintained
 }
 ```
 

@@ -36,7 +36,8 @@ describe('GameCoordinator - Complex Scenarios', () => {
   const createTestGame = (): Game => Game.createNew(gameId, 'Home Team', 'Away Team');
 
   const createTestLineup = (lineupId: TeamLineupId, teamName: string): TeamLineup => {
-    let lineup = TeamLineup.createNew(lineupId, gameId, teamName);
+    const teamSide = teamName.includes('Home') ? 'HOME' : 'AWAY';
+    let lineup = TeamLineup.createNew(lineupId, gameId, teamName, teamSide);
 
     // Standard softball positions for 9 players
     const positions = [
