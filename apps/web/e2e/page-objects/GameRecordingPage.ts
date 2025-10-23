@@ -456,7 +456,6 @@ export class GameRecordingPageObject {
       expectedIsTopHalf => {
         const stateJson = sessionStorage.getItem('game-state');
         if (!stateJson) {
-          console.log('[E2E waitForFunction] No game-state in sessionStorage');
           return false;
         }
         const state = JSON.parse(stateJson);
@@ -464,18 +463,11 @@ export class GameRecordingPageObject {
         const outs = state.state?.activeGameState?.outs ?? state.outs ?? -1;
         const isTopHalf = state.state?.activeGameState?.isTopHalf ?? state.isTopHalf ?? true;
 
-        console.log('[E2E waitForFunction] Polling sessionStorage:', {
-          outs,
-          isTopHalf,
-          expectedIsTopHalf,
-          matches: outs === 0 && isTopHalf === expectedIsTopHalf,
-        });
-
         // Wait for BOTH outs to reset AND isTopHalf to flip
         return outs === 0 && isTopHalf === expectedIsTopHalf;
       },
       !wasTopHalf, // Expect the opposite of what we had
-      { timeout: 5000, polling: 100 }
+      { timeout: 10000, polling: 100 } // Increased timeout for Firefox compatibility
     );
   }
 

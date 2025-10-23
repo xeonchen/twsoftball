@@ -414,16 +414,43 @@ export class RecordAtBat {
       inningState.inning
     );
 
-    // Step 5: Persist updated InningState
-    await this.inningStateRepository.save(updatedInningState);
-
-    // Step 6: Calculate additional results
-    const runsScored = this.calculateRunsScored(command.runnerAdvances || []);
-    const rbiAwarded = this.calculateRBI(command.result, command.runnerAdvances || []);
-    // Check domain events instead of post-transition state
+    // Step 5: Extract events IMMEDIATELY (before save clears them)
     const events = updatedInningState.getUncommittedEvents();
     const inningEnded = events.some(e => e.type === 'HalfInningEnded');
-    const gameEnded = false; // Would implement full game ending logic
+
+    // Step 6: Persist updated InningState (this clears uncommitted events)
+    await this.inningStateRepository.save(updatedInningState);
+
+    // Step 7: Calculate additional results
+    const runsScored = this.calculateRunsScored(command.runnerAdvances || []);
+    const rbiAwarded = this.calculateRBI(command.result, command.runnerAdvances || []);
+
+    // Step 8: Update game score with runs from this at-bat
+    if (runsScored > 0) {
+      if (battingTeamSide === 'HOME') {
+        game.addHomeRuns(runsScored);
+      } else {
+        game.addAwayRuns(runsScored);
+      }
+      await this.gameRepository.save(game);
+    }
+
+    // Step 9: Check if game should end
+    let gameEnded = false;
+
+    // Check for walk-off win (home team wins in bottom of 7+ before inning ends)
+    if (!inningEnded && game.isWalkOffScenario()) {
+      game.completeGame('REGULATION');
+      await this.gameRepository.save(game);
+      gameEnded = true;
+    }
+    // Check for normal completion after regulation 7 innings
+    else if (inningEnded && updatedInningState.inning === 8 && updatedInningState.isTopHalf) {
+      // Game should end when we advance past inning 7 (now in top of 8th)
+      game.completeGame('REGULATION');
+      await this.gameRepository.save(game);
+      gameEnded = true;
+    }
 
     return {
       runsScored,

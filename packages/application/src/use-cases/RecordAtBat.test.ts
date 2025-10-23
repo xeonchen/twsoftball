@@ -237,8 +237,8 @@ describe('RecordAtBat Use Case', () => {
       expect(result.gameEnded).toBe(false);
       expect(result.errors).toBeUndefined();
 
-      // Verify persistence
-      expect(mockGameRepository.save).toHaveBeenCalledTimes(1);
+      // Verify persistence (2 saves: one for score update, one for final state)
+      expect(mockGameRepository.save).toHaveBeenCalledTimes(2);
       expect(mockEventStore.append).toHaveBeenCalled();
     });
 

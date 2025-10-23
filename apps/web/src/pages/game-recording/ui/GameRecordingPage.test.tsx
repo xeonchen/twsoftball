@@ -1697,7 +1697,7 @@ describe('GameRecordingPage Component', () => {
 
         // Should record at-bat with no runner advancement needed
         expect(mockRecordAtBat).toHaveBeenCalledWith({
-          result: 'single',
+          result: '1B',
           runnerAdvances: [{ runnerId: 'player-1', fromBase: 0, toBase: 1 }],
         });
       });
@@ -1729,7 +1729,7 @@ describe('GameRecordingPage Component', () => {
         await user.click(outButton);
 
         expect(mockRecordAtBat).toHaveBeenCalledWith({
-          result: 'out',
+          result: 'OUT',
           runnerAdvances: [],
         });
       });
@@ -1809,7 +1809,7 @@ describe('GameRecordingPage Component', () => {
         await user.click(homerunButton);
 
         expect(homeRunMocks.recordAtBat.recordAtBat).toHaveBeenCalledWith({
-          result: 'homerun',
+          result: 'HOMERUN',
           runnerAdvances: [
             { runnerId: 'player-1', fromBase: 0, toBase: 0 },
             { runnerId: 'runner-1', fromBase: 1, toBase: 0 },
@@ -1857,7 +1857,7 @@ describe('GameRecordingPage Component', () => {
         await user.click(tripleButton);
 
         expect(tripleMocks.recordAtBat.recordAtBat).toHaveBeenCalledWith({
-          result: 'triple',
+          result: '3B',
           runnerAdvances: [{ runnerId: 'player-1', fromBase: 0, toBase: 3 }],
         });
       });
@@ -2039,7 +2039,7 @@ describe('GameRecordingPage Component', () => {
 
         // All runners advance automatically, no manual configuration needed
         expect(automaticAdvancesMocks.recordAtBat.recordAtBat).toHaveBeenCalledWith({
-          result: 'walk',
+          result: 'BB',
           runnerAdvances: [
             { runnerId: 'player-1', fromBase: 0, toBase: 1 },
             { runnerId: 'runner-1', fromBase: 1, toBase: 2 },
@@ -2149,7 +2149,7 @@ describe('GameRecordingPage Component', () => {
 
         // Should call recordAtBat with the expected runner advances
         expect(basesUpdateMocks.recordAtBat.recordAtBat).toHaveBeenCalledWith({
-          result: 'double',
+          result: '2B',
           runnerAdvances: [{ runnerId: 'player-1', fromBase: 0, toBase: 2 }],
         });
       });
@@ -2776,7 +2776,7 @@ describe('GameRecordingPage Component', () => {
 
         // Should record at least once (component allows multiple calls currently)
         expect(mockRecordAtBat).toHaveBeenCalledWith({
-          result: 'single',
+          result: '1B',
           runnerAdvances: [{ runnerId: 'player-1', fromBase: 0, toBase: 1 }],
         });
         expect(mockRecordAtBat).toHaveBeenCalled();
@@ -2827,7 +2827,7 @@ describe('GameRecordingPage Component', () => {
         await user.click(singleButton);
 
         expect(mockRecordAtBat).toHaveBeenCalledWith({
-          result: 'single',
+          result: '1B',
           runnerAdvances: [{ runnerId: 'player-1', fromBase: 0, toBase: 1 }],
         });
       });
@@ -2862,7 +2862,7 @@ describe('GameRecordingPage Component', () => {
         await user.keyboard('{Enter}');
 
         expect(mockRecordAtBat).toHaveBeenCalledWith({
-          result: 'single',
+          result: '1B',
           runnerAdvances: [{ runnerId: 'player-1', fromBase: 0, toBase: 1 }],
         });
       });

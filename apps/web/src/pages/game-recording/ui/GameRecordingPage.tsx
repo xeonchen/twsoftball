@@ -36,6 +36,53 @@ const RBI_NOTIFICATION_DURATION_MS = 3000;
 const logger = createLogger('development', 'GameRecordingPage');
 
 /**
+ * Map action button IDs to domain at-bat result types
+ */
+const mapActionToAtBatResult = (actionType: string): AtBatResultType => {
+  const actionMap: Record<string, AtBatResultType> = {
+    single: AtBatResultType.SINGLE,
+    double: AtBatResultType.DOUBLE,
+    triple: AtBatResultType.TRIPLE,
+    homerun: AtBatResultType.HOME_RUN,
+    walk: AtBatResultType.WALK,
+    out: AtBatResultType.GROUND_OUT, // Default 'out' to ground out
+    strikeout: AtBatResultType.STRIKEOUT,
+    groundout: AtBatResultType.GROUND_OUT,
+    flyout: AtBatResultType.FLY_OUT,
+    error: AtBatResultType.ERROR,
+    fielderschoice: AtBatResultType.FIELDERS_CHOICE,
+    sacfly: AtBatResultType.SACRIFICE_FLY,
+    doubleplay: AtBatResultType.DOUBLE_PLAY,
+    tripleplay: AtBatResultType.TRIPLE_PLAY,
+  };
+  return actionMap[actionType] || (actionType.toUpperCase() as AtBatResultType);
+};
+
+/**
+ * Map action button IDs to result strings for the API
+ * This mapping is used when sending data to the application layer
+ */
+const mapActionToResultString = (actionType: string): string => {
+  const resultMap: Record<string, string> = {
+    single: '1B',
+    double: '2B',
+    triple: '3B',
+    homerun: 'HOMERUN',
+    walk: 'BB',
+    out: 'OUT',
+    strikeout: 'STRIKEOUT',
+    groundout: 'GROUND_OUT',
+    flyout: 'FLY_OUT',
+    error: 'ERROR',
+    fielderschoice: 'FIELDERS_CHOICE',
+    sacfly: 'SACRIFICE_FLY',
+    doubleplay: 'DOUBLE_PLAY',
+    tripleplay: 'TRIPLE_PLAY',
+  };
+  return resultMap[actionType] || actionType.toUpperCase();
+};
+
+/**
  * Game Recording Page Component
  *
  * Implements Screen 5: Game Recording (Main Interface) from wireframes.md
@@ -162,29 +209,6 @@ export function GameRecordingPage(): ReactElement {
       resetErrorRecovery();
     }
   }, [error, setErrorRecovery, resetErrorRecovery]);
-
-  /**
-   * Map action button IDs to domain at-bat result types
-   */
-  const mapActionToAtBatResult = (actionType: string): AtBatResultType => {
-    const actionMap: Record<string, AtBatResultType> = {
-      single: AtBatResultType.SINGLE,
-      double: AtBatResultType.DOUBLE,
-      triple: AtBatResultType.TRIPLE,
-      homerun: AtBatResultType.HOME_RUN,
-      walk: AtBatResultType.WALK,
-      out: AtBatResultType.GROUND_OUT, // Default 'out' to ground out
-      strikeout: AtBatResultType.STRIKEOUT,
-      groundout: AtBatResultType.GROUND_OUT,
-      flyout: AtBatResultType.FLY_OUT,
-      error: AtBatResultType.ERROR,
-      fielderschoice: AtBatResultType.FIELDERS_CHOICE,
-      sacfly: AtBatResultType.SACRIFICE_FLY,
-      doubleplay: AtBatResultType.DOUBLE_PLAY,
-      tripleplay: AtBatResultType.TRIPLE_PLAY,
-    };
-    return actionMap[actionType] || (actionType.toUpperCase() as AtBatResultType);
-  };
 
   /**
    * Determine if an at-bat result requires manual runner advancement
@@ -314,7 +338,7 @@ export function GameRecordingPage(): ReactElement {
 
       try {
         await recordAtBat({
-          result: actionType,
+          result: mapActionToResultString(actionType),
           runnerAdvances: advances,
         });
       } catch (_err) {
@@ -360,7 +384,7 @@ export function GameRecordingPage(): ReactElement {
 
     try {
       await recordAtBat({
-        result: pendingAtBatResult,
+        result: mapActionToResultString(pendingAtBatResult),
         runnerAdvances,
       });
 
