@@ -172,63 +172,23 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
   }
 
   async findByGameId(gameId: GameId): Promise<TeamLineup[]> {
-    console.log('[Repository.findByGameId] START - Looking for lineups:', { gameId: gameId.value });
-
     // Get all events from event store
     const allEvents = await this.eventStore.getAllEvents();
 
-    console.log('[Repository.findByGameId] Retrieved events from store:', {
-      totalEvents: allEvents?.length || 0,
-      gameId: gameId.value,
-    });
-
     // Handle case where getAllEvents returns undefined or null
     if (!allEvents) {
-      console.log('[Repository.findByGameId] No events found, returning empty array');
       return [];
     }
 
-    // Log all events before filtering
-    console.log('[Repository.findByGameId] All events before filtering:', {
-      count: allEvents.length,
-      events: allEvents.map(e => ({
-        eventType: e.eventType,
-        aggregateType: e.aggregateType,
-        streamId: e.streamId,
-        streamVersion: e.streamVersion,
-      })),
-    });
-
     // Group events by streamId to reconstruct each lineup
     const lineupEventGroups = this.groupEventsByStreamId(allEvents, 'TeamLineup');
-
-    console.log('[Repository.findByGameId] Grouped events by streamId:', {
-      numberOfGroups: lineupEventGroups.size,
-      streamIds: Array.from(lineupEventGroups.keys()),
-    });
 
     // Reconstruct lineups and filter by gameId
     const lineups: TeamLineup[] = [];
     for (const [streamId, events] of Array.from(lineupEventGroups)) {
       if (events.length > 0) {
-        console.log(`[Repository.findByGameId] Processing streamId ${streamId}:`, {
-          eventCount: events.length,
-          firstEventType: events[0]?.eventType,
-          eventTypes: events.map(e => e.eventType),
-        });
-
         // [FAIL FAST] Validate first event is TeamLineupCreated
         if (events[0]?.eventType !== 'TeamLineupCreated') {
-          console.error(
-            `[Repository.findByGameId] CRITICAL: First event is NOT TeamLineupCreated for streamId ${streamId}`,
-            {
-              firstEventType: events[0]?.eventType,
-              firstEventData: events[0]?.eventData
-                ? JSON.stringify(JSON.parse(events[0].eventData), null, 2)
-                : 'null',
-              allEventTypes: events.map((e, idx) => `${idx}: ${e.eventType}`),
-            }
-          );
           throw new Error(
             `[Repository.findByGameId] Event ordering violation: streamId ${streamId} starts with ${events[0]?.eventType} instead of TeamLineupCreated. ` +
               `This indicates events are being grouped incorrectly or stored with wrong streamId.`
@@ -242,11 +202,6 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
         }
       }
     }
-
-    console.log('[Repository.findByGameId] Returning lineups:', {
-      lineupCount: lineups.length,
-      teamNames: lineups.map(l => l.teamName),
-    });
 
     return lineups;
   }
@@ -294,23 +249,9 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
     allEvents: StoredEvent[],
     aggregateType: string
   ): Map<string, StoredEvent[]> {
-    console.log('[Repository.groupEventsByStreamId] START', {
-      totalEvents: allEvents.length,
-      aggregateType,
-    });
-
     const groupedEvents = new Map<string, StoredEvent[]>();
 
     for (const event of allEvents) {
-      console.log('[Repository.groupEventsByStreamId] Processing event:', {
-        eventType: event.eventType,
-        aggregateType: event.aggregateType,
-        streamId: event.streamId,
-        streamVersion: event.streamVersion,
-        timestamp: event.timestamp,
-        matches: event.aggregateType === aggregateType,
-      });
-
       if (event.aggregateType === aggregateType) {
         const streamId = event.streamId;
         if (!groupedEvents.has(streamId)) {
@@ -320,20 +261,9 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
       }
     }
 
-    console.log('[Repository.groupEventsByStreamId] Grouped into', groupedEvents.size, 'streams');
-
     // [FIX] Sort events within each stream by timestamp to ensure correct order
     // IndexedDB's openCursor() does not guarantee order, so we must sort explicitly
     for (const [streamId, events] of groupedEvents.entries()) {
-      console.log('[Repository.groupEventsByStreamId] BEFORE SORT - Stream:', streamId, {
-        eventCount: events.length,
-        events: events.map(e => ({
-          type: e.eventType,
-          version: e.streamVersion,
-          timestamp: e.timestamp.toISOString(),
-        })),
-      });
-
       events.sort((a, b) => {
         // Primary sort: streamVersion (ensures creation event comes first)
         if (a.streamVersion !== b.streamVersion) {
@@ -343,28 +273,9 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
         return a.timestamp.getTime() - b.timestamp.getTime();
       });
 
-      console.log('[Repository.groupEventsByStreamId] AFTER SORT - Stream:', streamId, {
-        eventCount: events.length,
-        events: events.map(e => ({
-          type: e.eventType,
-          version: e.streamVersion,
-          timestamp: e.timestamp.toISOString(),
-        })),
-      });
-
       // [FAIL FAST] Validate first event
       const firstEvent = events[0];
       if (!firstEvent || firstEvent.eventType !== 'TeamLineupCreated') {
-        console.error(
-          '[Repository.groupEventsByStreamId] CRITICAL ERROR - First event is NOT TeamLineupCreated:',
-          {
-            streamId,
-            actualFirstEvent: firstEvent?.eventType ?? 'undefined',
-            firstEventVersion: firstEvent?.streamVersion ?? 'N/A',
-            firstEventTimestamp: firstEvent?.timestamp.toISOString() ?? 'N/A',
-            allEvents: events.map(e => ({ type: e.eventType, version: e.streamVersion })),
-          }
-        );
         throw new Error(
           `[Repository] CRITICAL: First event in stream ${streamId} is "${firstEvent?.eventType ?? 'undefined'}", expected "TeamLineupCreated". ` +
             `All events: ${events.map(e => `${e.eventType}(v${e.streamVersion})`).join(', ')}`

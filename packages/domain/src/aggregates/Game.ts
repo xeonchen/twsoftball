@@ -5,6 +5,7 @@ import { GameCompleted } from '../events/GameCompleted.js';
 import { GameCreated } from '../events/GameCreated.js';
 import { GameStarted } from '../events/GameStarted.js';
 import { InningAdvanced } from '../events/InningAdvanced.js';
+import { RunScored } from '../events/RunScored.js';
 import { ScoreUpdated } from '../events/ScoreUpdated.js';
 import { GameId } from '../value-objects/GameId.js';
 import { GameScore } from '../value-objects/GameScore.js';
@@ -820,7 +821,8 @@ export class Game {
    * @remarks
    * **Event Application Logic:**
    * - GameStarted: Changes status from NOT_STARTED to IN_PROGRESS
-   * - ScoreUpdated: Updates game score with new totals
+   * - RunScored: Updates game score when runs are scored during at-bats
+   * - ScoreUpdated: Updates game score with new totals (legacy, used in tests)
    * - InningAdvanced: Updates current inning and half-inning state
    * - GameCompleted: Changes status to COMPLETED
    *
@@ -865,6 +867,12 @@ export class Game {
           completedEvent.finalScore.home,
           completedEvent.finalScore.away
         );
+        break;
+      }
+
+      case 'RunScored': {
+        const runEvent = event as RunScored;
+        this.gameScore = GameScore.fromRuns(runEvent.newScore.home, runEvent.newScore.away);
         break;
       }
 

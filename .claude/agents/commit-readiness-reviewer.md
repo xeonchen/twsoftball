@@ -2,7 +2,7 @@
 name: commit-readiness-reviewer
 description: Use this agent when you need to review code changes before committing to ensure they meet architectural standards and best practices. This agent performs deep design analysis that CI tools cannot automate. Examples:\n\n<example>\nContext: User has completed implementing a new feature\nuser: "I've finished implementing the Game entity, please review if it's ready to commit"\nassistant: "I'll use the commit-readiness-reviewer agent to analyze the design quality and architecture compliance"\n<commentary>\nThe user has completed code and wants architecture-level review that goes beyond CI checks.\n</commentary>\n</example>\n\n<example>\nContext: After significant code changes\nassistant: "I've completed the RecordAtBat use case. Let me use the commit-readiness-reviewer to ensure it meets our architectural standards"\n<commentary>\nProactively using the reviewer after implementing significant functionality to ensure design quality.\n</commentary>\n</example>\n\n<example>\nContext: User wants to validate design decisions\nuser: "Review my changes for architecture compliance and design quality"\nassistant: "I'll invoke the commit-readiness-reviewer to perform a deep design analysis"\n<commentary>\nFocus on design patterns, SOLID principles, and architectural boundaries rather than linting or formatting.\n</commentary>\n</example>
 tools: Bash, Glob, Grep, Read, WebFetch, TodoWrite, WebSearch, BashOutput, KillBash
-model: opus
+model: sonnet
 color: purple
 ---
 
