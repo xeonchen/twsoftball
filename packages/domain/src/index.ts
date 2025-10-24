@@ -41,6 +41,7 @@ export * from './events/PlayerAddedToLineup.js';
 export * from './events/InningStateCreated.js';
 export * from './events/HalfInningEnded.js';
 export * from './events/CurrentBatterChanged.js';
+export * from './events/BatterAdvancedInLineup.js';
 
 // Business Rules
 export * from './rules/SoftballRules.js';

@@ -631,11 +631,21 @@ export class DIContainer {
       async () => {
         const { RecordAtBat } = await import('../use-cases/RecordAtBat.js');
         const gameRepository = await this.resolve<GameRepository>('gameRepository');
+        const inningStateRepository =
+          await this.resolve<InningStateRepository>('inningStateRepository');
+        const teamLineupRepository =
+          await this.resolve<TeamLineupRepository>('teamLineupRepository');
         const eventStore = await this.resolve<EventStore>('eventStore');
         const logger = await this.resolve<Logger>('logger');
-        return new RecordAtBat(gameRepository, eventStore, logger);
+        return new RecordAtBat(
+          gameRepository,
+          inningStateRepository,
+          teamLineupRepository,
+          eventStore,
+          logger
+        );
       },
-      ['gameRepository', 'eventStore', 'logger'],
+      ['gameRepository', 'inningStateRepository', 'teamLineupRepository', 'eventStore', 'logger'],
       { description: 'RecordAtBat use case with dependencies' }
     );
 
@@ -659,11 +669,21 @@ export class DIContainer {
       async () => {
         const { UndoLastAction } = await import('../use-cases/UndoLastAction.js');
         const gameRepository = await this.resolve<GameRepository>('gameRepository');
+        const inningStateRepository =
+          await this.resolve<InningStateRepository>('inningStateRepository');
+        const teamLineupRepository =
+          await this.resolve<TeamLineupRepository>('teamLineupRepository');
         const eventStore = await this.resolve<EventStore>('eventStore');
         const logger = await this.resolve<Logger>('logger');
-        return new UndoLastAction(gameRepository, eventStore, logger);
+        return new UndoLastAction(
+          gameRepository,
+          inningStateRepository,
+          teamLineupRepository,
+          eventStore,
+          logger
+        );
       },
-      ['gameRepository', 'eventStore', 'logger'],
+      ['gameRepository', 'inningStateRepository', 'teamLineupRepository', 'eventStore', 'logger'],
       { description: 'UndoLastAction use case with dependencies' }
     );
 
@@ -673,11 +693,21 @@ export class DIContainer {
       async () => {
         const { RedoLastAction } = await import('../use-cases/RedoLastAction.js');
         const gameRepository = await this.resolve<GameRepository>('gameRepository');
+        const inningStateRepository =
+          await this.resolve<InningStateRepository>('inningStateRepository');
+        const teamLineupRepository =
+          await this.resolve<TeamLineupRepository>('teamLineupRepository');
         const eventStore = await this.resolve<EventStore>('eventStore');
         const logger = await this.resolve<Logger>('logger');
-        return new RedoLastAction(gameRepository, eventStore, logger);
+        return new RedoLastAction(
+          gameRepository,
+          inningStateRepository,
+          teamLineupRepository,
+          eventStore,
+          logger
+        );
       },
-      ['gameRepository', 'eventStore', 'logger'],
+      ['gameRepository', 'inningStateRepository', 'teamLineupRepository', 'eventStore', 'logger'],
       { description: 'RedoLastAction use case with dependencies' }
     );
 
@@ -687,11 +717,21 @@ export class DIContainer {
       async () => {
         const { EndInning } = await import('../use-cases/EndInning.js');
         const gameRepository = await this.resolve<GameRepository>('gameRepository');
+        const inningStateRepository =
+          await this.resolve<InningStateRepository>('inningStateRepository');
+        const teamLineupRepository =
+          await this.resolve<TeamLineupRepository>('teamLineupRepository');
         const eventStore = await this.resolve<EventStore>('eventStore');
         const logger = await this.resolve<Logger>('logger');
-        return new EndInning(gameRepository, eventStore, logger);
+        return new EndInning(
+          gameRepository,
+          inningStateRepository,
+          teamLineupRepository,
+          eventStore,
+          logger
+        );
       },
-      ['gameRepository', 'eventStore', 'logger'],
+      ['gameRepository', 'inningStateRepository', 'teamLineupRepository', 'eventStore', 'logger'],
       { description: 'EndInning use case with dependencies' }
     );
   }

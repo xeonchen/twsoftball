@@ -71,6 +71,14 @@ describe('DTO Mapper', () => {
           created: '2024-09-16T20:00:00.000Z',
           lastModified: '2024-09-16T21:30:00.000Z',
         },
+        currentBatter: null,
+        bases: {
+          first: null,
+          second: null,
+          third: null,
+        },
+        outs: 0,
+        battingTeam: 'away',
       });
     });
 
@@ -126,6 +134,14 @@ describe('DTO Mapper', () => {
           created: '',
           lastModified: '',
         },
+        currentBatter: null,
+        bases: {
+          first: null,
+          second: null,
+          third: null,
+        },
+        outs: 0,
+        battingTeam: 'away',
       });
     });
 

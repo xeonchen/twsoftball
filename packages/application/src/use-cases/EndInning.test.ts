@@ -6,6 +6,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any*/
 /* eslint-disable @typescript-eslint/require-await*/
 /* eslint-disable @typescript-eslint/explicit-function-return-type*/
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 
 import { Game, GameId, GameStatus, DomainError } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -13,13 +15,71 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EndInningCommand } from '../dtos/EndInningCommand.js';
 import { EventStore } from '../ports/out/EventStore.js';
 import { GameRepository } from '../ports/out/GameRepository.js';
+import { InningStateRepository } from '../ports/out/InningStateRepository.js';
 import { Logger } from '../ports/out/Logger.js';
+import { TeamLineupRepository } from '../ports/out/TeamLineupRepository.js';
+import {
+  createMockInningStateRepository,
+  createMockTeamLineupRepository,
+} from '../test-factories/index.js';
 
 import { EndInning } from './EndInning.js';
+
+/**
+ * Helper to create a minimal mock InningState for testing.
+ * Returns mock data that satisfies the interface methods used by EndInning.
+ */
+function createMockInningState(gameIdParam: GameId) {
+  return {
+    id: { value: `inning-state-${gameIdParam.value}` },
+    gameId: gameIdParam,
+    inning: 1,
+    isTopHalf: true,
+    outs: 0,
+    awayBatterSlot: 1,
+    homeBatterSlot: 1,
+    getBases: vi.fn().mockReturnValue({
+      first: null,
+      second: null,
+      third: null,
+      runnersInScoringPosition: [],
+      basesLoaded: false,
+    }),
+  };
+}
+
+/**
+ * Helper to create a minimal mock TeamLineup for testing.
+ * Returns mock data that satisfies the interface methods used by EndInning.
+ */
+function createMockTeamLineup(gameIdParam: GameId, teamSide: 'HOME' | 'AWAY') {
+  const playerId = { value: `player-${teamSide.toLowerCase()}-1` };
+  return {
+    id: { value: `lineup-${teamSide.toLowerCase()}-${gameIdParam.value}` },
+    gameId: gameIdParam,
+    teamName: teamSide === 'HOME' ? 'Home Team' : 'Away Team',
+    getPlayerAtSlot: vi.fn().mockReturnValue(playerId),
+    getPlayerInfo: vi.fn().mockReturnValue({
+      playerName: 'Test Player',
+      jerseyNumber: { value: '10' },
+      currentPosition: 'SHORTSTOP',
+    }),
+    getActiveLineup: vi.fn().mockReturnValue([
+      {
+        position: 1,
+        getCurrentPlayer: vi.fn().mockReturnValue(playerId),
+        history: [],
+      },
+    ]),
+    getFieldingPositions: vi.fn().mockReturnValue(new Map()),
+  };
+}
 
 describe('EndInning Use Case', () => {
   let useCase: EndInning;
   let mockGameRepository: GameRepository;
+  let mockInningStateRepository: InningStateRepository;
+  let mockTeamLineupRepository: TeamLineupRepository;
   let mockEventStore: EventStore;
   let mockLogger: Logger;
   let gameId: GameId;
@@ -51,6 +111,9 @@ describe('EndInning Use Case', () => {
       delete: vi.fn(),
     } as GameRepository;
 
+    mockInningStateRepository = createMockInningStateRepository();
+    mockTeamLineupRepository = createMockTeamLineupRepository();
+
     mockEventStore = {
       append: mockAppend,
       getEvents: mockGetEvents,
@@ -70,7 +133,13 @@ describe('EndInning Use Case', () => {
     } as Logger;
 
     // Create use case instance
-    useCase = new EndInning(mockGameRepository, mockEventStore, mockLogger);
+    useCase = new EndInning(
+      mockGameRepository,
+      mockInningStateRepository,
+      mockTeamLineupRepository,
+      mockEventStore,
+      mockLogger
+    );
 
     // Create test data
     gameId = GameId.generate();
@@ -89,6 +158,21 @@ describe('EndInning Use Case', () => {
     // Create mock game
     mockGame = Game.createNew(gameId, 'Home Team', 'Away Team');
     mockGame.startGame(); // Game is in progress
+
+    // Configure mock InningState and TeamLineup data for successful scenarios
+    // This must come after gameId is created
+    const mockInningState = createMockInningState(gameId);
+    const mockHomeLineup = createMockTeamLineup(gameId, 'HOME');
+    const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY');
+
+    vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(
+      mockInningState as any
+    );
+    vi.mocked(mockTeamLineupRepository.findByGameIdAndSide).mockImplementation(
+      async (_gId, side) => {
+        return side === 'HOME' ? (mockHomeLineup as any) : (mockAwayLineup as any);
+      }
+    );
   });
 
   describe('Constructor', () => {
@@ -99,13 +183,54 @@ describe('EndInning Use Case', () => {
 
     it('should require all dependencies', () => {
       expect(
-        () => new EndInning(null as unknown as GameRepository, mockEventStore, mockLogger)
+        () =>
+          new EndInning(
+            null as unknown as GameRepository,
+            mockInningStateRepository,
+            mockTeamLineupRepository,
+            mockEventStore,
+            mockLogger
+          )
       ).toThrow();
       expect(
-        () => new EndInning(mockGameRepository, null as unknown as EventStore, mockLogger)
+        () =>
+          new EndInning(
+            mockGameRepository,
+            null as unknown as InningStateRepository,
+            mockTeamLineupRepository,
+            mockEventStore,
+            mockLogger
+          )
       ).toThrow();
       expect(
-        () => new EndInning(mockGameRepository, mockEventStore, null as unknown as Logger)
+        () =>
+          new EndInning(
+            mockGameRepository,
+            mockInningStateRepository,
+            null as unknown as TeamLineupRepository,
+            mockEventStore,
+            mockLogger
+          )
+      ).toThrow();
+      expect(
+        () =>
+          new EndInning(
+            mockGameRepository,
+            mockInningStateRepository,
+            mockTeamLineupRepository,
+            null as unknown as EventStore,
+            mockLogger
+          )
+      ).toThrow();
+      expect(
+        () =>
+          new EndInning(
+            mockGameRepository,
+            mockInningStateRepository,
+            mockTeamLineupRepository,
+            mockEventStore,
+            null as unknown as Logger
+          )
       ).toThrow();
     });
   });
@@ -355,6 +480,15 @@ describe('EndInning Use Case', () => {
         isTopHalf: true,
       };
 
+      // Configure mock InningState with POST-transition values (after top of 5th ends → bottom of 5th)
+      const postTransitionInningState = createMockInningState(gameId);
+      postTransitionInningState.inning = 5;
+      postTransitionInningState.isTopHalf = false; // NOW bottom half
+      postTransitionInningState.outs = 0; // Reset outs
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(
+        postTransitionInningState as any
+      );
+
       // Use direct mock functions instead of vi.mocked
       mockFindById.mockResolvedValue(mockGame);
 
@@ -414,6 +548,15 @@ describe('EndInning Use Case', () => {
         inning: 4,
         isTopHalf: false,
       };
+
+      // Configure mock InningState with POST-transition values (after bottom of 4th ends → top of 5th)
+      const postTransitionInningState = createMockInningState(gameId);
+      postTransitionInningState.inning = 5; // Advanced to 5th inning
+      postTransitionInningState.isTopHalf = true; // Top of new inning
+      postTransitionInningState.outs = 0; // Reset outs
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(
+        postTransitionInningState as any
+      );
 
       // Use direct mock functions instead of vi.mocked
       mockFindById.mockResolvedValue(mockGame);
@@ -914,6 +1057,16 @@ describe('EndInning Use Case', () => {
     });
 
     it('should maintain consistency with inning state transitions', async () => {
+      // Configure mock InningState with POST-transition values
+      // validCommand has inning 5, isTopHalf true → should transition to bottom of 5th
+      const postTransitionInningState = createMockInningState(gameId);
+      postTransitionInningState.inning = 5;
+      postTransitionInningState.isTopHalf = false; // Transitioned from top to bottom
+      postTransitionInningState.outs = 0; // Reset outs
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(
+        postTransitionInningState as any
+      );
+
       // Use direct mock functions instead of vi.mocked
       mockFindById.mockResolvedValue(mockGame);
 
@@ -976,6 +1129,12 @@ describe('EndInning Use Case', () => {
 
     it('should cover ternary operators in score leader calculation', async () => {
       // Test coverage for lines 927, 929: ternary operators in score calculation
+      // Define score getter property on existing mockGame
+      Object.defineProperty(mockGame, 'score', {
+        get: () => ({ home: 5, away: 3, leader: 'HOME', difference: 2 }),
+        configurable: true,
+      });
+
       mockFindById.mockResolvedValue(mockGame);
       mockSave.mockResolvedValue(undefined);
       mockAppend.mockResolvedValue(undefined);
@@ -1006,6 +1165,12 @@ describe('EndInning Use Case', () => {
 
     it('should handle tied game scenario in score calculation', async () => {
       // Test coverage to ensure TIE scenario in ternary operator is covered (line 929)
+      // Define score getter property on existing mockGame
+      Object.defineProperty(mockGame, 'score', {
+        get: () => ({ home: 5, away: 5, leader: 'TIE', difference: 0 }),
+        configurable: true,
+      });
+
       mockFindById.mockResolvedValue(mockGame);
       mockSave.mockResolvedValue(undefined);
       mockAppend.mockResolvedValue(undefined);
@@ -1091,6 +1256,14 @@ describe('EndInning Use Case', () => {
 
     it('should cover HOME leader case in score calculation (line 927)', async () => {
       // Test coverage for line 927: HOME team has higher score
+      // Mock getScoreDTO method to return specific score
+      mockGame.getScoreDTO = vi.fn().mockReturnValue({
+        home: 8,
+        away: 3,
+        leader: 'HOME',
+        difference: 5,
+      });
+
       mockFindById.mockResolvedValue(mockGame);
       mockSave.mockResolvedValue(undefined);
       mockAppend.mockResolvedValue(undefined);
@@ -1101,10 +1274,6 @@ describe('EndInning Use Case', () => {
         inning: 7,
         isTopHalf: false,
       };
-
-      // Mock calculateFinalScore to return HOME team leading
-      const originalCalculateFinalScore = (useCase as any).calculateFinalScore;
-      (useCase as any).calculateFinalScore = () => ({ home: 8, away: 3 });
 
       const result = await useCase.execute(gameEndingCommand);
 
@@ -1112,13 +1281,18 @@ describe('EndInning Use Case', () => {
       expect(result.gameState.score.leader).toBe('HOME');
       expect(result.gameState.score.home).toBe(8);
       expect(result.gameState.score.away).toBe(3);
-
-      // Restore original method
-      (useCase as any).calculateFinalScore = originalCalculateFinalScore;
     });
 
     it('should cover TIE case in score calculation (line 929)', async () => {
       // Test coverage for line 929: tied game scenario
+      // Mock getScoreDTO method to return tie score
+      mockGame.getScoreDTO = vi.fn().mockReturnValue({
+        home: 5,
+        away: 5,
+        leader: 'TIE',
+        difference: 0,
+      });
+
       mockFindById.mockResolvedValue(mockGame);
       mockSave.mockResolvedValue(undefined);
       mockAppend.mockResolvedValue(undefined);
@@ -1129,10 +1303,6 @@ describe('EndInning Use Case', () => {
         inning: 7,
         isTopHalf: false,
       };
-
-      // Mock calculateFinalScore to return tied score
-      const originalCalculateFinalScore = (useCase as any).calculateFinalScore;
-      (useCase as any).calculateFinalScore = () => ({ home: 5, away: 5 });
 
       const result = await useCase.execute(gameEndingCommand);
 
@@ -1141,13 +1311,18 @@ describe('EndInning Use Case', () => {
       expect(result.gameState.score.home).toBe(5);
       expect(result.gameState.score.away).toBe(5);
       expect(result.gameState.score.difference).toBe(0);
-
-      // Restore original method
-      (useCase as any).calculateFinalScore = originalCalculateFinalScore;
     });
 
     it('should cover AWAY leader case in score calculation (line 929)', async () => {
       // Test coverage for line 929: AWAY team has higher score
+      // Mock getScoreDTO method to return away winning score
+      mockGame.getScoreDTO = vi.fn().mockReturnValue({
+        home: 2,
+        away: 7,
+        leader: 'AWAY',
+        difference: 5,
+      });
+
       mockFindById.mockResolvedValue(mockGame);
       mockSave.mockResolvedValue(undefined);
       mockAppend.mockResolvedValue(undefined);
@@ -1159,10 +1334,6 @@ describe('EndInning Use Case', () => {
         isTopHalf: false,
       };
 
-      // Mock calculateFinalScore to return AWAY team leading
-      const originalCalculateFinalScore = (useCase as any).calculateFinalScore;
-      (useCase as any).calculateFinalScore = () => ({ home: 2, away: 7 });
-
       const result = await useCase.execute(gameEndingCommand);
 
       expect(result.success).toBe(true);
@@ -1170,9 +1341,6 @@ describe('EndInning Use Case', () => {
       expect(result.gameState.score.home).toBe(2);
       expect(result.gameState.score.away).toBe(7);
       expect(result.gameState.score.difference).toBe(5);
-
-      // Restore original method
-      (useCase as any).calculateFinalScore = originalCalculateFinalScore;
     });
 
     it('should cover fallback catch block in calculateFinalScore (lines 607-611)', async () => {

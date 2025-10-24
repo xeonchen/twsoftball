@@ -33,12 +33,12 @@ describe('TeamLineup - Validation and Complex Scenarios', () => {
 
   describe('isLineupValid', () => {
     it('returns false for empty lineup', () => {
-      const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       expect(lineup.isLineupValid()).toBe(false);
     });
 
     it('returns false when missing required positions', () => {
-      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
       lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER, rules);
       // Missing other required positions
@@ -47,7 +47,7 @@ describe('TeamLineup - Validation and Complex Scenarios', () => {
     });
 
     it('returns true with all required positions filled', () => {
-      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
 
       // Add all 9 required positions
       lineup = lineup.addPlayer(
@@ -127,7 +127,7 @@ describe('TeamLineup - Validation and Complex Scenarios', () => {
     });
 
     it('returns true with extra players beyond required positions', () => {
-      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
 
       // Add all 9 required positions plus extra player
       lineup = lineup.addPlayer(
@@ -225,7 +225,7 @@ describe('TeamLineup - Validation and Complex Scenarios', () => {
 
   describe('edge cases and complex scenarios', () => {
     it('handles 20-player lineup correctly', () => {
-      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
 
       // Add 20 players
       for (let i = 1; i <= 20; i += 1) {
@@ -258,7 +258,7 @@ describe('TeamLineup - Validation and Complex Scenarios', () => {
     });
 
     it('prevents double re-entry for starters', () => {
-      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
 
       // First substitution
@@ -315,7 +315,7 @@ describe('TeamLineup - Validation and Complex Scenarios', () => {
     });
 
     it('maintains jersey number uniqueness across substitutions', () => {
-      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
       lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER, rules);
 
@@ -339,7 +339,7 @@ describe('TeamLineup - Validation and Complex Scenarios', () => {
     });
 
     it('handles complex position swaps during substitutions', () => {
-      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(player1, jersey1, 'Pitcher', 1, FieldPosition.PITCHER, rules);
       lineup = lineup.addPlayer(player2, jersey2, 'Catcher', 2, FieldPosition.CATCHER, rules);
 

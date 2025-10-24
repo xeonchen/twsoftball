@@ -185,8 +185,16 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
 
     // Reconstruct lineups and filter by gameId
     const lineups: TeamLineup[] = [];
-    for (const [_streamId, events] of Array.from(lineupEventGroups)) {
+    for (const [streamId, events] of Array.from(lineupEventGroups)) {
       if (events.length > 0) {
+        // [FAIL FAST] Validate first event is TeamLineupCreated
+        if (events[0]?.eventType !== 'TeamLineupCreated') {
+          throw new Error(
+            `[Repository.findByGameId] Event ordering violation: streamId ${streamId} starts with ${events[0]?.eventType} instead of TeamLineupCreated. ` +
+              `This indicates events are being grouped incorrectly or stored with wrong streamId.`
+          );
+        }
+
         const domainEvents = events.map(e => JSON.parse(e.eventData) as DomainEvent);
         const lineup = TeamLineup.fromEvents(domainEvents);
         if (lineup.gameId.equals(gameId)) {
@@ -251,6 +259,30 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
         }
         groupedEvents.get(streamId)!.push(event);
       }
+    }
+
+    // [FIX] Sort events within each stream by timestamp to ensure correct order
+    // IndexedDB's openCursor() does not guarantee order, so we must sort explicitly
+    for (const [streamId, events] of groupedEvents.entries()) {
+      events.sort((a, b) => {
+        // Primary sort: streamVersion (ensures creation event comes first)
+        if (a.streamVersion !== b.streamVersion) {
+          return a.streamVersion - b.streamVersion;
+        }
+        // Secondary sort: timestamp (for events with same version)
+        return a.timestamp.getTime() - b.timestamp.getTime();
+      });
+
+      // [FAIL FAST] Validate first event
+      const firstEvent = events[0];
+      if (!firstEvent || firstEvent.eventType !== 'TeamLineupCreated') {
+        throw new Error(
+          `[Repository] CRITICAL: First event in stream ${streamId} is "${firstEvent?.eventType ?? 'undefined'}", expected "TeamLineupCreated". ` +
+            `All events: ${events.map(e => `${e.eventType}(v${e.streamVersion})`).join(', ')}`
+        );
+      }
+
+      groupedEvents.set(streamId, events);
     }
 
     return groupedEvents;

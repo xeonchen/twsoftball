@@ -20,6 +20,7 @@ import {
   AtBatCompleted,
   RunScored,
   ScoreUpdated,
+  GameCompleted,
   AtBatResultType,
 } from '@twsoftball/domain';
 
@@ -122,6 +123,17 @@ export function deserializeEvent(rawData: unknown): DomainEvent {
         data['scoringTeam'] as 'HOME' | 'AWAY',
         data['runsAdded'] as number,
         data['newScore'] as { home: number; away: number }
+      );
+      Object.assign(event, baseEventData);
+      return event;
+    }
+
+    case 'GameCompleted': {
+      const event = new GameCompleted(
+        gameId,
+        data['endingType'] as 'REGULATION' | 'MERCY_RULE' | 'FORFEIT' | 'TIME_LIMIT',
+        data['finalScore'] as { home: number; away: number },
+        data['completedInning'] as number
       );
       Object.assign(event, baseEventData);
       return event;

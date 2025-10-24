@@ -14,6 +14,7 @@ import {
   useRecordAtBat,
   useRunnerAdvancement,
   useGameWithUndoRedo,
+  useGameStateSync,
 } from '../../../features/game-core';
 import {
   LineupEditor,
@@ -21,6 +22,7 @@ import {
   SubstitutionHistory,
 } from '../../../features/lineup-management';
 import { useSubstitutePlayerAPI } from '../../../features/substitute-player';
+import { createLogger } from '../../../shared/api';
 import { useErrorRecovery, useNavigationGuard, useTimerManager } from '../../../shared/lib/hooks';
 import { useUIStore } from '../../../shared/lib/store';
 import { debounce } from '../../../shared/lib/utils';
@@ -30,6 +32,59 @@ import { RunnerAdvancementPanel } from '../../../widgets/runner-advancement';
 
 /** Duration to show RBI notification in milliseconds */
 const RBI_NOTIFICATION_DURATION_MS = 3000;
+
+/** Logger for this component */
+const logger = createLogger('development', 'GameRecordingPage');
+
+/**
+ * Map action button IDs to domain at-bat result types
+ */
+const mapActionToAtBatResult = (actionType: string): AtBatResultType => {
+  const actionMap: Record<string, AtBatResultType> = {
+    single: AtBatResultType.SINGLE,
+    double: AtBatResultType.DOUBLE,
+    triple: AtBatResultType.TRIPLE,
+    homerun: AtBatResultType.HOME_RUN,
+    walk: AtBatResultType.WALK,
+    out: AtBatResultType.GROUND_OUT, // Default 'out' to ground out
+    strikeout: AtBatResultType.STRIKEOUT,
+    groundout: AtBatResultType.GROUND_OUT,
+    flyout: AtBatResultType.FLY_OUT,
+    error: AtBatResultType.ERROR,
+    fielderschoice: AtBatResultType.FIELDERS_CHOICE,
+    sacfly: AtBatResultType.SACRIFICE_FLY,
+    doubleplay: AtBatResultType.DOUBLE_PLAY,
+    tripleplay: AtBatResultType.TRIPLE_PLAY,
+  };
+  return actionMap[actionType] || (actionType.toUpperCase() as AtBatResultType);
+};
+
+/**
+ * Map action button IDs to result strings for the API
+ * This mapping is used when sending data to the application layer
+ *
+ * IMPORTANT: Must return the actual enum VALUES from AtBatResultType,
+ * not the enum key names. The DTO validation checks against enum values.
+ */
+const mapActionToResultString = (actionType: string): string => {
+  const resultMap: Record<string, string> = {
+    single: AtBatResultType.SINGLE, // '1B'
+    double: AtBatResultType.DOUBLE, // '2B'
+    triple: AtBatResultType.TRIPLE, // '3B'
+    homerun: AtBatResultType.HOME_RUN, // 'HR'
+    walk: AtBatResultType.WALK, // 'BB'
+    out: AtBatResultType.GROUND_OUT, // 'GO' (default out type)
+    strikeout: AtBatResultType.STRIKEOUT, // 'SO'
+    groundout: AtBatResultType.GROUND_OUT, // 'GO'
+    flyout: AtBatResultType.FLY_OUT, // 'FO'
+    error: AtBatResultType.ERROR, // 'E'
+    fielderschoice: AtBatResultType.FIELDERS_CHOICE, // 'FC'
+    sacfly: AtBatResultType.SACRIFICE_FLY, // 'SF'
+    doubleplay: AtBatResultType.DOUBLE_PLAY, // 'DP'
+    tripleplay: AtBatResultType.TRIPLE_PLAY, // 'TP'
+  };
+  return resultMap[actionType] || actionType.toUpperCase();
+};
 
 /**
  * Game Recording Page Component
@@ -97,6 +152,9 @@ export function GameRecordingPage(): ReactElement {
   const { recordAtBat, isLoading, error, result, reset } = useRecordAtBat();
   const { runnerAdvances, clearAdvances, isValidAdvancement } = useRunnerAdvancement();
 
+  // Phase 5.3.F: Automatic game state sync from Application layer to Zustand store
+  useGameStateSync(result?.gameState);
+
   // Phase 5: Substitute player integration
   const substitutePlayerAPI = useSubstitutePlayerAPI();
 
@@ -158,29 +216,6 @@ export function GameRecordingPage(): ReactElement {
       resetErrorRecovery();
     }
   }, [error, setErrorRecovery, resetErrorRecovery]);
-
-  /**
-   * Map action button IDs to domain at-bat result types
-   */
-  const mapActionToAtBatResult = (actionType: string): AtBatResultType => {
-    const actionMap: Record<string, AtBatResultType> = {
-      single: AtBatResultType.SINGLE,
-      double: AtBatResultType.DOUBLE,
-      triple: AtBatResultType.TRIPLE,
-      homerun: AtBatResultType.HOME_RUN,
-      walk: AtBatResultType.WALK,
-      out: AtBatResultType.GROUND_OUT, // Default 'out' to ground out
-      strikeout: AtBatResultType.STRIKEOUT,
-      groundout: AtBatResultType.GROUND_OUT,
-      flyout: AtBatResultType.FLY_OUT,
-      error: AtBatResultType.ERROR,
-      fielderschoice: AtBatResultType.FIELDERS_CHOICE,
-      sacfly: AtBatResultType.SACRIFICE_FLY,
-      doubleplay: AtBatResultType.DOUBLE_PLAY,
-      tripleplay: AtBatResultType.TRIPLE_PLAY,
-    };
-    return actionMap[actionType] || (actionType.toUpperCase() as AtBatResultType);
-  };
 
   /**
    * Determine if an at-bat result requires manual runner advancement
@@ -290,9 +325,8 @@ export function GameRecordingPage(): ReactElement {
    */
   const handleActionInternal = useCallback(
     async (actionType: string): Promise<void> => {
-      // Action recording started - would be logged via DI container logger in full implementation
-      // eslint-disable-next-line no-console -- Required for action logging in tests
-      console.log(`Recording action: ${actionType}`);
+      // Action recording started - logged via logger
+      logger.debug(`Recording action: ${actionType}`);
 
       if (isLoading || !activeGameState?.currentBatter) return;
 
@@ -311,7 +345,7 @@ export function GameRecordingPage(): ReactElement {
 
       try {
         await recordAtBat({
-          result: actionType,
+          result: mapActionToResultString(actionType),
           runnerAdvances: advances,
         });
       } catch (_err) {
@@ -357,7 +391,7 @@ export function GameRecordingPage(): ReactElement {
 
     try {
       await recordAtBat({
-        result: pendingAtBatResult,
+        result: mapActionToResultString(pendingAtBatResult),
         runnerAdvances,
       });
 
@@ -392,8 +426,8 @@ export function GameRecordingPage(): ReactElement {
       // Hook should handle error state, but provide fallback notification
       const errorMessage = error instanceof Error ? error.message : 'Unknown error during undo';
 
-      // eslint-disable-next-line no-console -- Error logging is necessary for debugging
-      console.error('Undo failed:', error);
+      // Log error for debugging
+      logger.error('Undo failed', error instanceof Error ? error : new Error(String(error)));
 
       // Fallback: show error notification if hook doesn't provide lastUndoRedoResult
       // The error notification UI will display if lastUndoRedoResult updates,
@@ -417,8 +451,8 @@ export function GameRecordingPage(): ReactElement {
       // Hook should handle error state, but provide fallback notification
       const errorMessage = error instanceof Error ? error.message : 'Unknown error during redo';
 
-      // eslint-disable-next-line no-console -- Error logging is necessary for debugging
-      console.error('Redo failed:', error);
+      // Log error for debugging
+      logger.error('Redo failed', error instanceof Error ? error : new Error(String(error)));
 
       // Fallback: show error notification if hook doesn't provide lastUndoRedoResult
       // The error notification UI will display if lastUndoRedoResult updates,
@@ -488,8 +522,7 @@ export function GameRecordingPage(): ReactElement {
     void errorRecovery.reportError(
       data => {
         // In a real app, this would send to error tracking service
-        // eslint-disable-next-line no-console -- Error reporting requires console output for debugging
-        console.error('Error Report:', data);
+        logger.error('Error Report', new Error(JSON.stringify(data)));
         return Promise.resolve({ reportId: `ERR-${Date.now()}` });
       },
       {
@@ -508,8 +541,8 @@ export function GameRecordingPage(): ReactElement {
    */
   const handleComponentError = useCallback(
     (error: Error, errorInfo: ErrorInfo) => {
-      // eslint-disable-next-line no-console -- Error logging is necessary for debugging
-      console.error('GameRecordingPage component error:', error, errorInfo);
+      // Log component error for debugging
+      logger.error('GameRecordingPage component error', error);
 
       // Handle nullable componentStack from React's ErrorInfo
       const componentStack = errorInfo.componentStack || 'Unknown component';
@@ -605,8 +638,7 @@ export function GameRecordingPage(): ReactElement {
         // Process substitution data if provided
         if (data) {
           // Log substitution data for debugging in development
-          // eslint-disable-next-line no-console -- Required for debugging substitution data
-          console.log('Substitution completed with data:', data);
+          logger.debug('Substitution completed with data', { data });
         }
 
         // Close dialogs
@@ -619,8 +651,10 @@ export function GameRecordingPage(): ReactElement {
         // The game state will be updated automatically through the store
       } catch (error) {
         // Error handling is managed by the substitute player feature
-        // eslint-disable-next-line no-console -- Error logging is necessary for debugging
-        console.error('Substitution completion error:', error);
+        logger.error(
+          'Substitution completion error',
+          error instanceof Error ? error : new Error(String(error))
+        );
       }
     },
     [showInfo]

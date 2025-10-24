@@ -153,7 +153,8 @@ export function AppServicesProvider({
               const result = await featureServices.gameAdapter.startNewGameFromWizard(wizardState);
               return {
                 success: result.success,
-                gameId: result.gameId.value, // Convert GameId to string for shared context
+                ...(result.gameId && { gameId: result.gameId }),
+                ...(result.initialState && { initialState: result.initialState }),
                 ...(result.errors && { errors: result.errors }),
               };
             },
@@ -212,6 +213,31 @@ export function AppServicesProvider({
     };
     void performInitialization();
   }, [config, initializeServices]);
+
+  // Expose application services to window for E2E testing
+  useEffect(() => {
+    if (state.services?.applicationServices) {
+      if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
+        // Principle of Least Privilege: Only expose what E2E tests need
+        // E2E tests only need the 6 use cases, not repositories/eventStore/logger/config
+        window.__appServices__ = {
+          startNewGame: state.services.applicationServices.startNewGame,
+          recordAtBat: state.services.applicationServices.recordAtBat,
+          substitutePlayer: state.services.applicationServices.substitutePlayer,
+          undoLastAction: state.services.applicationServices.undoLastAction,
+          redoLastAction: state.services.applicationServices.redoLastAction,
+          endInning: state.services.applicationServices.endInning,
+          // DO NOT expose: repositories, eventStore, logger, config
+        };
+      }
+    }
+
+    return (): void => {
+      if (window.__appServices__) {
+        delete window.__appServices__;
+      }
+    };
+  }, [state.services]);
 
   // Context value (providing only what the shared context expects)
   const contextValue = {
