@@ -14,6 +14,7 @@ import {
   useRecordAtBat,
   useRunnerAdvancement,
   useGameWithUndoRedo,
+  useGameStateSync,
 } from '../../../features/game-core';
 import {
   LineupEditor,
@@ -61,23 +62,26 @@ const mapActionToAtBatResult = (actionType: string): AtBatResultType => {
 /**
  * Map action button IDs to result strings for the API
  * This mapping is used when sending data to the application layer
+ *
+ * IMPORTANT: Must return the actual enum VALUES from AtBatResultType,
+ * not the enum key names. The DTO validation checks against enum values.
  */
 const mapActionToResultString = (actionType: string): string => {
   const resultMap: Record<string, string> = {
-    single: '1B',
-    double: '2B',
-    triple: '3B',
-    homerun: 'HOMERUN',
-    walk: 'BB',
-    out: 'OUT',
-    strikeout: 'STRIKEOUT',
-    groundout: 'GROUND_OUT',
-    flyout: 'FLY_OUT',
-    error: 'ERROR',
-    fielderschoice: 'FIELDERS_CHOICE',
-    sacfly: 'SACRIFICE_FLY',
-    doubleplay: 'DOUBLE_PLAY',
-    tripleplay: 'TRIPLE_PLAY',
+    single: AtBatResultType.SINGLE, // '1B'
+    double: AtBatResultType.DOUBLE, // '2B'
+    triple: AtBatResultType.TRIPLE, // '3B'
+    homerun: AtBatResultType.HOME_RUN, // 'HR'
+    walk: AtBatResultType.WALK, // 'BB'
+    out: AtBatResultType.GROUND_OUT, // 'GO' (default out type)
+    strikeout: AtBatResultType.STRIKEOUT, // 'SO'
+    groundout: AtBatResultType.GROUND_OUT, // 'GO'
+    flyout: AtBatResultType.FLY_OUT, // 'FO'
+    error: AtBatResultType.ERROR, // 'E'
+    fielderschoice: AtBatResultType.FIELDERS_CHOICE, // 'FC'
+    sacfly: AtBatResultType.SACRIFICE_FLY, // 'SF'
+    doubleplay: AtBatResultType.DOUBLE_PLAY, // 'DP'
+    tripleplay: AtBatResultType.TRIPLE_PLAY, // 'TP'
   };
   return resultMap[actionType] || actionType.toUpperCase();
 };
@@ -147,6 +151,9 @@ export function GameRecordingPage(): ReactElement {
   // Phase 1 hooks integration
   const { recordAtBat, isLoading, error, result, reset } = useRecordAtBat();
   const { runnerAdvances, clearAdvances, isValidAdvancement } = useRunnerAdvancement();
+
+  // Phase 5.3.F: Automatic game state sync from Application layer to Zustand store
+  useGameStateSync(result?.gameState);
 
   // Phase 5: Substitute player integration
   const substitutePlayerAPI = useSubstitutePlayerAPI();

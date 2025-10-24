@@ -190,6 +190,7 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
               <div className="flex items-center space-x-2">
                 <span className="text-lg font-semibold text-gray-800">{awayTeam}</span>
                 <div
+                  data-testid="away-score"
                   className={`text-2xl font-bold tabular-nums ${animateAwayScore ? 'animate-pulse' : ''}`}
                 >
                   {awayScore}
@@ -205,6 +206,7 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
               <div className="text-xs font-medium text-gray-500 uppercase">Home</div>
               <div className="flex items-center space-x-2">
                 <div
+                  data-testid="home-score"
                   className={`text-2xl font-bold tabular-nums ${animateHomeScore ? 'animate-pulse' : ''}`}
                 >
                   {homeScore}
