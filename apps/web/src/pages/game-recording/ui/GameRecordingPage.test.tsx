@@ -96,6 +96,7 @@ vi.mock('../../../features/game-core', () => ({
   useRecordAtBat: vi.fn(),
   useRunnerAdvancement: vi.fn(),
   useGameWithUndoRedo: vi.fn(),
+  useGameStateSync: vi.fn(),
 }));
 
 vi.mock('../../../shared/lib/hooks/useErrorRecovery', () => ({
@@ -1729,7 +1730,7 @@ describe('GameRecordingPage Component', () => {
         await user.click(outButton);
 
         expect(mockRecordAtBat).toHaveBeenCalledWith({
-          result: 'OUT',
+          result: 'GO',
           runnerAdvances: [],
         });
       });
@@ -1809,7 +1810,7 @@ describe('GameRecordingPage Component', () => {
         await user.click(homerunButton);
 
         expect(homeRunMocks.recordAtBat.recordAtBat).toHaveBeenCalledWith({
-          result: 'HOMERUN',
+          result: 'HR',
           runnerAdvances: [
             { runnerId: 'player-1', fromBase: 0, toBase: 0 },
             { runnerId: 'runner-1', fromBase: 1, toBase: 0 },

@@ -271,11 +271,18 @@ export class GameRecordingPageObject {
    * Clicks the action button corresponding to the at-bat result.
    * Waits for the action to complete before returning.
    *
+   * Result values must match button IDs (lowercase):
+   * - Hits: 'single', 'double', 'triple', 'homerun'
+   * - Walks: 'walk'
+   * - Outs: 'groundout', 'flyout', 'strikeout', 'doubleplay', 'tripleplay'
+   * - Other: 'error', 'fielderschoice', 'sacfly'
+   *
    * @example
    * ```typescript
-   * await gamePageObject.recordAtBat({ result: 'SINGLE' });
-   * await gamePageObject.recordAtBat({ result: 'HOMERUN' });
-   * await gamePageObject.recordAtBat({ result: 'OUT' });
+   * await gamePageObject.recordAtBat({ result: 'single' });
+   * await gamePageObject.recordAtBat({ result: 'homerun' });
+   * await gamePageObject.recordAtBat({ result: 'groundout' });
+   * await gamePageObject.recordAtBat({ result: 'strikeout' });
    * ```
    */
   async recordAtBat(data: AtBatData): Promise<void> {
@@ -424,6 +431,11 @@ export class GameRecordingPageObject {
    * updated state (after InningState.endHalfInning() resets outs to 0).
    * Without this wait, subsequent assertions may read stale sessionStorage data.
    *
+   * **Valid Out Types:**
+   * Uses 'groundout' button ID which maps to GROUND_OUT domain enum value.
+   * Generic 'OUT' is not a valid domain type - must use specific out types:
+   * - GROUND_OUT, FLY_OUT, STRIKEOUT, DOUBLE_PLAY, TRIPLE_PLAY, SACRIFICE_FLY
+   *
    * @example
    * ```typescript
    * // Simulate half-inning with 2 runs scored
@@ -438,33 +450,63 @@ export class GameRecordingPageObject {
 
     // Record hits to score runs (if specified)
     for (let i = 0; i < runsToScore; i++) {
-      await this.recordAtBat({ result: 'HOMERUN' });
+      await this.recordAtBat({ result: 'homerun' });
     }
 
     // Record 3 outs to end the half-inning
+    // Use 'groundout' button ID which maps to valid GROUND_OUT domain enum
     for (let i = 0; i < 3; i++) {
-      await this.recordAtBat({ result: 'OUT' });
+      await this.recordAtBat({ result: 'groundout' });
     }
 
     // Wait for Zustand persist middleware to write updated state to sessionStorage
     // After 3rd out, InningState.endHalfInning() resets outs to 0 and flips isTopHalf
     // We poll sessionStorage until we see outs === 0 AND correct isTopHalf value
     // This proves persist completed AND merge finished
+    //
+    // Special case: After bottom of inning 7, the game advances to top of inning 8
+    // (isTopHalf flips true) and then immediately completes. So we wait for EITHER:
+    // 1. Normal case: outs === 0 AND isTopHalf flipped
+    // 2. Game completion case: outs === 0 AND game status === 'completed'
     const wasTopHalf = await this.isTopOfInning();
 
     await this.page.waitForFunction(
       expectedIsTopHalf => {
         const stateJson = sessionStorage.getItem('game-state');
         if (!stateJson) {
+          console.log('[simulateHalfInning] No game-state in sessionStorage');
           return false;
         }
         const state = JSON.parse(stateJson);
         // Check both Zustand persist format and flat fixture format
         const outs = state.state?.activeGameState?.outs ?? state.outs ?? -1;
         const isTopHalf = state.state?.activeGameState?.isTopHalf ?? state.isTopHalf ?? true;
+        const inning = state.state?.activeGameState?.currentInning ?? state.currentInning ?? -1;
+        const status = state.state?.currentGame?.status || state.status;
+        const isGameCompleted = status === 'completed';
 
-        // Wait for BOTH outs to reset AND isTopHalf to flip
-        return outs === 0 && isTopHalf === expectedIsTopHalf;
+        console.log(
+          `[simulateHalfInning] Checking state: outs=${outs}, isTopHalf=${isTopHalf}, inning=${inning}, status=${status}, expectedIsTopHalf=${expectedIsTopHalf}`
+        );
+
+        // Outs must be reset to 0 in all cases
+        if (outs !== 0) {
+          console.log(`[simulateHalfInning] Outs not reset yet (${outs}), waiting...`);
+          return false;
+        }
+
+        // If game is completed, we're done (outs already checked above)
+        if (isGameCompleted) {
+          console.log('[simulateHalfInning] Game completed, half-inning transition done');
+          return true;
+        }
+
+        // Otherwise, also check that isTopHalf flipped to expected value
+        const result = isTopHalf === expectedIsTopHalf;
+        console.log(
+          `[simulateHalfInning] isTopHalf check: ${result} (${isTopHalf} === ${expectedIsTopHalf})`
+        );
+        return result;
       },
       !wasTopHalf, // Expect the opposite of what we had
       { timeout: 10000, polling: 100 } // Increased timeout for Firefox compatibility
