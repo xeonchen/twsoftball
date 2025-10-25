@@ -5,9 +5,11 @@ import { GameCompleted } from '../events/GameCompleted.js';
 import { GameCreated } from '../events/GameCreated.js';
 import { GameStarted } from '../events/GameStarted.js';
 import { InningAdvanced } from '../events/InningAdvanced.js';
+import { RunScored } from '../events/RunScored.js';
 import { ScoreUpdated } from '../events/ScoreUpdated.js';
 import { GameId } from '../value-objects/GameId.js';
 import { GameScore } from '../value-objects/GameScore.js';
+import { PlayerId } from '../value-objects/PlayerId.js';
 
 import { Game } from './Game.js';
 
@@ -224,6 +226,67 @@ describe('Game Aggregate Root - Event Sourcing', () => {
           expect(reconstructedGame.score.getHomeRuns()).toBe(6);
           expect(reconstructedGame.score.getAwayRuns()).toBe(3);
         });
+      });
+    });
+
+    describe('RunScored Event Application', () => {
+      it('should apply RunScored event (update game score)', () => {
+        const runnerId = PlayerId.generate();
+        const batterId = PlayerId.generate();
+
+        const events = [
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameStarted(gameId),
+          new RunScored(gameId, runnerId, 'HOME', batterId, { home: 1, away: 0 }),
+        ];
+
+        const reconstructedGame = Game.fromEvents(events);
+
+        expect(reconstructedGame.score.getHomeRuns()).toBe(1);
+        expect(reconstructedGame.score.getAwayRuns()).toBe(0);
+        expect(reconstructedGame.status).toBe(GameStatus.IN_PROGRESS);
+      });
+
+      it('should apply multiple RunScored events maintaining score accuracy', () => {
+        const runner1 = PlayerId.generate();
+        const runner2 = PlayerId.generate();
+        const runner3 = PlayerId.generate();
+        const batter = PlayerId.generate();
+
+        const events = [
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameStarted(gameId),
+          new RunScored(gameId, runner1, 'HOME', batter, { home: 1, away: 0 }),
+          new RunScored(gameId, runner2, 'HOME', batter, { home: 2, away: 0 }),
+          new RunScored(gameId, runner3, 'AWAY', batter, { home: 2, away: 1 }),
+        ];
+
+        const reconstructedGame = Game.fromEvents(events);
+
+        expect(reconstructedGame.score.getHomeRuns()).toBe(2);
+        expect(reconstructedGame.score.getAwayRuns()).toBe(1);
+      });
+
+      it('should handle RunScored event interleaved with other events', () => {
+        const runner = PlayerId.generate();
+        const batter = PlayerId.generate();
+
+        const events = [
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameStarted(gameId),
+          new RunScored(gameId, runner, 'HOME', batter, { home: 1, away: 0 }),
+          new InningAdvanced(gameId, 1, false),
+          new RunScored(gameId, runner, 'AWAY', batter, { home: 1, away: 1 }),
+          new InningAdvanced(gameId, 2, true),
+          new RunScored(gameId, runner, 'HOME', batter, { home: 2, away: 1 }),
+        ];
+
+        const reconstructedGame = Game.fromEvents(events);
+
+        expect(reconstructedGame.score.getHomeRuns()).toBe(2);
+        expect(reconstructedGame.score.getAwayRuns()).toBe(1);
+        expect(reconstructedGame.currentInning).toBe(2);
+        expect(reconstructedGame.isTopHalf).toBe(true);
       });
     });
 

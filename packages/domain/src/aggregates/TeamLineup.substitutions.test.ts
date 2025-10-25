@@ -202,6 +202,28 @@ describe('TeamLineup - Substitutions and Position Changes', () => {
       ).toThrow(DomainError);
     });
 
+    it('throws error when batting slot is not occupied', () => {
+      // Create a lineup with only 2 players (slots 1 and 2)
+      const sparseLineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
+      const withTwoPlayers = sparseLineup
+        .addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules)
+        .addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER, rules);
+
+      // Try to substitute from slot 3, which is empty
+      expect(() =>
+        withTwoPlayers.substitutePlayer(
+          3, // empty slot
+          player1, // this player is not in slot 3
+          player3,
+          jersey3,
+          'Bob Johnson',
+          FieldPosition.FIRST_BASE,
+          3,
+          rules
+        )
+      ).toThrow('Batting slot 3 is not occupied');
+    });
+
     it('throws error when incoming player is already in lineup', () => {
       expect(() =>
         lineup.substitutePlayer(
@@ -247,6 +269,27 @@ describe('TeamLineup - Substitutions and Position Changes', () => {
       ).toThrow(DomainError);
     });
 
+    it('throws error when re-entry attempted for player not in team history', () => {
+      const unknownPlayer = PlayerId.generate();
+      const unknownJersey = new JerseyNumber('99');
+
+      // Try to bring in a completely new player marked as "re-entry"
+      // This player was never part of the team
+      expect(() =>
+        lineup.substitutePlayer(
+          1,
+          player1,
+          unknownPlayer,
+          unknownJersey,
+          'Unknown Player',
+          FieldPosition.SHORTSTOP, // use a different position
+          3,
+          rules,
+          true // marked as re-entry but player never existed in team
+        )
+      ).toThrow('Cannot mark substitution as re-entry for player not in team history');
+    });
+
     it('throws error when substitution is marked as re-entry but player was not starter', () => {
       const nonStarter = PlayerId.generate();
       const nonStarterJersey = new JerseyNumber('99');
@@ -288,7 +331,111 @@ describe('TeamLineup - Substitutions and Position Changes', () => {
           rules,
           true
         )
-      ).toThrow(DomainError);
+      ).toThrow('Only original starters are eligible for re-entry');
+    });
+
+    it('throws error when non-starter tries to re-enter without re-entry flag', () => {
+      const nonStarter = PlayerId.generate();
+      const nonStarterJersey = new JerseyNumber('99');
+
+      // Add non-starter as substitute first
+      let updatedLineup = lineup.substitutePlayer(
+        1,
+        player1,
+        nonStarter,
+        nonStarterJersey,
+        'Non Starter',
+        FieldPosition.FIRST_BASE,
+        3,
+        rules
+      );
+
+      // Remove non-starter
+      updatedLineup = updatedLineup.substitutePlayer(
+        1,
+        nonStarter,
+        player3,
+        jersey3,
+        'Bob Johnson',
+        FieldPosition.SECOND_BASE,
+        5,
+        rules
+      );
+
+      // Try to bring back non-starter without re-entry flag (should fail)
+      expect(() =>
+        updatedLineup.substitutePlayer(
+          1,
+          player3,
+          nonStarter,
+          nonStarterJersey,
+          'Non Starter',
+          FieldPosition.FIRST_BASE,
+          7,
+          rules,
+          false // explicitly not a re-entry
+        )
+      ).toThrow('Non-starter players cannot re-enter the game');
+    });
+
+    it('throws error when player has already used re-entry privilege', () => {
+      const player4 = PlayerId.generate();
+      const jersey4 = new JerseyNumber('44');
+
+      // Substitute out player1
+      let updatedLineup = lineup.substitutePlayer(
+        1,
+        player1,
+        player4,
+        jersey4,
+        'New Player',
+        FieldPosition.SHORTSTOP, // Use different position
+        3,
+        rules
+      );
+
+      // Re-enter player1 once (allowed)
+      updatedLineup = updatedLineup.substitutePlayer(
+        1,
+        player4,
+        player1,
+        jersey1,
+        'John Doe',
+        FieldPosition.PITCHER,
+        5,
+        rules,
+        true // first re-entry
+      );
+
+      // Substitute out player1 again with a different new player
+      const player5 = PlayerId.generate();
+      const jersey5 = new JerseyNumber('55');
+
+      updatedLineup = updatedLineup.substitutePlayer(
+        1,
+        player1,
+        player5,
+        jersey5,
+        'Another Player',
+        FieldPosition.SECOND_BASE, // Use different position
+        7,
+        rules
+      );
+
+      // Try to re-enter player1 again (should fail - already used re-entry)
+      expect(() =>
+        updatedLineup.substitutePlayer(
+          1,
+          player5,
+          player1,
+          jersey1,
+          'John Doe',
+          FieldPosition.PITCHER,
+          9,
+          rules,
+          true // second re-entry attempt
+        )
+      ).toThrow('Player has already used their re-entry privilege');
     });
   });
 
