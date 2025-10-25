@@ -446,4 +446,32 @@ describe('TeamLineup - Core Operations', () => {
       expect(updatedLineup.getFieldingPositions().get(FieldPosition.FIRST_BASE)).toEqual(player1);
     });
   });
+
+  describe('getPlayerAtSlot', () => {
+    it('should return player ID when slot exists and has a current player', () => {
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
+
+      const player = lineup.getPlayerAtSlot(1);
+      expect(player).toEqual(player1);
+    });
+
+    it('should return null when slot number does not exist', () => {
+      const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
+
+      const player = lineup.getPlayerAtSlot(99);
+      expect(player).toBeNull();
+    });
+
+    it('should return null when slot exists but has no current player', () => {
+      // This would happen if a slot's BattingSlot.getCurrentPlayer() returns null
+      // which could occur in edge cases during event sourcing
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
+
+      // Query a different slot that hasn't been populated
+      const player = lineup.getPlayerAtSlot(5);
+      expect(player).toBeNull();
+    });
+  });
 });

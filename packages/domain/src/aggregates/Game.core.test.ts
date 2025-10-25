@@ -467,4 +467,72 @@ describe('Game Aggregate Root - Core Operations', () => {
       });
     });
   });
+
+  describe('Score DTO', () => {
+    it('should return score DTO with TIE leader when scores are equal', () => {
+      const game = Game.createNew(gameId, 'Home Tigers', 'Away Lions');
+      game.startGame();
+
+      const scoreDTO = game.getScoreDTO();
+
+      expect(scoreDTO.home).toBe(0);
+      expect(scoreDTO.away).toBe(0);
+      expect(scoreDTO.leader).toBe('TIE');
+      expect(scoreDTO.difference).toBe(0);
+    });
+
+    it('should return score DTO with HOME leader when home team is winning', () => {
+      const game = Game.createNew(gameId, 'Home Tigers', 'Away Lions');
+      game.startGame();
+      game.addHomeRuns(3);
+
+      const scoreDTO = game.getScoreDTO();
+
+      expect(scoreDTO.home).toBe(3);
+      expect(scoreDTO.away).toBe(0);
+      expect(scoreDTO.leader).toBe('HOME');
+      expect(scoreDTO.difference).toBe(3);
+    });
+
+    it('should return score DTO with AWAY leader when away team is winning', () => {
+      const game = Game.createNew(gameId, 'Home Tigers', 'Away Lions');
+      game.startGame();
+      game.addAwayRuns(5);
+
+      const scoreDTO = game.getScoreDTO();
+
+      expect(scoreDTO.home).toBe(0);
+      expect(scoreDTO.away).toBe(5);
+      expect(scoreDTO.leader).toBe('AWAY');
+      expect(scoreDTO.difference).toBe(5);
+    });
+
+    it('should return correct difference for close games', () => {
+      const game = Game.createNew(gameId, 'Home Tigers', 'Away Lions');
+      game.startGame();
+      game.addHomeRuns(7);
+      game.addAwayRuns(6);
+
+      const scoreDTO = game.getScoreDTO();
+
+      expect(scoreDTO.home).toBe(7);
+      expect(scoreDTO.away).toBe(6);
+      expect(scoreDTO.leader).toBe('HOME');
+      expect(scoreDTO.difference).toBe(1);
+    });
+
+    it('should return correct difference regardless of which team is ahead', () => {
+      const game = Game.createNew(gameId, 'Home Tigers', 'Away Lions');
+      game.startGame();
+      game.addHomeRuns(2);
+      game.addAwayRuns(10);
+
+      const scoreDTO = game.getScoreDTO();
+
+      expect(scoreDTO.home).toBe(2);
+      expect(scoreDTO.away).toBe(10);
+      expect(scoreDTO.leader).toBe('AWAY');
+      expect(scoreDTO.difference).toBe(8);
+    });
+  });
 });

@@ -814,5 +814,190 @@ describe('InningState - Event Sourcing', () => {
         expect(reconstructed.currentBattingSlot).toBe(original.currentBattingSlot);
       });
     });
+
+    describe('reconstructPlayerId() - Indirect Testing via Event Deserialization', () => {
+      it('should reconstruct PlayerId from string format in RunnerAdvanced event', () => {
+        const playerId = new PlayerId('player-string-id');
+
+        // Create RunnerAdvanced event with PlayerId
+        const baseEvents = [
+          new InningStateCreated(inningStateId, gameId, 1, true),
+          new RunnerAdvanced(gameId, playerId, null, 'FIRST', AdvanceReason.HIT),
+        ];
+
+        // Simulate deserialization by creating event with runnerId as plain string
+        const deserializedEvent = {
+          ...baseEvents[1],
+          runnerId: 'player-string-id', // Plain string instead of PlayerId instance
+        } as unknown as DomainEvent;
+
+        const eventsWithDeserializedPlayerId = [baseEvents[0], deserializedEvent];
+
+        // Should successfully reconstruct PlayerId from string
+        const reconstructed = InningState.fromEvents(eventsWithDeserializedPlayerId);
+
+        expect(reconstructed.basesState.getRunner('FIRST')).toBeDefined();
+        expect(reconstructed.basesState.getRunner('FIRST')?.value).toBe('player-string-id');
+      });
+
+      it('should reconstruct PlayerId from object format { value: string } in RunnerAdvanced event', () => {
+        const playerId = new PlayerId('player-object-id');
+
+        const baseEvents = [
+          new InningStateCreated(inningStateId, gameId, 1, true),
+          new RunnerAdvanced(gameId, playerId, null, 'SECOND', AdvanceReason.WALK),
+        ];
+
+        // Simulate deserialization by creating event with runnerId as plain object
+        const deserializedEvent = {
+          ...baseEvents[1],
+          runnerId: { value: 'player-object-id' }, // Plain object instead of PlayerId instance
+        } as unknown as DomainEvent;
+
+        const eventsWithDeserializedPlayerId = [baseEvents[0], deserializedEvent];
+
+        // Should successfully reconstruct PlayerId from object format
+        const reconstructed = InningState.fromEvents(eventsWithDeserializedPlayerId);
+
+        expect(reconstructed.basesState.getRunner('SECOND')).toBeDefined();
+        expect(reconstructed.basesState.getRunner('SECOND')?.value).toBe('player-object-id');
+      });
+
+      it('should handle PlayerId already as instance (no reconstruction needed)', () => {
+        const playerId = PlayerId.generate();
+
+        const events = [
+          new InningStateCreated(inningStateId, gameId, 1, true),
+          new RunnerAdvanced(gameId, playerId, null, 'THIRD', AdvanceReason.HIT),
+        ];
+
+        // PlayerId is already an instance, should work directly
+        const reconstructed = InningState.fromEvents(events);
+
+        expect(reconstructed.basesState.getRunner('THIRD')).toEqual(playerId);
+      });
+
+      it('should throw error for invalid PlayerId format in RunnerAdvanced event', () => {
+        const baseEvents = [new InningStateCreated(inningStateId, gameId, 1, true)];
+
+        // Create malformed event with invalid runnerId
+        const malformedEvent = {
+          type: 'RunnerAdvanced',
+          eventId: crypto.randomUUID(),
+          timestamp: new Date(),
+          version: 1,
+          gameId,
+          runnerId: 12345, // Invalid format: number instead of string/object/PlayerId
+          from: null,
+          to: 'FIRST',
+          reason: 'HIT',
+        } as unknown as DomainEvent;
+
+        const eventsWithMalformedPlayerId = [baseEvents[0], malformedEvent];
+
+        // Should throw DomainError when trying to reconstruct invalid PlayerId
+        expect(() => InningState.fromEvents(eventsWithMalformedPlayerId)).toThrow(DomainError);
+        expect(() => InningState.fromEvents(eventsWithMalformedPlayerId)).toThrow(
+          /Cannot reconstruct PlayerId from/
+        );
+      });
+
+      it('should handle multiple RunnerAdvanced events with different PlayerId formats', () => {
+        const player1 = new PlayerId('player-1');
+        const player2 = new PlayerId('player-2');
+        const player3 = new PlayerId('player-3');
+
+        const baseEvent = new InningStateCreated(inningStateId, gameId, 1, true);
+
+        // Mix of different formats
+        const runnerEvent1 = new RunnerAdvanced(gameId, player1, null, 'FIRST', AdvanceReason.HIT);
+
+        // Simulate deserialization for player2 (string format)
+        const runnerEvent2 = {
+          ...new RunnerAdvanced(gameId, player2, null, 'SECOND', AdvanceReason.WALK),
+          runnerId: 'player-2',
+        } as unknown as DomainEvent;
+
+        // Simulate deserialization for player3 (object format)
+        const runnerEvent3 = {
+          ...new RunnerAdvanced(gameId, player3, null, 'THIRD', AdvanceReason.HIT),
+          runnerId: { value: 'player-3' },
+        } as unknown as DomainEvent;
+
+        const events = [baseEvent, runnerEvent1, runnerEvent2, runnerEvent3];
+
+        const reconstructed = InningState.fromEvents(events);
+
+        // All three runners should be on base with correct PlayerIds
+        expect(reconstructed.basesState.getRunner('FIRST')?.value).toBe('player-1');
+        expect(reconstructed.basesState.getRunner('SECOND')?.value).toBe('player-2');
+        expect(reconstructed.basesState.getRunner('THIRD')?.value).toBe('player-3');
+        expect(reconstructed.basesState.getOccupiedBases()).toHaveLength(3);
+      });
+    });
+
+    describe('convertAtBatResultToAdvanceReason() - Coverage for ERROR and SACRIFICE_FLY', () => {
+      it('should convert ERROR at-bat result to ERROR advance reason', () => {
+        const batterId = new PlayerId('batter-error');
+
+        const events = [
+          new InningStateCreated(inningStateId, gameId, 1, true),
+          new AtBatCompleted(gameId, batterId, 1, AtBatResultType.ERROR, 1, 0),
+          new RunnerAdvanced(gameId, batterId, null, 'FIRST', AdvanceReason.ERROR),
+          new CurrentBatterChanged(gameId, 1, 2, 1, true),
+        ];
+
+        const reconstructed = InningState.fromEvents(events);
+
+        // Batter should reach first on error
+        expect(reconstructed.basesState.getRunner('FIRST')).toEqual(batterId);
+        expect(reconstructed.outs).toBe(0); // No out on error
+      });
+
+      it('should convert SACRIFICE_FLY at-bat result to SACRIFICE advance reason', () => {
+        const batterId = new PlayerId('batter-sacrifice');
+        const runnerId = new PlayerId('runner-on-third');
+
+        const events = [
+          new InningStateCreated(inningStateId, gameId, 1, true),
+          // Setup: Runner on third
+          new RunnerAdvanced(gameId, runnerId, null, 'THIRD', AdvanceReason.HIT),
+          // Sacrifice fly: batter out, runner scores
+          new AtBatCompleted(gameId, batterId, 2, AtBatResultType.SACRIFICE_FLY, 1, 1),
+          new RunnerAdvanced(gameId, runnerId, 'THIRD', 'HOME', AdvanceReason.SACRIFICE),
+          new CurrentBatterChanged(gameId, 2, 3, 1, true),
+        ];
+
+        const reconstructed = InningState.fromEvents(events);
+
+        // Runner should have scored, batter made an out
+        expect(reconstructed.basesState.getRunner('THIRD')).toBeUndefined();
+        expect(reconstructed.outs).toBe(1);
+        expect(reconstructed.currentBattingSlot).toBe(3);
+      });
+    });
+
+    describe('applyRunnerAdvanced() - Error Handling', () => {
+      it('should gracefully handle malformed RunnerAdvanced events that cause BasesState errors', () => {
+        const runnerId = new PlayerId('runner-1');
+        const runner2Id = new PlayerId('runner-2');
+
+        const events = [
+          new InningStateCreated(inningStateId, gameId, 1, true),
+          // Put runner on first
+          new RunnerAdvanced(gameId, runnerId, null, 'FIRST', AdvanceReason.HIT),
+          // Try to advance from a base where the runner doesn't exist (malformed event)
+          // This should trigger the catch block but not crash
+          new RunnerAdvanced(gameId, runner2Id, 'SECOND', 'THIRD', AdvanceReason.HIT),
+        ];
+
+        // Should not throw, even with malformed event
+        const reconstructed = InningState.fromEvents(events);
+
+        // State should remain consistent despite malformed event
+        expect(reconstructed.basesState.getRunner('FIRST')).toEqual(runnerId);
+        expect(reconstructed.basesState.getRunner('THIRD')).toBeUndefined();
+      });
+    });
   });
 });
