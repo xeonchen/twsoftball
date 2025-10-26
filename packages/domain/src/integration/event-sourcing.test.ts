@@ -21,6 +21,34 @@ import { PlayerId } from '../value-objects/PlayerId.js';
 import { TeamLineupId } from '../value-objects/TeamLineupId.js';
 
 /**
+ * Helper function to create standard rules config for GameCreated events in tests.
+ */
+function standardRulesConfig(): {
+  totalInnings: number;
+  maxPlayersPerTeam: number;
+  timeLimitMinutes: number;
+  allowReEntry: boolean;
+  mercyRuleEnabled: boolean;
+  mercyRuleTiers: Array<{ differential: number; afterInning: number }>;
+  maxExtraInnings: number;
+  allowTieGames: boolean;
+} {
+  return {
+    totalInnings: 7,
+    maxPlayersPerTeam: 25,
+    timeLimitMinutes: 60,
+    allowReEntry: true,
+    mercyRuleEnabled: true,
+    mercyRuleTiers: [
+      { differential: 10, afterInning: 4 },
+      { differential: 7, afterInning: 5 },
+    ],
+    maxExtraInnings: 0,
+    allowTieGames: true,
+  };
+}
+
+/**
  * Cross-aggregate event sourcing integration tests for Phase 4.1 completion.
  *
  * Tests the complete event sourcing implementation across Game, TeamLineup,
@@ -50,7 +78,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
     it('should reconstruct complete game state from mixed events', () => {
       // Arrange: Create comprehensive event sequence
       const events: DomainEvent[] = [
-        new GameCreated(gameId, 'Eagles', 'Hawks'),
+        new GameCreated(gameId, 'Eagles', 'Hawks', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 2, { home: 2, away: 0 }),
         new InningAdvanced(gameId, 1, false),
@@ -75,7 +103,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
     it('should maintain consistency across all three aggregates', () => {
       // Arrange: Create events with cross-aggregate consistency requirements
       const gameEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Team A', 'Team B'),
+        new GameCreated(gameId, 'Team A', 'Team B', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 3, { home: 3, away: 0 }),
         new InningAdvanced(gameId, 2, true),
@@ -133,7 +161,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
     it('should handle complex event sequences correctly', () => {
       // Arrange: Create complex sequence with multiple innings
       const events: DomainEvent[] = [
-        new GameCreated(gameId, 'Starters', 'Subs'),
+        new GameCreated(gameId, 'Starters', 'Subs', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 1, { home: 1, away: 0 }),
         new InningAdvanced(gameId, 1, false), // Bottom 1st
@@ -159,7 +187,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
     it('should support partial replay scenarios', () => {
       // Arrange: Create full game event sequence
       const allEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Full', 'Partial'),
+        new GameCreated(gameId, 'Full', 'Partial', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 3, { home: 3, away: 0 }),
         new InningAdvanced(gameId, 2, true),
@@ -196,7 +224,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
       // Arrange: Create events with timestamps to ensure ordering matters
       const baseTime = Date.now();
       const events: DomainEvent[] = [
-        new GameCreated(gameId, 'Order', 'Test'),
+        new GameCreated(gameId, 'Order', 'Test', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 1, { home: 1, away: 0 }),
         new ScoreUpdated(gameId, 'HOME', 2, { home: 3, away: 0 }),
@@ -222,7 +250,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
     it('should maintain domain invariants during reconstruction', () => {
       // Arrange: Create events that could violate invariants if processed incorrectly
       const gameEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Invariant', 'Test'),
+        new GameCreated(gameId, 'Invariant', 'Test', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 2, { home: 2, away: 0 }),
         new InningAdvanced(gameId, 1, false), // Must advance to bottom before next inning
@@ -272,7 +300,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
     it('should handle events from different aggregates interleaved', () => {
       // Arrange: Create interleaved events from different aggregates
       const gameEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Interleaved', 'Test'),
+        new GameCreated(gameId, 'Interleaved', 'Test', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 1, { home: 1, away: 0 }),
       ];
@@ -330,7 +358,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
       const otherGameId = TestGameFactory.createGameId('other');
 
       const primaryGameEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Primary', 'Game'),
+        new GameCreated(gameId, 'Primary', 'Game', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 1, { home: 1, away: 0 }),
       ];
@@ -362,7 +390,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
     it('should reconstruct 9-inning game with substitutions', () => {
       // Arrange: Create a full 9-inning game
       const events: DomainEvent[] = [
-        new GameCreated(gameId, 'Starters', 'Regulars'),
+        new GameCreated(gameId, 'Starters', 'Regulars', standardRulesConfig()),
         new GameStarted(gameId),
       ];
 
@@ -435,7 +463,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
       );
 
       const gameEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Standard', 'Extra'),
+        new GameCreated(gameId, 'Standard', 'Extra', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 1, { home: 1, away: 0 }),
       ];
@@ -459,7 +487,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
     it('should maintain scoring consistency across aggregates', () => {
       // Arrange: Create events with complex scoring scenarios
       const gameEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Home', 'Away'),
+        new GameCreated(gameId, 'Home', 'Away', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'AWAY', 1, { home: 0, away: 1 }),
         new InningAdvanced(gameId, 1, false), // Switch to bottom half
@@ -503,7 +531,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
       }
 
       const gameEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Starters', 'Subs'),
+        new GameCreated(gameId, 'Starters', 'Subs', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 2, { home: 2, away: 0 }),
       ];
@@ -531,7 +559,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
 
       // Arrange: Create large event sequence
       const events: DomainEvent[] = [
-        new GameCreated(gameId, 'Performance', 'Test'),
+        new GameCreated(gameId, 'Performance', 'Test', standardRulesConfig()),
         new GameStarted(gameId),
       ];
 
@@ -570,7 +598,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
     it('should gracefully handle malformed event sequences', () => {
       // Arrange: Create sequence with potential issues
       const validEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Valid', 'Game'),
+        new GameCreated(gameId, 'Valid', 'Game', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 1, { home: 1, away: 0 }),
       ];
@@ -587,7 +615,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
       // Mixed aggregate IDs
       const otherGameId = TestGameFactory.createGameId('other');
       const mixedEvents = [
-        new GameCreated(gameId, 'Mixed', 'Game'),
+        new GameCreated(gameId, 'Mixed', 'Game', standardRulesConfig()),
         new GameCreated(otherGameId, 'Other', 'Game'), // Wrong aggregate ID
       ];
       expect(() => Game.fromEvents(mixedEvents)).toThrow(DomainError);
@@ -599,7 +627,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
     it('should support time-travel to any point in game history', () => {
       // Arrange: Create game history with multiple checkpoints
       const allEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Time', 'Travel'),
+        new GameCreated(gameId, 'Time', 'Travel', standardRulesConfig()),
         new GameStarted(gameId), // Checkpoint 1: Game started
         new ScoreUpdated(gameId, 'HOME', 3, { home: 3, away: 0 }),
         new InningAdvanced(gameId, 2, true), // Checkpoint 2: Inning 2
@@ -635,7 +663,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
     it('should demonstrate undo/redo capability via event replay', () => {
       // Arrange: Create sequence of actions that can be undone/redone
       const baseEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Undo', 'Redo'),
+        new GameCreated(gameId, 'Undo', 'Redo', standardRulesConfig()),
         new GameStarted(gameId),
       ];
 

@@ -72,10 +72,21 @@ export function deserializeEvent(rawData: unknown): DomainEvent {
 
   switch (data.type) {
     case 'GameCreated': {
+      const rulesConfig = data['rulesConfig'] as {
+        totalInnings: number;
+        maxPlayersPerTeam: number;
+        timeLimitMinutes: number | null;
+        allowReEntry: boolean;
+        mercyRuleEnabled: boolean;
+        mercyRuleTiers: Array<{ differential: number; afterInning: number }>;
+        maxExtraInnings: number | null;
+        allowTieGames: boolean;
+      };
       const event = new GameCreated(
         gameId,
         data['homeTeamName'] as string,
-        data['awayTeamName'] as string
+        data['awayTeamName'] as string,
+        rulesConfig
       );
       Object.assign(event, baseEventData);
       return event;

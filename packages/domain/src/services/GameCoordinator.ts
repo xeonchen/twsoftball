@@ -3,7 +3,7 @@ import { InningState, RunnerMovement } from '../aggregates/InningState.js';
 import { TeamLineup } from '../aggregates/TeamLineup.js';
 import { AtBatResultType } from '../constants/AtBatResultType.js';
 import { DomainError } from '../errors/DomainError.js';
-import { SoftballRules } from '../rules/SoftballRules.js';
+import type { SoftballRules } from '../rules/SoftballRules.js';
 import { BasesState, Base } from '../value-objects/BasesState.js';
 import { PlayerId } from '../value-objects/PlayerId.js';
 
@@ -163,39 +163,35 @@ export class GameCoordinator {
    * - Ensures batter is eligible and in correct batting order
    * - Validates runner advancement instructions against current base state
    * - Applies softball-specific rules (walk-offs, mercy rule, etc.)
+   * - Rules are now injected via the Game aggregate (uses game.rules)
    *
    * **Error Handling**:
    * Returns success/failure status with detailed error information rather than throwing,
    * enabling calling code to handle edge cases gracefully.
    *
-   * @param game - Current game state
+   * @param game - Current game state (contains rules configuration)
    * @param homeLineup - Home team lineup and player information
    * @param awayLineup - Away team lineup and player information
    * @param inningState - Current inning state with bases and outs
    * @param batterId - The player recording the at-bat
    * @param result - The type of at-bat result (hit, walk, out, etc.)
    * @param runnerAdvancementOverrides - Optional custom runner movements (empty for auto-calculation)
-   * @param rules - Optional softball rules configuration (uses defaults if not provided)
+   * @param _deprecatedRules - DEPRECATED: Rules are now part of Game aggregate. This parameter is ignored.
    * @returns Complete result including updated aggregates and statistical information
    *
    * @example
    * ```typescript
-   * // Automatic runner advancement with default rules
+   * // Automatic runner advancement (game contains rules)
    * const result = GameCoordinator.recordAtBat(
    *   game, homeLineup, awayLineup, inningState,
    *   batterId, AtBatResultType.DOUBLE, []
    * );
    *
-   * // Custom runner advancement with specific rules
-   * const customRules = SoftballRules.create({
-   *   mercyRuleEnabled: true,
-   *   mercyRuleTiers: [{ differential: 10, afterInning: 5 }]
-   * });
+   * // Custom runner advancement
    * const customResult = GameCoordinator.recordAtBat(
    *   game, homeLineup, awayLineup, inningState,
    *   batterId, AtBatResultType.SINGLE,
-   *   [{ runnerId: runnerId, fromBase: 'SECOND', toBase: 'HOME' }],
-   *   customRules
+   *   [{ runnerId: runnerId, fromBase: 'SECOND', toBase: 'HOME' }]
    * );
    *
    * // Handle results
@@ -219,8 +215,11 @@ export class GameCoordinator {
     batterId: PlayerId,
     result: AtBatResultType,
     runnerAdvancementOverrides: RunnerAdvancement[],
-    rules: SoftballRules
+    /** @deprecated Rules are now part of Game aggregate. This parameter is ignored. */
+    _deprecatedRules?: SoftballRules
   ): AtBatRecordingResult {
+    // Note: _deprecatedRules parameter is ignored (see @deprecated JSDoc above)
+    // TypeScript/IDE will warn developers about usage via JSDoc annotation
     try {
       // 1. Validate preconditions
       this.validateGameState(game);
@@ -300,7 +299,6 @@ export class GameCoordinator {
         updatedGame,
         updatedInningState,
         runsScored,
-        rules,
         inningComplete
       );
 
@@ -607,26 +605,25 @@ export class GameCoordinator {
    * **Regulation Completion**: After completing regulation innings, if home team leads
    * after their at-bat opportunity (bottom half), game ends as regulation complete.
    *
-   * **Configurable Mercy Rule**: Uses SoftballRules configuration for mercy rule logic:
+   * **Configurable Mercy Rule**: Uses game's SoftballRules configuration for mercy rule logic:
    * - Supports both single-threshold and multi-tier mercy rule systems
    * - Multi-tier example: 10+ runs after 4th inning, 7+ runs after 5th inning
    * - Single-tier example: Traditional mercy rule with one threshold
-   * - Completely configurable based on SoftballRules instance
+   * - Completely configurable based on game's SoftballRules instance
    *
    * The mercy rule only applies after the leading team has completed their half of the inning
    * to ensure both teams have equal opportunities to bat.
    *
-   * @param game - Current game state with score information
+   * @param game - Current game state with score information and rules configuration
    * @param inningState - Current inning state (inning number, half, outs)
    * @param runsScored - Runs scored in this at-bat (for walk-off detection)
-   * @param rules - Softball rules configuration (controls all mercy rule behavior)
+   * @param inningComplete - Whether the current inning half just completed
    * @returns Object indicating if game is complete, completion reason, and ending type
    */
   private static checkGameCompletion(
     game: Game,
     inningState: InningState,
     runsScored: number,
-    rules: SoftballRules,
     inningComplete: boolean = false
   ): {
     isComplete: boolean;
@@ -636,7 +633,7 @@ export class GameCoordinator {
     const { inning: currentInning } = inningState;
     const homeScore = game.score.getHomeRuns();
     const awayScore = game.score.getAwayRuns();
-    const { totalInnings } = rules;
+    const { totalInnings } = game.rules;
 
     // Walk-off win (home team takes lead in final inning or later)
     if (
@@ -655,8 +652,8 @@ export class GameCoordinator {
       }
     }
 
-    // Mercy rule logic - Fully configurable through SoftballRules
-    if (rules.isMercyRule(homeScore, awayScore, currentInning)) {
+    // Mercy rule logic - Fully configurable through game's SoftballRules
+    if (game.rules.isMercyRule(homeScore, awayScore, currentInning)) {
       const leadingTeamIsHome = homeScore > awayScore;
       const isAfterLeadingTeamBat = leadingTeamIsHome
         ? !inningState.isTopHalf

@@ -7,11 +7,40 @@ import { GameStarted } from '../events/GameStarted.js';
 import { InningAdvanced } from '../events/InningAdvanced.js';
 import { RunScored } from '../events/RunScored.js';
 import { ScoreUpdated } from '../events/ScoreUpdated.js';
+import { SoftballRules } from '../rules/SoftballRules.js';
 import { GameId } from '../value-objects/GameId.js';
 import { GameScore } from '../value-objects/GameScore.js';
 import { PlayerId } from '../value-objects/PlayerId.js';
 
 import { Game } from './Game.js';
+
+/**
+ * Helper function to create standard rules config for GameCreated events in tests.
+ */
+function standardRulesConfig(): {
+  totalInnings: number;
+  maxPlayersPerTeam: number;
+  timeLimitMinutes: number;
+  allowReEntry: boolean;
+  mercyRuleEnabled: boolean;
+  mercyRuleTiers: Array<{ differential: number; afterInning: number }>;
+  maxExtraInnings: number;
+  allowTieGames: boolean;
+} {
+  return {
+    totalInnings: 7,
+    maxPlayersPerTeam: 25,
+    timeLimitMinutes: 60,
+    allowReEntry: true,
+    mercyRuleEnabled: true,
+    mercyRuleTiers: [
+      { differential: 10, afterInning: 4 },
+      { differential: 7, afterInning: 5 },
+    ],
+    maxExtraInnings: 0,
+    allowTieGames: true,
+  };
+}
 
 describe('Game Aggregate Root - Event Sourcing', () => {
   let gameId: GameId;
@@ -28,7 +57,10 @@ describe('Game Aggregate Root - Event Sourcing', () => {
     describe('GameStarted Event Application', () => {
       it('should apply GameStarted event (status NOT_STARTED → IN_PROGRESS)', () => {
         const gameStartedEvent = new GameStarted(gameId);
-        const events = [new GameCreated(gameId, 'Home Tigers', 'Away Lions'), gameStartedEvent];
+        const events = [
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
+          gameStartedEvent,
+        ];
 
         const reconstructedGame = Game.fromEvents(events);
 
@@ -40,7 +72,9 @@ describe('Game Aggregate Root - Event Sourcing', () => {
       });
 
       it('should maintain other game state when applying GameStarted', () => {
-        const events = [new GameCreated(gameId, 'Springfield Tigers', 'Shelbyville Lions')];
+        const events = [
+          new GameCreated(gameId, 'Springfield Tigers', 'Shelbyville Lions', standardRulesConfig()),
+        ];
         const initialGame = Game.fromEvents(events);
 
         expect(initialGame.status).toBe(GameStatus.NOT_STARTED);
@@ -63,7 +97,10 @@ describe('Game Aggregate Root - Event Sourcing', () => {
     describe('ScoreUpdated Event Application', () => {
       it('should apply ScoreUpdated event (update gameScore)', () => {
         const scoreUpdateEvent = new ScoreUpdated(gameId, 'HOME', 3, { home: 3, away: 0 });
-        const events = [new GameCreated(gameId, 'Home Tigers', 'Away Lions'), scoreUpdateEvent];
+        const events = [
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
+          scoreUpdateEvent,
+        ];
 
         const reconstructedGame = Game.fromEvents(events);
 
@@ -74,7 +111,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should update to final score from ScoreUpdated event', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new ScoreUpdated(gameId, 'HOME', 2, { home: 2, away: 0 }),
           new ScoreUpdated(gameId, 'AWAY', 5, { home: 2, away: 5 }),
@@ -91,7 +128,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should handle multiple consecutive score updates', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new ScoreUpdated(gameId, 'HOME', 1, { home: 1, away: 0 }),
           new ScoreUpdated(gameId, 'HOME', 2, { home: 3, away: 0 }),
           new ScoreUpdated(gameId, 'AWAY', 1, { home: 3, away: 1 }),
@@ -108,7 +145,10 @@ describe('Game Aggregate Root - Event Sourcing', () => {
     describe('InningAdvanced Event Application', () => {
       it('should apply InningAdvanced event (inning and half)', () => {
         const inningAdvancedEvent = new InningAdvanced(gameId, 2, false); // Bottom of 2nd
-        const events = [new GameCreated(gameId, 'Home Tigers', 'Away Lions'), inningAdvancedEvent];
+        const events = [
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
+          inningAdvancedEvent,
+        ];
 
         const reconstructedGame = Game.fromEvents(events);
 
@@ -120,7 +160,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
       it('should reset outs to 0 when applying InningAdvanced', () => {
         // Create a scenario where we know outs would be reset
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new InningAdvanced(gameId, 1, false), // Bottom of 1st, outs = 0
           new InningAdvanced(gameId, 2, true), // Top of 2nd, outs = 0
           new InningAdvanced(gameId, 2, false), // Bottom of 2nd, outs = 0
@@ -135,7 +175,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should handle inning progression through multiple advances', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new InningAdvanced(gameId, 1, false), // Bottom 1st
           new InningAdvanced(gameId, 2, true), // Top 2nd
           new InningAdvanced(gameId, 2, false), // Bottom 2nd
@@ -151,7 +191,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should maintain game state except inning/outs when applying InningAdvanced', () => {
         const events = [
-          new GameCreated(gameId, 'Nuclear Plant', 'Capital City'),
+          new GameCreated(gameId, 'Nuclear Plant', 'Capital City', standardRulesConfig()),
           new GameStarted(gameId),
           new ScoreUpdated(gameId, 'HOME', 7, { home: 7, away: 0 }),
           new InningAdvanced(gameId, 5, true), // Jump to 5th inning
@@ -176,7 +216,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
       it('should apply GameCompleted event (status → COMPLETED)', () => {
         const gameCompletedEvent = new GameCompleted(gameId, 'REGULATION', { home: 8, away: 5 }, 7);
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           gameCompletedEvent,
         ];
@@ -190,7 +230,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should update score to final score from GameCompleted event', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new ScoreUpdated(gameId, 'HOME', 5, { home: 5, away: 0 }), // Intermediate score
           new GameCompleted(gameId, 'MERCY_RULE', { home: 15, away: 2 }, 5), // Final score
@@ -235,7 +275,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
         const batterId = PlayerId.generate();
 
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new RunScored(gameId, runnerId, 'HOME', batterId, { home: 1, away: 0 }),
         ];
@@ -254,7 +294,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
         const batter = PlayerId.generate();
 
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new RunScored(gameId, runner1, 'HOME', batter, { home: 1, away: 0 }),
           new RunScored(gameId, runner2, 'HOME', batter, { home: 2, away: 0 }),
@@ -272,7 +312,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
         const batter = PlayerId.generate();
 
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new RunScored(gameId, runner, 'HOME', batter, { home: 1, away: 0 }),
           new InningAdvanced(gameId, 1, false),
@@ -300,7 +340,10 @@ describe('Game Aggregate Root - Event Sourcing', () => {
           eventId: 'test-event-id',
         } as unknown as DomainEvent;
 
-        const events = [new GameCreated(gameId, 'Home Tigers', 'Away Lions'), unknownEvent];
+        const events = [
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
+          unknownEvent,
+        ];
 
         expect(() => Game.fromEvents(events)).toThrow(DomainError);
         expect(() => Game.fromEvents(events)).toThrow(
@@ -316,7 +359,10 @@ describe('Game Aggregate Root - Event Sourcing', () => {
           eventId: 'future-event-123',
         } as unknown as DomainEvent;
 
-        const events = [new GameCreated(gameId, 'Home Tigers', 'Away Lions'), unsupportedEvent];
+        const events = [
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
+          unsupportedEvent,
+        ];
 
         expect(() => Game.fromEvents(events)).toThrow(
           'Unsupported event type for reconstruction: FutureEventType'
@@ -328,7 +374,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
       it('should be idempotent (same event applied twice = no change)', () => {
         // Create a game state, then apply the same event sequence twice
         const baseEvents = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new ScoreUpdated(gameId, 'HOME', 3, { home: 3, away: 0 }),
           new InningAdvanced(gameId, 1, false),
@@ -350,7 +396,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should handle events with matching game ID', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId), // Same game ID
           new ScoreUpdated(gameId, 'HOME', 2, { home: 2, away: 0 }), // Same game ID
         ];
@@ -364,7 +410,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should maintain domain invariants after applying events', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new ScoreUpdated(gameId, 'HOME', 10, { home: 10, away: 0 }),
           new ScoreUpdated(gameId, 'AWAY', 7, { home: 10, away: 7 }),
@@ -388,7 +434,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should not affect uncommitted events array during reconstruction', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new ScoreUpdated(gameId, 'HOME', 1, { home: 1, away: 0 }),
         ];
@@ -403,7 +449,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
         // The null check in fromEvents() line 500 is defensive programming for sparse arrays
         // This test verifies the method can handle normal event reconstruction properly
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new ScoreUpdated(gameId, 'HOME', 1, { home: 1, away: 0 }),
         ];
@@ -419,7 +465,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
       it('should validate event belongs to the game during reconstruction', () => {
         const differentGameId = GameId.generate();
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(differentGameId), // Wrong game ID
         ];
 
@@ -431,7 +477,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
     describe('Complex Event Application Scenarios', () => {
       it('should handle rapid status transitions', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId), // NOT_STARTED -> IN_PROGRESS
           new GameCompleted(gameId, 'FORFEIT', { home: 0, away: 0 }, 1), // IN_PROGRESS -> COMPLETED
         ];
@@ -445,7 +491,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should maintain event ordering integrity', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new InningAdvanced(gameId, 1, false), // Bottom 1st
           new ScoreUpdated(gameId, 'HOME', 5, { home: 5, away: 0 }),
@@ -466,7 +512,12 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should reconstruct final game state correctly from complete event stream', () => {
         const events = [
-          new GameCreated(gameId, 'Springfield Tigers', 'Capital City Goofballs'),
+          new GameCreated(
+            gameId,
+            'Springfield Tigers',
+            'Capital City Goofballs',
+            standardRulesConfig()
+          ),
           new GameStarted(gameId),
           new ScoreUpdated(gameId, 'HOME', 2, { home: 2, away: 0 }),
           new InningAdvanced(gameId, 1, false), // Bottom 1st
@@ -510,12 +561,17 @@ describe('Game Aggregate Root - Event Sourcing', () => {
     beforeEach(() => {
       gameId = GameId.generate();
       // Base events for most tests: creation and start
-      baseEvents = [new GameCreated(gameId, 'Home Tigers', 'Away Lions'), new GameStarted(gameId)];
+      baseEvents = [
+        new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
+        new GameStarted(gameId),
+      ];
     });
 
     describe('Basic Reconstruction', () => {
       it('should create game from GameCreated event', () => {
-        const events = [new GameCreated(gameId, 'Home Tigers', 'Away Lions')];
+        const events = [
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
+        ];
 
         const game = Game.fromEvents(events);
 
@@ -532,7 +588,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should replay events in chronological order', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new ScoreUpdated(gameId, 'HOME', 2, { home: 2, away: 0 }),
           new InningAdvanced(gameId, 1, false), // Bottom of 1st
@@ -552,7 +608,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should maintain domain invariants during reconstruction', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new ScoreUpdated(gameId, 'HOME', 5, { home: 5, away: 0 }),
           new ScoreUpdated(gameId, 'AWAY', 3, { home: 5, away: 3 }),
@@ -597,7 +653,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
       it('should throw error for events with different game IDs', () => {
         const anotherGameId = GameId.generate();
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(anotherGameId), // Different game ID
         ];
 
@@ -614,7 +670,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
     describe('Complex Game Scenarios', () => {
       it('should reconstruct complete regulation game', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new ScoreUpdated(gameId, 'HOME', 3, { home: 3, away: 0 }),
           new InningAdvanced(gameId, 1, false), // Bottom 1st
@@ -636,7 +692,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should reconstruct mercy rule game', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new ScoreUpdated(gameId, 'HOME', 15, { home: 15, away: 0 }),
           new InningAdvanced(gameId, 1, false), // Bottom 1st
@@ -656,12 +712,19 @@ describe('Game Aggregate Root - Event Sourcing', () => {
         expect(game.score.getHomeRuns()).toBe(15);
         expect(game.score.getAwayRuns()).toBe(0);
         expect(game.currentInning).toBe(5);
-        expect(game.isMercyRuleTriggered()).toBe(true);
+        // Delegate mercy rule logic to SoftballRules
+        expect(
+          game.rules.isMercyRule(
+            game.score.getHomeRuns(),
+            game.score.getAwayRuns(),
+            game.currentInning
+          )
+        ).toBe(true);
       });
 
       it('should reconstruct game with multiple score updates', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new ScoreUpdated(gameId, 'HOME', 1, { home: 1, away: 0 }),
           new ScoreUpdated(gameId, 'HOME', 2, { home: 3, away: 0 }),
@@ -682,7 +745,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should reconstruct extra innings game', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           // Simulate 7 innings with tied score
           new ScoreUpdated(gameId, 'HOME', 5, { home: 5, away: 0 }),
@@ -708,7 +771,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
       it('should validate all events belong to same game', () => {
         const anotherGameId = GameId.generate();
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new ScoreUpdated(anotherGameId, 'HOME', 1, { home: 1, away: 0 }), // Wrong game
         ];
@@ -719,7 +782,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should handle events in chronological order by timestamp', () => {
         // Create events with specific timestamps to test ordering
-        const event1 = new GameCreated(gameId, 'Home Tigers', 'Away Lions');
+        const event1 = new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig());
         const event2 = new GameStarted(gameId);
         const event3 = new ScoreUpdated(gameId, 'HOME', 1, { home: 1, away: 0 });
 
@@ -748,8 +811,8 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should handle duplicate game creation event gracefully', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'), // Duplicate
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()), // Duplicate
         ];
 
         // Should either ignore duplicate or throw meaningful error
@@ -760,7 +823,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
     describe('State Consistency', () => {
       it('should maintain score consistency across multiple updates', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new ScoreUpdated(gameId, 'HOME', 2, { home: 2, away: 0 }),
           new ScoreUpdated(gameId, 'AWAY', 3, { home: 2, away: 3 }),
@@ -776,7 +839,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should maintain inning progression consistency', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
           new InningAdvanced(gameId, 1, false), // Bottom 1st
           new InningAdvanced(gameId, 2, true), // Top 2nd
@@ -822,7 +885,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
       });
 
       it('should handle single GameCreated event', () => {
-        const events = [new GameCreated(gameId, 'Home', 'Away')];
+        const events = [new GameCreated(gameId, 'Home', 'Away', standardRulesConfig())];
 
         const game = Game.fromEvents(events);
 
@@ -834,7 +897,7 @@ describe('Game Aggregate Root - Event Sourcing', () => {
 
       it('should maintain immutability of reconstructed game', () => {
         const events = [
-          new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+          new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
           new GameStarted(gameId),
         ];
 
@@ -883,6 +946,96 @@ describe('Game Aggregate Root - Event Sourcing', () => {
           expect(() => game.addAwayRuns(4.99)).toThrow('Runs must be an integer');
         });
       });
+    });
+  });
+
+  describe('Rules Persistence', () => {
+    it('should preserve custom rules when reconstructing from events', () => {
+      const customRules = {
+        totalInnings: 5,
+        maxPlayersPerTeam: 20,
+        timeLimitMinutes: 90,
+        allowReEntry: false,
+        mercyRuleEnabled: true,
+        mercyRuleTiers: [{ differential: 10, afterInning: 3 }],
+        maxExtraInnings: 2,
+        allowTieGames: false,
+      };
+
+      const game = Game.createNew(gameId, 'Home', 'Away', new SoftballRules(customRules));
+      game.startGame();
+
+      const reconstructed = Game.fromEvents(game.getUncommittedEvents());
+
+      expect(reconstructed.rules.totalInnings).toBe(5);
+      expect(reconstructed.rules.maxPlayersPerTeam).toBe(20);
+      expect(reconstructed.rules.timeLimitMinutes).toBe(90);
+      expect(reconstructed.rules.allowReEntry).toBe(false);
+      expect(reconstructed.rules.mercyRuleEnabled).toBe(true);
+      expect(reconstructed.rules.mercyRuleTiers).toHaveLength(1);
+      expect(reconstructed.rules.mercyRuleTiers[0]?.differential).toBe(10);
+      expect(reconstructed.rules.mercyRuleTiers[0]?.afterInning).toBe(3);
+      expect(reconstructed.rules.maxExtraInnings).toBe(2);
+      expect(reconstructed.rules.allowTieGames).toBe(false);
+    });
+
+    it('should preserve custom rules when restoring from snapshot', () => {
+      const customRules = {
+        totalInnings: 9,
+        maxPlayersPerTeam: 15,
+        timeLimitMinutes: null,
+        allowReEntry: true,
+        mercyRuleEnabled: false,
+        mercyRuleTiers: [],
+        maxExtraInnings: 3,
+        allowTieGames: true,
+      };
+
+      const snapshot = {
+        aggregateId: gameId,
+        aggregateType: 'Game' as const,
+        version: 1,
+        data: {
+          id: gameId.value,
+          homeTeamName: 'Home',
+          awayTeamName: 'Away',
+          status: GameStatus.NOT_STARTED,
+          homeRuns: 0,
+          awayRuns: 0,
+          currentInning: 1,
+          isTopHalf: true,
+          outs: 0,
+          rules: customRules,
+        },
+        timestamp: new Date(),
+      };
+
+      const restored = Game.fromSnapshot(snapshot, []);
+
+      expect(restored.rules.totalInnings).toBe(9);
+      expect(restored.rules.maxPlayersPerTeam).toBe(15);
+      expect(restored.rules.timeLimitMinutes).toBe(null);
+      expect(restored.rules.allowReEntry).toBe(true);
+      expect(restored.rules.mercyRuleEnabled).toBe(false);
+      expect(restored.rules.mercyRuleTiers).toHaveLength(0);
+      expect(restored.rules.maxExtraInnings).toBe(3);
+      expect(restored.rules.allowTieGames).toBe(true);
+    });
+
+    it('should maintain separate rules for concurrent games', () => {
+      const gameId1 = GameId.generate();
+      const gameId2 = GameId.generate();
+
+      const rules1 = { totalInnings: 5, mercyRuleTiers: [{ differential: 15, afterInning: 3 }] };
+      const rules2 = { totalInnings: 7, mercyRuleTiers: [{ differential: 10, afterInning: 4 }] };
+
+      const game1 = Game.createNew(gameId1, 'Home', 'Away', new SoftballRules(rules1));
+      const game2 = Game.createNew(gameId2, 'Home', 'Away', new SoftballRules(rules2));
+
+      expect(game1.rules.totalInnings).toBe(5);
+      expect(game2.rules.totalInnings).toBe(7);
+      expect(game1.rules.mercyRuleTiers[0]?.differential).toBe(15);
+      expect(game2.rules.mercyRuleTiers[0]?.differential).toBe(10);
     });
   });
 });
