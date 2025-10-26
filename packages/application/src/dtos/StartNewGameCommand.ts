@@ -113,8 +113,24 @@ export interface StartNewGameCommand {
   /**
    * Game rules configuration
    * Optional - defaults to standard league rules if not provided
+   * @deprecated Use rulesConfig instead for complete rules specification
    */
   readonly gameRules?: GameRulesDTO;
+
+  /**
+   * Complete rules configuration for the game (matches Domain layer RulesConfig)
+   * Optional - defaults to SoftballRules.standard() if not provided
+   */
+  readonly rulesConfig?: {
+    totalInnings?: number;
+    maxPlayersPerTeam?: number;
+    timeLimitMinutes?: number | null;
+    allowReEntry?: boolean;
+    mercyRuleEnabled?: boolean;
+    mercyRuleTiers?: Array<{ differential: number; afterInning: number }>;
+    maxExtraInnings?: number | null;
+    allowTieGames?: boolean;
+  };
 }
 
 /**
@@ -225,8 +241,20 @@ export const StartNewGameCommandValidator = {
   validate(command: StartNewGameCommand): void {
     this.validateBasicFields(command);
     this.validateLineup(command.initialLineup);
+
+    // Check for conflicting configuration
+    if (command.gameRules && command.rulesConfig) {
+      throw new StartNewGameCommandValidationError(
+        'Cannot specify both gameRules (deprecated) and rulesConfig. Please use rulesConfig only.',
+        'gameRules/rulesConfig'
+      );
+    }
+
     if (command.gameRules) {
       this.validateGameRules(command.gameRules);
+    }
+    if (command.rulesConfig) {
+      this.validateRulesConfig(command.rulesConfig);
     }
   },
 
@@ -446,6 +474,114 @@ export const StartNewGameCommandValidator = {
         'maxPlayersInLineup must be between 9 and 30 (10-player standard, 11-12 common, 25+ for flexible rosters)',
         'maxPlayersInLineup',
         rules.maxPlayersInLineup
+      );
+    }
+  },
+
+  /**
+   * Validates rules configuration (new format matching Domain layer)
+   */
+  validateRulesConfig(rulesConfig: NonNullable<StartNewGameCommand['rulesConfig']>): void {
+    // Validate totalInnings
+    if (rulesConfig.totalInnings !== undefined) {
+      if (rulesConfig.totalInnings < 1 || rulesConfig.totalInnings > 20) {
+        throw new StartNewGameCommandValidationError(
+          'totalInnings must be between 1 and 20',
+          'rulesConfig.totalInnings',
+          rulesConfig.totalInnings
+        );
+      }
+    }
+
+    // Validate maxPlayersPerTeam
+    if (rulesConfig.maxPlayersPerTeam !== undefined) {
+      if (rulesConfig.maxPlayersPerTeam < 9 || rulesConfig.maxPlayersPerTeam > 30) {
+        throw new StartNewGameCommandValidationError(
+          'maxPlayersPerTeam must be between 9 and 30',
+          'rulesConfig.maxPlayersPerTeam',
+          rulesConfig.maxPlayersPerTeam
+        );
+      }
+    }
+
+    // Validate timeLimitMinutes
+    if (rulesConfig.timeLimitMinutes !== undefined && rulesConfig.timeLimitMinutes !== null) {
+      if (rulesConfig.timeLimitMinutes <= 0 || rulesConfig.timeLimitMinutes > 300) {
+        throw new StartNewGameCommandValidationError(
+          'timeLimitMinutes must be between 1 and 300',
+          'rulesConfig.timeLimitMinutes',
+          rulesConfig.timeLimitMinutes
+        );
+      }
+    }
+
+    // Validate allowReEntry
+    if (rulesConfig.allowReEntry !== undefined && typeof rulesConfig.allowReEntry !== 'boolean') {
+      throw new StartNewGameCommandValidationError(
+        'allowReEntry must be a boolean',
+        'rulesConfig.allowReEntry',
+        rulesConfig.allowReEntry
+      );
+    }
+
+    // Validate mercyRuleEnabled
+    if (
+      rulesConfig.mercyRuleEnabled !== undefined &&
+      typeof rulesConfig.mercyRuleEnabled !== 'boolean'
+    ) {
+      throw new StartNewGameCommandValidationError(
+        'mercyRuleEnabled must be a boolean',
+        'rulesConfig.mercyRuleEnabled',
+        rulesConfig.mercyRuleEnabled
+      );
+    }
+
+    // Validate mercyRuleTiers
+    if (rulesConfig.mercyRuleTiers !== undefined) {
+      if (!Array.isArray(rulesConfig.mercyRuleTiers)) {
+        throw new StartNewGameCommandValidationError(
+          'mercyRuleTiers must be an array',
+          'rulesConfig.mercyRuleTiers',
+          rulesConfig.mercyRuleTiers
+        );
+      }
+
+      rulesConfig.mercyRuleTiers.forEach((tier, index) => {
+        if (tier.differential < 0 || tier.differential > 50) {
+          throw new StartNewGameCommandValidationError(
+            `mercyRuleTiers[${index}].differential must be between 0 and 50`,
+            `rulesConfig.mercyRuleTiers[${index}].differential`,
+            tier.differential
+          );
+        }
+
+        if (tier.afterInning < 1 || tier.afterInning > 20) {
+          throw new StartNewGameCommandValidationError(
+            `mercyRuleTiers[${index}].afterInning must be between 1 and 20`,
+            `rulesConfig.mercyRuleTiers[${index}].afterInning`,
+            tier.afterInning
+          );
+        }
+      });
+    }
+
+    // Validate maxExtraInnings
+    if (rulesConfig.maxExtraInnings !== undefined && rulesConfig.maxExtraInnings !== null) {
+      if (rulesConfig.maxExtraInnings < 0 || rulesConfig.maxExtraInnings > 10) {
+        throw new StartNewGameCommandValidationError(
+          'maxExtraInnings must be between 0 and 10',
+          'rulesConfig.maxExtraInnings',
+          rulesConfig.maxExtraInnings
+        );
+      }
+    }
+
+    // Validate allowTieGames
+    if (rulesConfig.allowTieGames !== undefined && typeof rulesConfig.allowTieGames !== 'boolean') {
+      throw new StartNewGameCommandValidationError(
+        'allowTieGames must be a boolean',
+        'rulesConfig.allowTieGames',
+        rulesConfig.allowTieGames
       );
     }
   },

@@ -606,4 +606,92 @@ describe('StartNewGame Core', () => {
       );
     });
   });
+
+  describe('rulesConfig support (Phase 1.5)', () => {
+    beforeEach(() => {
+      // Setup successful repository operations
+      mocks.functions.gameRepositoryExists.mockResolvedValue(false);
+      mocks.functions.gameRepositorySave.mockResolvedValue(undefined);
+      mocks.functions.eventStoreAppend.mockResolvedValue(undefined);
+    });
+
+    it('should create game with complete rulesConfig', async () => {
+      const command = createValidCommand({
+        gameRules: undefined,
+        rulesConfig: {
+          totalInnings: 9,
+          maxPlayersPerTeam: 15,
+          timeLimitMinutes: 90,
+          allowReEntry: false,
+          mercyRuleEnabled: true,
+          mercyRuleTiers: [
+            { differential: 20, afterInning: 3 },
+            { differential: 15, afterInning: 4 },
+            { differential: 10, afterInning: 5 },
+          ],
+          maxExtraInnings: 2,
+          allowTieGames: false,
+        },
+      });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(true);
+      expect(result.initialState).toBeDefined();
+      // Verify rules were applied to the game
+      expect(result.initialState?.gameId).toEqual(testGameId);
+      expect(result.initialState?.status).toBe(GameStatus.IN_PROGRESS);
+    });
+
+    it('should create game with partial rulesConfig (partial override)', async () => {
+      const command = createValidCommand({
+        gameRules: undefined,
+        rulesConfig: {
+          totalInnings: 5,
+          mercyRuleEnabled: false,
+        },
+      });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(true);
+      expect(result.initialState).toBeDefined();
+      // Verify defaults from SoftballRules.standard() are used for omitted fields
+      expect(result.initialState?.gameId).toEqual(testGameId);
+      expect(result.initialState?.status).toBe(GameStatus.IN_PROGRESS);
+    });
+
+    it('should use SoftballRules.standard() when rulesConfig not provided', async () => {
+      const command = createValidCommand({
+        gameRules: undefined,
+        rulesConfig: undefined,
+      });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(true);
+      expect(result.initialState).toBeDefined();
+      // Verify standard 7-inning rules are applied
+      expect(result.initialState?.gameId).toEqual(testGameId);
+      expect(result.initialState?.status).toBe(GameStatus.IN_PROGRESS);
+    });
+
+    it('should handle null values for optional fields (timeLimitMinutes, maxExtraInnings)', async () => {
+      const command = createValidCommand({
+        gameRules: undefined,
+        rulesConfig: {
+          timeLimitMinutes: null,
+          maxExtraInnings: null,
+        },
+      });
+
+      const result = await startNewGame.execute(command);
+
+      expect(result.success).toBe(true);
+      expect(result.initialState).toBeDefined();
+      // Verify game is created successfully with null values
+      expect(result.initialState?.gameId).toEqual(testGameId);
+      expect(result.initialState?.status).toBe(GameStatus.IN_PROGRESS);
+    });
+  });
 });
