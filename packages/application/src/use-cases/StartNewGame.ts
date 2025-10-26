@@ -50,7 +50,7 @@
  *   logger
  * );
  *
- * // Create a new game with complete setup
+ * // Create a new game with custom rules configuration
  * const command: StartNewGameCommand = {
  *   gameId: GameId.generate(),
  *   homeTeamName: 'Springfield Tigers',
@@ -59,7 +59,19 @@
  *   gameDate: new Date('2024-08-30T14:00:00Z'),
  *   location: 'City Park Field 1',
  *   initialLineup: [...completeLineup],
- *   gameRules: standardRules
+ *   rulesConfig: {
+ *     totalInnings: 7,
+ *     maxPlayersPerTeam: 25,
+ *     timeLimitMinutes: 60,
+ *     allowReEntry: true,
+ *     mercyRuleEnabled: true,
+ *     mercyRuleTiers: [
+ *       { differential: 15, afterInning: 4 },
+ *       { differential: 10, afterInning: 5 }
+ *     ],
+ *     maxExtraInnings: 2,
+ *     allowTieGames: false
+ *   }
  * };
  *
  * const result = await startNewGame.execute(command);
@@ -73,6 +85,17 @@
  *   console.error('Game creation failed:', result.errors);
  *   // Handle validation errors and retry with corrections
  * }
+ *
+ * // Or create with default rules (omit rulesConfig)
+ * const commandWithDefaults: StartNewGameCommand = {
+ *   gameId: GameId.generate(),
+ *   homeTeamName: 'Eagles',
+ *   awayTeamName: 'Hawks',
+ *   ourTeamSide: 'HOME',
+ *   gameDate: new Date(),
+ *   initialLineup: [...completeLineup]
+ *   // rulesConfig omitted - uses SoftballRules.standard()
+ * };
  * ```
  */
 
@@ -575,8 +598,16 @@ export class StartNewGame {
    * @returns Object containing all created aggregates
    */
   private createDomainAggregates(command: StartNewGameCommand): GameAggregates {
-    // Create Game aggregate
-    const game = Game.createNew(command.gameId, command.homeTeamName, command.awayTeamName);
+    // Create SoftballRules from command rulesConfig (or use defaults)
+    const softballRules = this.createSoftballRulesFromCommand(command);
+
+    // Create Game aggregate with rules
+    const game = Game.createNew(
+      command.gameId,
+      command.homeTeamName,
+      command.awayTeamName,
+      softballRules
+    );
 
     // Start the game immediately (ready for play)
     game.startGame();
@@ -600,9 +631,6 @@ export class StartNewGame {
       command.awayTeamName,
       'AWAY'
     );
-
-    // Create softball rules from command or use defaults
-    const softballRules = this.createSoftballRules(command.gameRules);
 
     // Add players to the managed team lineup (our team with full roster)
     let managedLineup = command.ourTeamSide === 'HOME' ? homeLineup : awayLineup;
@@ -648,6 +676,47 @@ export class StartNewGame {
   }
 
   /**
+   * Creates SoftballRules instance from command rulesConfig or gameRules (deprecated).
+   *
+   * @remarks
+   * Converts the command's rulesConfig (preferred) or gameRules (deprecated) into
+   * a proper domain SoftballRules instance. If neither is provided, uses standard
+   * softball rules as the default.
+   *
+   * Priority order:
+   * 1. rulesConfig (new format matching Domain layer)
+   * 2. gameRules (deprecated format, converted to rulesConfig)
+   * 3. SoftballRules.standard() (default if neither provided)
+   *
+   * @param command - The game creation command
+   * @returns Configured SoftballRules instance
+   */
+  private createSoftballRulesFromCommand(command: StartNewGameCommand): SoftballRules {
+    // Priority 1: Use new rulesConfig format if provided
+    if (command.rulesConfig) {
+      const standardRules = SoftballRules.standard();
+      return new SoftballRules({
+        totalInnings: command.rulesConfig.totalInnings ?? standardRules.totalInnings,
+        maxPlayersPerTeam: command.rulesConfig.maxPlayersPerTeam ?? standardRules.maxPlayersPerTeam,
+        timeLimitMinutes: command.rulesConfig.timeLimitMinutes ?? standardRules.timeLimitMinutes,
+        allowReEntry: command.rulesConfig.allowReEntry ?? standardRules.allowReEntry,
+        mercyRuleEnabled: command.rulesConfig.mercyRuleEnabled ?? standardRules.mercyRuleEnabled,
+        mercyRuleTiers: command.rulesConfig.mercyRuleTiers ?? [...standardRules.mercyRuleTiers],
+        maxExtraInnings: command.rulesConfig.maxExtraInnings ?? standardRules.maxExtraInnings,
+        allowTieGames: command.rulesConfig.allowTieGames ?? standardRules.allowTieGames,
+      });
+    }
+
+    // Priority 2: Use deprecated gameRules if provided (for backward compatibility)
+    if (command.gameRules) {
+      return this.createSoftballRules(command.gameRules);
+    }
+
+    // Priority 3: Use standard rules as default
+    return SoftballRules.standard();
+  }
+
+  /**
    * Creates SoftballRules instance from game rules DTO or defaults.
    *
    * @remarks
@@ -655,6 +724,7 @@ export class StartNewGame {
    * domain SoftballRules instance. Uses recreation league defaults if
    * no custom rules are provided.
    *
+   * @deprecated Use createSoftballRulesFromCommand instead with rulesConfig
    * @param gameRulesDTO - Optional game rules from command
    * @returns Configured SoftballRules instance
    */
