@@ -97,15 +97,19 @@ describe('GameCoordinator - Complex Scenarios', () => {
         });
 
         it('should apply 10-run mercy rule after 4th inning', () => {
+          // Create a game with two-tier mercy rules
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
+          game.startGame(); // startGame() returns void, modifies in place
+
           // Set up a game in the 5th inning (after 4th) with 10-run differential
           inningState = inningState.withInningHalf(5, false); // Bottom 5th
 
           // Away team has 15 runs, home team has 5 runs (10-run differential)
           for (let i = 0; i < 15; i += 1) {
-            game.addAwayRuns(1);
+            game.addAwayRuns(1); // addAwayRuns returns void
           }
           for (let i = 0; i < 5; i += 1) {
-            game.addHomeRuns(1);
+            game.addHomeRuns(1); // addHomeRuns returns void
           }
 
           const result = GameCoordinator.recordAtBat(
@@ -115,8 +119,7 @@ describe('GameCoordinator - Complex Scenarios', () => {
             inningState,
             batterId,
             AtBatResultType.SINGLE,
-            [],
-            twoTierRules
+            []
           );
 
           expect(result.success).toBe(true);
@@ -125,6 +128,10 @@ describe('GameCoordinator - Complex Scenarios', () => {
         });
 
         it('should apply 7-run mercy rule after 5th inning', () => {
+          // Create a game with two-tier mercy rules
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
+          game.startGame();
+
           // Set up a game in the 6th inning (after 5th) with 7-run differential
           inningState = inningState.withInningHalf(6, false); // Bottom 6th
 
@@ -143,8 +150,7 @@ describe('GameCoordinator - Complex Scenarios', () => {
             inningState,
             batterId,
             AtBatResultType.SINGLE,
-            [],
-            twoTierRules
+            []
           );
 
           expect(result.success).toBe(true);
@@ -153,6 +159,10 @@ describe('GameCoordinator - Complex Scenarios', () => {
         });
 
         it('should apply 7-run mercy rule AT 5th inning (>= logic)', () => {
+          // Create a game with two-tier mercy rules
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
+          game.startGame();
+
           // Set up a game in the 5th inning with only 7-run differential
           inningState = inningState.withInningHalf(5, false); // Bottom 5th (still in 5th)
 
@@ -171,8 +181,7 @@ describe('GameCoordinator - Complex Scenarios', () => {
             inningState,
             batterId,
             AtBatResultType.SINGLE,
-            [],
-            twoTierRules
+            []
           );
 
           expect(result.success).toBe(true);
@@ -181,6 +190,10 @@ describe('GameCoordinator - Complex Scenarios', () => {
         });
 
         it('should apply first tier in later innings when both tiers are met', () => {
+          // Create a game with two-tier mercy rules
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
+          game.startGame();
+
           // Set up a game in the 6th inning with 10-run differential
           // Both tiers are met, but first tier applies
           inningState = inningState.withInningHalf(6, false); // Bottom 6th
@@ -200,8 +213,7 @@ describe('GameCoordinator - Complex Scenarios', () => {
             inningState,
             batterId,
             AtBatResultType.SINGLE,
-            [],
-            twoTierRules
+            []
           );
 
           expect(result.success).toBe(true);
@@ -210,6 +222,10 @@ describe('GameCoordinator - Complex Scenarios', () => {
         });
 
         it('should apply mercy rule AT tier threshold (4th inning with 15-run differential)', () => {
+          // Create a game with two-tier mercy rules
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
+          game.startGame();
+
           // Set up a game in the 4th inning with 15-run differential (triggers first tier)
           inningState = inningState.withInningHalf(4, false); // Bottom 4th
 
@@ -228,8 +244,7 @@ describe('GameCoordinator - Complex Scenarios', () => {
             inningState,
             batterId,
             AtBatResultType.SINGLE,
-            [],
-            twoTierRules
+            []
           );
 
           expect(result.success).toBe(true);
@@ -245,6 +260,10 @@ describe('GameCoordinator - Complex Scenarios', () => {
         });
 
         it('should apply single mercy rule threshold correctly', () => {
+          // Create a game with single-tier mercy rules
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', singleTierRules);
+          game.startGame();
+
           // Set up a game in the 4th inning (after 3rd) with 15-run differential
           inningState = inningState.withInningHalf(4, false); // Bottom 4th
 
@@ -263,8 +282,7 @@ describe('GameCoordinator - Complex Scenarios', () => {
             inningState,
             batterId,
             AtBatResultType.SINGLE,
-            [],
-            singleTierRules
+            []
           );
 
           expect(result.success).toBe(true);
@@ -273,6 +291,10 @@ describe('GameCoordinator - Complex Scenarios', () => {
         });
 
         it('should not apply mercy rule when differential is insufficient', () => {
+          // Create a game with single-tier mercy rules
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', singleTierRules);
+          game.startGame();
+
           // Set up a game in the 4th inning with only 14-run differential (need 15)
           inningState = inningState.withInningHalf(4, false); // Bottom 4th
 
@@ -291,8 +313,7 @@ describe('GameCoordinator - Complex Scenarios', () => {
             inningState,
             batterId,
             AtBatResultType.SINGLE,
-            [],
-            singleTierRules
+            []
           );
 
           expect(result.success).toBe(true);
@@ -309,6 +330,10 @@ describe('GameCoordinator - Complex Scenarios', () => {
         });
 
         it('should not apply mercy rule when disabled', () => {
+          // Create a game with mercy rules disabled
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', disabledRules);
+          game.startGame();
+
           // Set up a game with extreme differential that would normally trigger mercy rule
           inningState = inningState.withInningHalf(7, false); // Bottom 7th
 
@@ -324,8 +349,7 @@ describe('GameCoordinator - Complex Scenarios', () => {
             inningState,
             batterId,
             AtBatResultType.SINGLE,
-            [],
-            disabledRules
+            []
           );
 
           expect(result.success).toBe(true);
@@ -343,6 +367,10 @@ describe('GameCoordinator - Complex Scenarios', () => {
               { differential: 8, afterInning: 6 }, // Tight late game
             ],
           });
+
+          // Create a game with three-tier mercy rules
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', threeTierRules);
+          game.startGame();
 
           // Test third tier (8 runs after 6th inning)
           inningState = inningState.withInningHalf(7, false); // Bottom 7th
@@ -362,8 +390,7 @@ describe('GameCoordinator - Complex Scenarios', () => {
             inningState,
             batterId,
             AtBatResultType.SINGLE,
-            [],
-            threeTierRules
+            []
           );
 
           expect(result.success).toBe(true);

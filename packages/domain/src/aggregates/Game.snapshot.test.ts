@@ -33,6 +33,34 @@ import { GameId } from '../value-objects/GameId.js';
 import { Game } from './Game.js';
 
 /**
+ * Helper function to create standard rules config for GameCreated events in tests.
+ */
+function standardRulesConfig(): {
+  totalInnings: number;
+  maxPlayersPerTeam: number;
+  timeLimitMinutes: number;
+  allowReEntry: boolean;
+  mercyRuleEnabled: boolean;
+  mercyRuleTiers: Array<{ differential: number; afterInning: number }>;
+  maxExtraInnings: number;
+  allowTieGames: boolean;
+} {
+  return {
+    totalInnings: 7,
+    maxPlayersPerTeam: 25,
+    timeLimitMinutes: 60,
+    allowReEntry: true,
+    mercyRuleEnabled: true,
+    mercyRuleTiers: [
+      { differential: 10, afterInning: 4 },
+      { differential: 7, afterInning: 5 },
+    ],
+    maxExtraInnings: 0,
+    allowTieGames: true,
+  };
+}
+
+/**
  * Game snapshot data structure for testing.
  *
  * @remarks
@@ -775,7 +803,7 @@ describe('Game Aggregate Root - Snapshot Reconstruction', () => {
     it('should produce identical state to fromEvents() when snapshot represents all events', () => {
       // Create a game with full event history
       const allEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Full History Tigers', 'Full History Lions'),
+        new GameCreated(gameId, 'Full History Tigers', 'Full History Lions', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 2, { home: 2, away: 0 }),
         new InningAdvanced(gameId, 1, false),
@@ -824,7 +852,12 @@ describe('Game Aggregate Root - Snapshot Reconstruction', () => {
     it('should produce identical state to fromEvents() when combining snapshot + subsequent events', () => {
       // Full event sequence
       const allEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Consistency Test Home', 'Consistency Test Away'),
+        new GameCreated(
+          gameId,
+          'Consistency Test Home',
+          'Consistency Test Away',
+          standardRulesConfig()
+        ),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 1, { home: 1, away: 0 }),
         new InningAdvanced(gameId, 1, false),

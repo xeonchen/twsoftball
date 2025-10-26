@@ -1,6 +1,7 @@
 import { GameStatus } from '../constants/GameStatus.js';
 import { DomainError } from '../errors/DomainError.js';
 import { GameCompleted } from '../events/GameCompleted.js';
+import { SoftballRules } from '../rules/SoftballRules.js';
 import { GameId } from '../value-objects/GameId.js';
 import { GameScore } from '../value-objects/GameScore.js';
 
@@ -231,7 +232,14 @@ describe('Game Aggregate Root - Core Operations', () => {
     let game: Game;
 
     beforeEach(() => {
-      game = Game.createNew(gameId, 'Home Tigers', 'Away Lions');
+      // Use custom rules matching old hard-coded behavior for these tests
+      const customRules = new SoftballRules({
+        mercyRuleTiers: [
+          { differential: 15, afterInning: 5 }, // Old: 15+ after 5
+          { differential: 10, afterInning: 7 }, // Old: 10+ after 7
+        ],
+      });
+      game = Game.createNew(gameId, 'Home Tigers', 'Away Lions', customRules);
       game.startGame();
       game.markEventsAsCommitted();
     });
@@ -244,7 +252,14 @@ describe('Game Aggregate Root - Core Operations', () => {
       }
       game.addHomeRuns(15); // 15-0 lead
 
-      expect(game.isMercyRuleTriggered()).toBe(true);
+      // Delegate mercy rule logic to SoftballRules
+      expect(
+        game.rules.isMercyRule(
+          game.score.getHomeRuns(),
+          game.score.getAwayRuns(),
+          game.currentInning
+        )
+      ).toBe(true);
     });
 
     it('should detect mercy rule condition with 10+ run lead after 7 innings', () => {
@@ -255,7 +270,14 @@ describe('Game Aggregate Root - Core Operations', () => {
       }
       game.addAwayRuns(10); // 0-10 lead
 
-      expect(game.isMercyRuleTriggered()).toBe(true);
+      // Delegate mercy rule logic to SoftballRules
+      expect(
+        game.rules.isMercyRule(
+          game.score.getHomeRuns(),
+          game.score.getAwayRuns(),
+          game.currentInning
+        )
+      ).toBe(true);
     });
 
     it('should not trigger mercy rule with insufficient run lead', () => {
@@ -266,7 +288,14 @@ describe('Game Aggregate Root - Core Operations', () => {
       }
       game.addHomeRuns(14);
 
-      expect(game.isMercyRuleTriggered()).toBe(false);
+      // Delegate mercy rule logic to SoftballRules
+      expect(
+        game.rules.isMercyRule(
+          game.score.getHomeRuns(),
+          game.score.getAwayRuns(),
+          game.currentInning
+        )
+      ).toBe(false);
     });
 
     it('should not trigger mercy rule before required innings', () => {
@@ -277,7 +306,14 @@ describe('Game Aggregate Root - Core Operations', () => {
       }
       game.addHomeRuns(15);
 
-      expect(game.isMercyRuleTriggered()).toBe(false);
+      // Delegate mercy rule logic to SoftballRules
+      expect(
+        game.rules.isMercyRule(
+          game.score.getHomeRuns(),
+          game.score.getAwayRuns(),
+          game.currentInning
+        )
+      ).toBe(false);
     });
   });
 
