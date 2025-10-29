@@ -20,6 +20,7 @@ import {
   AtBatCompleted,
   RunScored,
   ScoreUpdated,
+  GameCompleted,
   AtBatResultType,
 } from '@twsoftball/domain';
 
@@ -71,10 +72,21 @@ export function deserializeEvent(rawData: unknown): DomainEvent {
 
   switch (data.type) {
     case 'GameCreated': {
+      const rulesConfig = data['rulesConfig'] as {
+        totalInnings: number;
+        maxPlayersPerTeam: number;
+        timeLimitMinutes: number | null;
+        allowReEntry: boolean;
+        mercyRuleEnabled: boolean;
+        mercyRuleTiers: Array<{ differential: number; afterInning: number }>;
+        maxExtraInnings: number | null;
+        allowTieGames: boolean;
+      };
       const event = new GameCreated(
         gameId,
         data['homeTeamName'] as string,
-        data['awayTeamName'] as string
+        data['awayTeamName'] as string,
+        rulesConfig
       );
       Object.assign(event, baseEventData);
       return event;
@@ -122,6 +134,17 @@ export function deserializeEvent(rawData: unknown): DomainEvent {
         data['scoringTeam'] as 'HOME' | 'AWAY',
         data['runsAdded'] as number,
         data['newScore'] as { home: number; away: number }
+      );
+      Object.assign(event, baseEventData);
+      return event;
+    }
+
+    case 'GameCompleted': {
+      const event = new GameCompleted(
+        gameId,
+        data['endingType'] as 'REGULATION' | 'MERCY_RULE' | 'FORFEIT' | 'TIME_LIMIT',
+        data['finalScore'] as { home: number; away: number },
+        data['completedInning'] as number
       );
       Object.assign(event, baseEventData);
       return event;

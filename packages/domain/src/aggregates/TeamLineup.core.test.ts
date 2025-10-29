@@ -33,7 +33,7 @@ describe('TeamLineup - Core Operations', () => {
 
   describe('createNew', () => {
     it('creates a new empty team lineup with valid id and game id', () => {
-      const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
 
       expect(lineup.id).toBe(lineupId);
       expect(lineup.gameId).toBe(gameId);
@@ -74,7 +74,7 @@ describe('TeamLineup - Core Operations', () => {
     let lineup: TeamLineup;
 
     beforeEach(() => {
-      lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
     });
 
     it('adds a player to batting slot successfully', () => {
@@ -237,12 +237,12 @@ describe('TeamLineup - Core Operations', () => {
 
   describe('getActiveLineup', () => {
     it('returns empty array for new lineup', () => {
-      const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       expect(lineup.getActiveLineup()).toEqual([]);
     });
 
     it('returns lineup sorted by batting position', () => {
-      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 5, FieldPosition.CATCHER, rules);
       lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
       lineup = lineup.addPlayer(
@@ -264,12 +264,12 @@ describe('TeamLineup - Core Operations', () => {
 
   describe('getFieldingPositions', () => {
     it('returns empty map for new lineup', () => {
-      const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       expect(lineup.getFieldingPositions()).toEqual(new Map());
     });
 
     it('returns current fielding assignments', () => {
-      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
       lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER, rules);
 
@@ -280,7 +280,7 @@ describe('TeamLineup - Core Operations', () => {
     });
 
     it('excludes EXTRA_PLAYER positions from fielding map', () => {
-      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(
         player1,
         jersey1,
@@ -300,7 +300,7 @@ describe('TeamLineup - Core Operations', () => {
     let lineup: TeamLineup;
 
     beforeEach(() => {
-      lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
     });
 
@@ -356,7 +356,7 @@ describe('TeamLineup - Core Operations', () => {
 
   describe('event sourcing', () => {
     it('marks events as committed', () => {
-      const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       expect(lineup.getUncommittedEvents()).toHaveLength(1);
 
       lineup.markEventsAsCommitted();
@@ -364,7 +364,7 @@ describe('TeamLineup - Core Operations', () => {
     });
 
     it('accumulates multiple events', () => {
-      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
       lineup = lineup.addPlayer(player2, jersey2, 'Jane Smith', 2, FieldPosition.CATCHER, rules);
 
@@ -376,7 +376,7 @@ describe('TeamLineup - Core Operations', () => {
     });
 
     it('includes game and team context in events', () => {
-      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
       lineup = lineup.substitutePlayer(
         1,
@@ -400,7 +400,7 @@ describe('TeamLineup - Core Operations', () => {
 
   describe('immutability', () => {
     it('returns new instance on player addition', () => {
-      const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       const updatedLineup = lineup.addPlayer(
         player1,
         jersey1,
@@ -416,7 +416,7 @@ describe('TeamLineup - Core Operations', () => {
     });
 
     it('returns new instance on substitution', () => {
-      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
 
       const updatedLineup = lineup.substitutePlayer(
@@ -436,7 +436,7 @@ describe('TeamLineup - Core Operations', () => {
     });
 
     it('returns new instance on position change', () => {
-      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
       lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
 
       const updatedLineup = lineup.changePosition(player1, FieldPosition.FIRST_BASE, 4);
@@ -444,6 +444,34 @@ describe('TeamLineup - Core Operations', () => {
       expect(updatedLineup).not.toBe(lineup);
       expect(lineup.getFieldingPositions().get(FieldPosition.PITCHER)).toEqual(player1);
       expect(updatedLineup.getFieldingPositions().get(FieldPosition.FIRST_BASE)).toEqual(player1);
+    });
+  });
+
+  describe('getPlayerAtSlot', () => {
+    it('should return player ID when slot exists and has a current player', () => {
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
+
+      const player = lineup.getPlayerAtSlot(1);
+      expect(player).toEqual(player1);
+    });
+
+    it('should return null when slot number does not exist', () => {
+      const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
+
+      const player = lineup.getPlayerAtSlot(99);
+      expect(player).toBeNull();
+    });
+
+    it('should return null when slot exists but has no current player', () => {
+      // This would happen if a slot's BattingSlot.getCurrentPlayer() returns null
+      // which could occur in edge cases during event sourcing
+      let lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
+      lineup = lineup.addPlayer(player1, jersey1, 'John Doe', 1, FieldPosition.PITCHER, rules);
+
+      // Query a different slot that hasn't been populated
+      const player = lineup.getPlayerAtSlot(5);
+      expect(player).toBeNull();
     });
   });
 });

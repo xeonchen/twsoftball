@@ -33,6 +33,34 @@ import { GameId } from '../value-objects/GameId.js';
 import { Game } from './Game.js';
 
 /**
+ * Helper function to create standard rules config for GameCreated events in tests.
+ */
+function standardRulesConfig(): {
+  totalInnings: number;
+  maxPlayersPerTeam: number;
+  timeLimitMinutes: number;
+  allowReEntry: boolean;
+  mercyRuleEnabled: boolean;
+  mercyRuleTiers: Array<{ differential: number; afterInning: number }>;
+  maxExtraInnings: number;
+  allowTieGames: boolean;
+} {
+  return {
+    totalInnings: 7,
+    maxPlayersPerTeam: 25,
+    timeLimitMinutes: 60,
+    allowReEntry: true,
+    mercyRuleEnabled: true,
+    mercyRuleTiers: [
+      { differential: 10, afterInning: 4 },
+      { differential: 7, afterInning: 5 },
+    ],
+    maxExtraInnings: 0,
+    allowTieGames: true,
+  };
+}
+
+/**
  * Game snapshot data structure for testing.
  *
  * @remarks
@@ -326,6 +354,68 @@ describe('Game Aggregate Root - Snapshot Reconstruction', () => {
       }).toThrow(DomainError);
     });
 
+    it('should throw error for snapshot with missing id in data', () => {
+      const invalidSnapshotData = {
+        id: null, // Invalid: null id
+        homeTeamName: 'Home Team',
+        awayTeamName: 'Away Team',
+        status: GameStatus.NOT_STARTED,
+        homeRuns: 0,
+        awayRuns: 0,
+        currentInning: 1,
+        isTopHalf: true,
+        outs: 0,
+      };
+
+      const snapshot = {
+        aggregateId: gameId,
+        aggregateType: 'Game' as const,
+        version: 1,
+        data: invalidSnapshotData,
+        timestamp: new Date(),
+      };
+
+      expect(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+        Game.fromSnapshot(snapshot as any, []);
+      }).toThrow(DomainError);
+      expect(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+        Game.fromSnapshot(snapshot as any, []);
+      }).toThrow('Snapshot data must contain valid id');
+    });
+
+    it('should throw error for snapshot with non-string awayTeamName type', () => {
+      const invalidSnapshotData = {
+        id: gameId.value,
+        homeTeamName: 'Home Team',
+        awayTeamName: 12345, // Invalid: number instead of string
+        status: GameStatus.NOT_STARTED,
+        homeRuns: 0,
+        awayRuns: 0,
+        currentInning: 1,
+        isTopHalf: true,
+        outs: 0,
+      };
+
+      const snapshot = {
+        aggregateId: gameId,
+        aggregateType: 'Game' as const,
+        version: 1,
+        data: invalidSnapshotData,
+        timestamp: new Date(),
+      };
+
+      expect(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+        Game.fromSnapshot(snapshot as any, []);
+      }).toThrow(DomainError);
+      expect(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+        Game.fromSnapshot(snapshot as any, []);
+      }).toThrow('Snapshot must contain valid awayTeamName');
+    });
+
     it('should throw error for snapshot with wrong aggregate type', () => {
       const snapshotData: GameSnapshotData = {
         id: gameId.value,
@@ -431,6 +521,64 @@ describe('Game Aggregate Root - Snapshot Reconstruction', () => {
       }).toThrow(DomainError);
     });
 
+    it('should throw error for whitespace-only home team name in snapshot data', () => {
+      const invalidSnapshotData: GameSnapshotData = {
+        id: gameId.value,
+        homeTeamName: '   ', // Whitespace-only home team name
+        awayTeamName: 'Away Team',
+        status: GameStatus.NOT_STARTED,
+        homeRuns: 0,
+        awayRuns: 0,
+        currentInning: 1,
+        isTopHalf: true,
+        outs: 0,
+      };
+
+      const snapshot: MockAggregateSnapshot<GameSnapshotData> = {
+        aggregateId: gameId,
+        aggregateType: 'Game',
+        version: 1,
+        data: invalidSnapshotData,
+        timestamp: new Date(),
+      };
+
+      expect(() => {
+        Game.fromSnapshot(snapshot, []);
+      }).toThrow(DomainError);
+      expect(() => {
+        Game.fromSnapshot(snapshot, []);
+      }).toThrow('Home team name cannot be empty');
+    });
+
+    it('should throw error for whitespace-only away team name in snapshot data', () => {
+      const invalidSnapshotData: GameSnapshotData = {
+        id: gameId.value,
+        homeTeamName: 'Home Team',
+        awayTeamName: '   ', // Whitespace-only away team name
+        status: GameStatus.NOT_STARTED,
+        homeRuns: 0,
+        awayRuns: 0,
+        currentInning: 1,
+        isTopHalf: true,
+        outs: 0,
+      };
+
+      const snapshot: MockAggregateSnapshot<GameSnapshotData> = {
+        aggregateId: gameId,
+        aggregateType: 'Game',
+        version: 1,
+        data: invalidSnapshotData,
+        timestamp: new Date(),
+      };
+
+      expect(() => {
+        Game.fromSnapshot(snapshot, []);
+      }).toThrow(DomainError);
+      expect(() => {
+        Game.fromSnapshot(snapshot, []);
+      }).toThrow('Away team name cannot be empty');
+    });
+
     it('should throw error for identical team names in snapshot data', () => {
       const invalidSnapshotData: GameSnapshotData = {
         id: gameId.value,
@@ -481,6 +629,35 @@ describe('Game Aggregate Root - Snapshot Reconstruction', () => {
       expect(() => {
         Game.fromSnapshot(snapshot, []);
       }).toThrow(DomainError);
+    });
+
+    it('should throw error for negative away runs in snapshot data', () => {
+      const invalidSnapshotData: GameSnapshotData = {
+        id: gameId.value,
+        homeTeamName: 'Home Team',
+        awayTeamName: 'Away Team',
+        status: GameStatus.NOT_STARTED,
+        homeRuns: 0,
+        awayRuns: -5, // Invalid negative runs
+        currentInning: 1,
+        isTopHalf: true,
+        outs: 0,
+      };
+
+      const snapshot: MockAggregateSnapshot<GameSnapshotData> = {
+        aggregateId: gameId,
+        aggregateType: 'Game',
+        version: 1,
+        data: invalidSnapshotData,
+        timestamp: new Date(),
+      };
+
+      expect(() => {
+        Game.fromSnapshot(snapshot, []);
+      }).toThrow(DomainError);
+      expect(() => {
+        Game.fromSnapshot(snapshot, []);
+      }).toThrow('Away runs must be a non-negative number');
     });
 
     it('should throw error for invalid outs in snapshot data', () => {
@@ -626,7 +803,7 @@ describe('Game Aggregate Root - Snapshot Reconstruction', () => {
     it('should produce identical state to fromEvents() when snapshot represents all events', () => {
       // Create a game with full event history
       const allEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Full History Tigers', 'Full History Lions'),
+        new GameCreated(gameId, 'Full History Tigers', 'Full History Lions', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 2, { home: 2, away: 0 }),
         new InningAdvanced(gameId, 1, false),
@@ -675,7 +852,12 @@ describe('Game Aggregate Root - Snapshot Reconstruction', () => {
     it('should produce identical state to fromEvents() when combining snapshot + subsequent events', () => {
       // Full event sequence
       const allEvents: DomainEvent[] = [
-        new GameCreated(gameId, 'Consistency Test Home', 'Consistency Test Away'),
+        new GameCreated(
+          gameId,
+          'Consistency Test Home',
+          'Consistency Test Away',
+          standardRulesConfig()
+        ),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 1, { home: 1, away: 0 }),
         new InningAdvanced(gameId, 1, false),
@@ -832,6 +1014,95 @@ describe('Game Aggregate Root - Snapshot Reconstruction', () => {
       expect(() => {
         game.addHomeRuns(NaN);
       }).toThrow(DomainError);
+    });
+  });
+
+  describe('Game.fromSnapshot() - startTime Field Handling', () => {
+    it('should set startTime from snapshot when provided as Date object', () => {
+      const startDate = new Date('2024-06-15T14:30:00.000Z');
+      const snapshotData = {
+        id: gameId.value,
+        homeTeamName: 'Home Team',
+        awayTeamName: 'Away Team',
+        status: GameStatus.IN_PROGRESS,
+        homeRuns: 3,
+        awayRuns: 2,
+        currentInning: 4,
+        isTopHalf: false,
+        outs: 1,
+        startTime: startDate,
+      };
+
+      const snapshot: MockAggregateSnapshot<typeof snapshotData> = {
+        aggregateId: gameId,
+        aggregateType: 'Game',
+        version: 25,
+        data: snapshotData,
+        timestamp: new Date(),
+      };
+
+      const game = Game.fromSnapshot(snapshot, []);
+
+      expect(game.startTime).toEqual(startDate);
+      expect(game.status).toBe(GameStatus.IN_PROGRESS);
+    });
+
+    it('should set startTime from snapshot when provided as ISO string', () => {
+      const startDateString = '2024-06-15T14:30:00.000Z';
+      const expectedDate = new Date(startDateString);
+      const snapshotData = {
+        id: gameId.value,
+        homeTeamName: 'Home Team',
+        awayTeamName: 'Away Team',
+        status: GameStatus.IN_PROGRESS,
+        homeRuns: 2,
+        awayRuns: 1,
+        currentInning: 3,
+        isTopHalf: true,
+        outs: 0,
+        startTime: startDateString,
+      };
+
+      const snapshot: MockAggregateSnapshot<typeof snapshotData> = {
+        aggregateId: gameId,
+        aggregateType: 'Game',
+        version: 15,
+        data: snapshotData,
+        timestamp: new Date(),
+      };
+
+      const game = Game.fromSnapshot(snapshot, []);
+
+      expect(game.startTime).toEqual(expectedDate);
+      expect(game.startTime?.getTime()).toBe(expectedDate.getTime());
+    });
+
+    it('should handle snapshot without startTime field', () => {
+      const snapshotData: GameSnapshotData = {
+        id: gameId.value,
+        homeTeamName: 'Home Team',
+        awayTeamName: 'Away Team',
+        status: GameStatus.NOT_STARTED,
+        homeRuns: 0,
+        awayRuns: 0,
+        currentInning: 1,
+        isTopHalf: true,
+        outs: 0,
+      };
+
+      const snapshot: MockAggregateSnapshot<GameSnapshotData> = {
+        aggregateId: gameId,
+        aggregateType: 'Game',
+        version: 5,
+        data: snapshotData,
+        timestamp: new Date(),
+      };
+
+      const game = Game.fromSnapshot(snapshot, []);
+
+      // startTime can be null or undefined when not set
+      expect(game.startTime).toBeNull();
+      expect(game.status).toBe(GameStatus.NOT_STARTED);
     });
   });
 });

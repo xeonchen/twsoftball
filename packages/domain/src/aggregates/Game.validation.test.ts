@@ -8,6 +8,34 @@ import { GameId } from '../value-objects/GameId.js';
 
 import { Game } from './Game.js';
 
+/**
+ * Helper function to create standard rules config for GameCreated events in tests.
+ */
+function standardRulesConfig(): {
+  totalInnings: number;
+  maxPlayersPerTeam: number;
+  timeLimitMinutes: number;
+  allowReEntry: boolean;
+  mercyRuleEnabled: boolean;
+  mercyRuleTiers: Array<{ differential: number; afterInning: number }>;
+  maxExtraInnings: number;
+  allowTieGames: boolean;
+} {
+  return {
+    totalInnings: 7,
+    maxPlayersPerTeam: 25,
+    timeLimitMinutes: 60,
+    allowReEntry: true,
+    mercyRuleEnabled: true,
+    mercyRuleTiers: [
+      { differential: 10, afterInning: 4 },
+      { differential: 7, afterInning: 5 },
+    ],
+    maxExtraInnings: 0,
+    allowTieGames: true,
+  };
+}
+
 describe('Game Aggregate Root - Event Management and Validation', () => {
   let gameId: GameId;
   let game: Game;
@@ -144,7 +172,7 @@ describe('Game Aggregate Root - Event Management and Validation', () => {
 
     it('should maintain version after reconstruction from events', () => {
       const events = [
-        new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+        new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 2, { home: 2, away: 0 }),
         new InningAdvanced(gameId, 1, false),
@@ -213,7 +241,7 @@ describe('Game Aggregate Root - Event Management and Validation', () => {
     it('should support event sourcing reconstruction pattern', () => {
       // Simulate what repository would do to reconstruct aggregate
       const events = [
-        new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+        new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 5, { home: 5, away: 0 }),
         new InningAdvanced(gameId, 1, false),
@@ -236,7 +264,7 @@ describe('Game Aggregate Root - Event Management and Validation', () => {
     it('should handle mixed committed and new events correctly', () => {
       // Start with reconstructed game (all events committed)
       const committedEvents = [
-        new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+        new GameCreated(gameId, 'Home Tigers', 'Away Lions', standardRulesConfig()),
         new GameStarted(gameId),
         new ScoreUpdated(gameId, 'HOME', 2, { home: 2, away: 0 }),
       ];

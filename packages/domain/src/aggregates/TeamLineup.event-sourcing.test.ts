@@ -1645,5 +1645,584 @@ describe('TeamLineup - Event Sourcing', () => {
         expect(() => TeamLineup.fromEvents(events)).toThrow(DomainError);
       });
     });
+
+    describe('reconstructJerseyNumber() - Indirect Testing via Event Deserialization', () => {
+      it('should reconstruct JerseyNumber from number format in PlayerAddedToLineup event', () => {
+        const baseEvent = new TeamLineupCreated(lineupId, gameId, 'Home Tigers');
+
+        // Create PlayerAddedToLineup event with JerseyNumber
+        const addEvent = new PlayerAddedToLineup(
+          gameId,
+          lineupId,
+          player1,
+          new JerseyNumber('42'),
+          'John Player',
+          1,
+          FieldPosition.PITCHER
+        );
+
+        // Simulate deserialization by creating event with jerseyNumber as plain number
+        const deserializedEvent = {
+          ...addEvent,
+          jerseyNumber: 42, // Plain number instead of JerseyNumber instance
+        } as unknown as DomainEvent;
+
+        const events = [baseEvent, deserializedEvent];
+
+        // Should successfully reconstruct JerseyNumber from number
+        const reconstructed = TeamLineup.fromEvents(events);
+
+        expect(reconstructed.getPlayerInfo(player1)?.jerseyNumber.value).toBe('42');
+        expect(reconstructed.getActiveLineup()).toHaveLength(1);
+      });
+
+      it('should reconstruct JerseyNumber from string format in PlayerAddedToLineup event', () => {
+        const baseEvent = new TeamLineupCreated(lineupId, gameId, 'Home Tigers');
+
+        const addEvent = new PlayerAddedToLineup(
+          gameId,
+          lineupId,
+          player1,
+          new JerseyNumber('99'),
+          'Jane Player',
+          2,
+          FieldPosition.CATCHER
+        );
+
+        // Simulate deserialization by creating event with jerseyNumber as plain string
+        const deserializedEvent = {
+          ...addEvent,
+          jerseyNumber: '99', // Plain string instead of JerseyNumber instance
+        } as unknown as DomainEvent;
+
+        const events = [baseEvent, deserializedEvent];
+
+        // Should successfully reconstruct JerseyNumber from string
+        const reconstructed = TeamLineup.fromEvents(events);
+
+        expect(reconstructed.getPlayerInfo(player1)?.jerseyNumber.value).toBe('99');
+      });
+
+      it('should reconstruct JerseyNumber from object format { value: number }', () => {
+        const baseEvent = new TeamLineupCreated(lineupId, gameId, 'Home Tigers');
+
+        const addEvent = new PlayerAddedToLineup(
+          gameId,
+          lineupId,
+          player1,
+          new JerseyNumber('7'),
+          'Lucky Seven',
+          3,
+          FieldPosition.FIRST_BASE
+        );
+
+        // Simulate deserialization by creating event with jerseyNumber as object with number value
+        const deserializedEvent = {
+          ...addEvent,
+          jerseyNumber: { value: 7 }, // Object with number value
+        } as unknown as DomainEvent;
+
+        const events = [baseEvent, deserializedEvent];
+
+        // Should successfully reconstruct JerseyNumber from object with number
+        const reconstructed = TeamLineup.fromEvents(events);
+
+        expect(reconstructed.getPlayerInfo(player1)?.jerseyNumber.value).toBe('7');
+      });
+
+      it('should reconstruct JerseyNumber from object format { value: string }', () => {
+        const baseEvent = new TeamLineupCreated(lineupId, gameId, 'Home Tigers');
+
+        const addEvent = new PlayerAddedToLineup(
+          gameId,
+          lineupId,
+          player1,
+          new JerseyNumber('13'),
+          'Unlucky Thirteen',
+          4,
+          FieldPosition.SHORTSTOP
+        );
+
+        // Simulate deserialization by creating event with jerseyNumber as object with string value
+        const deserializedEvent = {
+          ...addEvent,
+          jerseyNumber: { value: '13' }, // Object with string value
+        } as unknown as DomainEvent;
+
+        const events = [baseEvent, deserializedEvent];
+
+        // Should successfully reconstruct JerseyNumber from object with string
+        const reconstructed = TeamLineup.fromEvents(events);
+
+        expect(reconstructed.getPlayerInfo(player1)?.jerseyNumber.value).toBe('13');
+      });
+
+      it('should handle JerseyNumber already as instance (no reconstruction needed)', () => {
+        const jerseyNumber = new JerseyNumber('25');
+
+        const events = [
+          new TeamLineupCreated(lineupId, gameId, 'Home Tigers'),
+          new PlayerAddedToLineup(
+            gameId,
+            lineupId,
+            player1,
+            jerseyNumber,
+            'Player Name',
+            5,
+            FieldPosition.SECOND_BASE
+          ),
+        ];
+
+        // JerseyNumber is already an instance, should work directly
+        const reconstructed = TeamLineup.fromEvents(events);
+
+        expect(reconstructed.getPlayerInfo(player1)?.jerseyNumber).toEqual(jerseyNumber);
+      });
+
+      it('should throw error for invalid JerseyNumber format in PlayerAddedToLineup event', () => {
+        const baseEvent = new TeamLineupCreated(lineupId, gameId, 'Home Tigers');
+
+        // Create malformed event with invalid jerseyNumber
+        const malformedEvent = {
+          type: 'PlayerAddedToLineup',
+          eventId: crypto.randomUUID(),
+          timestamp: new Date(),
+          version: 1,
+          gameId,
+          teamLineupId: lineupId,
+          playerId: player1,
+          jerseyNumber: true, // Invalid format: boolean instead of number/string/object
+          playerName: 'Test Player',
+          battingPosition: 1,
+          fieldPosition: FieldPosition.PITCHER,
+        } as unknown as DomainEvent;
+
+        const events = [baseEvent, malformedEvent];
+
+        // Should throw DomainError when trying to reconstruct invalid JerseyNumber
+        expect(() => TeamLineup.fromEvents(events)).toThrow(DomainError);
+        expect(() => TeamLineup.fromEvents(events)).toThrow(/Cannot reconstruct JerseyNumber from/);
+      });
+
+      it('should handle multiple PlayerAddedToLineup events with different JerseyNumber formats', () => {
+        const baseEvent = new TeamLineupCreated(lineupId, gameId, 'Home Tigers');
+
+        // Mix of different formats
+        const addEvent1 = new PlayerAddedToLineup(
+          gameId,
+          lineupId,
+          player1,
+          new JerseyNumber('10'),
+          'Player One',
+          1,
+          FieldPosition.PITCHER
+        );
+
+        // Simulate deserialization for player2 (number format)
+        const addEvent2 = {
+          ...new PlayerAddedToLineup(
+            gameId,
+            lineupId,
+            player2,
+            new JerseyNumber('20'),
+            'Player Two',
+            2,
+            FieldPosition.CATCHER
+          ),
+          jerseyNumber: 20,
+        } as unknown as DomainEvent;
+
+        // Simulate deserialization for player3 (string format)
+        const addEvent3 = {
+          ...new PlayerAddedToLineup(
+            gameId,
+            lineupId,
+            player3,
+            new JerseyNumber('30'),
+            'Player Three',
+            3,
+            FieldPosition.FIRST_BASE
+          ),
+          jerseyNumber: '30',
+        } as unknown as DomainEvent;
+
+        const events = [baseEvent, addEvent1, addEvent2, addEvent3];
+
+        const reconstructed = TeamLineup.fromEvents(events);
+
+        // All three players should have correct JerseyNumbers
+        expect(reconstructed.getPlayerInfo(player1)?.jerseyNumber.value).toBe('10');
+        expect(reconstructed.getPlayerInfo(player2)?.jerseyNumber.value).toBe('20');
+        expect(reconstructed.getPlayerInfo(player3)?.jerseyNumber.value).toBe('30');
+        expect(reconstructed.getActiveLineup()).toHaveLength(3);
+      });
+
+      it('should handle object format with neither number nor string value (error case)', () => {
+        const baseEvent = new TeamLineupCreated(lineupId, gameId, 'Home Tigers');
+
+        // Create malformed event with invalid object structure
+        const malformedEvent = {
+          type: 'PlayerAddedToLineup',
+          eventId: crypto.randomUUID(),
+          timestamp: new Date(),
+          version: 1,
+          gameId,
+          teamLineupId: lineupId,
+          playerId: player1,
+          jerseyNumber: { value: null }, // Object with null value
+          playerName: 'Test Player',
+          battingPosition: 1,
+          fieldPosition: FieldPosition.PITCHER,
+        } as unknown as DomainEvent;
+
+        const events = [baseEvent, malformedEvent];
+
+        // Should throw DomainError
+        expect(() => TeamLineup.fromEvents(events)).toThrow(DomainError);
+        expect(() => TeamLineup.fromEvents(events)).toThrow(/Cannot reconstruct JerseyNumber from/);
+      });
+    });
+
+    describe('reconstructPlayerId() - Indirect Testing via Event Deserialization', () => {
+      it('should reconstruct PlayerId from string format in PlayerAddedToLineup event', () => {
+        const baseEvent = new TeamLineupCreated(lineupId, gameId, 'Home Tigers');
+
+        const addEvent = new PlayerAddedToLineup(
+          gameId,
+          lineupId,
+          new PlayerId('player-string-id'),
+          jersey1,
+          'John Player',
+          1,
+          FieldPosition.PITCHER
+        );
+
+        // Simulate deserialization by creating event with playerId as plain string
+        const deserializedEvent = {
+          ...addEvent,
+          playerId: 'player-string-id', // Plain string instead of PlayerId instance
+        } as unknown as DomainEvent;
+
+        const events = [baseEvent, deserializedEvent];
+
+        // Should successfully reconstruct PlayerId from string
+        const reconstructed = TeamLineup.fromEvents(events);
+
+        expect(reconstructed.getActiveLineup()).toHaveLength(1);
+        expect(reconstructed.getActiveLineup()[0]?.getCurrentPlayer().value).toBe(
+          'player-string-id'
+        );
+      });
+
+      it('should reconstruct PlayerId from object format { value: string } in PlayerSubstitutedIntoGame', () => {
+        const baseEvents = [
+          new TeamLineupCreated(lineupId, gameId, 'Home Tigers'),
+          new PlayerAddedToLineup(
+            gameId,
+            lineupId,
+            player1,
+            jersey1,
+            'Starter',
+            1,
+            FieldPosition.PITCHER
+          ),
+        ];
+
+        const subEvent = new PlayerSubstitutedIntoGame(
+          gameId,
+          lineupId,
+          1,
+          player1,
+          player2,
+          FieldPosition.CATCHER,
+          5
+        );
+
+        // Simulate deserialization with both playerIds as plain objects
+        const deserializedEvent = {
+          ...subEvent,
+          outgoingPlayerId: { value: player1.value },
+          incomingPlayerId: { value: player2.value },
+        } as unknown as DomainEvent;
+
+        const events = [...baseEvents, deserializedEvent];
+
+        // Should successfully reconstruct both PlayerIds from object format
+        const reconstructed = TeamLineup.fromEvents(events);
+
+        expect(reconstructed.getActiveLineup()[0]?.getCurrentPlayer().value).toBe(player2.value);
+      });
+
+      it('should reconstruct PlayerId from string format in FieldPositionChanged event', () => {
+        const baseEvents = [
+          new TeamLineupCreated(lineupId, gameId, 'Home Tigers'),
+          new PlayerAddedToLineup(
+            gameId,
+            lineupId,
+            player1,
+            jersey1,
+            'Player',
+            1,
+            FieldPosition.PITCHER
+          ),
+        ];
+
+        const positionEvent = new FieldPositionChanged(
+          gameId,
+          lineupId,
+          player1,
+          FieldPosition.PITCHER,
+          FieldPosition.SHORTSTOP,
+          3
+        );
+
+        // Simulate deserialization with playerId as string
+        const deserializedEvent = {
+          ...positionEvent,
+          playerId: player1.value, // Plain string
+        } as unknown as DomainEvent;
+
+        const events = [...baseEvents, deserializedEvent];
+
+        // Should successfully reconstruct PlayerId
+        const reconstructed = TeamLineup.fromEvents(events);
+
+        expect(reconstructed.getFieldingPositions().get(FieldPosition.SHORTSTOP)?.value).toBe(
+          player1.value
+        );
+      });
+
+      it('should throw error for invalid PlayerId format in PlayerAddedToLineup event', () => {
+        const baseEvent = new TeamLineupCreated(lineupId, gameId, 'Home Tigers');
+
+        // Create malformed event with invalid playerId
+        const malformedEvent = {
+          type: 'PlayerAddedToLineup',
+          eventId: crypto.randomUUID(),
+          timestamp: new Date(),
+          version: 1,
+          gameId,
+          teamLineupId: lineupId,
+          playerId: 12345, // Invalid format: number instead of string/object/PlayerId
+          jerseyNumber: jersey1,
+          playerName: 'Test Player',
+          battingPosition: 1,
+          fieldPosition: FieldPosition.PITCHER,
+        } as unknown as DomainEvent;
+
+        const events = [baseEvent, malformedEvent];
+
+        // Should throw DomainError
+        expect(() => TeamLineup.fromEvents(events)).toThrow(DomainError);
+        expect(() => TeamLineup.fromEvents(events)).toThrow(/Cannot reconstruct PlayerId from/);
+      });
+    });
+
+    describe('PlayerSubstitutedIntoGame - Jersey Number Fallback Logic', () => {
+      it('should handle EXTRA_PLAYER position for re-entering player', () => {
+        const player4 = PlayerId.generate();
+        const jersey4 = new JerseyNumber('4');
+
+        const events = [
+          new TeamLineupCreated(lineupId, gameId, 'Home Tigers'),
+          // Add starter player
+          new PlayerAddedToLineup(
+            gameId,
+            lineupId,
+            player1,
+            jersey1,
+            'Starter 1',
+            1,
+            FieldPosition.PITCHER
+          ),
+          // Add another player
+          new PlayerAddedToLineup(
+            gameId,
+            lineupId,
+            player4,
+            jersey4,
+            'Starter 4',
+            2,
+            FieldPosition.CATCHER
+          ),
+          // Substitute player1 out in inning 2 (battingSlot=1, out=player1, in=player2)
+          new PlayerSubstitutedIntoGame(
+            gameId,
+            lineupId,
+            1, // battingSlot
+            player1, // outgoingPlayerId
+            player2, // incomingPlayerId
+            FieldPosition.PITCHER, // fieldPosition
+            2 // inning
+          ),
+          // Player1 re-enters as EXTRA_PLAYER in inning 3 (out=player2, in=player1)
+          new PlayerSubstitutedIntoGame(
+            gameId,
+            lineupId,
+            1, // battingSlot
+            player2, // outgoingPlayerId
+            player1, // incomingPlayerId
+            FieldPosition.EXTRA_PLAYER, // fieldPosition
+            3 // inning
+          ),
+        ];
+
+        const lineup = TeamLineup.fromEvents(events);
+
+        // Player1 should be back in lineup with undefined position (EXTRA_PLAYER)
+        const player1Info = lineup.getPlayerInfo(player1);
+        expect(player1Info).toBeDefined();
+        expect(player1Info?.currentPosition).toBeUndefined(); // EXTRA_PLAYER = undefined
+        expect(player1Info?.hasUsedReentry).toBe(true);
+      });
+
+      it('should use fallback jersey range (50-89) when 90-99 are exhausted', () => {
+        const events = [new TeamLineupCreated(lineupId, gameId, 'Home Tigers')];
+
+        // Pre-fill jerseys 90-99 (10 jerseys)
+        for (let i = 90; i <= 99; i += 1) {
+          const playerId = PlayerId.generate();
+          const jerseyNum = new JerseyNumber(i.toString());
+          events.push(
+            new PlayerAddedToLineup(
+              gameId,
+              lineupId,
+              playerId,
+              jerseyNum,
+              `Player ${i}`,
+              1,
+              FieldPosition.PITCHER
+            )
+          );
+        }
+
+        // Pre-fill jerseys 1-89 except 50-54 (leave a few open for fallback)
+        for (let i = 1; i < 50; i += 1) {
+          const playerId = PlayerId.generate();
+          const jerseyNum = new JerseyNumber(i.toString());
+          events.push(
+            new PlayerAddedToLineup(
+              gameId,
+              lineupId,
+              playerId,
+              jerseyNum,
+              `Player ${i}`,
+              1,
+              FieldPosition.PITCHER
+            )
+          );
+        }
+
+        // Now add a substitute via PlayerSubstitutedIntoGame
+        // This should trigger the fallback logic since 90-99 are taken
+        const newSubId = PlayerId.generate();
+        const outgoingPlayerId = PlayerId.generate();
+        const outgoingJersey = new JerseyNumber('55');
+
+        events.push(
+          new PlayerAddedToLineup(
+            gameId,
+            lineupId,
+            outgoingPlayerId,
+            outgoingJersey,
+            'Outgoing Player',
+            1,
+            FieldPosition.PITCHER
+          )
+        );
+
+        // Substitute in a completely new player (not in playerHistory) in inning 2
+        events.push(
+          new PlayerSubstitutedIntoGame(
+            gameId,
+            lineupId,
+            2,
+            outgoingPlayerId,
+            newSubId,
+            FieldPosition.PITCHER,
+            1
+          )
+        );
+
+        const lineup = TeamLineup.fromEvents(events);
+
+        // The new substitute should get jersey 50 (fallback range start)
+        const subInfo = lineup.getPlayerInfo(newSubId);
+        expect(subInfo).toBeDefined();
+        expect(subInfo?.jerseyNumber.toNumber()).toBe(50);
+      });
+
+      it('should continue fallback search in 50-89 range when earlier numbers are taken', () => {
+        const events = [new TeamLineupCreated(lineupId, gameId, 'Home Tigers')];
+
+        // Pre-fill jerseys 90-99
+        for (let i = 90; i <= 99; i += 1) {
+          const playerId = PlayerId.generate();
+          const jerseyNum = new JerseyNumber(i.toString());
+          events.push(
+            new PlayerAddedToLineup(
+              gameId,
+              lineupId,
+              playerId,
+              jerseyNum,
+              `Player ${i}`,
+              1,
+              FieldPosition.PITCHER
+            )
+          );
+        }
+
+        // Pre-fill jerseys 50-52 (start of fallback range)
+        for (let i = 50; i <= 52; i += 1) {
+          const playerId = PlayerId.generate();
+          const jerseyNum = new JerseyNumber(i.toString());
+          events.push(
+            new PlayerAddedToLineup(
+              gameId,
+              lineupId,
+              playerId,
+              jerseyNum,
+              `Player ${i}`,
+              1,
+              FieldPosition.PITCHER
+            )
+          );
+        }
+
+        // Add a substitute - should get jersey 53 (next available in fallback)
+        const outgoingPlayerId = PlayerId.generate();
+        const outgoingJersey = new JerseyNumber('40');
+        events.push(
+          new PlayerAddedToLineup(
+            gameId,
+            lineupId,
+            outgoingPlayerId,
+            outgoingJersey,
+            'Outgoing',
+            1,
+            FieldPosition.PITCHER
+          )
+        );
+
+        const newSubId = PlayerId.generate();
+        events.push(
+          new PlayerSubstitutedIntoGame(
+            gameId,
+            lineupId,
+            2,
+            outgoingPlayerId,
+            newSubId,
+            FieldPosition.PITCHER,
+            1
+          )
+        );
+
+        const lineup = TeamLineup.fromEvents(events);
+
+        const subInfo = lineup.getPlayerInfo(newSubId);
+        expect(subInfo).toBeDefined();
+        expect(subInfo?.jerseyNumber.toNumber()).toBe(53); // Next available after 50-52
+      });
+    });
   });
 });

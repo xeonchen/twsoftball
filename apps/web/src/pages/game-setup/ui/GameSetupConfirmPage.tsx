@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useGameStore } from '../../../entities/game';
 import { useGameSetup } from '../../../features/game-setup';
+import { toUIGameState } from '../../../shared/api';
 import type { Player } from '../../../shared/lib/types';
 import { Button } from '../../../shared/ui/button';
 
@@ -25,12 +26,72 @@ import { Button } from '../../../shared/ui/button';
  */
 export function GameSetupConfirmPage(): ReactElement {
   const navigate = useNavigate();
-  const { setupWizard, completeSetup, startActiveGame } = useGameStore();
-  const { startGame, isLoading, error, gameId, validationErrors, clearError, reset } =
-    useGameSetup();
+  const { setupWizard, completeSetup, updateFromDTO } = useGameStore();
+  const {
+    startGame,
+    isLoading,
+    error,
+    gameId,
+    initialGameState,
+    validationErrors,
+    clearError,
+    reset,
+  } = useGameSetup();
 
   // Ref to track if we've already processed this gameId
   const processedGameIdRef = useRef<string | null>(null);
+
+  /**
+   * Sync state and navigate when game is successfully created.
+   *
+   * @remarks
+   * This single effect handles BOTH state sync AND navigation to eliminate
+   * the race condition. The flow:
+   *
+   * 1. initialGameState changes (game created)
+   * 2. Convert DTO to UI state
+   * 3. Call updateFromDTO (synchronous Zustand update)
+   * 4. Zustand persist middleware writes to sessionStorage (synchronous)
+   * 5. Complete setup wizard
+   * 6. Navigate to game recording page
+   *
+   * By handling sync and navigation in ONE effect, we guarantee that navigation
+   * only happens AFTER state is persisted. No separate effects = no race condition.
+   *
+   * Clean architectural solution: Single Responsibility within the effect scope.
+   */
+  useEffect(() => {
+    // Only process when we have BOTH gameId AND initialGameState
+    // AND we haven't already processed this specific gameId
+    if (!gameId || !initialGameState || processedGameIdRef.current === gameId) {
+      return;
+    }
+
+    // Mark as processed BEFORE doing anything to prevent any re-runs
+    processedGameIdRef.current = gameId;
+
+    try {
+      // Convert DTO to UI state and sync to Zustand store
+      const uiState = toUIGameState(initialGameState);
+      updateFromDTO(uiState);
+
+      // Zustand v5 persist middleware is synchronous with sessionStorage
+      // State is now persisted - safe to navigate
+      completeSetup();
+      void navigate(`/game/${gameId}/record`);
+    } catch (error) {
+      // eslint-disable-next-line no-console -- Error logging for debugging
+      console.error('[GameSetupConfirmPage] Failed to sync state before navigation:', error);
+      // Reset processed ref so user can retry
+      processedGameIdRef.current = null;
+      // Don't navigate if sync failed
+    }
+
+    // Zustand functions (completeSetup, navigate, updateFromDTO) are stable
+    // Only depend on gameId (primitive) to avoid re-triggering on object reference changes
+    // initialGameState is read from closure but not in deps to prevent infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- See comment above
+  }, [gameId]);
 
   /**
    * Format current date and time
@@ -66,63 +127,6 @@ export function GameSetupConfirmPage(): ReactElement {
   };
 
   /**
-   * Navigate to game recording when game is successfully created
-   */
-  useEffect(() => {
-    // Only process each gameId once to prevent infinite loop
-    if (gameId && processedGameIdRef.current !== gameId) {
-      processedGameIdRef.current = gameId;
-
-      // Complete the setup wizard
-      completeSetup();
-
-      // Create initial game data for the store
-      const gameData = {
-        id: gameId,
-        homeTeam: setupWizard.teams.home,
-        awayTeam: setupWizard.teams.away,
-        status: 'active' as const,
-        homeScore: 0,
-        awayScore: 0,
-        currentInning: 1,
-        isTopHalf: true,
-      };
-
-      // Start the active game in the store
-      startActiveGame(gameData);
-
-      // Navigate to game recording
-      void navigate(`/game/${gameId}/record`);
-    }
-
-    // Only depend on gameId - other values are captured from render scope
-    // Zustand functions (completeSetup, startActiveGame, navigate) are stable
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Zustand functions are stable and setupWizard values are captured from render scope
-  }, [gameId]);
-
-  /**
-   * Clear stale gameId on mount to prevent unwanted auto-navigation
-   *
-   * @remarks
-   * This handles the case where:
-   * 1. A previous game was created (gameId set)
-   * 2. User navigates back to confirm page (component may be reused by React Router)
-   * 3. Old gameId triggers immediate navigation before user can interact
-   *
-   * We only clear if:
-   * - gameId exists (there's state to clean)
-   * - isLoading is false (not in the middle of creating a game)
-   * - Component is mounting (not in the middle of a game creation flow)
-   */
-  useEffect(() => {
-    if (gameId && !isLoading) {
-      reset(); // Clear stale gameId from previous operation
-    }
-    // Only run on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only check for stale state on mount
-  }, []);
-
-  /**
    * Reset gameId state when component unmounts to prevent state leakage
    *
    * @remarks
@@ -146,6 +150,7 @@ export function GameSetupConfirmPage(): ReactElement {
   const handleStartGame = async (): Promise<void> => {
     try {
       await startGame(setupWizard);
+
       // Navigation will happen automatically via gameId change in useEffect
     } catch (_err) {
       // Errors are handled by the hook

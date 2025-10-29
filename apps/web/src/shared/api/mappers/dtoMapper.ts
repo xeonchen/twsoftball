@@ -44,6 +44,8 @@ import type {
 } from '@twsoftball/application';
 import type { BattingSlotDTO } from '@twsoftball/application/dtos/TeamLineupDTO';
 
+import type { Player } from '../../lib/types';
+
 /**
  * UI-optimized game state interface.
  */
@@ -75,6 +77,15 @@ export interface UIGameState {
     created: string;
     lastModified: string;
   };
+  // Active game state fields
+  currentBatter: Player | null;
+  bases: {
+    first: Player | null;
+    second: Player | null;
+    third: Player | null;
+  };
+  outs: number;
+  battingTeam: 'home' | 'away';
 }
 
 /**
@@ -148,6 +159,29 @@ export interface UIBasesState {
 }
 
 /**
+ * Converts PlayerInGameDTO to UI Player format.
+ *
+ * @param playerDTO - Application layer player DTO
+ * @returns UI-optimized player
+ */
+function toUIPlayer(playerDTO: PlayerInGameDTO | null): Player | null {
+  if (!playerDTO) {
+    return null;
+  }
+
+  return {
+    id: playerDTO.playerId?.value || '',
+    name: playerDTO.name || '',
+    jerseyNumber:
+      typeof playerDTO.jerseyNumber?.toNumber === 'function'
+        ? playerDTO.jerseyNumber.toNumber().toString()
+        : String((playerDTO.jerseyNumber as unknown as { value: string })?.value || '0'),
+    position: playerDTO.currentFieldPosition || '',
+    battingOrder: playerDTO.battingOrderPosition || 0,
+  };
+}
+
+/**
  * Converts GameStateDTO to UI-optimized game state.
  *
  * @remarks
@@ -157,6 +191,7 @@ export interface UIBasesState {
  * - Inning half as readable string
  * - Date objects as ISO strings
  * - Defensive handling of missing properties
+ * - Current batter and bases state for active game recording
  *
  * @param dto - Application layer game state DTO
  * @returns UI-optimized game state
@@ -167,12 +202,16 @@ export interface UIBasesState {
  *   gameId: { value: 'game-123' },
  *   currentInning: 7,
  *   topOfInning: false,
- *   score: { homeScore: 5, awayScore: 3 }
+ *   score: { homeScore: 5, awayScore: 3 },
+ *   currentBatter: playerDTO,
+ *   bases: basesStateDTO,
+ *   outs: 1
  * };
  *
  * const uiState = toUIGameState(gameStateDTO);
  * // uiState.inning.half === 'bottom'
  * // uiState.score.total === 8
+ * // uiState.currentBatter === { id: '...', name: '...', ... }
  * ```
  */
 export function toUIGameState(dto: GameStateDTO | null): UIGameState {
@@ -187,13 +226,37 @@ export function toUIGameState(dto: GameStateDTO | null): UIGameState {
         away: { name: '', abbreviation: '', color: '' },
       },
       timing: { created: '', lastModified: '' },
+      currentBatter: null,
+      bases: { first: null, second: null, third: null },
+      outs: 0,
+      battingTeam: 'home',
     };
   }
 
   const homeScore = dto.score?.home || 0;
   const awayScore = dto.score?.away || 0;
 
-  return {
+  // Helper function to find player by ID in lineup
+  const findPlayerById = (playerId: string | null): Player | null => {
+    if (!playerId) return null;
+
+    // Search in both lineups
+    const homePlayer = dto.homeLineup?.battingSlots?.find(
+      slot => slot.currentPlayer?.playerId?.value === playerId
+    )?.currentPlayer;
+
+    if (homePlayer) return toUIPlayer(homePlayer);
+
+    const awayPlayer = dto.awayLineup?.battingSlots?.find(
+      slot => slot.currentPlayer?.playerId?.value === playerId
+    )?.currentPlayer;
+
+    return awayPlayer ? toUIPlayer(awayPlayer) : null;
+  };
+
+  const convertedCurrentBatter = dto.currentBatter ? toUIPlayer(dto.currentBatter) : null;
+
+  const result: UIGameState = {
     gameId: dto.gameId?.value || '',
     status: dto.status || '',
     inning: {
@@ -221,7 +284,18 @@ export function toUIGameState(dto: GameStateDTO | null): UIGameState {
       created: dto.gameStartTime?.toISOString() || '',
       lastModified: dto.lastUpdated?.toISOString() || '',
     },
+    // Active game state
+    currentBatter: convertedCurrentBatter,
+    bases: {
+      first: findPlayerById(dto.bases?.first?.value || null),
+      second: findPlayerById(dto.bases?.second?.value || null),
+      third: findPlayerById(dto.bases?.third?.value || null),
+    },
+    outs: dto.outs || 0,
+    battingTeam: dto.battingTeam === 'HOME' ? 'home' : 'away',
   };
+
+  return result;
 }
 
 /**

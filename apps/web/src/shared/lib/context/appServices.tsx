@@ -41,9 +41,12 @@ import type { SetupWizardState } from '../types';
 
 // Generic game adapter interface that doesn't violate FSD
 export interface GameAdapterInterface {
-  startNewGameFromWizard: (
-    wizardState: SetupWizardState
-  ) => Promise<{ success: boolean; gameId?: string; errors?: string[] }>;
+  startNewGameFromWizard: (wizardState: SetupWizardState) => Promise<{
+    success: boolean;
+    gameId?: import('@twsoftball/application').GameId;
+    initialState?: import('@twsoftball/application').GameStateDTO;
+    errors?: string[];
+  }>;
   getTeamLineup: (uiData: { gameId: string }) => Promise<{
     success: boolean;
     gameId: { value: string }; // GameId value object structure

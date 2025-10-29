@@ -238,6 +238,20 @@ export class EventSourcedInningStateRepository implements InningStateRepository 
       }
     }
 
+    // [FIX] Sort events within each stream by timestamp to ensure correct order
+    // IndexedDB's openCursor() does not guarantee order, so we must sort explicitly
+    for (const [streamId, events] of groupedEvents.entries()) {
+      events.sort((a, b) => {
+        // Primary sort: streamVersion (ensures creation event comes first)
+        if (a.streamVersion !== b.streamVersion) {
+          return a.streamVersion - b.streamVersion;
+        }
+        // Secondary sort: timestamp (for events with same version)
+        return a.timestamp.getTime() - b.timestamp.getTime();
+      });
+      groupedEvents.set(streamId, events);
+    }
+
     return groupedEvents;
   }
 }

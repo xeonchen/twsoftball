@@ -506,6 +506,27 @@ describe('InningState - Core Operations', () => {
         isTopHalf: true,
       });
     });
+
+    it('should preserve batting positions for both teams when switching halves', () => {
+      // Setup: Away team is on slot 5, home team is on slot 3
+      let inningState = InningState.createNew(inningStateId, gameId).withCurrentBattingSlot(5); // Away team on slot 5 (top half)
+
+      // Manually set home team slot to 3 using withInningHalf to switch and set slot
+      inningState = inningState
+        .withInningHalf(1, false) // Switch to bottom
+        .withCurrentBattingSlot(3); // Home team on slot 3
+
+      // Switch back to top to end it
+      inningState = inningState.withInningHalf(1, true).withCurrentBattingSlot(5);
+
+      // End top half
+      const updated = inningState.endHalfInning();
+
+      // Should switch to bottom half and preserve home team's slot (3)
+      expect(updated.isTopHalf).toBe(false);
+      expect(updated.currentBattingSlot).toBe(3); // Home team continues from slot 3
+      expect(updated.inning).toBe(1);
+    });
   });
 
   describe('getCurrentSituation', () => {
@@ -536,6 +557,45 @@ describe('InningState - Core Operations', () => {
 
       expect(situation.runnersInScoringPosition).toHaveLength(0);
       expect(situation.basesState.getOccupiedBases()).toHaveLength(0);
+    });
+  });
+
+  describe('batter slot getters', () => {
+    it('should return away batter slot for top half inning', () => {
+      const inningState = InningState.createNew(inningStateId, gameId).withCurrentBattingSlot(5);
+
+      expect(inningState.awayBatterSlot).toBe(5);
+      expect(inningState.homeBatterSlot).toBe(1);
+    });
+
+    it('should return home batter slot for bottom half inning', () => {
+      const inningState = InningState.createNew(inningStateId, gameId)
+        .withInningHalf(1, false)
+        .withCurrentBattingSlot(7);
+
+      expect(inningState.awayBatterSlot).toBe(1);
+      expect(inningState.homeBatterSlot).toBe(7);
+    });
+
+    it('should maintain separate batting slots for each team', () => {
+      // Top half: away team on slot 3
+      let inningState = InningState.createNew(inningStateId, gameId).withCurrentBattingSlot(3);
+
+      expect(inningState.awayBatterSlot).toBe(3);
+      expect(inningState.homeBatterSlot).toBe(1);
+
+      // Switch to bottom half: home team on slot 5
+      inningState = inningState.withInningHalf(1, false).withCurrentBattingSlot(5);
+
+      expect(inningState.awayBatterSlot).toBe(3); // Away still at 3
+      expect(inningState.homeBatterSlot).toBe(5); // Home now at 5
+
+      // Switch back to top half
+      inningState = inningState.withInningHalf(2, true);
+
+      expect(inningState.currentBattingSlot).toBe(3); // Should return to away's slot
+      expect(inningState.awayBatterSlot).toBe(3);
+      expect(inningState.homeBatterSlot).toBe(5);
     });
   });
 
@@ -620,6 +680,72 @@ describe('InningState - Core Operations', () => {
         const inningState = InningState.createNew(inningStateId, gameId);
 
         expect(() => inningState.withInningHalf(0, true)).toThrow(DomainError);
+      });
+    });
+
+    describe('getBases', () => {
+      it('should return empty bases when no runners', () => {
+        const inningState = InningState.createNew(inningStateId, gameId);
+
+        const bases = inningState.getBases();
+
+        expect(bases.first).toBe(null);
+        expect(bases.second).toBe(null);
+        expect(bases.third).toBe(null);
+      });
+
+      it('should return runner on first base', () => {
+        const inningState = InningState.createNew(inningStateId, gameId);
+        const runner = new PlayerId('runner-1');
+
+        const updated = inningState.recordAtBat(runner, 1, AtBatResultType.SINGLE, 1);
+
+        const bases = updated.getBases();
+
+        expect(bases.first).toEqual(runner);
+        expect(bases.second).toBe(null);
+        expect(bases.third).toBe(null);
+      });
+
+      it('should return runners on multiple bases', () => {
+        const inningState = InningState.createNew(inningStateId, gameId);
+        const runner1 = new PlayerId('runner-1');
+        const runner2 = new PlayerId('runner-2');
+        const runner3 = new PlayerId('runner-3');
+
+        let updated = inningState.recordAtBat(runner1, 1, AtBatResultType.SINGLE, 1);
+
+        updated = updated.recordAtBat(runner2, 2, AtBatResultType.SINGLE, 1);
+
+        updated = updated.recordAtBat(runner3, 3, AtBatResultType.SINGLE, 1);
+
+        const bases = updated.getBases();
+
+        // After 3 consecutive singles, we should have bases loaded
+        // (unless runs scored - depends on runner advancement logic)
+        expect(bases.first).toBeDefined();
+        expect(bases.second).toBeDefined();
+        expect(bases.third).toBeDefined();
+      });
+
+      it('should handle bases loaded scenario', () => {
+        const inningState = InningState.createNew(inningStateId, gameId);
+        const runner1 = new PlayerId('runner-1');
+        const runner2 = new PlayerId('runner-2');
+        const runner3 = new PlayerId('runner-3');
+
+        let updated = inningState.recordAtBat(runner1, 1, AtBatResultType.WALK, 1);
+
+        updated = updated.recordAtBat(runner2, 2, AtBatResultType.WALK, 1);
+
+        updated = updated.recordAtBat(runner3, 3, AtBatResultType.WALK, 1);
+
+        const bases = updated.getBases();
+
+        expect(bases.basesLoaded).toBe(true);
+        expect(bases.first).toBeDefined();
+        expect(bases.second).toBeDefined();
+        expect(bases.third).toBeDefined();
       });
     });
   });

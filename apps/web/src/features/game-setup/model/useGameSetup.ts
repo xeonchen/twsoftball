@@ -102,6 +102,8 @@ export interface UseGameSetupReturn {
   error: string | null;
   /** Game ID of successfully created game */
   gameId: string | null;
+  /** Initial game state from successful game creation (includes currentBatter) */
+  initialGameState: import('@twsoftball/application').GameStateDTO | null;
   /** Validation errors categorized by type */
   validationErrors: ValidationErrors | null;
   /** Function to clear current error state */
@@ -174,6 +176,9 @@ export function useGameSetup(): UseGameSetupReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [gameId, setGameId] = useState<string | null>(null);
+  const [initialGameState, setInitialGameState] = useState<
+    import('@twsoftball/application').GameStateDTO | null
+  >(null);
   const [validationErrors, setValidationErrors] = useState<ValidationErrors | null>(null);
 
   // Ref to track component mount state for cleanup
@@ -210,6 +215,7 @@ export function useGameSetup(): UseGameSetupReturn {
     setIsLoading(false);
     setError(null);
     setGameId(null);
+    setInitialGameState(null);
     setValidationErrors(null);
   }, []);
 
@@ -409,7 +415,8 @@ export function useGameSetup(): UseGameSetupReturn {
 
         if (result.success) {
           // Success path
-          setGameId(result.gameId || '');
+          setGameId(result.gameId?.value || '');
+          setInitialGameState(result.initialState || null);
           setIsLoading(false);
 
           logger.info('Game created successfully', {
@@ -470,6 +477,7 @@ export function useGameSetup(): UseGameSetupReturn {
     isLoading,
     error,
     gameId,
+    initialGameState,
     validationErrors,
     clearError,
     reset,

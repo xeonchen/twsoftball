@@ -224,6 +224,11 @@ vi.mock('@twsoftball/application', () => ({
     TRIPLE_PLAY: 'TP',
     SACRIFICE_FLY: 'SF',
   },
+  GameStatus: {
+    NOT_STARTED: 'NOT_STARTED',
+    IN_PROGRESS: 'IN_PROGRESS',
+    COMPLETED: 'COMPLETED',
+  },
   GameId: ((): typeof vi.fn => {
     interface GameIdInstance {
       value: string;
@@ -277,7 +282,7 @@ vi.mock('@twsoftball/application', () => ({
     });
     return JerseyNumberMock;
   })(),
-  TeamLineupId: ((): typeof vi.fn => {
+  TeamLineupId: ((): typeof vi.fn & { generate: ReturnType<typeof vi.fn> } => {
     interface TeamLineupIdInstance {
       value: string;
       toString: () => string;
@@ -290,6 +295,11 @@ vi.mock('@twsoftball/application', () => ({
       this.value = value;
       this.toString = (): string => value;
       this.equals = (other: { value: string }): boolean => value === other.value;
+    });
+    TeamLineupIdMock.generate = vi.fn().mockImplementation(function (): TeamLineupIdInstance {
+      return new (TeamLineupIdMock as new (value: string) => TeamLineupIdInstance)(
+        crypto.randomUUID()
+      );
     });
     return TeamLineupIdMock;
   })(),

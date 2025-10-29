@@ -46,7 +46,7 @@
     "clean": "rm -rf dist",
     "test": "NODE_OPTIONS='--max-old-space-size=2048' vitest run --exclude '**/*.perf.test.ts'",
     "test:watch": "NODE_OPTIONS='--max-old-space-size=2048' vitest",
-    "test:perf": "NODE_OPTIONS='--max-old-space-size=2048' vitest run --testNamePattern 'Infrastructure Performance Testing'",
+    "test:perf": "NODE_OPTIONS='--max-old-space-size=2048' vitest run src/**/*.perf.test.ts",
     "test:coverage": "NODE_OPTIONS='--max-old-space-size=2048' vitest run --coverage --exclude '**/*.perf.test.ts'",
     "test:all": "NODE_OPTIONS='--max-old-space-size=2048' vitest run",
     "typecheck": "tsc --noEmit",

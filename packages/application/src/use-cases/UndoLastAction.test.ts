@@ -32,6 +32,10 @@ import {
   // GameStarted,
   // GameCompleted,
   AtBatResultType,
+  InningState,
+  InningStateId,
+  TeamLineup,
+  TeamLineupId,
 } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -39,11 +43,15 @@ import { UndoCommand } from '../dtos/UndoCommand.js';
 // import { UndoResult } from '../dtos/UndoResult.js';
 import { EventStore } from '../ports/out/EventStore.js';
 import { GameRepository } from '../ports/out/GameRepository.js';
+import { InningStateRepository } from '../ports/out/InningStateRepository.js';
 import { Logger } from '../ports/out/Logger.js';
+import { TeamLineupRepository } from '../ports/out/TeamLineupRepository.js';
 import {
   createAtBatCompletedEvent,
   createSubstitutionEvent,
   createInningEndEvent,
+  createMockInningStateRepository,
+  createMockTeamLineupRepository,
 } from '../test-factories/index.js';
 
 import { UndoLastAction } from './UndoLastAction.js';
@@ -51,6 +59,8 @@ import { UndoLastAction } from './UndoLastAction.js';
 describe('UndoLastAction Use Case', () => {
   // Test dependencies (mocks)
   let mockGameRepository: GameRepository;
+  let mockInningStateRepository: ReturnType<typeof createMockInningStateRepository>;
+  let mockTeamLineupRepository: ReturnType<typeof createMockTeamLineupRepository>;
   let mockEventStore: EventStore;
   let mockLogger: Logger;
 
@@ -73,6 +83,30 @@ describe('UndoLastAction Use Case', () => {
       game.startGame();
     }
     return game;
+  };
+
+  /**
+   * Helper to create minimal InningState for testing.
+   * Provides the required InningState aggregate for buildGameStateDTO().
+   */
+  const createMockInningState = (testGameId: GameId): InningState => {
+    return InningState.createNew(
+      InningStateId.generate(),
+      testGameId,
+      1, // inning
+      true, // isTopHalf
+      1, // away batter slot
+      1 // home batter slot
+    );
+  };
+
+  /**
+   * Helper to create minimal TeamLineup for testing.
+   * Provides the required TeamLineup aggregate for buildGameStateDTO().
+   */
+  const createMockTeamLineup = (testGameId: GameId, side: 'HOME' | 'AWAY'): TeamLineup => {
+    const teamName = side === 'HOME' ? 'Home Dragons' : 'Away Tigers';
+    return TeamLineup.createNew(TeamLineupId.generate(), testGameId, teamName, side);
   };
 
   // Use factory functions for creating test events
@@ -142,7 +176,28 @@ describe('UndoLastAction Use Case', () => {
     mockEventStore = mocks.eventStore;
     mockLogger = mocks.logger;
 
-    undoLastAction = new UndoLastAction(mockGameRepository, mockEventStore, mockLogger);
+    // Create mock aggregates for buildGameStateDTO()
+    const mockInningState = createMockInningState(gameId);
+    const mockHomeLineup = createMockTeamLineup(gameId, 'HOME');
+    const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY');
+
+    // Create mock repositories with configured overrides
+    mockInningStateRepository = createMockInningStateRepository({
+      findCurrentByGameId: vi.fn().mockResolvedValue(mockInningState),
+    });
+    mockTeamLineupRepository = createMockTeamLineupRepository({
+      findByGameIdAndSide: vi.fn().mockImplementation((gid, side) => {
+        return Promise.resolve(side === 'HOME' ? mockHomeLineup : mockAwayLineup);
+      }),
+    });
+
+    undoLastAction = new UndoLastAction(
+      mockGameRepository,
+      mockInningStateRepository,
+      mockTeamLineupRepository,
+      mockEventStore,
+      mockLogger
+    );
 
     // Setup default successful mock responses
     mockSave.mockResolvedValue(undefined);
@@ -1467,17 +1522,55 @@ describe('UndoLastAction Use Case', () => {
       });
     });
     it('should test constructor validation for better coverage', () => {
-      // Test coverage for lines 137-138, 140-141, 143-144: constructor parameter validation
+      // Test coverage for constructor parameter validation
       expect(() => {
-        new UndoLastAction(null as unknown as GameRepository, mockEventStore, mockLogger);
+        new UndoLastAction(
+          null as unknown as GameRepository,
+          mockInningStateRepository,
+          mockTeamLineupRepository,
+          mockEventStore,
+          mockLogger
+        );
       }).toThrow('GameRepository is required');
 
       expect(() => {
-        new UndoLastAction(mockGameRepository, null as unknown as EventStore, mockLogger);
+        new UndoLastAction(
+          mockGameRepository,
+          null as unknown as InningStateRepository,
+          mockTeamLineupRepository,
+          mockEventStore,
+          mockLogger
+        );
+      }).toThrow('InningStateRepository is required');
+
+      expect(() => {
+        new UndoLastAction(
+          mockGameRepository,
+          mockInningStateRepository,
+          null as unknown as TeamLineupRepository,
+          mockEventStore,
+          mockLogger
+        );
+      }).toThrow('TeamLineupRepository is required');
+
+      expect(() => {
+        new UndoLastAction(
+          mockGameRepository,
+          mockInningStateRepository,
+          mockTeamLineupRepository,
+          null as unknown as EventStore,
+          mockLogger
+        );
       }).toThrow('EventStore is required');
 
       expect(() => {
-        new UndoLastAction(mockGameRepository, mockEventStore, null as unknown as Logger);
+        new UndoLastAction(
+          mockGameRepository,
+          mockInningStateRepository,
+          mockTeamLineupRepository,
+          mockEventStore,
+          null as unknown as Logger
+        );
       }).toThrow('Logger is required');
     });
 

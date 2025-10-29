@@ -1225,25 +1225,25 @@ describe('GameAdapter', () => {
                 playerId: expect.objectContaining({ value: 'runner-1' }),
                 fromBase: 'FIRST',
                 toBase: 'SECOND',
-                advanceReason: 'BATTED_BALL',
+                advanceReason: 'HIT',
               }),
               expect.objectContaining({
                 playerId: expect.objectContaining({ value: 'runner-2' }),
                 fromBase: 'SECOND',
                 toBase: 'THIRD',
-                advanceReason: 'BATTED_BALL',
+                advanceReason: 'HIT',
               }),
               expect.objectContaining({
                 playerId: expect.objectContaining({ value: 'runner-3' }),
                 fromBase: 'THIRD',
                 toBase: 'HOME',
-                advanceReason: 'BATTED_BALL',
+                advanceReason: 'HIT',
               }),
               expect.objectContaining({
                 playerId: expect.objectContaining({ value: 'runner-4' }),
                 fromBase: 'FIRST',
                 toBase: 'OUT', // Invalid toBase converted to OUT
-                advanceReason: 'BATTED_BALL',
+                advanceReason: 'HIT',
               }),
             ],
           })
@@ -1284,19 +1284,19 @@ describe('GameAdapter', () => {
                 playerId: expect.objectContaining({ value: 'runner-1' }),
                 fromBase: null, // Invalid fromBase converted to null
                 toBase: 'FIRST',
-                advanceReason: 'BATTED_BALL',
+                advanceReason: 'HIT',
               }),
               expect.objectContaining({
                 playerId: expect.objectContaining({ value: 'runner-2' }),
                 fromBase: null, // Invalid fromBase converted to null
                 toBase: 'HOME',
-                advanceReason: 'BATTED_BALL',
+                advanceReason: 'HIT',
               }),
               expect.objectContaining({
                 playerId: expect.objectContaining({ value: 'runner-3' }),
                 fromBase: null, // Invalid fromBase converted to null
                 toBase: 'FIRST',
-                advanceReason: 'BATTED_BALL',
+                advanceReason: 'HIT',
               }),
             ],
           })
