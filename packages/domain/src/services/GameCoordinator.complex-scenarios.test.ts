@@ -767,6 +767,102 @@ describe('GameCoordinator - Complex Scenarios', () => {
         expect(result.gameComplete).toBe(false); // Should continue since tied and not end of inning
       });
     });
+
+    describe('Extra Innings Exhaustion', () => {
+      it('should end game when maxExtraInnings limit is reached after bottom half completes', () => {
+        // Create game with maxExtraInnings = 2
+        const limitedExtrasRules = new SoftballRules({
+          totalInnings: 7,
+          maxExtraInnings: 2,
+        });
+        game = Game.createNew(gameId, 'Home Team', 'Away Team', limitedExtrasRules);
+        game.startGame();
+
+        // Set up bottom 9th (2 extra innings played: 8th and 9th), tied score, 3rd out about to happen
+        // extraInningsPlayed = 9 - 7 = 2, which equals maxExtraInnings (2)
+        inningState = inningState.withInningHalf(9, false).withOuts(2); // Bottom 9th, 2 outs
+        game.addHomeRuns(5);
+        game.addAwayRuns(5); // Tied 5-5
+
+        const result = GameCoordinator.recordAtBat(
+          game,
+          homeLineup,
+          awayLineup,
+          inningState,
+          batterId,
+          AtBatResultType.GROUND_OUT, // 3rd out completes bottom 9th
+          [],
+          limitedExtrasRules
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.gameComplete).toBe(true); // Game ends - reached extra innings limit
+        expect(result.completionReason).toBe('REGULATION'); // Ends as regulation tie
+      });
+
+      it('should continue when in extra innings but under the limit', () => {
+        // Create game with maxExtraInnings = 3
+        const limitedExtrasRules = new SoftballRules({
+          totalInnings: 7,
+          maxExtraInnings: 3,
+        });
+        game = Game.createNew(gameId, 'Home Team', 'Away Team', limitedExtrasRules);
+        game.startGame();
+
+        // Set up bottom 8th (1 extra inning played), tied score, inning about to complete
+        // extraInningsPlayed = 8 - 7 = 1, which is less than maxExtraInnings (3)
+        inningState = inningState.withInningHalf(8, false).withOuts(2); // Bottom 8th, 2 outs
+        game.addHomeRuns(4);
+        game.addAwayRuns(4); // Tied 4-4
+
+        const result = GameCoordinator.recordAtBat(
+          game,
+          homeLineup,
+          awayLineup,
+          inningState,
+          batterId,
+          AtBatResultType.STRIKEOUT, // 3rd out completes inning
+          [],
+          limitedExtrasRules
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.gameComplete).toBe(false); // Game continues - under limit
+        expect(result.inningComplete).toBe(true); // Inning completes, move to 9th
+      });
+
+      it('should only end game after bottom half when extra innings exhausted', () => {
+        // Create game with maxExtraInnings = 1
+        const limitedExtrasRules = new SoftballRules({
+          totalInnings: 7,
+          maxExtraInnings: 1,
+        });
+        game = Game.createNew(gameId, 'Home Team', 'Away Team', limitedExtrasRules);
+        game.startGame();
+
+        // Set up top 8th (1 extra inning), tied score, top half about to complete
+        // extraInningsPlayed = 8 - 7 = 1, which equals maxExtraInnings (1)
+        // BUT we're in top half, so game should NOT end yet
+        inningState = inningState.withInningHalf(8, true).withOuts(2); // Top 8th, 2 outs
+        game.addHomeRuns(3);
+        game.addAwayRuns(3); // Tied 3-3
+
+        const result = GameCoordinator.recordAtBat(
+          game,
+          homeLineup,
+          awayLineup,
+          inningState,
+          batterId,
+          AtBatResultType.FLY_OUT, // 3rd out completes top 8th
+          [],
+          limitedExtrasRules
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.gameComplete).toBe(false); // Should NOT end - must complete bottom half
+        expect(result.inningComplete).toBe(true); // Top half ends, move to bottom 8th
+      });
+    });
   });
 
   describe('Inning Transition Logic', () => {

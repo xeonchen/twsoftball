@@ -414,12 +414,12 @@ export class SoftballRules {
       return false;
     }
 
-    // Check if we've EXCEEDED maximum extra innings
+    // Check if we've REACHED OR EXCEEDED maximum extra innings
     const extraInningsPlayed = currentInning - this.totalInnings;
-    // Use STRICT > comparison: at END of regulation, extraInningsPlayed = 0,
-    // we haven't played any extras yet, so game continues to inning 8 (first extra)
-    if (extraInningsPlayed > this.maxExtraInnings) {
-      // Maximum extra innings EXCEEDED, game ends in tie if allowed
+    // Use >= comparison: when maxExtraInnings = 0, no extras allowed, so tied game
+    // at end of regulation (extraInningsPlayed = 0) must end immediately
+    if (extraInningsPlayed >= this.maxExtraInnings) {
+      // Maximum extra innings reached or exceeded, game ends in tie if allowed
       return this.allowTieGames;
     }
 

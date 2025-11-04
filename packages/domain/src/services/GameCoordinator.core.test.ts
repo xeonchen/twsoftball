@@ -711,6 +711,92 @@ describe('GameCoordinator - Core Functionality', () => {
         expect(runsScored).toBe(1);
       });
 
+      it('should force WALK advancement with runner on 1st only', () => {
+        // Only runner on 1st - force advance to 2nd, batter takes 1st
+        const bases = BasesState.empty().withRunnerOn('FIRST', runner2Id);
+
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
+          AtBatResultType.WALK,
+          bases,
+          batterId
+        );
+
+        expect(movements).toHaveLength(2); // Runner on 1st + batter
+        const runner2Movement = movements.find(m => m.runnerId.equals(runner2Id));
+        expect(runner2Movement).toBeDefined();
+        expect(runner2Movement!.fromBase).toBe('FIRST');
+        expect(runner2Movement!.toBase).toBe('SECOND'); // Forced to 2nd
+        const batterMovement = movements.find(m => m.runnerId.equals(batterId));
+        expect(batterMovement).toBeDefined();
+        expect(batterMovement!.toBase).toBe('FIRST');
+        expect(runsScored).toBe(0); // No runs scored
+      });
+
+      it('should force WALK advancement with runners on 1st and 2nd', () => {
+        // Runners on 1st and 2nd - both forced to advance (1st→2nd→3rd)
+        const bases = BasesState.empty()
+          .withRunnerOn('FIRST', runner2Id)
+          .withRunnerOn('SECOND', runner3Id);
+
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
+          AtBatResultType.WALK,
+          bases,
+          batterId
+        );
+
+        expect(movements).toHaveLength(3); // 2 runners + batter
+        const runner2Movement = movements.find(m => m.runnerId.equals(runner2Id));
+        expect(runner2Movement).toBeDefined();
+        expect(runner2Movement!.fromBase).toBe('FIRST');
+        expect(runner2Movement!.toBase).toBe('SECOND'); // Forced
+        const runner3Movement = movements.find(m => m.runnerId.equals(runner3Id));
+        expect(runner3Movement).toBeDefined();
+        expect(runner3Movement!.fromBase).toBe('SECOND');
+        expect(runner3Movement!.toBase).toBe('THIRD'); // Forced
+        const batterMovement = movements.find(m => m.runnerId.equals(batterId));
+        expect(batterMovement).toBeDefined();
+        expect(batterMovement!.toBase).toBe('FIRST');
+        expect(runsScored).toBe(0); // No runs scored
+      });
+
+      it('should NOT force WALK advancement with runner on 2nd only', () => {
+        // Runner on 2nd only - no force advance (gap on 1st breaks chain)
+        const bases = BasesState.empty().withRunnerOn('SECOND', runner2Id);
+
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
+          AtBatResultType.WALK,
+          bases,
+          batterId
+        );
+
+        expect(movements).toHaveLength(1); // Only batter moves
+        const runner2Movement = movements.find(m => m.runnerId.equals(runner2Id));
+        expect(runner2Movement).toBeUndefined(); // Runner on 2nd does NOT advance
+        const batterMovement = movements.find(m => m.runnerId.equals(batterId));
+        expect(batterMovement).toBeDefined();
+        expect(batterMovement!.toBase).toBe('FIRST');
+        expect(runsScored).toBe(0);
+      });
+
+      it('should NOT force WALK advancement with runner on 3rd only', () => {
+        // Runner on 3rd only - no force advance (gaps on 1st and 2nd break chain)
+        const bases = BasesState.empty().withRunnerOn('THIRD', runner3Id);
+
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
+          AtBatResultType.WALK,
+          bases,
+          batterId
+        );
+
+        expect(movements).toHaveLength(1); // Only batter moves
+        const runner3Movement = movements.find(m => m.runnerId.equals(runner3Id));
+        expect(runner3Movement).toBeUndefined(); // Runner on 3rd does NOT advance
+        const batterMovement = movements.find(m => m.runnerId.equals(batterId));
+        expect(batterMovement).toBeDefined();
+        expect(batterMovement!.toBase).toBe('FIRST');
+        expect(runsScored).toBe(0);
+      });
+
       it('should determine SINGLE advancement correctly', () => {
         const bases = BasesState.empty()
           .withRunnerOn('FIRST', runner2Id)

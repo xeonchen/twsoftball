@@ -364,7 +364,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
       ];
 
       const otherGameEvents: DomainEvent[] = [
-        new GameCreated(otherGameId, 'Other', 'Game'),
+        new GameCreated(otherGameId, 'Other', 'Game', standardRulesConfig()),
         new GameStarted(otherGameId),
         new ScoreUpdated(otherGameId, 'AWAY', 2, { home: 0, away: 2 }),
       ];
@@ -616,7 +616,7 @@ describe('Event Sourcing Cross-Aggregate Integration', () => {
       const otherGameId = TestGameFactory.createGameId('other');
       const mixedEvents = [
         new GameCreated(gameId, 'Mixed', 'Game', standardRulesConfig()),
-        new GameCreated(otherGameId, 'Other', 'Game'), // Wrong aggregate ID
+        new GameCreated(otherGameId, 'Other', 'Game', standardRulesConfig()), // Wrong aggregate ID
       ];
       expect(() => Game.fromEvents(mixedEvents)).toThrow(DomainError);
 

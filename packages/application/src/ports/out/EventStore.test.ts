@@ -14,6 +14,7 @@ import {
   InningStateCreated,
   PlayerId,
   AtBatResultType,
+  SoftballRules,
 } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
@@ -29,7 +30,7 @@ import { EventStore, StoredEvent } from './EventStore.js';
 
 // Keep domain-specific mock creators since they use real domain classes
 const createMockGameCreatedEvent = (gameId: GameId): GameCreated => {
-  return new GameCreated(gameId, 'Mock Home Team', 'Mock Away Team');
+  return new GameCreated(gameId, 'Mock Home Team', 'Mock Away Team', SoftballRules.standard());
 };
 
 const createMockAtBatCompletedEvent = (gameId: GameId): AtBatCompleted => {

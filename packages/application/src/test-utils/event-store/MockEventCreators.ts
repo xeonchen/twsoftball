@@ -16,6 +16,7 @@ import {
   InningStateCreated,
   PlayerId,
   AtBatResultType,
+  SoftballRules,
 } from '@twsoftball/domain';
 
 /**
@@ -46,7 +47,7 @@ import {
  * ```
  */
 export const createMockGameCreatedEvent = (gameId: GameId): GameCreated => {
-  return new GameCreated(gameId, 'Mock Home Team', 'Mock Away Team');
+  return new GameCreated(gameId, 'Mock Home Team', 'Mock Away Team', SoftballRules.standard());
 };
 
 /**
