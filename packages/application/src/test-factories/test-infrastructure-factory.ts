@@ -16,6 +16,8 @@ import type {
 
 import {
   createMockGameRepository,
+  createMockInningStateRepository,
+  createMockTeamLineupRepository,
   createMockEventStore,
   createMockLogger,
 } from './mock-factories.js';
@@ -41,13 +43,15 @@ export function createTestInfrastructureFactory(): InfrastructureFactory {
   return {
     createServices(_config: InfrastructureConfig): Promise<InfrastructureServices> {
       const mockGameRepo = createMockGameRepository();
+      const mockTeamLineupRepo = createMockTeamLineupRepository();
+      const mockInningStateRepo = createMockInningStateRepository();
       const mockEventStore = createMockEventStore();
       const mockLogger = createMockLogger();
 
       return Promise.resolve({
         gameRepository: mockGameRepo,
-        teamLineupRepository: mockGameRepo, // Reuse same mock for consistency
-        inningStateRepository: mockGameRepo, // Reuse same mock for consistency
+        teamLineupRepository: mockTeamLineupRepo,
+        inningStateRepository: mockInningStateRepo,
         eventStore: mockEventStore,
         logger: mockLogger,
       });

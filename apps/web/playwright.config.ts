@@ -52,7 +52,7 @@ export default defineConfig({
 
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [
-    ['html', { outputFolder: './e2e/playwright-report' }],
+    ['html', { outputFolder: './e2e/playwright-report', open: 'never' }],
     ['json', { outputFile: './e2e/test-results/results.json' }],
     ...(process.env['CI'] ? [['github'] as const] : [['list'] as const]),
   ],

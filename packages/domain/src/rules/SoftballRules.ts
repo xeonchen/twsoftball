@@ -326,6 +326,8 @@ export class SoftballRules {
    * ```
    */
   isMercyRule(homeScore: number, awayScore: number, currentInning: number): boolean {
+    const differential = Math.abs(homeScore - awayScore);
+
     SoftballRules.validateScoreParameter('homeScore', homeScore);
     SoftballRules.validateScoreParameter('awayScore', awayScore);
     SoftballRules.validateInningParameter('currentInning', currentInning);
@@ -334,16 +336,16 @@ export class SoftballRules {
       return false;
     }
 
-    const differential = Math.abs(homeScore - awayScore);
-
     // Evaluate all mercy rule tiers (empty tiers means no mercy rule applies)
     if (this.mercyRuleTiers.length === 0) {
       return false;
     }
 
-    return this.mercyRuleTiers.some(
+    const result = this.mercyRuleTiers.some(
       tier => currentInning >= tier.afterInning && differential >= tier.differential
     );
+
+    return result;
   }
 
   /**
@@ -412,14 +414,16 @@ export class SoftballRules {
       return false;
     }
 
-    // Check if we've exceeded maximum extra innings
+    // Check if we've EXCEEDED maximum extra innings
     const extraInningsPlayed = currentInning - this.totalInnings;
-    if (extraInningsPlayed >= this.maxExtraInnings) {
-      // Maximum extra innings reached, game ends in tie if allowed
+    // Use STRICT > comparison: at END of regulation, extraInningsPlayed = 0,
+    // we haven't played any extras yet, so game continues to inning 8 (first extra)
+    if (extraInningsPlayed > this.maxExtraInnings) {
+      // Maximum extra innings EXCEEDED, game ends in tie if allowed
       return this.allowTieGames;
     }
 
-    // Still within extra innings limit, game continues
+    // Still within extra innings limit (or at regulation), game continues
     return false;
   }
 

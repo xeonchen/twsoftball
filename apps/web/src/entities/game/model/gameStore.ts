@@ -370,7 +370,7 @@ export const useGameStore = create<GameStore>()(
 
       // Phase 5.3.F DTO sync
       updateFromDTO: (uiState: UIGameState): void => {
-        set(state => ({
+        set(() => ({
           currentGame: {
             id: uiState.gameId,
             homeTeam: uiState.teams.home.name,
@@ -386,15 +386,15 @@ export const useGameStore = create<GameStore>()(
             currentInning: uiState.inning.number,
             isTopHalf: uiState.inning.half === 'top',
           },
-          activeGameState: uiState.currentBatter
-            ? {
-                currentInning: uiState.inning.number,
-                isTopHalf: uiState.inning.half === 'top',
-                currentBatter: uiState.currentBatter || null,
-                bases: uiState.bases || { first: null, second: null, third: null },
-                outs: uiState.outs || 0,
-              }
-            : state.activeGameState,
+          // ALWAYS update activeGameState to reflect current inning state, even when game is completed
+          // This ensures that E2E tests and UI components always have the accurate final inning number
+          activeGameState: {
+            currentInning: uiState.inning.number,
+            isTopHalf: uiState.inning.half === 'top',
+            currentBatter: uiState.currentBatter || null,
+            bases: uiState.bases || { first: null, second: null, third: null },
+            outs: uiState.outs || 0,
+          },
           isGameActive: uiState.status === 'IN_PROGRESS',
           error: null,
         }));
@@ -407,7 +407,18 @@ export const useGameStore = create<GameStore>()(
     }),
     {
       name: 'game-state', // sessionStorage key that E2E tests read
-      storage: createJSONStorage(() => window.sessionStorage),
+      storage: createJSONStorage(() => ({
+        getItem: (name: string): string | null => {
+          const stored = window.sessionStorage.getItem(name);
+          return stored;
+        },
+        setItem: (name: string, value: string): void => {
+          window.sessionStorage.setItem(name, value);
+        },
+        removeItem: (name: string): void => {
+          window.sessionStorage.removeItem(name);
+        },
+      })),
       onRehydrateStorage:
         () =>
         (state): void => {

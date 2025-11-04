@@ -1696,10 +1696,10 @@ describe('GameRecordingPage Component', () => {
         const singleButton = screen.getByTestId('action-single');
         await user.click(singleButton);
 
-        // Should record at-bat with no runner advancement needed
+        // Should record at-bat with empty runnerAdvances (domain layer handles advancement)
         expect(mockRecordAtBat).toHaveBeenCalledWith({
           result: '1B',
-          runnerAdvances: [{ runnerId: 'player-1', fromBase: 0, toBase: 1 }],
+          runnerAdvances: [],
         });
       });
 
@@ -1859,7 +1859,7 @@ describe('GameRecordingPage Component', () => {
 
         expect(tripleMocks.recordAtBat.recordAtBat).toHaveBeenCalledWith({
           result: '3B',
-          runnerAdvances: [{ runnerId: 'player-1', fromBase: 0, toBase: 3 }],
+          runnerAdvances: [],
         });
       });
     });
@@ -1872,11 +1872,12 @@ describe('GameRecordingPage Component', () => {
         _testMocks = setupIntegrationTest();
       });
 
-      it('should show RunnerAdvancementPanel for hits with runners requiring manual configuration', async () => {
-        // Configure mocks for manual advancement scenario
-        const manualAdvancementMocks = setupIntegrationTest({
+      it('should not show RunnerAdvancementPanel for hits that are auto-handled by domain layer', async () => {
+        // After Task 7 changes, SINGLE/DOUBLE/TRIPLE delegate to domain layer
+        // and never trigger manual advancement UI
+        const autoAdvancementMocks = setupIntegrationTest({
           runnerAdvancement: {
-            needsManualAdvancement: true,
+            needsManualAdvancement: false,
             calculateAutomaticAdvances: [],
           },
           gameStore: {
@@ -1898,8 +1899,8 @@ describe('GameRecordingPage Component', () => {
         });
 
         // Apply mocks
-        mockUseRunnerAdvancement.mockReturnValue(manualAdvancementMocks.runnerAdvancement);
-        mockUseGameStore.mockReturnValue(manualAdvancementMocks.gameStore);
+        mockUseRunnerAdvancement.mockReturnValue(autoAdvancementMocks.runnerAdvancement);
+        mockUseGameStore.mockReturnValue(autoAdvancementMocks.gameStore);
         mockUseGameWithUndoRedo.mockReturnValue(
           createGameWithUndoRedoMock({
             activeGameState: {
@@ -1928,9 +1929,9 @@ describe('GameRecordingPage Component', () => {
         const doubleButton = screen.getByTestId('action-double');
         await user.click(doubleButton);
 
-        // Should show runner advancement panel
-        expect(screen.getByText('Runner Advancement')).toBeInTheDocument();
-        expect(screen.getByText('Select where each runner advances')).toBeInTheDocument();
+        // Should NOT show runner advancement panel - domain layer handles it automatically
+        expect(screen.queryByText('Runner Advancement')).not.toBeInTheDocument();
+        expect(screen.queryByText('Select where each runner advances')).not.toBeInTheDocument();
       });
 
       it('should handle automatic advances for walks with bases loaded', async () => {
@@ -2061,7 +2062,6 @@ describe('GameRecordingPage Component', () => {
 
       it('should update score display after recording at-bat', async () => {
         // Configure mock for score update scenario
-        const mockUpdateScore = vi.fn();
         const scoreUpdateMocks = setupIntegrationTest({
           recordAtBat: {
             result: {
@@ -2082,9 +2082,6 @@ describe('GameRecordingPage Component', () => {
               },
             },
           },
-          gameStore: {
-            updateScore: mockUpdateScore,
-          },
         });
 
         // Apply mocks
@@ -2100,11 +2097,8 @@ describe('GameRecordingPage Component', () => {
         const singleButton = screen.getByTestId('action-single');
         await user.click(singleButton);
 
-        // Should show RBI notification
+        // Should show RBI notification (score update happens via updateFromDTO in hook)
         expect(screen.getByText('1 RBI')).toBeInTheDocument();
-
-        // Should update score through store
-        expect(mockUpdateScore).toHaveBeenCalledWith({ home: 6, away: 3 });
       });
 
       it('should update bases display after runner movement', async () => {
@@ -2148,10 +2142,10 @@ describe('GameRecordingPage Component', () => {
         const doubleButton = screen.getByTestId('action-double');
         await user.click(doubleButton);
 
-        // Should call recordAtBat with the expected runner advances
+        // Should call recordAtBat with empty runnerAdvances (domain layer handles advancement)
         expect(basesUpdateMocks.recordAtBat.recordAtBat).toHaveBeenCalledWith({
           result: '2B',
-          runnerAdvances: [{ runnerId: 'player-1', fromBase: 0, toBase: 2 }],
+          runnerAdvances: [],
         });
       });
 
@@ -2778,7 +2772,7 @@ describe('GameRecordingPage Component', () => {
         // Should record at least once (component allows multiple calls currently)
         expect(mockRecordAtBat).toHaveBeenCalledWith({
           result: '1B',
-          runnerAdvances: [{ runnerId: 'player-1', fromBase: 0, toBase: 1 }],
+          runnerAdvances: [],
         });
         expect(mockRecordAtBat).toHaveBeenCalled();
       });
@@ -2829,7 +2823,7 @@ describe('GameRecordingPage Component', () => {
 
         expect(mockRecordAtBat).toHaveBeenCalledWith({
           result: '1B',
-          runnerAdvances: [{ runnerId: 'player-1', fromBase: 0, toBase: 1 }],
+          runnerAdvances: [],
         });
       });
 
@@ -2864,7 +2858,7 @@ describe('GameRecordingPage Component', () => {
 
         expect(mockRecordAtBat).toHaveBeenCalledWith({
           result: '1B',
-          runnerAdvances: [{ runnerId: 'player-1', fromBase: 0, toBase: 1 }],
+          runnerAdvances: [],
         });
       });
     });

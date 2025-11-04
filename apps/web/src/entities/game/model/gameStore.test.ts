@@ -469,4 +469,104 @@ describe('Enhanced Game Store', () => {
       expect(result.current.isGameActive).toBe(true);
     });
   });
+
+  describe('updateFromDTO', () => {
+    it('should update activeGameState.currentInning even when game is completed (mercy rule fix)', () => {
+      const { result } = renderHook(() => useGameStore());
+
+      // Simulate a completed game DTO (mercy rule triggered in inning 4)
+      // Note: No currentBatter because game is completed
+      const completedGameDTO = {
+        gameId: 'test-game-id',
+        status: 'COMPLETED',
+        inning: {
+          number: 4, // Reverted to completion inning
+          half: 'bottom',
+        },
+        score: {
+          home: 0,
+          away: 11,
+          total: 11,
+        },
+        teams: {
+          home: { name: 'Home Team', abbreviation: 'HOME', color: '' },
+          away: { name: 'Away Team', abbreviation: 'AWAY', color: '' },
+        },
+        timing: {
+          created: new Date().toISOString(),
+          lastModified: new Date().toISOString(),
+        },
+        currentBatter: null, // No batter because game ended
+        bases: { first: null, second: null, third: null },
+        outs: 3,
+        battingTeam: 'home' as const,
+      };
+
+      // Update store from DTO
+      act(() => {
+        result.current.updateFromDTO(completedGameDTO);
+      });
+
+      // Assert: activeGameState should be updated with correct inning, not stale state
+      expect(result.current.activeGameState).not.toBeNull();
+      expect(result.current.activeGameState?.currentInning).toBe(4); // Must be 4, not 5!
+      expect(result.current.activeGameState?.isTopHalf).toBe(false);
+      expect(result.current.activeGameState?.currentBatter).toBeNull();
+
+      // Also verify currentGame is updated
+      expect(result.current.currentGame?.currentInning).toBe(4);
+      expect(result.current.currentGame?.status).toBe('completed');
+    });
+
+    it('should update activeGameState when currentBatter exists (active game)', () => {
+      const { result } = renderHook(() => useGameStore());
+
+      const activeGameDTO = {
+        gameId: 'test-game-id',
+        status: 'IN_PROGRESS',
+        inning: {
+          number: 3,
+          half: 'top',
+        },
+        score: {
+          home: 2,
+          away: 5,
+          total: 7,
+        },
+        teams: {
+          home: { name: 'Home Team', abbreviation: 'HOME', color: '' },
+          away: { name: 'Away Team', abbreviation: 'AWAY', color: '' },
+        },
+        timing: {
+          created: new Date().toISOString(),
+          lastModified: new Date().toISOString(),
+        },
+        currentBatter: {
+          id: 'player-1',
+          name: 'Test Player',
+          jerseyNumber: '10',
+          position: 'P',
+          battingOrder: 1,
+        },
+        bases: { first: null, second: null, third: null },
+        outs: 1,
+        battingTeam: 'away' as const,
+      };
+
+      act(() => {
+        result.current.updateFromDTO(activeGameDTO);
+      });
+
+      expect(result.current.activeGameState?.currentInning).toBe(3);
+      expect(result.current.activeGameState?.isTopHalf).toBe(true);
+      expect(result.current.activeGameState?.currentBatter).toEqual({
+        id: 'player-1',
+        name: 'Test Player',
+        jerseyNumber: '10',
+        position: 'P',
+        battingOrder: 1,
+      });
+      expect(result.current.activeGameState?.outs).toBe(1);
+    });
+  });
 });

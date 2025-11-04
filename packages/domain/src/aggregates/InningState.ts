@@ -7,7 +7,6 @@ import { HalfInningEnded } from '../events/HalfInningEnded.js';
 import { InningAdvanced } from '../events/InningAdvanced.js';
 import { InningStateCreated } from '../events/InningStateCreated.js';
 import { RunnerAdvanced, AdvanceReason } from '../events/RunnerAdvanced.js';
-import { RunScored } from '../events/RunScored.js';
 import { BasesState, Base } from '../value-objects/BasesState.js';
 import { GameId } from '../value-objects/GameId.js';
 import { InningStateId } from '../value-objects/InningStateId.js';
@@ -95,6 +94,38 @@ export interface RunnerMovement {
   readonly from: Base | null;
   /** Destination position (Base, 'HOME' to score, or 'OUT' if put out) */
   readonly to: Base | 'HOME' | 'OUT';
+}
+
+/**
+ * Game context information for walk-off detection.
+ *
+ * @remarks
+ * This interface provides the InningState aggregate with game-level information
+ * needed to detect walk-off scenarios. Walk-offs occur when the home team scores
+ * the winning run in the bottom of the final inning (or extra innings), causing
+ * the game to end immediately without completing the half-inning.
+ *
+ * **Business Rule:**
+ * A walk-off is detected when ALL of these conditions are met:
+ * 1. Bottom half of inning (home team batting)
+ * 2. Final inning or later (inning >= totalInnings)
+ * 3. Home team takes the lead after runs score (homeScore + runsAboutToScore > awayScore)
+ * 4. At least one run scores on this at-bat (runsAboutToScore > 0)
+ *
+ * **Implementation Note:**
+ * This context is passed from the Application layer (RecordAtBat use case) to the
+ * Domain layer to enable proper walk-off detection without violating hexagonal
+ * architecture principles.
+ */
+export interface GameContext {
+  /** Current home team score before this at-bat */
+  readonly homeScore: number;
+  /** Current away team score before this at-bat */
+  readonly awayScore: number;
+  /** Total regulation innings for this game (typically 7) */
+  readonly totalInnings: number;
+  /** Number of runs that will score as a result of this at-bat */
+  readonly runsAboutToScore: number;
 }
 
 /**
@@ -596,6 +627,7 @@ export class InningState {
    * @param battingSlot - Batting slot position of the batter (must match current slot)
    * @param result - The outcome of the at-bat (hit, out, walk, etc.)
    * @param inning - The inning number when this at-bat occurred
+   * @param gameContext - Optional game context for walk-off detection
    * @returns New InningState instance with all changes applied
    * @throws {DomainError} When parameters violate business rules
    *
@@ -657,9 +689,24 @@ export class InningState {
     batterId: PlayerId,
     battingSlot: number,
     result: AtBatResultType,
-    inning: number
+    inning: number,
+    gameContext?: GameContext,
+    precomputedMovements?: RunnerMovement[]
   ): InningState {
     this.validateAtBatParameters(batterId, battingSlot, result, inning);
+
+    // Validate GameContext if provided
+    if (gameContext) {
+      if (gameContext.homeScore < 0 || gameContext.awayScore < 0) {
+        throw new DomainError('GameContext scores cannot be negative');
+      }
+      if (gameContext.totalInnings < 1 || !Number.isInteger(gameContext.totalInnings)) {
+        throw new DomainError('GameContext totalInnings must be a positive integer');
+      }
+      if (gameContext.runsAboutToScore < 0 || !Number.isInteger(gameContext.runsAboutToScore)) {
+        throw new DomainError('GameContext runsAboutToScore must be a non-negative integer');
+      }
+    }
 
     // Create new state starting with current state
     let updatedState = new InningState(
@@ -681,13 +728,25 @@ export class InningState {
     );
 
     // Process the at-bat result
-    updatedState = updatedState.processAtBatResult(batterId, result);
+    updatedState = updatedState.processAtBatResult(batterId, result, precomputedMovements);
 
     // Advance batting order
     updatedState = updatedState.advanceBattingOrder(battingSlot);
 
-    // Check if inning ended due to 3 outs
-    if (updatedState.outsCount >= 3) {
+    // Check for walk-off scenario BEFORE checking for 3 outs
+    // Walk-off: Bottom half + final inning or later + home team takes lead + runs scored
+    // IMPORTANT: Walk-off status is provided via GameContext from Game.isWalkOffScenario()
+    // InningState does NOT import Game aggregate (maintains lightweight pattern)
+    const isWalkOff = gameContext
+      ? !this.topHalfOfInning && // Bottom half (home team batting)
+        this.inningNumber >= gameContext.totalInnings && // Final inning or extra innings
+        gameContext.runsAboutToScore > 0 && // At least one run scores
+        gameContext.homeScore + gameContext.runsAboutToScore > gameContext.awayScore // Home takes lead
+      : false;
+
+    // Check if inning ended due to 3 outs (BUT NOT if walk-off)
+    // Walk-off games end immediately without completing the half-inning
+    if (updatedState.outsCount >= 3 && !isWalkOff) {
       updatedState = updatedState.endHalfInning();
     }
 
@@ -1061,6 +1120,57 @@ export class InningState {
   }
 
   /**
+   * Creates a new InningState with the inning number reverted to a completed inning.
+   * Used when game-ending rules (mercy rule, time limit) trigger after inning advancement.
+   *
+   * @param completedInning - The inning number where the game actually completed
+   * @returns New InningState instance with reverted inning number and bottom half flag
+   *
+   * @remarks
+   * When mercy rule triggers, the inning has already advanced (e.g., Bottom 4 → Top 5).
+   * This method reverts it back to the completion point (Bottom 4) for accurate DTO building.
+   *
+   * **Business Context:**
+   * Game-ending rules like mercy rule trigger AFTER the half-inning ends and inning state
+   * advances. However, for accurate game records, we need to show the inning where the
+   * game actually completed, not the next inning that never started.
+   *
+   * **Immutability Pattern:**
+   * Returns a new instance rather than modifying the existing state, maintaining the
+   * aggregate's immutability contract.
+   */
+  withRevertedInning(completedInning: number): InningState {
+    if (
+      typeof completedInning !== 'number' ||
+      completedInning < 1 ||
+      !Number.isInteger(completedInning)
+    ) {
+      throw new DomainError('Completed inning must be an integer of 1 or greater');
+    }
+
+    // Clone uncommitted events to prevent mutation of the original instance
+    const clonedEvents = [...this.uncommittedEvents];
+
+    // Create new instance with reverted inning state
+    // IMPORTANT: Pass cloned events to preserve event sourcing integrity
+    // The events were already saved with the original advanced inning state
+    const reverted = new InningState(
+      this.id,
+      this.gameId,
+      completedInning, // Reverted inning number
+      false, // isTopHalf = false (game ended at bottom)
+      this.outsCount,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot,
+      this.currentBasesState,
+      clonedEvents, // Clone events to prevent mutation
+      this.version
+    );
+
+    return reverted;
+  }
+
+  /**
    * Gets all uncommitted domain events for this aggregate.
    *
    * @returns Array of domain events that have not been persisted
@@ -1226,18 +1336,70 @@ export class InningState {
    *
    * @param batterId - The batter who completed the at-bat
    * @param result - The result of the at-bat
+   * @param precomputedMovements - Optional precomputed runner movements (provided by GameCoordinator)
    * @returns New InningState instance with result processed
    */
-  private processAtBatResult(batterId: PlayerId, result: AtBatResultType): InningState {
+  private processAtBatResult(
+    batterId: PlayerId,
+    result: AtBatResultType,
+    precomputedMovements?: RunnerMovement[]
+  ): InningState {
     switch (result) {
       case AtBatResultType.SINGLE:
-        return this.processBatterAdvancement(batterId, 'FIRST');
-
       case AtBatResultType.DOUBLE:
-        return this.processBatterAdvancement(batterId, 'SECOND');
+      case AtBatResultType.TRIPLE: {
+        // Use precomputed movements if provided, otherwise empty array (will be handled by GameCoordinator)
+        const movements = precomputedMovements || [];
 
-      case AtBatResultType.TRIPLE:
-        return this.processBatterAdvancement(batterId, 'THIRD');
+        // Start with current state
+        let newBasesState = this.currentBasesState;
+
+        // Clear bases first for clean state
+        newBasesState = BasesState.empty();
+
+        // Apply each movement
+        movements.forEach(movement => {
+          if (movement.to === 'HOME') {
+            // Runner scores - do not add to bases
+            // (handled by not adding them to newBasesState)
+          } else if (movement.to === 'OUT') {
+            // Runner put out - do not add to bases
+            // (handled by not adding them to newBasesState)
+          } else {
+            // Runner advances to base
+            newBasesState = newBasesState.withRunnerOn(movement.to, movement.runnerId);
+          }
+        });
+
+        // Create updated state with new bases
+        const updatedState = new InningState(
+          this.id,
+          this.gameId,
+          this.inningNumber,
+          this.topHalfOfInning,
+          this.outsCount,
+          this.awayTeamBatterSlot,
+          this.homeTeamBatterSlot,
+          newBasesState,
+          this.uncommittedEvents,
+          this.version
+        );
+
+        // Generate RunnerAdvanced events for each movement
+        movements.forEach(movement => {
+          updatedState.addEvent(
+            new RunnerAdvanced(
+              this.gameId,
+              movement.runnerId,
+              movement.from,
+              movement.to,
+              AdvanceReason.HIT
+            )
+          );
+        });
+
+        return updatedState;
+      }
 
       case AtBatResultType.HOME_RUN:
         return this.processHomeRun(batterId);
@@ -1356,15 +1518,8 @@ export class InningState {
         updatedState.addEvent(
           new RunnerAdvanced(this.gameId, runner, base, 'HOME', AdvanceReason.HIT)
         );
-        updatedState.addEvent(
-          new RunScored(
-            this.gameId,
-            runner,
-            this.topHalfOfInning ? 'AWAY' : 'HOME',
-            batterId,
-            { home: 0, away: 0 } // Simplified scoring - actual scores would come from Game aggregate
-          )
-        );
+        // NOTE: RunScored events are generated by Application layer (RecordAtBat use case)
+        // which has access to actual game scores. InningState only emits RunnerAdvanced events.
       }
     });
 
@@ -1372,15 +1527,7 @@ export class InningState {
     updatedState.addEvent(
       new RunnerAdvanced(this.gameId, batterId, null, 'HOME', AdvanceReason.HIT)
     );
-    updatedState.addEvent(
-      new RunScored(
-        this.gameId,
-        batterId,
-        this.topHalfOfInning ? 'AWAY' : 'HOME',
-        batterId,
-        { home: 0, away: 0 } // Simplified scoring
-      )
-    );
+    // NOTE: RunScored event generated by Application layer with real scores
 
     // Clear all bases
     const finalUpdatedState = new InningState(
@@ -1431,15 +1578,7 @@ export class InningState {
       updatedState.addEvent(
         new RunnerAdvanced(this.gameId, runnerOnThird, 'THIRD', 'HOME', AdvanceReason.FORCE)
       );
-      updatedState.addEvent(
-        new RunScored(
-          this.gameId,
-          runnerOnThird,
-          this.topHalfOfInning ? 'AWAY' : 'HOME',
-          batterId,
-          { home: 0, away: 0 } // Simplified scoring
-        )
-      );
+      // NOTE: RunScored event generated by Application layer with real scores
       newBasesState = newBasesState.withRunnerAdvanced('THIRD', 'HOME');
 
       // Runner on second advances to third
@@ -1499,10 +1638,10 @@ export class InningState {
   /**
    * Processes a sacrifice fly, adding an out and potentially scoring runners.
    *
-   * @param batterId - The batter who hit the sacrifice fly
+   * @param _batterId - The batter who hit the sacrifice fly (unused in current implementation)
    * @returns Updated InningState with out added and runners advanced
    */
-  private processSacrificeFly(batterId: PlayerId): InningState {
+  private processSacrificeFly(_batterId: PlayerId): InningState {
     let updatedState = this.addOut();
 
     // If runner on third, they score
@@ -1511,15 +1650,7 @@ export class InningState {
       updatedState.addEvent(
         new RunnerAdvanced(this.gameId, runnerOnThird, 'THIRD', 'HOME', AdvanceReason.SACRIFICE)
       );
-      updatedState.addEvent(
-        new RunScored(
-          this.gameId,
-          runnerOnThird,
-          this.topHalfOfInning ? 'AWAY' : 'HOME',
-          batterId,
-          { home: 0, away: 0 } // Simplified scoring
-        )
-      );
+      // NOTE: RunScored event generated by Application layer with real scores
       const newBasesState = updatedState.currentBasesState.withRunnerAdvanced('THIRD', 'HOME');
       updatedState = new InningState(
         updatedState.id,
@@ -1700,16 +1831,8 @@ export class InningState {
     );
 
     if (movement.to === 'HOME') {
-      // Runner scored
-      updatedState.addEvent(
-        new RunScored(
-          this.gameId,
-          movement.runnerId,
-          this.topHalfOfInning ? 'AWAY' : 'HOME',
-          null, // Simplified - would need batter ID for RBI tracking
-          { home: 0, away: 0 } // Simplified scoring
-        )
-      );
+      // Runner scored - RunScored event generated by Application layer with real scores
+      // InningState only emits RunnerAdvanced event to 'HOME'
     } else if (movement.to === 'OUT') {
       // Runner was put out
       updatedState = new InningState(

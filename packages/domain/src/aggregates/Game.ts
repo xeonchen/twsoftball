@@ -476,32 +476,53 @@ export class Game {
   }
 
   /**
-   * Determines if this is a walk-off scenario (home team ahead in bottom of inning after regulation).
+   * Checks if current game situation represents a walk-off scenario.
    *
-   * @returns True if walk-off conditions are met, false otherwise
+   * @param inningNumber - The current inning number
+   * @param isTopHalf - Whether this is the top half (true) or bottom half (false)
+   * @param runsAboutToScore - Number of runs about to score on this play
+   * @returns True if this is a walk-off scenario, false otherwise
    *
    * @remarks
-   * **Walk-off Conditions:**
-   * - Must be bottom half of an inning (home team batting)
-   * - Must be in or past regulation (configurable totalInnings)
-   * - Home team must be winning
+   * **Walk-off Definition:**
+   * A walk-off occurs when the home team takes the lead in the bottom half
+   * of the final inning (or extra innings), ending the game immediately.
+   *
+   * **Required Conditions:**
+   * 1. Bottom half of the inning (home team batting)
+   * 2. Final inning or extra innings (inning >= totalInnings)
+   * 3. At least one run is about to score
+   * 4. Home team will take the lead after the run(s) score
    *
    * **Business Context:**
-   * - Walk-off wins end the game immediately
-   * - No need to complete the full inning
-   * - Common in extra-inning scenarios
+   * Walk-off victories are dramatic endings where the home team wins
+   * on their final at-bat. The game ends immediately when the winning
+   * run crosses home plate, even if there are runners still on base.
    *
    * **Configurable Regulation:**
    * - Uses totalInnings from SoftballRules
    * - Youth leagues (5 innings): Walk-off starts at inning 5
    * - Standard leagues (7 innings): Walk-off starts at inning 7
    * - Tournament play (9 innings): Walk-off starts at inning 9
+   *
+   * @example
+   * ```typescript
+   * // Bottom of 7th, tied 3-3, home run scored
+   * const isWalkOff = game.isWalkOffScenario(7, false, 1); // true
+   *
+   * // Top of 7th, home team ahead
+   * const isWalkOff = game.isWalkOffScenario(7, true, 1); // false (away team batting)
+   *
+   * // Bottom of 6th, home team scores
+   * const isWalkOff = game.isWalkOffScenario(6, false, 1); // false (not final inning)
+   * ```
    */
-  isWalkOffScenario(): boolean {
+  isWalkOffScenario(inningNumber: number, isTopHalf: boolean, runsAboutToScore: number): boolean {
     return (
-      !this.topHalfOfInning &&
-      this.currentInningNumber >= this.rules.totalInnings &&
-      this.gameScore.isHomeWinning()
+      !isTopHalf && // Bottom half (home team batting)
+      inningNumber >= this.rules.totalInnings && // Final inning or extra innings
+      runsAboutToScore > 0 && // At least one run scores
+      this.score.getHomeRuns() + runsAboutToScore > this.score.getAwayRuns() // Home takes lead
     );
   }
 

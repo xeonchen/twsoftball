@@ -238,6 +238,102 @@ controls infrastructure.
 | **Shared/Utils**   | 85%     | 95%+   |
 | **Web/UI**         | 70%     | 85%+   |
 
+#### Test Distribution (Target)
+
+| Test Type         | Percentage | Purpose                                      |
+| ----------------- | ---------- | -------------------------------------------- |
+| Unit Tests        | 75%        | Individual components in isolation           |
+| Integration Tests | 15%        | Cross-layer and cross-aggregate coordination |
+| E2E Tests         | 10%        | Complete user workflows                      |
+
+**Critical:** Integration tests fill the gap between unit and E2E tests. They
+test multiple components working together with real implementations (using
+in-memory storage), not mocks.
+
+#### Integration Test Requirements
+
+- **Use real DI Container** with
+  `createApplicationServicesWithContainerAndFactory()` and in-memory factory
+- **No mocking of business logic** (SoftballRules, Game, InningState)
+- **Test realistic scenarios** - complete games with incremental progression,
+  not artificial state jumps
+- **Validate cross-layer flows** - UI → Application → Domain → Infrastructure
+- **File pattern:** `*.integration.test.ts`
+
+**Example Integration Test:**
+
+```typescript
+describe('Game Completion Integration', () => {
+  let appServices: ApplicationServices;
+
+  beforeEach(async () => {
+    appServices = await createApplicationServicesWithContainerAndFactory(
+      { storage: 'memory' },
+      createMemoryFactory()
+    );
+  });
+
+  it('should complete game via 10-run mercy rule after 4th inning', async () => {
+    // Start real game with real rules
+    const game = await appServices.startNewGame.execute({
+      homeTeamName: 'Warriors',
+      awayTeamName: 'Eagles',
+      rulesConfig: SoftballRules.standard(),
+    });
+
+    // Play through 4 innings with realistic at-bats
+    for (let inning = 1; inning <= 4; inning++) {
+      // ... simulate complete innings with real use cases
+    }
+
+    // Verify completion
+    const gameState = await appServices.getGameState.execute({
+      gameId: game.gameId,
+    });
+    expect(gameState.status).toBe('completed');
+    expect(gameState.completionReason).toBe('MERCY_RULE');
+  });
+});
+```
+
+#### Anti-Patterns to Avoid
+
+**❌ Over-Mocking in Application Tests:**
+
+```typescript
+// ❌ BAD: Mocks hide integration issues
+const mockRules = { isGameComplete: vi.fn().mockReturnValue(false) };
+const mockRepo = { findById: vi.fn(), save: vi.fn() };
+```
+
+**✅ Minimal Mocking:**
+
+```typescript
+// ✅ GOOD: Use real implementations with in-memory storage
+const rules = new SoftballRules();
+const eventStore = new InMemoryEventStore();
+const repo = new EventSourcedGameRepository(eventStore);
+```
+
+**❌ Artificial State Jumps:**
+
+```typescript
+// ❌ BAD: Jumps to final state, doesn't test progression
+game.addAwayRuns(10);
+inningState = inningState.withInningHalf(4, false);
+```
+
+**✅ Realistic Scenarios:**
+
+```typescript
+// ✅ GOOD: Plays through complete game incrementally
+for (let inning = 1; inning <= 4; inning++) {
+  await simulateCompleteInning(inning);
+}
+```
+
+**For comprehensive testing guidance, see `/docs/testing-strategy.md`**
+
 #### Test Priorities
 
 **Must Test:** Business rules, error handling, security, data validation
@@ -248,7 +344,8 @@ Port interfaces, type definitions, constants, simple getters
 
 - **Unit Tests**: Domain entities, value objects, use cases (co-located
   .test.ts)
-- **Integration Tests**: Database adapters, application services
+- **Integration Tests**: Cross-aggregate coordination, use case orchestration
+  with real services
 - **E2E Tests**: Complete user workflows
 - **TDD Required**: Write tests before implementation
 
@@ -272,9 +369,31 @@ via storage events.
 **Commands:**
 
 ```bash
-pnpm --filter @twsoftball/web test:e2e          # Run all
+pnpm --filter @twsoftball/web test:e2e          # Run all (exits immediately)
 pnpm --filter @twsoftball/web test:e2e:headed   # Debug with UI
+pnpm --filter @twsoftball/web test:e2e:ui       # Playwright UI mode
+pnpm --filter @twsoftball/web test:e2e:report   # View last test report
 ```
+
+**E2E Command Selection for AI Agents:**
+
+When running E2E tests programmatically or via CLI:
+
+- **`test:e2e --project=chromium`**: Fast execution, exits immediately after
+  completion. Use this for CI-like behavior and scripting. HTML reports are
+  generated but not auto-opened.
+- **`test:e2e:headed`**: Interactive debugging with browser visible. Use when
+  you need to watch test execution step-by-step.
+- **`test:e2e:ui`**: Playwright UI mode for test development. Best for writing
+  and debugging new tests.
+- **`test:e2e:report`**: Opens the HTML report from the last test run. Use after
+  CLI runs to review results.
+
+**Note:** HTML reports are always generated at `apps/web/e2e/playwright-report/`
+but never auto-open to prevent process hanging. Always use `--project=chromium`
+(or another single project) for faster execution - running all 7 projects
+(chromium, firefox, webkit, Mobile Chrome, Mobile Safari, etc.) is
+resource-intensive.
 
 **Troubleshooting:** Use `test:e2e:headed` to watch execution, verify
 `data-testid` attributes, check sessionStorage in DevTools, add explicit waits

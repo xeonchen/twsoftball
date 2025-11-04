@@ -364,7 +364,8 @@ export class GameAdapter {
 
     try {
       const command = this.toRecordAtBatCommand(uiData);
-      return await this.config.recordAtBat.execute(command);
+      const result = await this.config.recordAtBat.execute(command);
+      return result;
     } catch (error) {
       this.config.logger.error(
         'Game adapter: Failed to record at-bat',
@@ -814,28 +815,32 @@ export class GameAdapter {
     const advanceReason = this.deriveAdvanceReason(uiData.result);
 
     // Convert runner advances to proper DTO format with required fields
-    const runnerAdvances: RunnerAdvanceDTO[] = uiData.runnerAdvances.map(advance => ({
-      playerId: new PlayerId(advance.runnerId),
-      fromBase:
-        advance.fromBase === 1
-          ? 'FIRST'
-          : advance.fromBase === 2
-            ? 'SECOND'
-            : advance.fromBase === 3
-              ? 'THIRD'
-              : null,
-      toBase:
-        advance.toBase === 1
-          ? 'FIRST'
-          : advance.toBase === 2
-            ? 'SECOND'
-            : advance.toBase === 3
-              ? 'THIRD'
-              : advance.toBase === 0
-                ? 'HOME'
-                : 'OUT',
-      advanceReason,
-    }));
+    const runnerAdvances: RunnerAdvanceDTO[] = uiData.runnerAdvances.map(advance => {
+      const dto: RunnerAdvanceDTO = {
+        playerId: new PlayerId(advance.runnerId),
+        fromBase:
+          advance.fromBase === 1
+            ? 'FIRST'
+            : advance.fromBase === 2
+              ? 'SECOND'
+              : advance.fromBase === 3
+                ? 'THIRD'
+                : null,
+        toBase:
+          advance.toBase === 1
+            ? 'FIRST'
+            : advance.toBase === 2
+              ? 'SECOND'
+              : advance.toBase === 3
+                ? 'THIRD'
+                : advance.toBase === 0
+                  ? 'HOME'
+                  : 'OUT',
+        advanceReason,
+      };
+
+      return dto;
+    });
 
     return {
       gameId: new GameId(uiData.gameId),

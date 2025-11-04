@@ -9,7 +9,6 @@ import {
 } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
-import { useGameStore } from '../../../entities/game';
 import {
   useRecordAtBat,
   useRunnerAdvancement,
@@ -120,8 +119,6 @@ export function GameRecordingPage(): ReactElement {
     error: gameError,
   } = useGameWithUndoRedo();
 
-  // Keep updateScore from original useGameStore for score updates
-  const { updateScore } = useGameStore();
   const { showNavigationWarning, showInfo } = useUIStore();
   const timers = useTimerManager();
 
@@ -232,21 +229,22 @@ export function GameRecordingPage(): ReactElement {
       if (!hasRunners) return false;
 
       // Automatic advancement scenarios (no manual input needed)
+      // Domain layer (GameCoordinator) handles: HOME_RUN, WALK, SINGLE, DOUBLE, TRIPLE
       const automaticResults = [
         AtBatResultType.HOME_RUN,
         AtBatResultType.WALK,
+        AtBatResultType.SINGLE,
+        AtBatResultType.DOUBLE,
+        AtBatResultType.TRIPLE,
         AtBatResultType.DOUBLE_PLAY,
         AtBatResultType.TRIPLE_PLAY,
       ];
       if (automaticResults.includes(atBatResult)) return false;
 
-      // Manual advancement needed for hits with runners
-      const hitsRequiringAdvancement = [
-        AtBatResultType.SINGLE,
-        AtBatResultType.DOUBLE,
-        AtBatResultType.TRIPLE,
-        AtBatResultType.SACRIFICE_FLY,
-      ];
+      // Manual advancement needed for:
+      // - Sacrifice flies (custom advancement logic)
+      // - Other non-automatic result types
+      const hitsRequiringAdvancement = [AtBatResultType.SACRIFICE_FLY];
       return hitsRequiringAdvancement.includes(atBatResult);
     },
     [activeGameState]
@@ -254,62 +252,57 @@ export function GameRecordingPage(): ReactElement {
 
   /**
    * Get automatic runner advances for at-bat result
+   *
+   * @param atBatResult - The type of at-bat result
+   * @param batter - The current batter (captured before state changes)
+   * @param bases - The current base state (captured before state changes)
+   * @returns Array of runner advances with runner IDs and base movements
    */
   const getAutomaticAdvances = useCallback(
     (
-      atBatResult: AtBatResultType
+      atBatResult: AtBatResultType,
+      batter: { id: string; name: string; jerseyNumber: string | number },
+      bases: {
+        first: { id: string } | null;
+        second: { id: string } | null;
+        third: { id: string } | null;
+      }
     ): Array<{ runnerId: string; fromBase: number; toBase: number }> => {
-      if (!activeGameState?.currentBatter) return [];
-
       const advances: Array<{ runnerId: string; fromBase: number; toBase: number }> = [];
-      const batter = activeGameState.currentBatter;
 
       switch (atBatResult) {
         case AtBatResultType.SINGLE:
-          advances.push({ runnerId: batter.id, fromBase: 0, toBase: 1 });
-          break;
         case AtBatResultType.DOUBLE:
-          advances.push({ runnerId: batter.id, fromBase: 0, toBase: 2 });
-          break;
         case AtBatResultType.TRIPLE:
-          advances.push({ runnerId: batter.id, fromBase: 0, toBase: 3 });
-          // Auto-score runners on second and third
-          if (activeGameState.bases?.second) {
-            advances.push({ runnerId: activeGameState.bases.second.id, fromBase: 2, toBase: 0 });
-          }
-          if (activeGameState.bases?.third) {
-            advances.push({ runnerId: activeGameState.bases.third.id, fromBase: 3, toBase: 0 });
-          }
+          // Delegate to domain layer (GameCoordinator) for automatic advancement
+          // Return empty array to let domain logic handle these cases
+          // This maintains manual override capability while centralizing logic
           break;
         case AtBatResultType.HOME_RUN:
           advances.push({ runnerId: batter.id, fromBase: 0, toBase: 0 });
           // All runners score
-          if (activeGameState.bases?.first) {
-            advances.push({ runnerId: activeGameState.bases.first.id, fromBase: 1, toBase: 0 });
+          if (bases.first) {
+            advances.push({ runnerId: bases.first.id, fromBase: 1, toBase: 0 });
           }
-          if (activeGameState.bases?.second) {
-            advances.push({ runnerId: activeGameState.bases.second.id, fromBase: 2, toBase: 0 });
+          if (bases.second) {
+            advances.push({ runnerId: bases.second.id, fromBase: 2, toBase: 0 });
           }
-          if (activeGameState.bases?.third) {
-            advances.push({ runnerId: activeGameState.bases.third.id, fromBase: 3, toBase: 0 });
+          if (bases.third) {
+            advances.push({ runnerId: bases.third.id, fromBase: 3, toBase: 0 });
           }
           break;
         case AtBatResultType.WALK:
           advances.push({ runnerId: batter.id, fromBase: 0, toBase: 1 });
           // Force advances if bases loaded
-          if (
-            activeGameState.bases?.first &&
-            activeGameState.bases?.second &&
-            activeGameState.bases?.third
-          ) {
-            advances.push({ runnerId: activeGameState.bases.first.id, fromBase: 1, toBase: 2 });
-            advances.push({ runnerId: activeGameState.bases.second.id, fromBase: 2, toBase: 3 });
-            advances.push({ runnerId: activeGameState.bases.third.id, fromBase: 3, toBase: 0 });
-          } else if (activeGameState.bases?.first && activeGameState.bases?.second) {
-            advances.push({ runnerId: activeGameState.bases.first.id, fromBase: 1, toBase: 2 });
-            advances.push({ runnerId: activeGameState.bases.second.id, fromBase: 2, toBase: 3 });
-          } else if (activeGameState.bases?.first) {
-            advances.push({ runnerId: activeGameState.bases.first.id, fromBase: 1, toBase: 2 });
+          if (bases.first && bases.second && bases.third) {
+            advances.push({ runnerId: bases.first.id, fromBase: 1, toBase: 2 });
+            advances.push({ runnerId: bases.second.id, fromBase: 2, toBase: 3 });
+            advances.push({ runnerId: bases.third.id, fromBase: 3, toBase: 0 });
+          } else if (bases.first && bases.second) {
+            advances.push({ runnerId: bases.first.id, fromBase: 1, toBase: 2 });
+            advances.push({ runnerId: bases.second.id, fromBase: 2, toBase: 3 });
+          } else if (bases.first) {
+            advances.push({ runnerId: bases.first.id, fromBase: 1, toBase: 2 });
           }
           break;
         // OUT, STRIKEOUT, etc. - no advances
@@ -317,7 +310,7 @@ export function GameRecordingPage(): ReactElement {
 
       return advances;
     },
-    [activeGameState]
+    []
   );
 
   /**
@@ -328,7 +321,21 @@ export function GameRecordingPage(): ReactElement {
       // Action recording started - logged via logger
       logger.debug(`Recording action: ${actionType}`);
 
-      if (isLoading || !activeGameState?.currentBatter) return;
+      if (isLoading) return;
+
+      // CAPTURE currentBatter AND bases EARLY to avoid reading stale state later
+      const currentBatter = activeGameState?.currentBatter;
+      const bases = activeGameState?.bases;
+      if (!currentBatter) {
+        // eslint-disable-next-line no-console -- Intentional error logging for debugging invalid state
+        console.error('[GameRecordingPage] No current batter available');
+        return;
+      }
+      if (!bases) {
+        // eslint-disable-next-line no-console -- Intentional error logging for debugging invalid state
+        console.error('[GameRecordingPage] No bases state available');
+        return;
+      }
 
       const atBatResult = mapActionToAtBatResult(actionType);
 
@@ -340,25 +347,37 @@ export function GameRecordingPage(): ReactElement {
         return;
       }
 
-      // Get automatic advances and record immediately
-      const advances = getAutomaticAdvances(atBatResult);
+      // Pass captured batter AND bases explicitly to avoid race condition
+      const advances = getAutomaticAdvances(atBatResult, currentBatter, bases);
+
+      // DIAGNOSTIC: Log before recordAtBat call
+      logger.debug(`Calling recordAtBat with ${advances.length} advances`);
+      if (advances.length > 0 && advances[0]) {
+        logger.debug(
+          `First advance: runnerId=${advances[0].runnerId}, from=${advances[0].fromBase}, to=${advances[0].toBase}`
+        );
+      }
 
       try {
         await recordAtBat({
           result: mapActionToResultString(actionType),
           runnerAdvances: advances,
         });
-      } catch (_err) {
+        logger.debug('recordAtBat completed successfully');
+
+        // DIAGNOSTIC: Check hook result state after recording
+        logger.debug('Hook result state after recordAtBat:', {
+          hasResult: !!result,
+          result: result,
+          error: error,
+        });
+      } catch (err) {
+        logger.error('recordAtBat failed', err as Error);
         // Error handled by hook state
       }
     },
-    [
-      isLoading,
-      activeGameState?.currentBatter,
-      recordAtBat,
-      needsManualAdvancement,
-      getAutomaticAdvances,
-    ]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- error and result are stable references from useRecordAtBat hook
+    [isLoading, activeGameState, recordAtBat, needsManualAdvancement, getAutomaticAdvances]
   );
 
   /**
@@ -475,20 +494,12 @@ export function GameRecordingPage(): ReactElement {
           timers.setTimeout(() => setRbiNotification(null), RBI_NOTIFICATION_DURATION_MS);
         }
 
-        // Update game state through store
-        if (result.gameState) {
-          updateScore({
-            home: result.gameState.score.home,
-            away: result.gameState.score.away,
-          });
-        }
-
         // Reset recording state
         reset();
       }
     };
     handleResult();
-  }, [result, reset, updateScore, timers]);
+  }, [result, reset, timers]);
 
   /**
    * Handle retry after error with enhanced recovery

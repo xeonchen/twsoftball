@@ -272,7 +272,7 @@ export class TeamLineup {
     }
 
     const lineup = new TeamLineup(id, gameId, teamName, teamSide);
-    lineup.addEvent(new TeamLineupCreated(id, gameId, teamName));
+    lineup.addEvent(new TeamLineupCreated(id, gameId, teamName, teamSide));
     return lineup;
   }
 
@@ -404,13 +404,11 @@ export class TeamLineup {
     }
 
     // Create initial lineup instance from TeamLineupCreated event
-    // Note: TeamLineupCreated event doesn't store teamSide, so we default to 'HOME'
-    // The proper teamSide is established when lineups are created via createNew()
     const lineup = new TeamLineup(
       expectedTeamLineupId,
       expectedGameId,
       teamLineupCreatedEvent.teamName,
-      'HOME' // Default for event sourcing reconstruction
+      teamLineupCreatedEvent.teamSide
     );
 
     // Apply remaining events to reconstruct state

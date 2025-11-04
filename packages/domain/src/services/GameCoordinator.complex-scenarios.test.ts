@@ -101,8 +101,8 @@ describe('GameCoordinator - Complex Scenarios', () => {
           game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
           game.startGame(); // startGame() returns void, modifies in place
 
-          // Set up a game in the 5th inning (after 4th) with 10-run differential
-          inningState = inningState.withInningHalf(5, false); // Bottom 5th
+          // Set up a game in the 4th inning with 10-run differential, bottom half about to complete
+          inningState = inningState.withInningHalf(4, false).withOuts(2); // Bottom 4th, 2 outs
 
           // Away team has 15 runs, home team has 5 runs (10-run differential)
           for (let i = 0; i < 15; i += 1) {
@@ -118,8 +118,9 @@ describe('GameCoordinator - Complex Scenarios', () => {
             awayLineup,
             inningState,
             batterId,
-            AtBatResultType.SINGLE,
-            []
+            AtBatResultType.GROUND_OUT, // 3rd out - completes inning 4
+            [],
+            twoTierRules
           );
 
           expect(result.success).toBe(true);
@@ -132,8 +133,8 @@ describe('GameCoordinator - Complex Scenarios', () => {
           game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
           game.startGame();
 
-          // Set up a game in the 6th inning (after 5th) with 7-run differential
-          inningState = inningState.withInningHalf(6, false); // Bottom 6th
+          // Set up a game in the 5th inning with 7-run differential, bottom half about to complete
+          inningState = inningState.withInningHalf(5, false).withOuts(2); // Bottom 5th, 2 outs
 
           // Home team has 12 runs, away team has 5 runs (7-run differential)
           for (let i = 0; i < 12; i += 1) {
@@ -149,8 +150,9 @@ describe('GameCoordinator - Complex Scenarios', () => {
             awayLineup,
             inningState,
             batterId,
-            AtBatResultType.SINGLE,
-            []
+            AtBatResultType.STRIKEOUT, // 3rd out - completes inning 5
+            [],
+            twoTierRules
           );
 
           expect(result.success).toBe(true);
@@ -163,8 +165,8 @@ describe('GameCoordinator - Complex Scenarios', () => {
           game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
           game.startGame();
 
-          // Set up a game in the 5th inning with only 7-run differential
-          inningState = inningState.withInningHalf(5, false); // Bottom 5th (still in 5th)
+          // Set up a game in the 5th inning with only 7-run differential, bottom half about to complete
+          inningState = inningState.withInningHalf(5, false).withOuts(2); // Bottom 5th, 2 outs
 
           // Away team has 10 runs, home team has 3 runs (7-run differential)
           for (let i = 0; i < 10; i += 1) {
@@ -180,8 +182,9 @@ describe('GameCoordinator - Complex Scenarios', () => {
             awayLineup,
             inningState,
             batterId,
-            AtBatResultType.SINGLE,
-            []
+            AtBatResultType.FLY_OUT, // 3rd out - completes inning 5
+            [],
+            twoTierRules
           );
 
           expect(result.success).toBe(true);
@@ -194,9 +197,73 @@ describe('GameCoordinator - Complex Scenarios', () => {
           game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
           game.startGame();
 
-          // Set up a game in the 6th inning with 10-run differential
+          // Set up a game in the 6th inning with 10-run differential, bottom half about to complete
           // Both tiers are met, but first tier applies
-          inningState = inningState.withInningHalf(6, false); // Bottom 6th
+          inningState = inningState.withInningHalf(6, false).withOuts(2); // Bottom 6th, 2 outs
+
+          // Away team has 15 runs, home team has 5 runs (10-run differential)
+          for (let i = 0; i < 15; i += 1) {
+            game.addAwayRuns(1);
+          }
+          for (let i = 0; i < 5; i += 1) {
+            game.addHomeRuns(1);
+          }
+
+          const result = GameCoordinator.recordAtBat(
+            game,
+            homeLineup,
+            awayLineup,
+            inningState,
+            batterId,
+            AtBatResultType.FLY_OUT, // 3rd out - completes inning 6
+            [],
+            twoTierRules
+          );
+
+          expect(result.success).toBe(true);
+          expect(result.gameComplete).toBe(true);
+          expect(result.completionReason).toBe('MERCY_RULE');
+        });
+
+        it('should apply mercy rule AT tier threshold (4th inning with 15-run differential)', () => {
+          // Create a game with two-tier mercy rules
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
+          game.startGame();
+
+          // Set up a game in the 4th inning with 15-run differential, bottom half about to complete
+          inningState = inningState.withInningHalf(4, false).withOuts(2); // Bottom 4th, 2 outs
+
+          // Away team has 20 runs, home team has 5 runs (15-run differential)
+          for (let i = 0; i < 20; i += 1) {
+            game.addAwayRuns(1);
+          }
+          for (let i = 0; i < 5; i += 1) {
+            game.addHomeRuns(1);
+          }
+
+          const result = GameCoordinator.recordAtBat(
+            game,
+            homeLineup,
+            awayLineup,
+            inningState,
+            batterId,
+            AtBatResultType.GROUND_OUT, // 3rd out - completes inning 4
+            [],
+            twoTierRules
+          );
+
+          expect(result.success).toBe(true);
+          expect(result.gameComplete).toBe(true); // 15-run differential meets first tier threshold (10 runs AT 4th inning)
+          expect(result.completionReason).toBe('MERCY_RULE');
+        });
+
+        it('should NOT trigger mercy rule during mid-inning (bottom 4th with 0 outs)', () => {
+          // Create a game with two-tier mercy rules
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
+          game.startGame();
+
+          // Set up a game in bottom 4th with 10-run differential but mid-inning (0 outs)
+          inningState = inningState.withInningHalf(4, false).withOuts(0); // Bottom 4th, 0 outs (start of inning)
 
           // Away team has 15 runs, home team has 5 runs (10-run differential)
           for (let i = 0; i < 15; i += 1) {
@@ -217,20 +284,21 @@ describe('GameCoordinator - Complex Scenarios', () => {
           );
 
           expect(result.success).toBe(true);
-          expect(result.gameComplete).toBe(true);
-          expect(result.completionReason).toBe('MERCY_RULE');
+          expect(result.gameComplete).toBe(false); // Should NOT end mid-inning
+          expect(result.inningComplete).toBe(false);
         });
 
-        it('should apply mercy rule AT tier threshold (4th inning with 15-run differential)', () => {
+        it('should NOT trigger mercy rule after top half only (away team leads after top 4th)', () => {
           // Create a game with two-tier mercy rules
           game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
           game.startGame();
 
-          // Set up a game in the 4th inning with 15-run differential (triggers first tier)
-          inningState = inningState.withInningHalf(4, false); // Bottom 4th
+          // Set up a game where top 4th is about to complete, away team has 10+ run lead
+          // But home team hasn't batted yet - should NOT trigger mercy rule
+          inningState = inningState.withInningHalf(4, true).withOuts(2); // Top 4th, 2 outs (about to end top half)
 
-          // Away team has 20 runs, home team has 5 runs (15-run differential)
-          for (let i = 0; i < 20; i += 1) {
+          // Away team has 15 runs, home team has 5 runs (10-run differential)
+          for (let i = 0; i < 15; i += 1) {
             game.addAwayRuns(1);
           }
           for (let i = 0; i < 5; i += 1) {
@@ -243,13 +311,145 @@ describe('GameCoordinator - Complex Scenarios', () => {
             awayLineup,
             inningState,
             batterId,
-            AtBatResultType.SINGLE,
-            []
+            AtBatResultType.GROUND_OUT, // 3rd out - completes top 4th
+            [],
+            twoTierRules
           );
 
           expect(result.success).toBe(true);
-          expect(result.gameComplete).toBe(true); // 15-run differential meets first tier threshold (10 runs AT 4th inning)
+          expect(result.gameComplete).toBe(false); // Should NOT end - home team must get their chance to bat
+          expect(result.inningComplete).toBe(true); // Top half complete, transition to bottom
+        });
+
+        it('should trigger mercy rule only after complete inning (bottom 4th complete)', () => {
+          // Create a game with two-tier mercy rules
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
+          game.startGame();
+
+          // Set up a game where bottom 4th is about to complete with 10-run differential
+          inningState = inningState.withInningHalf(4, false).withOuts(2); // Bottom 4th, 2 outs
+
+          // Away team has 15 runs, home team has 5 runs (10-run differential)
+          for (let i = 0; i < 15; i += 1) {
+            game.addAwayRuns(1);
+          }
+          for (let i = 0; i < 5; i += 1) {
+            game.addHomeRuns(1);
+          }
+
+          const result = GameCoordinator.recordAtBat(
+            game,
+            homeLineup,
+            awayLineup,
+            inningState,
+            batterId,
+            AtBatResultType.GROUND_OUT, // 3rd out - completes bottom 4th
+            [],
+            twoTierRules
+          );
+
+          expect(result.success).toBe(true);
+          expect(result.gameComplete).toBe(true); // Should end - both teams batted in inning 4, mercy rule applies
           expect(result.completionReason).toBe('MERCY_RULE');
+          expect(result.inningComplete).toBe(true);
+        });
+
+        it('should trigger mercy rule when home team leads after bottom 4th complete', () => {
+          // Create a game with two-tier mercy rules
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
+          game.startGame();
+
+          // Set up a game where bottom 4th is about to complete with home team leading by 10
+          inningState = inningState.withInningHalf(4, false).withOuts(2); // Bottom 4th, 2 outs
+
+          // Home team has 20 runs, away team has 10 runs (10-run differential, home leading)
+          for (let i = 0; i < 20; i += 1) {
+            game.addHomeRuns(1);
+          }
+          for (let i = 0; i < 10; i += 1) {
+            game.addAwayRuns(1);
+          }
+
+          const result = GameCoordinator.recordAtBat(
+            game,
+            homeLineup,
+            awayLineup,
+            inningState,
+            batterId,
+            AtBatResultType.STRIKEOUT, // 3rd out - completes bottom 4th
+            [],
+            twoTierRules
+          );
+
+          expect(result.success).toBe(true);
+          expect(result.gameComplete).toBe(true); // Should end - both teams batted, mercy rule applies
+          expect(result.completionReason).toBe('MERCY_RULE');
+          expect(result.inningComplete).toBe(true);
+        });
+
+        it('should trigger 7-run mercy rule after complete 5th inning', () => {
+          // Create a game with two-tier mercy rules
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
+          game.startGame();
+
+          // Set up a game where bottom 5th is about to complete with 7-run differential
+          inningState = inningState.withInningHalf(5, false).withOuts(2); // Bottom 5th, 2 outs
+
+          // Away team has 12 runs, home team has 5 runs (7-run differential)
+          for (let i = 0; i < 12; i += 1) {
+            game.addAwayRuns(1);
+          }
+          for (let i = 0; i < 5; i += 1) {
+            game.addHomeRuns(1);
+          }
+
+          const result = GameCoordinator.recordAtBat(
+            game,
+            homeLineup,
+            awayLineup,
+            inningState,
+            batterId,
+            AtBatResultType.FLY_OUT, // 3rd out - completes bottom 5th
+            [],
+            twoTierRules
+          );
+
+          expect(result.success).toBe(true);
+          expect(result.gameComplete).toBe(true); // Should end - tier 2 mercy rule (7 runs after 5th)
+          expect(result.completionReason).toBe('MERCY_RULE');
+          expect(result.inningComplete).toBe(true);
+        });
+
+        it('should NOT trigger mercy rule when differential is below threshold', () => {
+          // Create a game with two-tier mercy rules
+          game = Game.createNew(gameId, 'Home Team', 'Away Team', twoTierRules);
+          game.startGame();
+
+          // Set up a game where bottom 5th completes with only 6-run differential (need 7)
+          inningState = inningState.withInningHalf(5, false).withOuts(2); // Bottom 5th, 2 outs
+
+          // Away team has 11 runs, home team has 5 runs (6-run differential - below tier 2 threshold)
+          for (let i = 0; i < 11; i += 1) {
+            game.addAwayRuns(1);
+          }
+          for (let i = 0; i < 5; i += 1) {
+            game.addHomeRuns(1);
+          }
+
+          const result = GameCoordinator.recordAtBat(
+            game,
+            homeLineup,
+            awayLineup,
+            inningState,
+            batterId,
+            AtBatResultType.FLY_OUT, // 3rd out - completes bottom 5th
+            [],
+            twoTierRules
+          );
+
+          expect(result.success).toBe(true);
+          expect(result.gameComplete).toBe(false); // Should NOT end - 6 runs is below 7-run tier 2 threshold
+          expect(result.inningComplete).toBe(true); // Inning completes, game continues to 6th
         });
       });
 
@@ -264,8 +464,8 @@ describe('GameCoordinator - Complex Scenarios', () => {
           game = Game.createNew(gameId, 'Home Team', 'Away Team', singleTierRules);
           game.startGame();
 
-          // Set up a game in the 4th inning (after 3rd) with 15-run differential
-          inningState = inningState.withInningHalf(4, false); // Bottom 4th
+          // Set up a game in the 4th inning (after 3rd) with 15-run differential, bottom half about to complete
+          inningState = inningState.withInningHalf(4, false).withOuts(2); // Bottom 4th, 2 outs
 
           // Away team has 20 runs, home team has 5 runs (15-run differential)
           for (let i = 0; i < 20; i += 1) {
@@ -281,8 +481,9 @@ describe('GameCoordinator - Complex Scenarios', () => {
             awayLineup,
             inningState,
             batterId,
-            AtBatResultType.SINGLE,
-            []
+            AtBatResultType.STRIKEOUT, // 3rd out - completes inning 4
+            [],
+            singleTierRules
           );
 
           expect(result.success).toBe(true);
@@ -372,8 +573,8 @@ describe('GameCoordinator - Complex Scenarios', () => {
           game = Game.createNew(gameId, 'Home Team', 'Away Team', threeTierRules);
           game.startGame();
 
-          // Test third tier (8 runs after 6th inning)
-          inningState = inningState.withInningHalf(7, false); // Bottom 7th
+          // Test third tier (8 runs after 6th inning) - set up bottom 7th about to complete
+          inningState = inningState.withInningHalf(7, false).withOuts(2); // Bottom 7th, 2 outs
 
           // Home team has 13 runs, away team has 5 runs (8-run differential)
           for (let i = 0; i < 13; i += 1) {
@@ -389,8 +590,9 @@ describe('GameCoordinator - Complex Scenarios', () => {
             awayLineup,
             inningState,
             batterId,
-            AtBatResultType.SINGLE,
-            []
+            AtBatResultType.FLY_OUT, // 3rd out - completes inning 7
+            [],
+            threeTierRules
           );
 
           expect(result.success).toBe(true);

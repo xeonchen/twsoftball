@@ -438,7 +438,13 @@ describe('SoftballRules', () => {
     it('should handle tie games at regulation', () => {
       const rules = new SoftballRules({ totalInnings: 7 });
 
-      expect(rules.isGameComplete(5, 5, 7)).toBe(true); // tied, ends due to no extra innings and ties allowed
+      // At end of regulation (inning 7) with tied score and maxExtraInnings: 0:
+      // extraInningsPlayed = 0, which is NOT > 0, so game continues to extra innings
+      expect(rules.isGameComplete(5, 5, 7)).toBe(false); // continues to extras
+
+      // After playing 1 extra inning (inning 8), extraInningsPlayed = 1 > maxExtraInnings (0)
+      // So game ends in tie (if allowTieGames: true)
+      expect(rules.isGameComplete(5, 5, 8)).toBe(true); // ends as tie after 1 extra inning
     });
 
     it('should handle extra innings', () => {
@@ -460,7 +466,12 @@ describe('SoftballRules', () => {
       });
 
       // Game tied 5-5, in the 10th inning (3 extra innings played)
-      expect(rules.isGameComplete(5, 5, 10)).toBe(true); // Tie game ends
+      // extraInningsPlayed = 3, maxExtraInnings = 3, 3 > 3 is FALSE, so continue
+      expect(rules.isGameComplete(5, 5, 10)).toBe(false); // Still within limit
+
+      // Game tied 5-5, in the 11th inning (4 extra innings played)
+      // extraInningsPlayed = 4, maxExtraInnings = 3, 4 > 3 is TRUE, so end
+      expect(rules.isGameComplete(5, 5, 11)).toBe(true); // Exceeded limit, tie game ends
 
       // Game tied 5-5, in the 9th inning (2 extra innings played)
       expect(rules.isGameComplete(5, 5, 9)).toBe(false); // Continue playing

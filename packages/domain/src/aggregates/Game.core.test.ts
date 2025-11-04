@@ -344,7 +344,7 @@ describe('Game Aggregate Root - Core Operations', () => {
       }
       game.addHomeRuns(1); // Home team takes lead in bottom of 7th
 
-      expect(game.isWalkOffScenario()).toBe(true);
+      expect(game.isWalkOffScenario(7, false, 1)).toBe(true);
     });
 
     it('should require extra innings when tied after regulation', () => {
@@ -357,7 +357,8 @@ describe('Game Aggregate Root - Core Operations', () => {
 
       expect(game.isRegulationComplete()).toBe(true);
       expect(game.score.isTied()).toBe(true);
-      expect(game.isWalkOffScenario()).toBe(false);
+      // Not a walk-off if no runs score (tied game continues)
+      expect(game.isWalkOffScenario(8, false, 0)).toBe(false);
     });
   });
 

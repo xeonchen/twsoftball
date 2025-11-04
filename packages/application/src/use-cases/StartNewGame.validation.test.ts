@@ -22,7 +22,11 @@ import {
   GameRulesDTO,
   StartNewGameCommandValidator,
 } from '../dtos/StartNewGameCommand.js';
-import { createGameApplicationServiceMocks } from '../test-factories/index.js';
+import {
+  createGameApplicationServiceMocks,
+  createMockInningStateRepository,
+  createMockTeamLineupRepository,
+} from '../test-factories/index.js';
 
 import { StartNewGame } from './StartNewGame.js';
 
@@ -45,6 +49,8 @@ describe('StartNewGame Validation', () => {
     // Create use case instance with mocked dependencies
     startNewGame = new StartNewGame(
       mocks.mockGameRepository,
+      createMockInningStateRepository(),
+      createMockTeamLineupRepository(),
       mocks.mockEventStore,
       mocks.mockLogger
     );

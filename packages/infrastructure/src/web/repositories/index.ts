@@ -115,7 +115,7 @@ export async function initializeRepositories(config: RepositoryConfig): Promise<
 
     // Create repository instances using EventSourced implementations
     gameRepository = new EventSourcedGameRepository(eventStore); // No snapshot store for now
-    teamLineupRepository = new EventSourcedTeamLineupRepository(eventStore, gameRepository);
+    teamLineupRepository = new EventSourcedTeamLineupRepository(eventStore);
     inningStateRepository = new EventSourcedInningStateRepository(eventStore);
 
     isInitialized = true;

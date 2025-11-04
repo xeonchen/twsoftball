@@ -617,11 +617,21 @@ export class DIContainer {
       async () => {
         const { StartNewGame } = await import('../use-cases/StartNewGame.js');
         const gameRepository = await this.resolve<GameRepository>('gameRepository');
+        const inningStateRepository =
+          await this.resolve<InningStateRepository>('inningStateRepository');
+        const teamLineupRepository =
+          await this.resolve<TeamLineupRepository>('teamLineupRepository');
         const eventStore = await this.resolve<EventStore>('eventStore');
         const logger = await this.resolve<Logger>('logger');
-        return new StartNewGame(gameRepository, eventStore, logger);
+        return new StartNewGame(
+          gameRepository,
+          inningStateRepository,
+          teamLineupRepository,
+          eventStore,
+          logger
+        );
       },
-      ['gameRepository', 'eventStore', 'logger'],
+      ['gameRepository', 'inningStateRepository', 'teamLineupRepository', 'eventStore', 'logger'],
       { description: 'StartNewGame use case with dependencies' }
     );
 

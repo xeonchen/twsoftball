@@ -418,12 +418,21 @@ export class GameRecordingPageObject {
    * Simulate a complete half-inning (3 outs)
    *
    * @param options - Scoring options for the half-inning
+   * @param options.runs - Number of runs to score (default: 0)
+   * @param options.walkOffOnFinalRun - If true, simulate walk-off victory (default: false)
    * @returns Promise that resolves when half-inning is complete
    *
    * @remarks
    * Records at-bats until 3 outs are recorded, simulating a complete half-inning.
    * If runs are specified, records hits that score runs before recording outs.
    * Uses the recordAtBat method to interact with the UI.
+   *
+   * **Walk-Off Support:**
+   * When `walkOffOnFinalRun` is true, simulates a walk-off victory scenario:
+   * - Records (runs - 1) homeruns
+   * - Records final homerun as the walk-off hit
+   * - Game ends immediately (NO 3 outs recorded)
+   * - Waits for game completion instead of inning transition
    *
    * **Race Condition Fix:**
    * After recording the 3rd out, we wait for sessionStorage to show outs === 0.
@@ -441,14 +450,44 @@ export class GameRecordingPageObject {
    * // Simulate half-inning with 2 runs scored
    * await gamePageObject.simulateHalfInning({ runs: 2 });
    *
+   * // Simulate walk-off victory with 2 runs
+   * await gamePageObject.simulateHalfInning({ runs: 2, walkOffOnFinalRun: true });
+   *
    * // Simulate half-inning with no runs
    * await gamePageObject.simulateHalfInning();
    * ```
    */
-  async simulateHalfInning(options?: { runs?: number }): Promise<void> {
+  async simulateHalfInning(options?: {
+    runs?: number;
+    walkOffOnFinalRun?: boolean;
+  }): Promise<void> {
     const runsToScore = options?.runs || 0;
+    const walkOffOnFinalRun = options?.walkOffOnFinalRun || false;
 
-    // Record hits to score runs (if specified)
+    // Walk-off scenario: game ends on final run, no 3 outs recorded
+    if (walkOffOnFinalRun && runsToScore > 0) {
+      // Record (runs - 1) homeruns
+      for (let i = 0; i < runsToScore - 1; i++) {
+        await this.recordAtBat({ result: 'homerun' });
+      }
+
+      // Final homerun is the walk-off hit
+      await this.recordAtBat({ result: 'homerun' });
+
+      // Game should end immediately - NO 3 outs recorded
+      // Wait for game completion instead of inning transition
+      await this.page.waitForFunction(
+        () => {
+          const state = JSON.parse(sessionStorage.getItem('game-state') || '{}');
+          return (state.state?.currentGame?.status || state.status) === 'completed';
+        },
+        { timeout: 10000 }
+      );
+
+      return; // Skip the 3-outs logic below
+    }
+
+    // Normal scenario: Record hits to score runs (if specified)
     for (let i = 0; i < runsToScore; i++) {
       await this.recordAtBat({ result: 'homerun' });
     }

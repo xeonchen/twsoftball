@@ -13,7 +13,6 @@
  */
 
 import type { EventStore, StoredEvent } from '@twsoftball/application/ports/out/EventStore';
-import type { GameRepository } from '@twsoftball/application/ports/out/GameRepository';
 import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore';
 import type { TeamLineupRepository } from '@twsoftball/application/ports/out/TeamLineupRepository';
 import { SnapshotManager } from '@twsoftball/application/services/SnapshotManager';
@@ -45,7 +44,6 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
 
   constructor(
     private readonly eventStore: EventStore,
-    private readonly gameRepository: GameRepository,
     snapshotStore?: SnapshotStore
   ) {
     // Create SnapshotManager only when SnapshotStore is provided for backward compatibility
@@ -213,22 +211,8 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
       return null;
     }
 
-    // Get game to determine home/away team names
-    const game = await this.gameRepository.findById(gameId);
-    if (!game) {
-      return null;
-    }
-
-    // Find lineup by comparing team name with game's home/away team names
-    return (
-      gameLineups.find(lineup => {
-        if (side === 'HOME') {
-          return lineup.teamName === game.homeTeamName;
-        } else {
-          return lineup.teamName === game.awayTeamName;
-        }
-      }) ?? null
-    );
+    // Find lineup by teamSide (more reliable than team name matching)
+    return gameLineups.find(lineup => lineup.teamSide === side) ?? null;
   }
 
   async delete(id: TeamLineupId): Promise<void> {

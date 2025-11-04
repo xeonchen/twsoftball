@@ -17,6 +17,8 @@ import { GameId, PlayerId, JerseyNumber, FieldPosition, GameStatus } from '@twso
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { StartNewGameCommand, LineupPlayerDTO, GameRulesDTO } from '../dtos/StartNewGameCommand.js';
+import { InningStateRepository } from '../ports/out/InningStateRepository.js';
+import { TeamLineupRepository } from '../ports/out/TeamLineupRepository.js';
 import { createGameApplicationServiceMocks } from '../test-factories/index.js';
 
 import { StartNewGame } from './StartNewGame.js';
@@ -37,9 +39,30 @@ describe('StartNewGame Core', () => {
     // Create fresh mocks for each test
     mocks = createGameApplicationServiceMocks();
 
+    // Create mocks for InningStateRepository and TeamLineupRepository
+    const mockInningStateRepositorySave = vi.fn().mockResolvedValue(undefined);
+    const mockTeamLineupRepositorySave = vi.fn().mockResolvedValue(undefined);
+
+    const mockInningStateRepository = {
+      save: mockInningStateRepositorySave,
+      findByGameId: vi.fn(),
+      exists: vi.fn(),
+      delete: vi.fn(),
+    };
+
+    const mockTeamLineupRepository = {
+      save: mockTeamLineupRepositorySave,
+      findByGameId: vi.fn(),
+      findById: vi.fn(),
+      exists: vi.fn(),
+      delete: vi.fn(),
+    };
+
     // Create use case instance with mocked dependencies
     startNewGame = new StartNewGame(
       mocks.mockGameRepository,
+      mockInningStateRepository as unknown as InningStateRepository,
+      mockTeamLineupRepository as unknown as TeamLineupRepository,
       mocks.mockEventStore,
       mocks.mockLogger
     );
@@ -242,6 +265,15 @@ describe('StartNewGame Core', () => {
       // Verify current batter is first in away team (top of 1st)
       expect(result.initialState?.battingTeam).toBe('AWAY');
       expect(result.initialState?.currentBatterSlot).toBe(1);
+
+      // Verify away lineup has placeholder players (since ourTeamSide='HOME')
+      expect(result.initialState?.awayLineup.battingSlots).toHaveLength(10);
+      expect(result.initialState?.awayLineup.battingSlots[0]?.currentPlayer).not.toBeNull();
+
+      // CRITICAL: currentBatter must be set for game to function
+      expect(result.initialState?.currentBatter).not.toBeNull();
+      expect(result.initialState?.currentBatter?.playerId.value).toBeDefined();
+      expect(result.initialState?.currentBatter?.name).toBeDefined();
 
       expect(result.errors).toBeUndefined();
     });

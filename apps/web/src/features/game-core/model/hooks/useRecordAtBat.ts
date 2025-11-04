@@ -50,6 +50,7 @@ import { useState, useCallback } from 'react';
 
 // Local imports
 import { useGameStore } from '../../../../entities/game';
+import { toUIGameState } from '../../../../shared/api';
 import { useAppServicesContext } from '../../../../shared/lib';
 
 /**
@@ -112,7 +113,7 @@ export function useRecordAtBat(): UseRecordAtBatState {
   const [result, setResult] = useState<AtBatResult | null>(null);
 
   // Get game state from store
-  const { currentGame, activeGameState } = useGameStore();
+  const { currentGame, activeGameState, updateFromDTO } = useGameStore();
 
   // Get services from context
   const { services } = useAppServicesContext();
@@ -157,12 +158,20 @@ export function useRecordAtBat(): UseRecordAtBatState {
         if (!services) {
           throw new Error('Application services not initialized');
         }
+
         const recordingResult = await (
           services.gameAdapter as { recordAtBat: (data: unknown) => Promise<unknown> }
         ).recordAtBat(adapterData);
 
         // Update result state - type assertion for safe assignment
-        setResult(recordingResult as AtBatResult);
+        const typedResult = recordingResult as AtBatResult;
+        setResult(typedResult);
+
+        // Sync updated game state to store (critical for UI updates)
+        if (typedResult?.gameState) {
+          const uiState = toUIGameState(typedResult.gameState);
+          updateFromDTO(uiState);
+        }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to record at-bat';
         setError(errorMessage);
@@ -171,7 +180,7 @@ export function useRecordAtBat(): UseRecordAtBatState {
         setIsLoading(false);
       }
     },
-    [currentGame, activeGameState, services]
+    [currentGame, activeGameState, services, updateFromDTO]
   );
 
   /**

@@ -54,7 +54,9 @@ describe('InningState - Event Sourcing', () => {
     it('should preserve event order for replay', () => {
       const inningState = InningState.createNew(inningStateId, gameId);
 
-      const updated = inningState.recordAtBat(batterId, 1, AtBatResultType.DOUBLE, 1);
+      const updated = inningState.recordAtBat(batterId, 1, AtBatResultType.DOUBLE, 1, undefined, [
+        { runnerId: batterId, from: null, to: 'SECOND' },
+      ]);
 
       const events = updated.getUncommittedEvents();
       const eventTypes = events.map(e => e.type);
@@ -644,7 +646,9 @@ describe('InningState - Event Sourcing', () => {
         const inningState = InningState.createNew(inningStateId, gameId);
         const initialVersion = inningState.getVersion();
 
-        const updated = inningState.recordAtBat(batterId, 1, AtBatResultType.SINGLE, 1);
+        const updated = inningState.recordAtBat(batterId, 1, AtBatResultType.SINGLE, 1, undefined, [
+          { runnerId: batterId, from: null, to: 'FIRST' },
+        ]);
 
         // recordAtBat adds multiple events: AtBatCompleted + RunnerAdvanced + CurrentBatterChanged
         expect(updated.getVersion()).toBeGreaterThan(initialVersion);
@@ -748,10 +752,16 @@ describe('InningState - Event Sourcing', () => {
 
       it('should work with complex event sequences', () => {
         const inningState = InningState.createNew(inningStateId, gameId);
+        const batter2Id = new PlayerId('batter-2');
 
         const updated = inningState
-          .recordAtBat(batterId, 1, AtBatResultType.SINGLE, 1)
-          .recordAtBat(new PlayerId('batter-2'), 2, AtBatResultType.DOUBLE, 1);
+          .recordAtBat(batterId, 1, AtBatResultType.SINGLE, 1, undefined, [
+            { runnerId: batterId, from: null, to: 'FIRST' },
+          ])
+          .recordAtBat(batter2Id, 2, AtBatResultType.DOUBLE, 1, undefined, [
+            { runnerId: batterId, from: 'FIRST', to: 'HOME' },
+            { runnerId: batter2Id, from: null, to: 'SECOND' },
+          ]);
 
         const eventsBeforeCommit = updated.getUncommittedEvents();
         const versionBeforeCommit = updated.getVersion();

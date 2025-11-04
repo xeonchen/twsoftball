@@ -162,9 +162,10 @@ export const createMockAtBatCompletedEvent = (gameId: GameId): AtBatCompleted =>
  */
 export const createMockTeamLineupCreatedEvent = (
   gameId: GameId,
-  teamLineupId: TeamLineupId
+  teamLineupId: TeamLineupId,
+  teamSide: 'HOME' | 'AWAY' = 'HOME'
 ): TeamLineupCreated => {
-  return new TeamLineupCreated(teamLineupId, gameId, 'Mock Team Name');
+  return new TeamLineupCreated(teamLineupId, gameId, 'Mock Team Name', teamSide);
 };
 
 /**

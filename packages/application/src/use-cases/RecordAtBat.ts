@@ -76,10 +76,11 @@ import {
   PlayerId,
   TeamLineupId,
   FieldPosition,
-  AtBatResultType,
   GameStatus,
   DomainEvent,
   RunScored,
+  RunnerAdvanced,
+  GameCoordinator,
 } from '@twsoftball/domain';
 
 import { AtBatResult } from '../dtos/AtBatResult.js';
@@ -87,7 +88,6 @@ import { GameStateDTO } from '../dtos/GameStateDTO.js';
 import { PlayerInGameDTO } from '../dtos/PlayerInGameDTO.js';
 import { PlayerStatisticsDTO, FieldingStatisticsDTO } from '../dtos/PlayerStatisticsDTO.js';
 import { RecordAtBatCommand, RecordAtBatCommandValidator } from '../dtos/RecordAtBatCommand.js';
-import { RunnerAdvanceDTO } from '../dtos/RunnerAdvanceDTO.js';
 import { TeamLineupDTO, BattingSlotDTO } from '../dtos/TeamLineupDTO.js';
 import { EventStore } from '../ports/out/EventStore.js';
 import { GameRepository } from '../ports/out/GameRepository.js';
@@ -221,7 +221,6 @@ export class RecordAtBat {
    */
   async execute(command: RecordAtBatCommand): Promise<AtBatResult> {
     // Log start of operation
-
     this.logger.debug('Starting at-bat processing', {
       gameId: command.gameId.value,
       batterId: command.batterId.value,
@@ -273,8 +272,9 @@ export class RecordAtBat {
       // Step 6: Generate events
       const events = this.generateEvents(command, result);
 
-      // Step 7: Persist changes atomically with compensation support
-      await this.persistChanges(game, events, originalGame);
+      // Step 7: Persist BOTH coordinator-returned aggregates atomically
+      await this.inningStateRepository.save(result.updatedInningState);
+      await this.persistChanges(result.updatedGame, events, originalGame);
 
       this.logger.info('At-bat recorded successfully', {
         gameId: command.gameId.value,
@@ -285,7 +285,7 @@ export class RecordAtBat {
         rbiAwarded: result.rbiAwarded,
       });
 
-      return await this.createSuccessResult(game, result);
+      return await this.createSuccessResult(result.updatedGame, result);
     } catch (error) {
       return UseCaseErrorHandler.handleError(
         error,
@@ -396,121 +396,97 @@ export class RecordAtBat {
       throw new Error(`TeamLineup not found for game ${game.id.value} and side ${battingTeamSide}`);
     }
 
-    // Step 3: Get current batting slot and validate batter
+    // Step 3: Load BOTH lineups (GameCoordinator needs both for validation)
+    const homeLineup = await this.teamLineupRepository.findByGameIdAndSide(game.id, 'HOME');
+    const awayLineup = await this.teamLineupRepository.findByGameIdAndSide(game.id, 'AWAY');
+    if (!homeLineup || !awayLineup) {
+      throw new Error(`TeamLineup not found for game ${game.id.value}`);
+    }
+
+    // Step 4: Get current batting slot for return value (pre-advancement)
     const battingSlot = inningState.isTopHalf
       ? inningState.awayBatterSlot
       : inningState.homeBatterSlot;
-    const currentBatterPlayerId = battingTeamLineup.getPlayerAtSlot(battingSlot);
-    if (!currentBatterPlayerId) {
-      throw new Error(`No player found at batting slot ${battingSlot}`);
-    }
 
-    // Step 4: Coordinate with InningState aggregate to record the at-bat
-    // This will advance batting order and update inning state
-    const updatedInningState = inningState.recordAtBat(
+    // Step 5: Capture pre-play score for event generation
+    const prePlayScore = {
+      home: game.score.getHomeRuns(),
+      away: game.score.getAwayRuns(),
+    };
+
+    // Step 6: Convert runnerAdvances DTO to domain RunnerAdvancement format
+    // Pass ALL override data to domain - no filtering
+    // GameCoordinator now supports fromBase: null (batter) and toBase: 'OUT' (put outs)
+    const runnerAdvancementOverrides =
+      command.runnerAdvances?.map(advance => ({
+        runnerId: advance.playerId,
+        fromBase: advance.fromBase, // Can be null for batter
+        toBase: advance.toBase, // Can be 'OUT' for outs
+      })) || [];
+
+    // Step 7: Delegate to GameCoordinator for synchronized multi-aggregate coordination
+    const coordinatorResult = GameCoordinator.recordAtBat(
+      game,
+      homeLineup,
+      awayLineup,
+      inningState,
       command.batterId,
-      battingSlot,
       command.result,
-      inningState.inning
+      runnerAdvancementOverrides
     );
 
-    // Step 5: Extract events IMMEDIATELY (before save clears them)
-    const events = updatedInningState.getUncommittedEvents();
-    const inningEnded = events.some(e => e.type === 'HalfInningEnded');
-
-    // Step 6: Persist updated InningState (this clears uncommitted events)
-    await this.inningStateRepository.save(updatedInningState);
-
-    // Step 7: Calculate additional results
-    const runsScored = this.calculateRunsScored(command.runnerAdvances || []);
-    const rbiAwarded = this.calculateRBI(command.result, command.runnerAdvances || []);
-
-    // Step 8: Update game score with runs from this at-bat
-    if (runsScored > 0) {
-      if (battingTeamSide === 'HOME') {
-        game.addHomeRuns(runsScored);
-      } else {
-        game.addAwayRuns(runsScored);
-      }
-      await this.gameRepository.save(game);
+    if (!coordinatorResult.success) {
+      return {
+        updatedGame: game, // Return original game on failure
+        runsScored: 0,
+        rbiAwarded: 0,
+        inningEnded: false,
+        gameEnded: false,
+        updatedInningState: inningState, // Return original state on failure
+        currentBattingSlot: battingSlot,
+        prePlayScore,
+        postPlayScore: prePlayScore, // No score change on failure
+        battingTeamSide,
+      };
     }
 
-    // Step 9: Check if game should end
-    let gameEnded = false;
+    // Step 8: Extract synchronized aggregates (DO NOT modify further)
+    const updatedGame = coordinatorResult.updatedGame!;
+    let updatedInningState = coordinatorResult.updatedInningState!;
+    const effectiveRunsScored = coordinatorResult.runsScored;
+    const effectiveRBIs = coordinatorResult.rbis;
+    const inningEnded = coordinatorResult.inningComplete;
+    const gameEnded = coordinatorResult.gameComplete;
 
-    // Check for walk-off win (home team wins in bottom of 7+ before inning ends)
-    if (!inningEnded && game.isWalkOffScenario()) {
-      game.completeGame('REGULATION');
-      await this.gameRepository.save(game);
-      gameEnded = true;
+    // Step 9: If game completed and inning advanced, revert InningState to completion point
+    // GameCoordinator completes the Game at the current inning (doesn't advance),
+    // but InningState may have auto-advanced on 3rd out. We need to revert it to match.
+    if (gameEnded && inningEnded && updatedInningState.inning > updatedGame.currentInning) {
+      updatedInningState = updatedInningState.withRevertedInning(updatedGame.currentInning);
     }
-    // Check for normal completion after regulation 7 innings
-    else if (inningEnded && updatedInningState.inning === 8 && updatedInningState.isTopHalf) {
-      // Game should end when we advance past inning 7 (now in top of 8th)
-      game.completeGame('REGULATION');
-      await this.gameRepository.save(game);
-      gameEnded = true;
-    }
+
+    // Step 10: Capture post-play score for event generation
+    const postPlayScore = {
+      home: updatedGame.score.getHomeRuns(),
+      away: updatedGame.score.getAwayRuns(),
+    };
+
+    // Step 11: Return coordinator-provided aggregate explicitly (DO NOT rely on mutation)
+    // Always use coordinatorResult.updatedGame! to ensure architectural contract is explicit
+    // This prevents silent data loss if GameCoordinator changes to return new instances
 
     return {
-      runsScored,
-      rbiAwarded,
+      updatedGame, // Explicit coordinator-returned aggregate
+      runsScored: effectiveRunsScored,
+      rbiAwarded: effectiveRBIs,
       inningEnded,
       gameEnded,
       updatedInningState,
       currentBattingSlot: battingSlot, // Slot BEFORE advancement
+      prePlayScore,
+      postPlayScore,
+      battingTeamSide,
     };
-  }
-
-  /**
-   * Calculates the number of runs scored from runner advances.
-   *
-   * @remarks
-   * Counts runners who reached HOME base as a result of the at-bat.
-   * This includes the batter if they scored (home run) and any baserunners
-   * who crossed home plate.
-   *
-   * @param runnerAdvances - All runner movements during the at-bat
-   * @returns Total number of runs scored
-   */
-  private calculateRunsScored(runnerAdvances: RunnerAdvanceDTO[]): number {
-    return runnerAdvances.filter(advance => advance.toBase === 'HOME').length;
-  }
-
-  /**
-   * Calculates RBI awarded to the batter based on at-bat result and advances.
-   *
-   * @remarks
-   * Implements RBI rules:
-   * - Home runs: RBI for batter plus all runners who score
-   * - Sacrifice flies: RBI if runner scores from sacrifice
-   * - Base hits: RBI for runners who score due to hit
-   * - Walks: RBI only on bases-loaded walk
-   * - Errors: No RBI awarded
-   * - Force outs: May award RBI depending on situation
-   *
-   * @param result - The at-bat result type
-   * @param runnerAdvances - All runner movements
-   * @returns Number of RBI awarded to batter
-   */
-  private calculateRBI(result: AtBatResultType, runnerAdvances: RunnerAdvanceDTO[]): number {
-    // Simplified RBI calculation
-    // In full implementation, would use RBICalculator domain service
-
-    const runsScored = runnerAdvances.filter(advance => advance.toBase === 'HOME').length;
-
-    // No RBI for errors
-    if (result === AtBatResultType.ERROR) {
-      return 0;
-    }
-
-    // Walks only get RBI if bases loaded (would need more context to determine)
-    if (result === AtBatResultType.WALK) {
-      return runsScored > 0 ? 1 : 0;
-    }
-
-    // Most other results award RBI for runs scored
-    return runsScored;
   }
 
   /**
@@ -525,10 +501,15 @@ export class RecordAtBat {
    *
    * **Generated Events**:
    * - From InningState: AtBatCompleted, RunnerAdvanced, CurrentBatterChanged
-   * - From Application: RunScored (for scoring tracking), GameEnded (if game ends)
+   * - From Application: RunScored (for scoring tracking with INCREMENTAL scores), GameEnded (if game ends)
+   *
+   * **CRITICAL: Event Sourcing Pattern**
+   * RunScored events MUST include the actual score progression (not placeholders).
+   * Each RunScored event shows the score AFTER that specific run was added.
+   * This allows Game aggregate to replay events and reconstruct exact score state.
    *
    * @param command - Original at-bat command
-   * @param result - Processed result with calculated statistics and updated InningState
+   * @param result - Processed result with calculated statistics, updated InningState, and score progression
    * @returns Array of domain events representing all state changes
    */
   private generateEvents(command: RecordAtBatCommand, result: ProcessedAtBatResult): DomainEvent[] {
@@ -539,19 +520,42 @@ export class RecordAtBat {
     const inningStateEvents = result.updatedInningState.getUncommittedEvents();
     events.push(...inningStateEvents);
 
-    // Generate RunScored events for each run
-    const runsScored = command.runnerAdvances?.filter(advance => advance.toBase === 'HOME') || [];
-    runsScored.forEach(runnerAdvance => {
+    // Generate RunScored events for each run with INCREMENTAL score progression
+    // IMPORTANT: Use REAL runner IDs from domain events, not fabricated events
+    // Filter RunnerAdvanced events where toBase === 'HOME' to find actual scoring runners
+    const runnerAdvancedEvents = inningStateEvents.filter(
+      (event): event is RunnerAdvanced =>
+        event.type === 'RunnerAdvanced' &&
+        event instanceof RunnerAdvanced &&
+        event['toBase'] === 'HOME'
+    );
+
+    runnerAdvancedEvents.forEach((runnerAdvancedEvent, index) => {
+      const runNumber = index + 1;
+      const incrementalScore = { ...result.prePlayScore };
+
+      if (result.battingTeamSide === 'HOME') {
+        incrementalScore.home = result.prePlayScore.home + runNumber;
+      } else {
+        incrementalScore.away = result.prePlayScore.away + runNumber;
+      }
+
+      // Create RunScored event with REAL runner ID from domain event
       events.push(
         new RunScored(
           command.gameId,
-          runnerAdvance.playerId,
-          'HOME', // battingTeam - simplified for now
+          runnerAdvancedEvent['runnerId'], // REAL runner ID from domain event
+          result.battingTeamSide, // Actual batting team
           command.batterId, // rbiCreditedTo
-          { home: 0, away: 0 } // newScore - simplified for now
+          incrementalScore // Real incremental score (not placeholder!)
         )
       );
     });
+
+    // Extract domain events from Game aggregate
+    // These include GameCompleted, InningAdvanced, etc.
+    const gameEvents = result.updatedGame.getUncommittedEvents();
+    events.push(...gameEvents);
 
     return events;
   }
@@ -720,8 +724,10 @@ export class RecordAtBat {
   ): Promise<AtBatResult> {
     // Build complete GameStateDTO from all aggregates, using updated InningState
     // Pass currentBattingSlot to show the batter who JUST batted (pre-advancement)
+    // IMPORTANT: Pass the game object directly to avoid reloading from repository
+    // This ensures we use the latest in-memory state including any game completion status
     const gameStateDTO = await this.buildGameStateDTO(
-      game.id,
+      game,
       result.updatedInningState,
       result.currentBattingSlot
     );
@@ -750,9 +756,7 @@ export class RecordAtBat {
    * @returns Promise resolving to complete failure result with error details
    */
   private async createFailureResult(game: Game | null, errors: string[]): Promise<AtBatResult> {
-    const gameStateDTO = game
-      ? await this.buildGameStateDTO(game.id)
-      : this.buildEmptyGameStateDTO();
+    const gameStateDTO = game ? await this.buildGameStateDTO(game) : this.buildEmptyGameStateDTO();
 
     return {
       success: false,
@@ -783,33 +787,36 @@ export class RecordAtBat {
    * - TeamLineup aggregates: Complete lineup information for both teams
    * - Derived: Current batter from batting slot + lineup combination
    *
-   * @param gameId - Unique identifier for the game to load
+   * IMPORTANT: Accepts Game object directly to ensure we use the latest in-memory state,
+   * especially critical for game completion scenarios where status must reflect
+   * the just-completed state (e.g., walk-off victories, mercy rule).
+   *
+   * @param game - Game aggregate with latest state (including any status changes)
    * @param updatedInningState - Optional updated InningState from processAtBat (avoids stale data)
+   * @param currentBattingSlot - Optional batting slot to show specific batter (pre-advancement)
    * @returns Promise resolving to complete game state DTO
    * @throws Error if any required aggregate cannot be loaded
    */
   private async buildGameStateDTO(
-    gameId: GameId,
+    game: Game,
     updatedInningState?: import('@twsoftball/domain').InningState,
     currentBattingSlot?: number
   ): Promise<GameStateDTO> {
-    // Load all necessary aggregates
-    const game = await this.gameRepository.findById(gameId);
-    if (!game) {
-      throw new Error(`Game not found: ${gameId.value}`);
-    }
+    // Use the provided game object directly (already has latest state)
+    // No need to reload from repository - this ensures we capture any status changes
+    // made during this use case execution (e.g., game completion)
 
     // Use provided updatedInningState if available, otherwise load from repository
     const inningState =
-      updatedInningState || (await this.inningStateRepository.findCurrentByGameId(gameId));
+      updatedInningState || (await this.inningStateRepository.findCurrentByGameId(game.id));
     if (!inningState) {
-      throw new Error(`InningState not found for game: ${gameId.value}`);
+      throw new Error(`InningState not found for game: ${game.id.value}`);
     }
 
-    const homeLineup = await this.teamLineupRepository.findByGameIdAndSide(gameId, 'HOME');
-    const awayLineup = await this.teamLineupRepository.findByGameIdAndSide(gameId, 'AWAY');
+    const homeLineup = await this.teamLineupRepository.findByGameIdAndSide(game.id, 'HOME');
+    const awayLineup = await this.teamLineupRepository.findByGameIdAndSide(game.id, 'AWAY');
     if (!homeLineup || !awayLineup) {
-      throw new Error(`Team lineups not found for game: ${gameId.value}`);
+      throw new Error(`Team lineups not found for game: ${game.id.value}`);
     }
 
     // Determine current batter based on provided slot (pre-advancement) or inning state
@@ -1082,6 +1089,9 @@ export class RecordAtBat {
  * between internal processing and external API contracts.
  */
 interface ProcessedAtBatResult {
+  /** Updated Game aggregate from GameCoordinator (DO NOT use original mutated reference) */
+  readonly updatedGame: Game;
+
   /** Number of runs that scored as a result of this at-bat */
   readonly runsScored: number;
 
@@ -1099,4 +1109,13 @@ interface ProcessedAtBatResult {
 
   /** Batting slot BEFORE advancement (the slot of the batter who just batted) */
   readonly currentBattingSlot: number;
+
+  /** Score before runs were added (for event generation) */
+  readonly prePlayScore: { home: number; away: number };
+
+  /** Score after runs were added (for event generation) */
+  readonly postPlayScore: { home: number; away: number };
+
+  /** Which team was batting (HOME or AWAY) */
+  readonly battingTeamSide: 'HOME' | 'AWAY';
 }

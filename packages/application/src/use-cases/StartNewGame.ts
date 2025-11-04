@@ -46,6 +46,8 @@
  * // Service setup with dependency injection
  * const startNewGame = new StartNewGame(
  *   gameRepository,
+ *   inningStateRepository,
+ *   teamLineupRepository,
  *   eventStore,
  *   logger
  * );
@@ -125,7 +127,9 @@ import {
 import { TeamLineupDTO, BattingSlotDTO } from '../dtos/TeamLineupDTO.js';
 import { EventStore } from '../ports/out/EventStore.js';
 import { GameRepository } from '../ports/out/GameRepository.js';
+import { InningStateRepository } from '../ports/out/InningStateRepository.js';
 import { Logger } from '../ports/out/Logger.js';
+import { TeamLineupRepository } from '../ports/out/TeamLineupRepository.js';
 // Note: Reverted to direct error handling to maintain architecture compliance
 
 /**
@@ -169,16 +173,26 @@ export class StartNewGame {
    * concurrent execution with different command inputs.
    *
    * @param gameRepository - Port for Game aggregate persistence operations
+   * @param inningStateRepository - Port for InningState aggregate persistence operations
+   * @param teamLineupRepository - Port for TeamLineup aggregate persistence operations
    * @param eventStore - Port for domain event storage and retrieval
    * @param logger - Port for structured application logging
    */
   constructor(
     private readonly gameRepository: GameRepository,
+    private readonly inningStateRepository: InningStateRepository,
+    private readonly teamLineupRepository: TeamLineupRepository,
     private readonly eventStore: EventStore,
     private readonly logger: Logger
   ) {
     if (!gameRepository) {
       throw new Error('GameRepository is required');
+    }
+    if (!inningStateRepository) {
+      throw new Error('InningStateRepository is required');
+    }
+    if (!teamLineupRepository) {
+      throw new Error('TeamLineupRepository is required');
     }
     if (!eventStore) {
       throw new Error('EventStore is required');
@@ -892,17 +906,17 @@ export class StartNewGame {
         operation: 'persistGame',
       });
 
-      // Save TeamLineup aggregates
-      // Note: In real implementation, would need proper adapter for TeamLineup persistence
-      // Note: In real implementation, would need proper adapter for TeamLineup persistence
+      // Save TeamLineup aggregates (home and away)
+      await this.teamLineupRepository.save(aggregates.homeLineup);
+      await this.teamLineupRepository.save(aggregates.awayLineup);
 
       this.logger.debug('TeamLineup aggregates saved successfully', {
         gameId: aggregates.game.id.value,
         operation: 'persistTeamLineups',
       });
 
-      // Save InningState aggregate (for now through same repository pattern)
-      // Note: In real implementation, would need proper adapter for InningState persistence
+      // Save InningState aggregate
+      await this.inningStateRepository.save(aggregates.inningState);
 
       this.logger.debug('InningState aggregate saved successfully', {
         gameId: aggregates.game.id.value,

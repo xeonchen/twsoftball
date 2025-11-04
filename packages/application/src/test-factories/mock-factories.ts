@@ -171,6 +171,7 @@ export function createMockInningStateRepository(
   overrides?: Partial<InningStateRepository>
 ): InningStateRepository {
   const inningStates = new Map<string, InningState>();
+  const gameIdToInningStateId = new Map<string, string>(); // Track current inning state per game
 
   return {
     findById: vi.fn().mockImplementation((id: InningStateId): Promise<InningState | null> => {
@@ -180,9 +181,20 @@ export function createMockInningStateRepository(
     findCurrentByGameId: vi
       .fn()
       .mockImplementation((gameId: GameId): Promise<InningState | null> => {
-        // Simple implementation: return the first inning state for this game
+        // Use gameId-to-inningStateId mapping for efficient lookup
+        const inningStateId = gameIdToInningStateId.get(gameId.value);
+        if (inningStateId) {
+          const inningState = inningStates.get(inningStateId);
+          if (inningState) {
+            return Promise.resolve(inningState);
+          }
+        }
+
+        // Fallback: search through all inning states (for backward compatibility)
         for (const [, inningState] of inningStates) {
           if (inningState.gameId.value === gameId.value) {
+            // Update mapping for future lookups
+            gameIdToInningStateId.set(gameId.value, inningState.id.value);
             return Promise.resolve(inningState);
           }
         }
@@ -191,10 +203,17 @@ export function createMockInningStateRepository(
 
     save: vi.fn().mockImplementation((inningState: InningState): Promise<void> => {
       inningStates.set(inningState.id.value, inningState);
+      // Update gameId mapping to track current inning state
+      gameIdToInningStateId.set(inningState.gameId.value, inningState.id.value);
       return Promise.resolve();
     }),
 
     delete: vi.fn().mockImplementation((id: InningStateId): Promise<void> => {
+      const inningState = inningStates.get(id.value);
+      if (inningState) {
+        // Remove gameId mapping when deleting
+        gameIdToInningStateId.delete(inningState.gameId.value);
+      }
       inningStates.delete(id.value);
       return Promise.resolve();
     }),
@@ -234,6 +253,7 @@ export function createMockTeamLineupRepository(
   overrides?: Partial<TeamLineupRepository>
 ): TeamLineupRepository {
   const lineups = new Map<string, TeamLineup>();
+  const gameLineups = new Map<string, Map<'HOME' | 'AWAY', TeamLineup>>(); // Track lineups by game+side
 
   return {
     findById: vi.fn().mockImplementation((id: TeamLineupId): Promise<TeamLineup | null> => {
@@ -252,22 +272,64 @@ export function createMockTeamLineupRepository(
 
     findByGameIdAndSide: vi
       .fn()
-      .mockImplementation((gameId: GameId, _side: 'HOME' | 'AWAY'): Promise<TeamLineup | null> => {
-        // Simple implementation: return the first matching lineup
-        for (const [, lineup] of lineups) {
-          if (lineup.gameId.value === gameId.value) {
-            return Promise.resolve(lineup);
+      .mockImplementation((gameId: GameId, side: 'HOME' | 'AWAY'): Promise<TeamLineup | null> => {
+        const gameKey = gameId.value;
+        const cached = gameLineups.get(gameKey)?.get(side);
+        if (cached) {
+          return Promise.resolve(cached);
+        }
+
+        for (const lineup of lineups.values()) {
+          if (lineup.gameId.value !== gameKey) continue;
+          const lineupSide = lineup.teamSide;
+          if (lineupSide === 'HOME' || lineupSide === 'AWAY') {
+            let sideMap = gameLineups.get(gameKey);
+            if (!sideMap) {
+              sideMap = new Map<'HOME' | 'AWAY', TeamLineup>();
+              gameLineups.set(gameKey, sideMap);
+            }
+            sideMap.set(lineupSide, lineup);
+            if (lineupSide === side) {
+              return Promise.resolve(lineup);
+            }
           }
         }
+
         return Promise.resolve(null);
       }),
 
     save: vi.fn().mockImplementation((lineup: TeamLineup): Promise<void> => {
       lineups.set(lineup.id.value, lineup);
+
+      const gameKey = lineup.gameId.value;
+      let gameSideMap = gameLineups.get(gameKey);
+      if (!gameSideMap) {
+        gameSideMap = new Map<'HOME' | 'AWAY', TeamLineup>();
+        gameLineups.set(gameKey, gameSideMap);
+      }
+      const lineupSide = lineup.teamSide;
+      if (lineupSide === 'HOME' || lineupSide === 'AWAY') {
+        gameSideMap.set(lineupSide, lineup);
+      }
+
       return Promise.resolve();
     }),
 
     delete: vi.fn().mockImplementation((id: TeamLineupId): Promise<void> => {
+      const lineup = lineups.get(id.value);
+      if (lineup) {
+        const gameKey = lineup.gameId.value;
+        const gameSideMap = gameLineups.get(gameKey);
+        if (gameSideMap) {
+          const lineupSide = lineup.teamSide;
+          if (lineupSide === 'HOME' || lineupSide === 'AWAY') {
+            gameSideMap.delete(lineupSide);
+          }
+          if (gameSideMap.size === 0) {
+            gameLineups.delete(gameKey);
+          }
+        }
+      }
       lineups.delete(id.value);
       return Promise.resolve();
     }),
