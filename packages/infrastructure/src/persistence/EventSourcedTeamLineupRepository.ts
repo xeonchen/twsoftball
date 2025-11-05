@@ -12,11 +12,13 @@
  * domain knowledge, serving purely as an infrastructure adapter.
  */
 
-import type { EventStore, StoredEvent } from '@twsoftball/application/ports/out/EventStore';
+import type { EventStore } from '@twsoftball/application/ports/out/EventStore';
 import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore';
 import type { TeamLineupRepository } from '@twsoftball/application/ports/out/TeamLineupRepository';
 import { SnapshotManager } from '@twsoftball/application/services/SnapshotManager';
 import { TeamLineupId, TeamLineup, GameId, DomainEvent } from '@twsoftball/domain';
+
+import { EventSourcingHelpers } from './utils/EventSourcingHelpers.js';
 
 interface EventSourcedAggregate {
   getId(): TeamLineupId;
@@ -179,7 +181,7 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
     }
 
     // Group events by streamId to reconstruct each lineup
-    const lineupEventGroups = this.groupEventsByStreamId(allEvents, 'TeamLineup');
+    const lineupEventGroups = EventSourcingHelpers.groupEventsByStreamId(allEvents, 'TeamLineup');
 
     // Reconstruct lineups and filter by gameId
     const lineups: TeamLineup[] = [];
@@ -224,51 +226,5 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
     // Use properly typed EventStore interface extension
     const eventStoreWithDelete = this.eventStore as EventStoreWithDelete;
     await eventStoreWithDelete.delete(id);
-  }
-
-  /**
-   * Groups events by streamId for a specific aggregate type
-   */
-  private groupEventsByStreamId(
-    allEvents: StoredEvent[],
-    aggregateType: string
-  ): Map<string, StoredEvent[]> {
-    const groupedEvents = new Map<string, StoredEvent[]>();
-
-    for (const event of allEvents) {
-      if (event.aggregateType === aggregateType) {
-        const streamId = event.streamId;
-        if (!groupedEvents.has(streamId)) {
-          groupedEvents.set(streamId, []);
-        }
-        groupedEvents.get(streamId)!.push(event);
-      }
-    }
-
-    // [FIX] Sort events within each stream by timestamp to ensure correct order
-    // IndexedDB's openCursor() does not guarantee order, so we must sort explicitly
-    for (const [streamId, events] of groupedEvents.entries()) {
-      events.sort((a, b) => {
-        // Primary sort: streamVersion (ensures creation event comes first)
-        if (a.streamVersion !== b.streamVersion) {
-          return a.streamVersion - b.streamVersion;
-        }
-        // Secondary sort: timestamp (for events with same version)
-        return a.timestamp.getTime() - b.timestamp.getTime();
-      });
-
-      // [FAIL FAST] Validate first event
-      const firstEvent = events[0];
-      if (!firstEvent || firstEvent.eventType !== 'TeamLineupCreated') {
-        throw new Error(
-          `[Repository] CRITICAL: First event in stream ${streamId} is "${firstEvent?.eventType ?? 'undefined'}", expected "TeamLineupCreated". ` +
-            `All events: ${events.map(e => `${e.eventType}(v${e.streamVersion})`).join(', ')}`
-        );
-      }
-
-      groupedEvents.set(streamId, events);
-    }
-
-    return groupedEvents;
   }
 }

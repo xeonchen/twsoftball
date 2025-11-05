@@ -12,11 +12,13 @@
  * domain knowledge, serving purely as an infrastructure adapter.
  */
 
-import type { EventStore, StoredEvent } from '@twsoftball/application/ports/out/EventStore';
+import type { EventStore } from '@twsoftball/application/ports/out/EventStore';
 import type { InningStateRepository } from '@twsoftball/application/ports/out/InningStateRepository';
 import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore';
 import { SnapshotManager } from '@twsoftball/application/services/SnapshotManager';
 import { InningStateId, InningState, GameId, DomainEvent } from '@twsoftball/domain';
+
+import { EventSourcingHelpers } from './utils/EventSourcingHelpers.js';
 
 interface EventSourcedAggregate {
   getId(): InningStateId;
@@ -189,7 +191,10 @@ export class EventSourcedInningStateRepository implements InningStateRepository 
     }
 
     // Group events by streamId to reconstruct each inning state
-    const inningStateEventGroups = this.groupEventsByStreamId(allEvents, 'InningState');
+    const inningStateEventGroups = EventSourcingHelpers.groupEventsByStreamId(
+      allEvents,
+      'InningState'
+    );
 
     // Reconstruct inning states and filter by gameId
     const inningStates: InningState[] = [];
@@ -217,41 +222,5 @@ export class EventSourcedInningStateRepository implements InningStateRepository 
     // Use properly typed EventStore interface extension
     const eventStoreWithDelete = this.eventStore as EventStoreWithDelete;
     await eventStoreWithDelete.delete(id);
-  }
-
-  /**
-   * Groups events by streamId for a specific aggregate type
-   */
-  private groupEventsByStreamId(
-    allEvents: StoredEvent[],
-    aggregateType: string
-  ): Map<string, StoredEvent[]> {
-    const groupedEvents = new Map<string, StoredEvent[]>();
-
-    for (const event of allEvents) {
-      if (event.aggregateType === aggregateType) {
-        const streamId = event.streamId;
-        if (!groupedEvents.has(streamId)) {
-          groupedEvents.set(streamId, []);
-        }
-        groupedEvents.get(streamId)!.push(event);
-      }
-    }
-
-    // [FIX] Sort events within each stream by timestamp to ensure correct order
-    // IndexedDB's openCursor() does not guarantee order, so we must sort explicitly
-    for (const [streamId, events] of groupedEvents.entries()) {
-      events.sort((a, b) => {
-        // Primary sort: streamVersion (ensures creation event comes first)
-        if (a.streamVersion !== b.streamVersion) {
-          return a.streamVersion - b.streamVersion;
-        }
-        // Secondary sort: timestamp (for events with same version)
-        return a.timestamp.getTime() - b.timestamp.getTime();
-      });
-      groupedEvents.set(streamId, events);
-    }
-
-    return groupedEvents;
   }
 }

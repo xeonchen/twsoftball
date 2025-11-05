@@ -12,13 +12,14 @@
  * domain knowledge, serving purely as an infrastructure adapter.
  */
 
-import type { EventStore, StoredEvent } from '@twsoftball/application/ports/out/EventStore';
+import type { EventStore } from '@twsoftball/application/ports/out/EventStore';
 import type { GameRepository } from '@twsoftball/application/ports/out/GameRepository';
 import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore';
 import { SnapshotManager } from '@twsoftball/application/services/SnapshotManager';
 import { GameId, Game, GameStatus } from '@twsoftball/domain';
 
 import { deserializeEvent } from './utils/EventDeserializer.js';
+import { EventSourcingHelpers } from './utils/EventSourcingHelpers.js';
 
 interface EventSourcedAggregate {
   getId(): GameId;
@@ -207,7 +208,7 @@ export class EventSourcedGameRepository implements GameRepository {
     }
 
     // Group events by streamId to reconstruct each game
-    const gameEventGroups = this.groupEventsByStreamId(allEvents, 'Game');
+    const gameEventGroups = EventSourcingHelpers.groupEventsByStreamId(allEvents, 'Game');
 
     // Reconstruct games and filter by status
     const games: Game[] = [];
@@ -241,7 +242,7 @@ export class EventSourcedGameRepository implements GameRepository {
       return [];
     }
 
-    const gameEventGroups = this.groupEventsByStreamId(allEvents, 'Game');
+    const gameEventGroups = EventSourcingHelpers.groupEventsByStreamId(allEvents, 'Game');
 
     // Reconstruct games and filter by scheduled date
     const games: Game[] = [];
@@ -298,41 +299,5 @@ export class EventSourcedGameRepository implements GameRepository {
     // We use type assertion here since delete is not part of the core EventStore interface
     const eventStoreWithDelete = this.eventStore as EventStoreWithDelete;
     await eventStoreWithDelete.delete(id);
-  }
-
-  /**
-   * Groups events by streamId for a specific aggregate type
-   */
-  private groupEventsByStreamId(
-    allEvents: StoredEvent[],
-    aggregateType: string
-  ): Map<string, StoredEvent[]> {
-    const groupedEvents = new Map<string, StoredEvent[]>();
-
-    for (const event of allEvents) {
-      if (event.aggregateType === aggregateType) {
-        const streamId = event.streamId;
-        if (!groupedEvents.has(streamId)) {
-          groupedEvents.set(streamId, []);
-        }
-        groupedEvents.get(streamId)!.push(event);
-      }
-    }
-
-    // [FIX] Sort events within each stream by timestamp to ensure correct order
-    // IndexedDB's openCursor() does not guarantee order, so we must sort explicitly
-    for (const [streamId, events] of groupedEvents.entries()) {
-      events.sort((a, b) => {
-        // Primary sort: streamVersion (ensures creation event comes first)
-        if (a.streamVersion !== b.streamVersion) {
-          return a.streamVersion - b.streamVersion;
-        }
-        // Secondary sort: timestamp (for events with same version)
-        return a.timestamp.getTime() - b.timestamp.getTime();
-      });
-      groupedEvents.set(streamId, events);
-    }
-
-    return groupedEvents;
   }
 }

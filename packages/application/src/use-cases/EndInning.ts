@@ -91,14 +91,13 @@ import {
 import { EndInningCommand, EndInningCommandValidator } from '../dtos/EndInningCommand.js';
 import { GameStateDTO } from '../dtos/GameStateDTO.js';
 import { InningEndResult, InningHalfState } from '../dtos/InningEndResult.js';
-import { PlayerInGameDTO } from '../dtos/PlayerInGameDTO.js';
-import { PlayerStatisticsDTO, FieldingStatisticsDTO } from '../dtos/PlayerStatisticsDTO.js';
-import { TeamLineupDTO, BattingSlotDTO } from '../dtos/TeamLineupDTO.js';
+import { TeamLineupDTO } from '../dtos/TeamLineupDTO.js';
 import { EventStore } from '../ports/out/EventStore.js';
 import { GameRepository } from '../ports/out/GameRepository.js';
 import { InningStateRepository } from '../ports/out/InningStateRepository.js';
 import { Logger } from '../ports/out/Logger.js';
 import { TeamLineupRepository } from '../ports/out/TeamLineupRepository.js';
+import { GameStateDTOBuilder } from '../utils/GameStateDTOBuilder.js';
 
 /**
  * Use case for ending innings and half-innings with comprehensive state transitions.
@@ -965,208 +964,17 @@ export class EndInning {
    * @throws Error if any required aggregate cannot be loaded
    */
   private async buildGameStateDTO(gameId: GameId): Promise<GameStateDTO> {
-    // Load all necessary aggregates
+    // Load Game aggregate explicitly (GameStateDTOBuilder requires pre-loaded Game)
     const game = await this.gameRepository.findById(gameId);
     if (!game) {
       throw new Error(`Game not found: ${gameId.value}`);
     }
 
-    const inningState = await this.inningStateRepository.findCurrentByGameId(gameId);
-    if (!inningState) {
-      throw new Error(`InningState not found for game: ${gameId.value}`);
-    }
-
-    const homeLineup = await this.teamLineupRepository.findByGameIdAndSide(gameId, 'HOME');
-    const awayLineup = await this.teamLineupRepository.findByGameIdAndSide(gameId, 'AWAY');
-    if (!homeLineup || !awayLineup) {
-      throw new Error(`Team lineups not found for game: ${gameId.value}`);
-    }
-
-    // Determine current batter based on inning state (AFTER the half-inning ended)
-    const battingSlot = inningState.isTopHalf
-      ? inningState.awayBatterSlot
-      : inningState.homeBatterSlot;
-    const battingTeamLineup = inningState.isTopHalf ? awayLineup : homeLineup;
-    const currentBatterPlayerId = battingTeamLineup.getPlayerAtSlot(battingSlot);
-    const currentBatter = currentBatterPlayerId
-      ? this.mapPlayerToDTO(battingTeamLineup, currentBatterPlayerId, battingSlot)
-      : null;
-
-    // Build complete GameStateDTO
-    return {
-      gameId: game.id,
-      status: game.status,
-      score: game.getScoreDTO(),
-      gameStartTime: game.startTime,
-      currentInning: inningState.inning,
-      isTopHalf: inningState.isTopHalf,
-      battingTeam: inningState.isTopHalf ? 'AWAY' : 'HOME',
-      outs: inningState.outs,
-      bases: inningState.getBases(),
-      currentBatterSlot: battingSlot,
-      homeLineup: this.mapTeamLineupToDTO(homeLineup, 'HOME'),
-      awayLineup: this.mapTeamLineupToDTO(awayLineup, 'AWAY'),
-      currentBatter,
-      lastUpdated: new Date(),
-    };
-  }
-
-  /**
-   * Maps TeamLineup aggregate to TeamLineupDTO for presentation layer.
-   *
-   * @remarks
-   * Converts domain TeamLineup aggregate into DTO format suitable for
-   * presentation layer consumption. Includes all batting slots, field
-   * positions, and player information with statistics.
-   *
-   * @param teamLineup - The TeamLineup aggregate to convert
-   * @param teamSide - Whether this is HOME or AWAY team
-   * @returns Complete TeamLineupDTO
-   */
-  private mapTeamLineupToDTO(
-    teamLineup: import('@twsoftball/domain').TeamLineup,
-    teamSide: 'HOME' | 'AWAY'
-  ): TeamLineupDTO {
-    // Convert domain batting slots to DTO format
-    const activeLineup = teamLineup.getActiveLineup();
-    const battingSlots: BattingSlotDTO[] = activeLineup.map(battingSlot => {
-      const currentPlayerId = battingSlot.getCurrentPlayer();
-      const playerInfo = teamLineup.getPlayerInfo(currentPlayerId);
-
-      return {
-        slotNumber: battingSlot.position,
-        currentPlayer: playerInfo
-          ? {
-              playerId: currentPlayerId,
-              name: playerInfo.playerName,
-              jerseyNumber: playerInfo.jerseyNumber,
-              battingOrderPosition: battingSlot.position,
-              currentFieldPosition: playerInfo.currentPosition || FieldPosition.EXTRA_PLAYER,
-              preferredPositions: playerInfo.currentPosition ? [playerInfo.currentPosition] : [],
-              plateAppearances: [], // Would be populated from game history
-              statistics: this.createEmptyStatistics(
-                currentPlayerId,
-                playerInfo.playerName,
-                playerInfo.jerseyNumber
-              ),
-            }
-          : null,
-        history: battingSlot.history.map(h => {
-          const historyPlayerInfo = teamLineup.getPlayerInfo(h.playerId);
-          return {
-            playerId: h.playerId,
-            playerName: historyPlayerInfo?.playerName || 'Unknown',
-            enteredInning: h.enteredInning,
-            exitedInning: h.exitedInning,
-            wasStarter: h.wasStarter,
-            isReentry: h.isReentry,
-          };
-        }),
-      };
-    });
-
-    // Convert domain field positions to DTO format
-    const fieldPositionsMap = teamLineup.getFieldingPositions();
-    const fieldPositions: Record<FieldPosition, PlayerId | null> = {} as Record<
-      FieldPosition,
-      PlayerId | null
-    >;
-    for (const [position, playerId] of fieldPositionsMap.entries()) {
-      fieldPositions[position] = playerId;
-    }
-
-    return {
-      teamLineupId: teamLineup.id,
-      gameId: teamLineup.gameId,
-      teamSide,
-      teamName: teamLineup.teamName,
-      strategy: 'SIMPLE', // Default strategy
-      battingSlots,
-      fieldPositions,
-      benchPlayers: [], // Would be implemented in full version
-      substitutionHistory: [], // Would be implemented in full version
-    };
-  }
-
-  /**
-   * Maps player information to PlayerInGameDTO.
-   *
-   * @remarks
-   * Converts domain player information into DTO format for current batter
-   * display. Includes complete player details, position, and statistics.
-   *
-   * @param teamLineup - The TeamLineup aggregate containing player info
-   * @param playerId - Player identifier
-   * @param battingSlot - Current batting slot number
-   * @returns Complete PlayerInGameDTO or null if player not found
-   */
-  private mapPlayerToDTO(
-    teamLineup: import('@twsoftball/domain').TeamLineup,
-    playerId: PlayerId,
-    battingSlot: number
-  ): PlayerInGameDTO | null {
-    const playerInfo = teamLineup.getPlayerInfo(playerId);
-    if (!playerInfo) {
-      return null;
-    }
-
-    return {
-      playerId,
-      name: playerInfo.playerName,
-      jerseyNumber: playerInfo.jerseyNumber,
-      battingOrderPosition: battingSlot,
-      currentFieldPosition: playerInfo.currentPosition || FieldPosition.EXTRA_PLAYER,
-      preferredPositions: playerInfo.currentPosition ? [playerInfo.currentPosition] : [],
-      plateAppearances: [], // Would be populated from game history
-      statistics: this.createEmptyStatistics(
-        playerId,
-        playerInfo.playerName,
-        playerInfo.jerseyNumber
-      ),
-    };
-  }
-
-  /**
-   * Creates empty player statistics for display.
-   *
-   * @param playerId - Player identifier
-   * @param name - Player display name
-   * @param jerseyNumber - Player jersey number
-   * @returns Empty PlayerStatisticsDTO with zero values
-   */
-  private createEmptyStatistics(
-    playerId: PlayerId,
-    name: string,
-    jerseyNumber: import('@twsoftball/domain').JerseyNumber
-  ): PlayerStatisticsDTO {
-    const emptyFielding: FieldingStatisticsDTO = {
-      positions: [],
-      putouts: 0,
-      assists: 0,
-      errors: 0,
-      fieldingPercentage: 1.0,
-    };
-
-    return {
-      playerId,
-      name,
-      jerseyNumber,
-      plateAppearances: 0,
-      atBats: 0,
-      hits: 0,
-      singles: 0,
-      doubles: 0,
-      triples: 0,
-      homeRuns: 0,
-      walks: 0,
-      strikeouts: 0,
-      rbi: 0,
-      runs: 0,
-      battingAverage: 0.0,
-      onBasePercentage: 0.0,
-      sluggingPercentage: 0.0,
-      fielding: emptyFielding,
-    };
+    return GameStateDTOBuilder.buildGameStateDTO(
+      game,
+      this.inningStateRepository,
+      this.teamLineupRepository
+    );
   }
 
   /**

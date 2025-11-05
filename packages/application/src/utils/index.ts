@@ -37,3 +37,9 @@ export {
   createResultHandlingExample,
   createUseCaseFileHeader,
 } from './documentation-constants.js';
+
+// DTO mapping utilities - architecture compliant (used within use cases)
+export { DTOMappingHelpers } from './DTOMappingHelpers.js';
+
+// Game state DTO orchestration - architecture compliant (used within use cases)
+export { GameStateDTOBuilder } from './GameStateDTOBuilder.js';

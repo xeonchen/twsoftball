@@ -117,7 +117,6 @@ import {
 
 import { GameStartResult } from '../dtos/GameStartResult.js';
 import { GameStateDTO } from '../dtos/GameStateDTO.js';
-import { PlayerStatisticsDTO, FieldingStatisticsDTO } from '../dtos/PlayerStatisticsDTO.js';
 import {
   StartNewGameCommand,
   LineupPlayerDTO,
@@ -130,6 +129,7 @@ import { GameRepository } from '../ports/out/GameRepository.js';
 import { InningStateRepository } from '../ports/out/InningStateRepository.js';
 import { Logger } from '../ports/out/Logger.js';
 import { TeamLineupRepository } from '../ports/out/TeamLineupRepository.js';
+import { DTOMappingHelpers } from '../utils/DTOMappingHelpers.js';
 // Note: Reverted to direct error handling to maintain architecture compliance
 
 /**
@@ -1091,7 +1091,7 @@ export class StartNewGame {
               currentFieldPosition: playerInfo.currentPosition || FieldPosition.EXTRA_PLAYER,
               preferredPositions: playerInfo.currentPosition ? [playerInfo.currentPosition] : [], // Simplified for now
               plateAppearances: [], // No plate appearances yet in new game
-              statistics: this.createEmptyStatistics(
+              statistics: DTOMappingHelpers.createEmptyStatistics(
                 currentPlayerId,
                 playerInfo.playerName,
                 playerInfo.jerseyNumber
@@ -1196,49 +1196,6 @@ export class StartNewGame {
       return 'An unexpected error occurred';
     }
     return 'An unexpected error occurred';
-  }
-
-  /**
-   * Creates empty player statistics for a new game.
-   *
-   * @param playerId - Player identifier
-   * @param name - Player display name
-   * @param jerseyNumber - Player jersey number
-   * @returns Empty PlayerStatisticsDTO with zero values
-   */
-  private createEmptyStatistics(
-    playerId: PlayerId,
-    name: string,
-    jerseyNumber: JerseyNumber
-  ): PlayerStatisticsDTO {
-    const emptyFielding: FieldingStatisticsDTO = {
-      positions: [],
-      putouts: 0,
-      assists: 0,
-      errors: 0,
-      fieldingPercentage: 1.0,
-    };
-
-    return {
-      playerId,
-      name,
-      jerseyNumber,
-      plateAppearances: 0,
-      atBats: 0,
-      hits: 0,
-      singles: 0,
-      doubles: 0,
-      triples: 0,
-      homeRuns: 0,
-      walks: 0,
-      strikeouts: 0,
-      rbi: 0,
-      runs: 0,
-      battingAverage: 0.0,
-      onBasePercentage: 0.0,
-      sluggingPercentage: 0.0,
-      fielding: emptyFielding,
-    };
   }
 }
 
