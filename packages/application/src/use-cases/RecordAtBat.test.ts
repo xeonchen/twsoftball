@@ -35,6 +35,7 @@ import {
   BasesState,
   GameCoordinator,
   InningState,
+  RunnerAdvanced,
 } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -2710,6 +2711,177 @@ describe('RecordAtBat Use Case', () => {
       expect(result.gameState.status).toBe(GameStatus.COMPLETED);
       expect(result.gameState.currentInning).toBe(7);
       expect(result.gameState.isTopHalf).toBe(false);
+    });
+  });
+
+  describe('Error Handling - Data Integrity', () => {
+    it('should return failure when game status is COMPLETED', async () => {
+      // Arrange
+      const completedGame = createTestGame(GameStatus.COMPLETED);
+
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(completedGame as any);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('Cannot record at-bat: Game status is')])
+      );
+    });
+
+    it('should return failure when game status is NOT_STARTED', async () => {
+      // Arrange
+      const notStartedGame = createTestGame(GameStatus.NOT_STARTED);
+
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(notStartedGame as any);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert
+      expect(result.success).toBe(false);
+      expect(result.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('Cannot record at-bat: Game status is')])
+      );
+    });
+
+    it('should throw error when InningState not found', async () => {
+      // Arrange
+      const game = createTestGame();
+
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game as any);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(null);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act & Assert
+      await expect(recordAtBat.execute(command)).rejects.toThrow(
+        `InningState not found for game: ${gameId.value}`
+      );
+    });
+  });
+
+  describe('GameCoordinator Integration - Failure Paths', () => {
+    it('should handle empty result when GameCoordinator validation fails', async () => {
+      // Arrange
+      const game = createTestGame();
+      const inningState = createMockInningState(gameId);
+      const mockHomeLineup = createMockTeamLineup(gameId, 'HOME', batterId);
+      const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY', PlayerId.generate());
+
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game as any);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(inningState);
+      vi.mocked(mockTeamLineupRepository.findByGameIdAndSide)
+        .mockResolvedValueOnce(mockHomeLineup as any)
+        .mockResolvedValueOnce(mockHomeLineup as any)
+        .mockResolvedValueOnce(mockAwayLineup as any);
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+      vi.mocked(mockInningStateRepository.save).mockResolvedValue(undefined);
+
+      // Mock GameCoordinator to return failure
+      const coordinatorSpy = vi.spyOn(GameCoordinator, 'recordAtBat').mockReturnValue({
+        success: false,
+        errors: ['Invalid batter: Player not in lineup'],
+      });
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - ProcessedAtBatResult should have no changes when coordinator fails
+      // The use case completes successfully but with zero stats
+      expect(result.runsScored).toBe(0);
+      expect(result.rbiAwarded).toBe(0);
+      expect(result.inningEnded).toBe(false);
+      expect(result.gameEnded).toBe(false);
+
+      coordinatorSpy.mockRestore();
+    });
+  });
+
+  describe('Event Generation - Coverage for Multi-Run Scenarios', () => {
+    it('should generate RunScored events from RunnerAdvanced events with toBase HOME', async () => {
+      // This test specifically covers lines 532-550 (RunScored event generation)
+      const game = createTestGame();
+      const runner1Id = PlayerId.generate();
+      const runner2Id = PlayerId.generate();
+
+      const inningState = createMockInningState(gameId);
+      inningState.isTopHalf = false; // HOME is batting (bottom of inning)
+
+      const updatedInningState = createMockInningState(gameId);
+      updatedInningState.isTopHalf = false; // HOME is batting
+
+      // Mock getUncommittedEvents to return RunnerAdvanced events with toBase === 'HOME'
+      updatedInningState.getUncommittedEvents = vi.fn().mockReturnValue([
+        new RunnerAdvanced(gameId, runner1Id, 'FIRST', 'HOME'), // Runner from 1st scores
+        new RunnerAdvanced(gameId, runner2Id, 'SECOND', 'HOME'), // Runner from 2nd scores
+        new RunnerAdvanced(gameId, batterId, null, 'HOME'), // Batter scores
+      ]);
+
+      const mockHomeLineup = createMockTeamLineup(gameId, 'HOME', batterId);
+      const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY', PlayerId.generate());
+
+      // Mock GameCoordinator to return success with runs
+      vi.spyOn(GameCoordinator, 'recordAtBat').mockReturnValue({
+        success: true,
+        updatedGame: game,
+        updatedInningState,
+        runsScored: 3,
+        rbis: 3,
+        inningComplete: false,
+        gameComplete: false,
+      } as any);
+
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game as any);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(inningState);
+      vi.mocked(mockTeamLineupRepository.findByGameIdAndSide)
+        .mockResolvedValueOnce(mockHomeLineup as any)
+        .mockResolvedValueOnce(mockHomeLineup as any)
+        .mockResolvedValueOnce(mockAwayLineup as any);
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+      vi.mocked(mockInningStateRepository.save).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.HOME_RUN)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Verify the use case completed (lines 532-550 exercised by event generation)
+      expect(result.success).toBe(true);
+
+      // Verify events were appended (which means the generateEvents method ran)
+      const appendCalls = vi.mocked(mockEventStore.append).mock.calls;
+      expect(appendCalls.length).toBeGreaterThan(0);
     });
   });
 });

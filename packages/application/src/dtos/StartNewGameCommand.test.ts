@@ -1284,6 +1284,239 @@ describe('StartNewGameCommand', () => {
           }) as Error
         );
       });
+
+      it('should reject timeLimitMinutes <= 0', () => {
+        const commandWithZero = {
+          ...validCommand,
+          gameRules: undefined,
+          rulesConfig: { timeLimitMinutes: 0 },
+        };
+        expect(() => StartNewGameCommandValidator.validate(commandWithZero)).toThrow(
+          expect.objectContaining({
+            message: 'timeLimitMinutes must be between 1 and 300',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'rulesConfig.timeLimitMinutes',
+              value: 0,
+            }),
+          }) as Error
+        );
+
+        const commandWithNegative = {
+          ...validCommand,
+          gameRules: undefined,
+          rulesConfig: { timeLimitMinutes: -1 },
+        };
+        expect(() => StartNewGameCommandValidator.validate(commandWithNegative)).toThrow(
+          expect.objectContaining({
+            message: 'timeLimitMinutes must be between 1 and 300',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'rulesConfig.timeLimitMinutes',
+              value: -1,
+            }),
+          }) as Error
+        );
+      });
+
+      it('should reject timeLimitMinutes > 300', () => {
+        const commandWithExcessiveTime = {
+          ...validCommand,
+          gameRules: undefined,
+          rulesConfig: { timeLimitMinutes: 301 },
+        };
+        expect(() => StartNewGameCommandValidator.validate(commandWithExcessiveTime)).toThrow(
+          expect.objectContaining({
+            message: 'timeLimitMinutes must be between 1 and 300',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'rulesConfig.timeLimitMinutes',
+              value: 301,
+            }),
+          }) as Error
+        );
+      });
+
+      it('should reject non-boolean allowReEntry', () => {
+        const commandWithString = {
+          ...validCommand,
+          gameRules: undefined,
+          rulesConfig: { allowReEntry: 'true' as unknown as boolean },
+        };
+        expect(() => StartNewGameCommandValidator.validate(commandWithString)).toThrow(
+          expect.objectContaining({
+            message: 'allowReEntry must be a boolean',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'rulesConfig.allowReEntry',
+              value: 'true',
+            }),
+          }) as Error
+        );
+
+        const commandWithNumber = {
+          ...validCommand,
+          gameRules: undefined,
+          rulesConfig: { allowReEntry: 1 as unknown as boolean },
+        };
+        expect(() => StartNewGameCommandValidator.validate(commandWithNumber)).toThrow(
+          expect.objectContaining({
+            message: 'allowReEntry must be a boolean',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'rulesConfig.allowReEntry',
+              value: 1,
+            }),
+          }) as Error
+        );
+      });
+
+      it('should reject non-boolean mercyRuleEnabled', () => {
+        const commandWithString = {
+          ...validCommand,
+          gameRules: undefined,
+          rulesConfig: { mercyRuleEnabled: 'yes' as unknown as boolean },
+        };
+        expect(() => StartNewGameCommandValidator.validate(commandWithString)).toThrow(
+          expect.objectContaining({
+            message: 'mercyRuleEnabled must be a boolean',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'rulesConfig.mercyRuleEnabled',
+              value: 'yes',
+            }),
+          }) as Error
+        );
+
+        const commandWithNumber = {
+          ...validCommand,
+          gameRules: undefined,
+          rulesConfig: { mercyRuleEnabled: 1 as unknown as boolean },
+        };
+        expect(() => StartNewGameCommandValidator.validate(commandWithNumber)).toThrow(
+          expect.objectContaining({
+            message: 'mercyRuleEnabled must be a boolean',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'rulesConfig.mercyRuleEnabled',
+              value: 1,
+            }),
+          }) as Error
+        );
+      });
+
+      it('should reject non-array mercyRuleTiers', () => {
+        const commandWithObject = {
+          ...validCommand,
+          gameRules: undefined,
+          rulesConfig: {
+            mercyRuleTiers: { differential: 15, afterInning: 4 } as unknown as Array<{
+              differential: number;
+              afterInning: number;
+            }>,
+          },
+        };
+        expect(() => StartNewGameCommandValidator.validate(commandWithObject)).toThrow(
+          expect.objectContaining({
+            message: 'mercyRuleTiers must be an array',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'rulesConfig.mercyRuleTiers',
+            }),
+          }) as Error
+        );
+
+        const commandWithString = {
+          ...validCommand,
+          gameRules: undefined,
+          rulesConfig: {
+            mercyRuleTiers: 'invalid' as unknown as Array<{
+              differential: number;
+              afterInning: number;
+            }>,
+          },
+        };
+        expect(() => StartNewGameCommandValidator.validate(commandWithString)).toThrow(
+          expect.objectContaining({
+            message: 'mercyRuleTiers must be an array',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'rulesConfig.mercyRuleTiers',
+              value: 'invalid',
+            }),
+          }) as Error
+        );
+      });
+
+      it('should reject maxExtraInnings < 0', () => {
+        const commandWithNegative = {
+          ...validCommand,
+          gameRules: undefined,
+          rulesConfig: { maxExtraInnings: -1 },
+        };
+        expect(() => StartNewGameCommandValidator.validate(commandWithNegative)).toThrow(
+          expect.objectContaining({
+            message: 'maxExtraInnings must be between 0 and 10',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'rulesConfig.maxExtraInnings',
+              value: -1,
+            }),
+          }) as Error
+        );
+      });
+
+      it('should reject maxExtraInnings > 10', () => {
+        const commandWithExcessive = {
+          ...validCommand,
+          gameRules: undefined,
+          rulesConfig: { maxExtraInnings: 11 },
+        };
+        expect(() => StartNewGameCommandValidator.validate(commandWithExcessive)).toThrow(
+          expect.objectContaining({
+            message: 'maxExtraInnings must be between 0 and 10',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'rulesConfig.maxExtraInnings',
+              value: 11,
+            }),
+          }) as Error
+        );
+      });
+
+      it('should reject non-boolean allowTieGames', () => {
+        const commandWithString = {
+          ...validCommand,
+          gameRules: undefined,
+          rulesConfig: { allowTieGames: 'false' as unknown as boolean },
+        };
+        expect(() => StartNewGameCommandValidator.validate(commandWithString)).toThrow(
+          expect.objectContaining({
+            message: 'allowTieGames must be a boolean',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'rulesConfig.allowTieGames',
+              value: 'false',
+            }),
+          }) as Error
+        );
+
+        const commandWithNumber = {
+          ...validCommand,
+          gameRules: undefined,
+          rulesConfig: { allowTieGames: 0 as unknown as boolean },
+        };
+        expect(() => StartNewGameCommandValidator.validate(commandWithNumber)).toThrow(
+          expect.objectContaining({
+            message: 'allowTieGames must be a boolean',
+            name: 'StartNewGameCommandValidationError',
+            validationContext: expect.objectContaining({
+              field: 'rulesConfig.allowTieGames',
+              value: 0,
+            }),
+          }) as Error
+        );
+      });
     });
   });
 

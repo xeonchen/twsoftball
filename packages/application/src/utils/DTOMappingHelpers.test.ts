@@ -11,6 +11,7 @@ import {
   JerseyNumber,
   FieldPosition,
   SoftballRules,
+  type PlayerInfo,
 } from '@twsoftball/domain';
 import { describe, it, expect, beforeEach } from 'vitest';
 
@@ -145,6 +146,35 @@ describe('DTOMappingHelpers', () => {
 
       expect(result.battingSlots[0].history).toBeDefined();
       expect(Array.isArray(result.battingSlots[0].history)).toBe(true);
+    });
+
+    it('should return null for batting slot when player info not found (data corruption)', () => {
+      // Arrange - Create a lineup with a player
+      let lineup = TeamLineup.createNew(teamLineupId, gameId, 'Test Team', 'HOME');
+      lineup = lineup.addPlayer(
+        playerId1,
+        new JerseyNumber('10'),
+        'Alice Smith',
+        1,
+        FieldPosition.PITCHER,
+        rules
+      );
+
+      // Act - Mock getPlayerInfo to return null (simulating data corruption)
+      const originalGetPlayerInfo = lineup.getPlayerInfo.bind(lineup);
+      lineup.getPlayerInfo = (playerId: PlayerId): PlayerInfo | null => {
+        // Return null only for specific player to test the null path
+        if (playerId.equals(playerId1)) {
+          return null;
+        }
+        return originalGetPlayerInfo(playerId);
+      };
+
+      const result = DTOMappingHelpers.mapTeamLineupToDTO(lineup, 'HOME');
+
+      // Assert - currentPlayer should be null when player info not found
+      expect(result.battingSlots[0].currentPlayer).toBeNull();
+      expect(result.battingSlots[0].slotNumber).toBe(1);
     });
   });
 
