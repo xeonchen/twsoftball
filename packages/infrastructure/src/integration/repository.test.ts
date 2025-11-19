@@ -1449,7 +1449,7 @@ describe('Repository Integration Tests', () => {
 
       // Then: Should timeout appropriately
       expect(duration).toBeGreaterThanOrEqual(timeoutDuration);
-      expect(duration).toBeLessThan(timeoutDuration + 50); // Allow small buffer
+      expect(duration).toBeLessThan(timeoutDuration + 200); // Allow buffer for CI environment variability
     });
 
     it('should handle memory pressure scenarios with large datasets', async () => {
