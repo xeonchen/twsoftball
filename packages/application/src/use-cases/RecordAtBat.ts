@@ -42,7 +42,8 @@
  * // Service setup with dependency injection
  * const recordAtBat = new RecordAtBat(
  *   gameRepository,
- *   eventStore,
+ *   inningStateRepository,
+ *   teamLineupRepository,
  *   logger
  * );
  *
@@ -86,7 +87,6 @@ import {
 import { AtBatResult } from '../dtos/AtBatResult.js';
 import { GameStateDTO } from '../dtos/GameStateDTO.js';
 import { RecordAtBatCommand, RecordAtBatCommandValidator } from '../dtos/RecordAtBatCommand.js';
-import { EventStore } from '../ports/out/EventStore.js';
 import { GameRepository } from '../ports/out/GameRepository.js';
 import { InningStateRepository } from '../ports/out/InningStateRepository.js';
 import { Logger } from '../ports/out/Logger.js';
@@ -138,14 +138,12 @@ export class RecordAtBat {
    * @param gameRepository - Port for Game aggregate persistence operations
    * @param inningStateRepository - Port for InningState aggregate persistence operations
    * @param teamLineupRepository - Port for TeamLineup aggregate persistence operations
-   * @param eventStore - Port for domain event storage and retrieval
    * @param logger - Port for structured application logging
    */
   constructor(
     private readonly gameRepository: GameRepository,
     private readonly inningStateRepository: InningStateRepository,
     private readonly teamLineupRepository: TeamLineupRepository,
-    private readonly eventStore: EventStore,
     private readonly logger: Logger
   ) {
     if (!gameRepository) {
@@ -156,9 +154,6 @@ export class RecordAtBat {
     }
     if (!teamLineupRepository) {
       throw new Error('TeamLineupRepository is required');
-    }
-    if (!eventStore) {
-      throw new Error('EventStore is required');
     }
     if (!logger) {
       throw new Error('Logger is required');
@@ -596,27 +591,23 @@ export class RecordAtBat {
 
     try {
       // Phase 1: Save game aggregate
+      // NOTE: EventSourcedGameRepository.save() already appends events to eventStore
+      // Do NOT call eventStore.append() again or we'll get duplicate key errors!
       await this.gameRepository.save(game);
       gameWasSaved = true;
 
-      this.logger.debug('Game aggregate saved successfully', {
-        gameId: game.id.value,
-        operation: 'persistGame',
-      });
-
-      // Phase 2: Store domain events
-      await this.eventStore.append(game.id, 'Game', events);
-
-      this.logger.debug('Domain events stored successfully', {
+      this.logger.debug('Game aggregate and events saved successfully', {
         gameId: game.id.value,
         eventCount: events.length,
         eventTypes: events.map(e => e.type),
-        operation: 'persistEvents',
+        operation: 'persistGame',
       });
     } catch (error) {
-      // Transaction failed - determine recovery action
+      // Transaction failed during game save
+      // NOTE: Since EventSourcedGameRepository.save() is atomic (saves game + events together),
+      // we should not hit the compensation path anymore. Kept for safety.
       if (gameWasSaved && originalGame) {
-        // Event store failed after game was saved - attempt compensation
+        // Repository save failed mid-operation - attempt compensation
         await this.compensateFailedTransaction(originalGame, error);
       }
 
@@ -647,9 +638,12 @@ export class RecordAtBat {
    * Compensates for failed transaction by reverting game state.
    *
    * @remarks
-   * Implements compensation logic when event storage fails after game save.
+   * Implements compensation logic when repository save fails mid-operation.
    * Attempts to restore system consistency by reverting the game aggregate
    * to its original state.
+   *
+   * **NOTE**: This should rarely trigger now that EventSourcedGameRepository.save()
+   * handles both aggregate and event persistence atomically. Kept for safety.
    *
    * **Compensation Strategy**:
    * - Restore original game state to maintain consistency
@@ -674,7 +668,7 @@ export class RecordAtBat {
       this.logger.warn('Attempting transaction compensation', {
         gameId: originalGame.id.value,
         operation: 'compensateFailedTransaction',
-        reason: 'Event store failed after game save',
+        reason: 'Repository save failed mid-operation',
         originalError: originalError instanceof Error ? originalError.message : 'Unknown error',
       });
 
@@ -721,15 +715,13 @@ export class RecordAtBat {
     result: ProcessedAtBatResult
   ): Promise<AtBatResult> {
     // Build complete GameStateDTO from all aggregates, using updated InningState
-    // Pass currentBattingSlot to show the batter who JUST batted (pre-advancement)
-    // IMPORTANT: Pass the game object directly to avoid reloading from repository
-    // This ensures we use the latest in-memory state including any game completion status
+    // Bug #5 Fix: Removed currentBattingSlot parameter - DTO should show post-advancement batter
     const gameStateDTO = await GameStateDTOBuilder.buildGameStateDTO(
       game,
       this.inningStateRepository,
       this.teamLineupRepository,
-      result.updatedInningState,
-      result.currentBattingSlot
+      result.updatedInningState
+      // Omitting currentBattingSlot allows DTO to default to next batter from inningState
     );
 
     return {

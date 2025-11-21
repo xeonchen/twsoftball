@@ -513,10 +513,11 @@ export class GameRecordingPageObject {
       expectedIsTopHalf => {
         const stateJson = sessionStorage.getItem('game-state');
         if (!stateJson) {
-          console.log('[simulateHalfInning] No game-state in sessionStorage');
+          console.log('[simulateHalfInning] ❌ No game-state in sessionStorage');
           return false;
         }
         const state = JSON.parse(stateJson);
+
         // Check both Zustand persist format and flat fixture format
         const outs = state.state?.activeGameState?.outs ?? state.outs ?? -1;
         const isTopHalf = state.state?.activeGameState?.isTopHalf ?? state.isTopHalf ?? true;
@@ -524,26 +525,40 @@ export class GameRecordingPageObject {
         const status = state.state?.currentGame?.status || state.status;
         const isGameCompleted = status === 'completed';
 
+        // Get additional diagnostic info
+        const homeScore = state.state?.activeGameState?.homeScore ?? state.homeScore ?? 0;
+        const awayScore = state.state?.activeGameState?.awayScore ?? state.awayScore ?? 0;
+        const completionReason =
+          state.state?.currentGame?.completionReason || state.completionReason || 'N/A';
+
         console.log(
-          `[simulateHalfInning] Checking state: outs=${outs}, isTopHalf=${isTopHalf}, inning=${inning}, status=${status}, expectedIsTopHalf=${expectedIsTopHalf}`
+          `[simulateHalfInning] 🔍 State check:
+          - Inning: ${inning}, isTopHalf: ${isTopHalf} (expected: ${expectedIsTopHalf})
+          - Outs: ${outs} (expected: 0)
+          - Status: ${status} (completed: ${isGameCompleted})
+          - Score: ${homeScore}-${awayScore}
+          - Completion Reason: ${completionReason}
+          - State Format: ${state.state ? 'Zustand persist' : 'Flat fixture'}`
         );
 
         // Outs must be reset to 0 in all cases
         if (outs !== 0) {
-          console.log(`[simulateHalfInning] Outs not reset yet (${outs}), waiting...`);
+          console.log(`[simulateHalfInning] ⏳ Waiting for outs to reset (current: ${outs})...`);
           return false;
         }
 
         // If game is completed, we're done (outs already checked above)
         if (isGameCompleted) {
-          console.log('[simulateHalfInning] Game completed, half-inning transition done');
+          console.log(
+            `[simulateHalfInning] ✅ Game completed (${completionReason}), half-inning transition done`
+          );
           return true;
         }
 
         // Otherwise, also check that isTopHalf flipped to expected value
         const result = isTopHalf === expectedIsTopHalf;
         console.log(
-          `[simulateHalfInning] isTopHalf check: ${result} (${isTopHalf} === ${expectedIsTopHalf})`
+          `[simulateHalfInning] ${result ? '✅' : '⏳'} isTopHalf check: ${isTopHalf} === ${expectedIsTopHalf} ? ${result}`
         );
         return result;
       },

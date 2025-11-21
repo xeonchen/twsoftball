@@ -90,7 +90,7 @@ test.describe('Complete 7-Inning Game', () => {
     const lineupPage = new GameSetupLineupPage(page);
     await lineupPage.waitForLoad();
     await lineupPage.setPlayerCount(10);
-    await lineupPage.addMultiplePlayers(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+    await lineupPage.addFirstNPlayers(10); // Use addFirstNPlayers instead of addMultiplePlayers with IDs
     await lineupPage.waitForValidation();
     await lineupPage.clickContinue();
 
@@ -182,6 +182,11 @@ test.describe('Complete 7-Inning Game', () => {
   });
 
   test('should complete a full 7-inning game with no scoring (0-0)', async ({ page }) => {
+    // Capture browser console logs for debugging
+    page.on('console', msg => {
+      console.log(`[Browser ${msg.type()}]:`, msg.text());
+    });
+
     // 1. Setup: Complete game wizard and start game
     await setupAndStartGame(page);
 

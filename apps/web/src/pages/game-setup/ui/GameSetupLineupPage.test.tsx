@@ -219,8 +219,7 @@ describe('GameSetupLineupPage Component', () => {
 
       expect(screen.getByText('AVAILABLE')).toBeInTheDocument();
 
-      // Check for sample players
-      expect(screen.getByTestId('available-player-1')).toBeInTheDocument();
+      // Check for sample players (using text content since IDs are now UUIDs)
       expect(screen.getByText('Mike Chen')).toBeInTheDocument();
       expect(screen.getByText('#8')).toBeInTheDocument();
     });
@@ -452,7 +451,8 @@ describe('GameSetupLineupPage Component', () => {
         </TestWrapper>
       );
 
-      const addButton = screen.getByTestId('add-player-1');
+      // Find add button by aria-label (player IDs are now UUIDs)
+      const addButton = screen.getByRole('button', { name: /Add player Mike Chen/i });
       await user.click(addButton);
 
       // Should add Mike Chen to first empty slot
@@ -473,8 +473,11 @@ describe('GameSetupLineupPage Component', () => {
         </TestWrapper>
       );
 
-      // Check first available player (Mike Chen)
-      const playerCard = screen.getByTestId('available-player-1');
+      // Check first available player (Mike Chen) - find by text since IDs are UUIDs
+      const playerCards = screen
+        .getAllByText('Mike Chen')
+        .filter(el => el.closest('.available-player'));
+      const playerCard = playerCards[0]!.closest('.available-player')!;
       expect(playerCard).toHaveTextContent('Mike Chen');
       expect(playerCard).toHaveTextContent('#8');
       expect(playerCard).toHaveTextContent('SS');
@@ -487,7 +490,8 @@ describe('GameSetupLineupPage Component', () => {
         </TestWrapper>
       );
 
-      const addButton = screen.getByTestId('add-player-1');
+      // Find add button by aria-label instead of test ID (since player IDs are UUIDs)
+      const addButton = screen.getByRole('button', { name: /Add player Mike Chen/i });
       expect(addButton).toHaveAttribute('aria-label', 'Add player Mike Chen');
     });
   });

@@ -725,6 +725,25 @@ describe('GameCoordinator - Complex Scenarios', () => {
 
     describe('Regulation Game Completion', () => {
       it('should not complete tied game after 7 innings (continues to extra innings)', () => {
+        // Create rules that allow extra innings for this specific test
+        const extraInningsRules = new SoftballRules({
+          totalInnings: 7,
+          maxPlayersPerTeam: 25,
+          timeLimitMinutes: 60,
+          allowReEntry: true,
+          mercyRuleEnabled: true,
+          mercyRuleTiers: [
+            { differential: 10, afterInning: 4 },
+            { differential: 7, afterInning: 5 },
+          ],
+          maxExtraInnings: null, // Allow unlimited extra innings
+          allowTieGames: false, // Games must be decided (no ties)
+        });
+
+        // Create a NEW game with extra innings rules
+        game = Game.createNew(gameId, 'Home Team', 'Away Team', extraInningsRules);
+        game.startGame();
+
         // Set up bottom 7th with 2 outs, tied score - 3rd out will end inning, but tied game continues
         inningState = inningState.withInningHalf(7, false).withOuts(2); // Bottom 7th, 2 outs
         game.addHomeRuns(6);
@@ -738,7 +757,7 @@ describe('GameCoordinator - Complex Scenarios', () => {
           batterId,
           AtBatResultType.GROUND_OUT, // This causes 3rd out, ends inning, but tied game continues to extra innings
           [],
-          rules
+          extraInningsRules
         );
 
         expect(result.success).toBe(true);

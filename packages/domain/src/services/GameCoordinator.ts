@@ -226,6 +226,7 @@ export class GameCoordinator {
   ): AtBatRecordingResult {
     // Note: _deprecatedRules parameter is ignored (see @deprecated JSDoc above)
     // TypeScript/IDE will warn developers about usage via JSDoc annotation
+
     try {
       // 1. Validate preconditions
       this.validateGameState(game);
@@ -255,7 +256,13 @@ export class GameCoordinator {
       // 4. Record at-bat with InningState (determine batting slot from lineup)
       const currentLineup = inningState.isTopHalf ? awayLineup : homeLineup;
       const activeBattingSlots = currentLineup.getActiveLineup();
-      const batterSlot = activeBattingSlots.find(slot => slot.getCurrentPlayer()?.equals(batterId));
+      // Use value comparison instead of .equals() for deserialized objects
+      // After deserialization from sessionStorage, PlayerId objects may be plain objects (_PlayerId)
+      // instead of actual PlayerId instances, causing instanceof checks in .equals() to fail
+      const batterSlot = activeBattingSlots.find(slot => {
+        const slotPlayer = slot.getCurrentPlayer();
+        return slotPlayer?.value === batterId.value;
+      });
 
       if (!batterSlot) {
         throw new DomainError('Batter not found in lineup'); // This should have been caught in validation
@@ -591,7 +598,15 @@ export class GameCoordinator {
 
     // Check if batter is in the current team's lineup
     const activeBattingSlots = currentLineup.getActiveLineup();
-    const isInLineup = activeBattingSlots.some(slot => slot.getCurrentPlayer()?.equals(batterId));
+
+    // Use value comparison instead of .equals() for deserialized objects
+    // After deserialization from sessionStorage, PlayerId objects may be plain objects (_PlayerId)
+    // instead of actual PlayerId instances, causing instanceof checks in .equals() to fail
+    const isInLineup = activeBattingSlots.some(slot => {
+      const slotPlayer = slot.getCurrentPlayer();
+      // Compare using .value property which works for both instances and deserialized objects
+      return slotPlayer?.value === batterId.value;
+    });
 
     if (!isInLineup) {
       throw new DomainError("Batter is not in the current batting team's lineup");
@@ -749,15 +764,22 @@ export class GameCoordinator {
 
     // Regulation completion in bottom of final inning
     // Game ends after bottom half completes if home team is ahead or behind
-    // Tied games continue to extra innings (unless max limit reached)
+    // Tied games either end as ties OR continue to extra innings (depending on rules)
     // When inningComplete && isTopHalf, state transitioned to top of next = bottom half just ended
     if (evaluationInning === totalInnings && inningState.isTopHalf && inningComplete) {
       if (homeScore !== awayScore) {
         // Home team ahead or behind - game over
         return { isComplete: true, reason: 'REGULATION', gameEndingType: 'REGULATION' };
       }
-      // Tied after regulation - game continues to extra innings
-      // The game should always proceed to at least the first extra inning
+
+      // Tied after regulation - check if ties are allowed
+      if (game.rules.maxExtraInnings === 0) {
+        // Ties are allowed (maxExtraInnings === 0) - game ends as a tie
+        return { isComplete: true, reason: 'REGULATION', gameEndingType: 'REGULATION' };
+      }
+
+      // Extra innings are allowed - game continues
+      // The game should proceed to extra innings
       // Extra innings exhaustion is checked separately below
     }
 

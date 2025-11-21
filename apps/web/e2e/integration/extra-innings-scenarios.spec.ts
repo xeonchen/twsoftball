@@ -86,7 +86,7 @@ test.describe('Extra Innings Scenarios', () => {
     const lineupPage = new GameSetupLineupPage(page);
     await lineupPage.waitForLoad();
     await lineupPage.setPlayerCount(10);
-    await lineupPage.addMultiplePlayers(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+    await lineupPage.addFirstNPlayers(10);
     await lineupPage.waitForValidation();
     await lineupPage.clickContinue();
 
@@ -162,8 +162,8 @@ test.describe('Extra Innings Scenarios', () => {
       if (!stateJson) return null;
       const state = JSON.parse(stateJson);
       return {
-        homeScore: state.state?.currentGame?.score?.home ?? state.homeScore ?? 0,
-        awayScore: state.state?.currentGame?.score?.away ?? state.awayScore ?? 0,
+        homeScore: state.state?.currentGame?.homeScore ?? 0,
+        awayScore: state.state?.currentGame?.awayScore ?? 0,
       };
     });
 

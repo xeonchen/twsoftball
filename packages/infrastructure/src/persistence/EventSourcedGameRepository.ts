@@ -180,15 +180,22 @@ export class EventSourcedGameRepository implements GameRepository {
    */
   private async findByIdFromEvents(id: GameId): Promise<Game | null> {
     const storedEvents = await this.eventStore.getEvents(id);
-    if (!storedEvents || storedEvents.length === 0) return null;
+
+    if (!storedEvents || storedEvents.length === 0) {
+      return null;
+    }
 
     try {
       // Convert StoredEvents to DomainEvents for Game reconstruction
       const domainEvents = storedEvents.map(storedEvent => {
         const rawData = JSON.parse(storedEvent.eventData) as unknown;
-        return deserializeEvent(rawData);
+        const domainEvent = deserializeEvent(rawData);
+        return domainEvent;
       });
-      return Game.fromEvents(domainEvents);
+
+      const reconstructedGame = Game.fromEvents(domainEvents);
+
+      return reconstructedGame;
     } catch (error) {
       // Only wrap unknown event type errors, let other errors propagate
       if (error instanceof Error && error.message.startsWith('Unknown event type:')) {

@@ -76,7 +76,7 @@ test.describe('Walk-off Victory Scenarios', () => {
     const lineupPage = new GameSetupLineupPage(page);
     await lineupPage.waitForLoad();
     await lineupPage.setPlayerCount(10);
-    await lineupPage.addMultiplePlayers(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+    await lineupPage.addFirstNPlayers(10);
     await lineupPage.waitForValidation();
     await lineupPage.clickContinue();
 

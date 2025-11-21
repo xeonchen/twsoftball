@@ -656,4 +656,124 @@ describe('useRecordAtBat Hook - TDD Implementation', () => {
       });
     });
   });
+
+  describe('BatterId Type Consistency (Bug Fix)', () => {
+    /**
+     * CRITICAL TEST: This test proves the E2E bug where GameCoordinator validation fails.
+     *
+     * Root Cause:
+     * - Wizard generates player IDs as strings: '1', '2', '3', etc.
+     * - These are stored as PlayerId('1') in the domain
+     * - When currentBatter is mapped to UI via dtoMapper, it should extract playerId.value as string '1'
+     * - BUT if batterId is passed as number 1 (type coercion), GameCoordinator validation fails
+     * - GameCoordinator checks if batterId exists in lineup's PlayerIds (which are strings)
+     *
+     * Expected: batterId must be passed as string '1' to match lineup PlayerIds
+     * Bug: batterId was being coerced to number 1, causing validation mismatch
+     */
+    it('should pass batterId as string when currentBatter.id is string', async () => {
+      // Setup game with player ID from wizard (numeric string)
+      const storeWithNumericStringId = {
+        ...defaultMockGameStore,
+        activeGameState: {
+          ...defaultMockGameStore.activeGameState,
+          currentBatter: {
+            id: '1', // String ID from wizard (like 'player-1' → '1')
+            name: 'Mike Chen',
+            jerseyNumber: '8',
+            position: 'SS',
+            battingOrder: 1,
+          },
+        },
+      };
+
+      mockUseGameStore.mockReturnValue(storeWithNumericStringId);
+
+      const { result } = renderHook(() => useRecordAtBat());
+
+      await act(async () => {
+        await result.current.recordAtBat({
+          result: 'SINGLE',
+          runnerAdvances: [],
+        });
+      });
+
+      // CRITICAL ASSERTION: batterId must be string '1', not number 1
+      expect(mockGameAdapter.recordAtBat).toHaveBeenCalledWith(
+        expect.objectContaining({
+          batterId: '1', // Must be string
+        })
+      );
+
+      // Additional type check to ensure no coercion happened
+      const callArg = mockGameAdapter.recordAtBat.mock.calls[0]?.[0];
+      expect(typeof callArg?.batterId).toBe('string');
+      expect(callArg?.batterId).not.toBe(1); // Should NOT be number 1
+    });
+
+    it('should preserve string type for multi-digit player IDs', async () => {
+      // Edge case: Two-digit player ID
+      const storeWithTwoDigitId = {
+        ...defaultMockGameStore,
+        activeGameState: {
+          ...defaultMockGameStore.activeGameState,
+          currentBatter: {
+            id: '10', // Two-digit string ID
+            name: 'Player 10',
+            jerseyNumber: '10',
+            position: 'P',
+            battingOrder: 10,
+          },
+        },
+      };
+
+      mockUseGameStore.mockReturnValue(storeWithTwoDigitId);
+
+      const { result } = renderHook(() => useRecordAtBat());
+
+      await act(async () => {
+        await result.current.recordAtBat({
+          result: 'WALK',
+          runnerAdvances: [],
+        });
+      });
+
+      const callArg = mockGameAdapter.recordAtBat.mock.calls[0]?.[0];
+      expect(callArg?.batterId).toBe('10'); // String '10'
+      expect(callArg?.batterId).not.toBe(10); // Not number 10
+      expect(typeof callArg?.batterId).toBe('string');
+    });
+
+    it('should preserve UUID-style player IDs without modification', async () => {
+      // Proper UUID-style player ID (future-proof)
+      const storeWithUuidId = {
+        ...defaultMockGameStore,
+        activeGameState: {
+          ...defaultMockGameStore.activeGameState,
+          currentBatter: {
+            id: 'player-uuid-123-abc', // UUID-style ID
+            name: 'Player with UUID',
+            jerseyNumber: '99',
+            position: 'CF',
+            battingOrder: 5,
+          },
+        },
+      };
+
+      mockUseGameStore.mockReturnValue(storeWithUuidId);
+
+      const { result } = renderHook(() => useRecordAtBat());
+
+      await act(async () => {
+        await result.current.recordAtBat({
+          result: 'TRIPLE',
+          runnerAdvances: [],
+        });
+      });
+
+      const callArg = mockGameAdapter.recordAtBat.mock.calls[0]?.[0];
+      expect(callArg?.batterId).toBe('player-uuid-123-abc');
+      expect(typeof callArg?.batterId).toBe('string');
+    });
+  });
 });

@@ -672,7 +672,8 @@ describe('GameSetupLineupPage Validation Integration', () => {
       );
 
       // Click add button for first available player (Mike Chen #8 SS)
-      const addButton = screen.getByTestId('add-player-1');
+      // Find by aria-label since player IDs are now UUIDs
+      const addButton = screen.getByRole('button', { name: /Add player Mike Chen/i });
       fireEvent.click(addButton);
 
       // Validation should trigger and show 1 completed
@@ -694,9 +695,10 @@ describe('GameSetupLineupPage Validation Integration', () => {
       expect(screen.getByTestId('continue-button')).toBeDisabled();
 
       // Add 9 players from Available section (there are 11 available)
-      for (let i = 1; i <= 9; i++) {
-        const addButton = screen.getByTestId(`add-player-${i}`);
-        fireEvent.click(addButton);
+      // Find all add buttons by aria-label pattern (player IDs are now UUIDs)
+      const addButtons = screen.getAllByRole('button', { name: /Add player/i });
+      for (let i = 0; i < 9; i++) {
+        fireEvent.click(addButtons[i]!);
       }
 
       // CONTINUE should now be enabled
@@ -713,9 +715,10 @@ describe('GameSetupLineupPage Validation Integration', () => {
       fireEvent.change(playerCountSelector, { target: { value: '10' } });
 
       // Add first 10 available players (covers all positions)
-      for (let i = 1; i <= 10; i++) {
-        const addButton = screen.getByTestId(`add-player-${i}`);
-        fireEvent.click(addButton);
+      // Find all add buttons by aria-label pattern (player IDs are now UUIDs)
+      const addButtons = screen.getAllByRole('button', { name: /Add player/i });
+      for (let i = 0; i < 10; i++) {
+        fireEvent.click(addButtons[i]!);
       }
 
       // Position coverage should show all positions covered
@@ -741,9 +744,10 @@ describe('GameSetupLineupPage Validation Integration', () => {
       fireEvent.change(playerCountSelector, { target: { value: '9' } });
 
       // Add only 5 complete players (4 slots remain empty - these count as incomplete)
-      for (let i = 1; i <= 5; i++) {
-        const addButton = screen.getByTestId(`add-player-${i}`);
-        fireEvent.click(addButton);
+      // Find all add buttons by aria-label pattern (player IDs are now UUIDs)
+      const addButtons = screen.getAllByRole('button', { name: /Add player/i });
+      for (let i = 0; i < 5; i++) {
+        fireEvent.click(addButtons[i]!);
       }
 
       // Should show validation feedback about incomplete players (empty slots)
@@ -773,9 +777,10 @@ describe('GameSetupLineupPage Validation Integration', () => {
       }
 
       // Quick-add 6 more players (slots 3-8)
-      for (let i = 1; i <= 6; i++) {
-        const addButton = screen.getByTestId(`add-player-${i}`);
-        fireEvent.click(addButton);
+      // Find all add buttons by aria-label pattern (player IDs are now UUIDs)
+      const addButtons = screen.getAllByRole('button', { name: /Add player/i });
+      for (let i = 0; i < 6; i++) {
+        fireEvent.click(addButtons[i]!);
       }
 
       // Should have 9 completed players
@@ -798,7 +803,8 @@ describe('GameSetupLineupPage Validation Integration', () => {
       fireEvent.change(screen.getByTestId('position-select-0'), { target: { value: 'P' } });
 
       // Quick-add should go to slot 1 (first empty)
-      const addButton = screen.getByTestId('add-player-1');
+      // Find first add button by aria-label pattern (player IDs are now UUIDs)
+      const addButton = screen.getByRole('button', { name: /Add player Mike Chen/i });
       fireEvent.click(addButton);
 
       // Verify slot 1 was filled

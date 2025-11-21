@@ -86,7 +86,7 @@ test.describe('Combined Edge Cases', () => {
     const lineupPage = new GameSetupLineupPage(page);
     await lineupPage.waitForLoad();
     await lineupPage.setPlayerCount(10);
-    await lineupPage.addMultiplePlayers(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+    await lineupPage.addFirstNPlayers(10);
     await lineupPage.waitForValidation();
     await lineupPage.clickContinue();
 
@@ -102,76 +102,76 @@ test.describe('Combined Edge Cases', () => {
 
   test('should prioritize walk-off over mercy rule in bottom of 7th', async ({ page }) => {
     /**
-     * Scenario: Away team leads 15-8 entering bottom of 7th (7-run differential, mercy threshold)
-     *           Home team scores 8 runs to win 16-15 (walk-off + mercy differential)
+     * Scenario: Away team leads 15-9 entering bottom of 7th (6-run differential, below mercy threshold)
+     *           Home team scores 7 runs to win 16-15 (walk-off)
      * Expected: Game ends immediately via walk-off (not waiting for full inning)
      *
-     * Rule Conflict:
-     * - At bottom of 7th with 7+ run differential: Mercy rule tier 2 applies
-     * - Home team scoring to take lead: Walk-off applies
-     * - Walk-off takes precedence (game ends immediately when lead taken)
+     * Rule Context:
+     * - Mercy rule tier 2: 7+ run differential after inning 5
+     * - Keep differential at 6 runs to avoid mercy rule triggering before inning 7
+     * - Home team scoring to take lead in bottom 7th: Walk-off applies
      *
      * Scoring Plan:
-     * - Inning 1: Away 5, Home 3 (Away leads 5-3)
-     * - Inning 2: Away 3, Home 2 (Away leads 8-5)
-     * - Inning 3: Away 2, Home 1 (Away leads 10-6)
-     * - Inning 4: Away 2, Home 1 (Away leads 12-7)
-     * - Inning 5: Away 1, Home 0 (Away leads 13-7)
-     * - Inning 6: Away 2, Home 1 (Away leads 15-8, 7-run differential)
-     * - Inning 7 top: Away 0 (Away leads 15-8)
-     * - Inning 7 bottom: Home scores 8 to win 16-15 <- Walk-off (immediate end)
+     * - Inning 1: Away 3, Home 2 (Away leads 3-2, diff: 1)
+     * - Inning 2: Away 2, Home 2 (Away leads 5-4, diff: 1)
+     * - Inning 3: Away 3, Home 1 (Away leads 8-5, diff: 3)
+     * - Inning 4: Away 2, Home 2 (Away leads 10-7, diff: 3)
+     * - Inning 5: Away 2, Home 1 (Away leads 12-8, diff: 4)
+     * - Inning 6: Away 3, Home 1 (Away leads 15-9, diff: 6) <- Below 7-run mercy threshold
+     * - Inning 7 top: Away 0 (Away leads 15-9, diff: 6)
+     * - Inning 7 bottom: Home scores 7 to win 16-15 <- Walk-off (immediate end)
      */
     await setupAndStartGame(page);
 
     const gamePageObject = new GameRecordingPageObject(page);
     await page.waitForTimeout(2000);
 
-    // Inning 1: Away 5, Home 3
-    await gamePageObject.simulateHalfInning({ runs: 5 });
-    await gamePageObject.simulateHalfInning({ runs: 3 });
-
-    // Inning 2: Away 3, Home 2
+    // Inning 1: Away 3, Home 2
     await gamePageObject.simulateHalfInning({ runs: 3 });
     await gamePageObject.simulateHalfInning({ runs: 2 });
 
-    // Inning 3: Away 2, Home 1
+    // Inning 2: Away 2, Home 2
+    await gamePageObject.simulateHalfInning({ runs: 2 });
+    await gamePageObject.simulateHalfInning({ runs: 2 });
+
+    // Inning 3: Away 3, Home 1
+    await gamePageObject.simulateHalfInning({ runs: 3 });
+    await gamePageObject.simulateHalfInning({ runs: 1 });
+
+    // Inning 4: Away 2, Home 2
+    await gamePageObject.simulateHalfInning({ runs: 2 });
+    await gamePageObject.simulateHalfInning({ runs: 2 });
+
+    // Inning 5: Away 2, Home 1
     await gamePageObject.simulateHalfInning({ runs: 2 });
     await gamePageObject.simulateHalfInning({ runs: 1 });
 
-    // Inning 4: Away 2, Home 1
-    await gamePageObject.simulateHalfInning({ runs: 2 });
-    await gamePageObject.simulateHalfInning({ runs: 1 });
-
-    // Inning 5: Away 1, Home 0
-    await gamePageObject.simulateHalfInning({ runs: 1 });
-    await gamePageObject.simulateHalfInning({ runs: 0 });
-
-    // Inning 6: Away 2, Home 1
-    await gamePageObject.simulateHalfInning({ runs: 2 });
+    // Inning 6: Away 3, Home 1
+    await gamePageObject.simulateHalfInning({ runs: 3 });
     await gamePageObject.simulateHalfInning({ runs: 1 });
 
     // Inning 7 top: Away 0
     await gamePageObject.simulateHalfInning({ runs: 0 });
 
-    // Verify we're in bottom of 7th with mercy-rule-level differential
+    // Verify we're in bottom of 7th (6-run differential, no mercy rule yet)
     expect(await gamePageObject.getCurrentInning()).toBe(7);
     expect(await gamePageObject.isTopOfInning()).toBe(false);
 
-    // Inning 7 bottom: Home scores 8 to win 16-15 (walk-off)
-    await gamePageObject.simulateHalfInning({ runs: 8 });
+    // Inning 7 bottom: Home scores 7 to win 16-15 (walk-off)
+    await gamePageObject.simulateHalfInning({ runs: 7 });
 
     // Verify game ended via walk-off (immediate completion, not mercy rule)
     expect(await gamePageObject.isGameComplete()).toBe(true);
     expect(await gamePageObject.getCurrentInning()).toBe(7);
 
-    // Verify final scores
+    // Verify final scores from sessionStorage
     const finalState = await page.evaluate(() => {
       const stateJson = sessionStorage.getItem('game-state');
       if (!stateJson) return null;
       const state = JSON.parse(stateJson);
       return {
-        homeScore: state.state?.currentGame?.score?.home ?? state.homeScore ?? 0,
-        awayScore: state.state?.currentGame?.score?.away ?? state.awayScore ?? 0,
+        homeScore: state.state?.currentGame?.homeScore ?? 0,
+        awayScore: state.state?.currentGame?.awayScore ?? 0,
       };
     });
 

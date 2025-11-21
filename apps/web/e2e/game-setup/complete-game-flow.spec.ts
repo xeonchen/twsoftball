@@ -84,7 +84,7 @@ test.describe('Complete Game Flow', () => {
       await lineupPage.setPlayerCount(10);
 
       // Add 10 players from available list
-      await lineupPage.addMultiplePlayers(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+      await lineupPage.addFirstNPlayers(10);
 
       // Wait for validation to complete
       await lineupPage.waitForValidation();
@@ -196,13 +196,30 @@ test.describe('Complete Game Flow', () => {
       await teamsPage.clickContinue();
 
       // Setup lineup with exactly 9 players covering all 9 required positions
-      // Players 2-9 + 10 (Pitcher) cover: CF, RF, 3B, LF, SF, 1B, C, 2B, P
-      // We need to use players that cover P, C, 1B, 2B, 3B, SS, LF, CF, RF (9 field positions)
-      // Players: 1(SS), 2(CF), 3(RF), 4(3B), 5(LF), 7(1B), 8(C), 9(2B), 10(P)
+      // Available players by index: 0(SS), 1(CF), 2(RF), 3(3B), 4(LF), 5(SF), 6(1B), 7(C), 8(2B), 9(P), 10(EP)
+      // Required positions: P, C, 1B, 2B, 3B, SS, LF, CF, RF (9 field positions)
+      // Select players at indices 0-4, skip 5(SF), select 6-9(P) to cover all required positions
       const lineupPage = new GameSetupLineupPage(page);
       await lineupPage.waitForLoad();
       await lineupPage.setPlayerCount(9);
-      await lineupPage.addMultiplePlayers(['1', '2', '3', '4', '5', '7', '8', '9', '10']);
+
+      // Get all "Add" buttons from available players section
+      const addButtons = page.locator('[data-testid^="add-player-"]');
+
+      // Add first 5 players (indices 0-4: SS, CF, RF, 3B, LF)
+      for (let i = 0; i < 5; i++) {
+        await addButtons.nth(i).click();
+        await page.waitForTimeout(100);
+      }
+
+      // Skip index 5 (SF - Short Fielder, not a required position)
+      // Add players at indices 6-9 (1B, C, 2B, P)
+      for (let i = 6; i <= 9; i++) {
+        await addButtons.nth(i).click();
+        await page.waitForTimeout(100);
+      }
+
+      await page.waitForTimeout(300); // Wait for all updates
       await lineupPage.waitForValidation();
 
       // Verify progress shows 9 completed
@@ -292,7 +309,7 @@ test.describe('Complete Game Flow', () => {
       const lineupPage = new GameSetupLineupPage(page);
       await lineupPage.waitForLoad();
       await lineupPage.setPlayerCount(9);
-      await lineupPage.addMultiplePlayers(['1', '2', '3', '4', '5']);
+      await lineupPage.addFirstNPlayers(5);
       await lineupPage.waitForValidation();
 
       // Verify progress shows only 5 completed
@@ -325,8 +342,8 @@ test.describe('Complete Game Flow', () => {
       await lineupPage.setPlayerCount(9);
 
       // Add only 8 players (one short of minimum)
-      // Use players 1-7 + 10 (Pitcher) to cover most positions
-      await lineupPage.addMultiplePlayers(['1', '2', '3', '4', '5', '6', '7', '10']);
+      // Use players 1-8 to cover most positions
+      await lineupPage.addFirstNPlayers(8);
       await lineupPage.waitForValidation();
 
       // Continue should be disabled with only 8 players
@@ -388,7 +405,7 @@ test.describe('Complete Game Flow', () => {
       const lineupPage = new GameSetupLineupPage(page);
       await lineupPage.waitForLoad();
       await lineupPage.setPlayerCount(10);
-      await lineupPage.addMultiplePlayers(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+      await lineupPage.addFirstNPlayers(10);
       await lineupPage.waitForValidation();
       await lineupPage.clickContinue();
 
@@ -432,7 +449,7 @@ test.describe('Complete Game Flow', () => {
       const lineupPage = new GameSetupLineupPage(page);
       await lineupPage.waitForLoad();
       await lineupPage.setPlayerCount(9);
-      await lineupPage.addMultiplePlayers(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+      await lineupPage.addFirstNPlayers(9);
       await lineupPage.waitForValidation();
       await lineupPage.clickContinue();
 
@@ -502,23 +519,23 @@ test.describe('Complete Game Flow', () => {
       await teamsPage.fillTeamNames('Team A', 'Team B', 'home');
       await teamsPage.clickContinue();
 
-      // Start with empty lineup
+      // Test 1: Empty lineup should disable continue
       const lineupPage = new GameSetupLineupPage(page);
       await lineupPage.waitForLoad();
-
-      // Continue should be disabled with empty lineup
       expect(await lineupPage.isContinueEnabled()).toBe(false);
 
-      // Add players one by one and check when continue becomes enabled
-      for (let i = 1; i <= 8; i++) {
-        await lineupPage.addPlayerFromAvailable(i.toString());
-        await lineupPage.waitForValidation();
-        // Should still be disabled (need 9 minimum)
-        expect(await lineupPage.isContinueEnabled()).toBe(false);
-      }
+      // Test 2: 8 players should still disable continue (need 9 minimum)
+      await lineupPage.addFirstNPlayers(8);
+      await lineupPage.waitForValidation();
+      expect(await lineupPage.isContinueEnabled()).toBe(false);
 
-      // Add 9th player - should enable continue
-      await lineupPage.addPlayerFromAvailable('9');
+      // Test 3: Go back and restart with 9 players to verify it enables
+      await lineupPage.goBack();
+      await teamsPage.waitForLoad();
+      await teamsPage.clickContinue();
+      await lineupPage.waitForLoad();
+      await lineupPage.setPlayerCount(9);
+      await lineupPage.addFirstNPlayers(9);
       await lineupPage.waitForValidation();
       expect(await lineupPage.isContinueEnabled()).toBe(true);
     });

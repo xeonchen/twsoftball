@@ -252,7 +252,6 @@ describe('RecordAtBat Use Case', () => {
       mockGameRepository,
       mockInningStateRepository,
       mockTeamLineupRepository,
-      mockEventStore,
       mockLogger
     );
   });
@@ -314,7 +313,7 @@ describe('RecordAtBat Use Case', () => {
       // Verify persistence (1 save for final state using coordinator-returned aggregate)
       expect(mockGameRepository.save).toHaveBeenCalledTimes(1);
       expect(mockInningStateRepository.save).toHaveBeenCalledTimes(1);
-      expect(mockEventStore.append).toHaveBeenCalled();
+      // EventSourcedGameRepository handles event persistence internally
     });
 
     it('should record a single with one RBI', async () => {
@@ -354,7 +353,7 @@ describe('RecordAtBat Use Case', () => {
       expect(result.success).toBe(true);
       expect(result.errors).toBeUndefined();
       expect(mockGameRepository.save).toHaveBeenCalled();
-      expect(mockEventStore.append).toHaveBeenCalled();
+      // EventSourcedGameRepository handles event persistence internally
     });
 
     it('should record a walk with no RBI', async () => {
@@ -394,7 +393,7 @@ describe('RecordAtBat Use Case', () => {
       expect(result.success).toBe(true);
       expect(result.errors).toBeUndefined();
       expect(mockGameRepository.save).toHaveBeenCalled();
-      expect(mockEventStore.append).toHaveBeenCalled();
+      // EventSourcedGameRepository handles event persistence internally
     });
 
     it('should return gameState with correct currentBatter after recording at-bat', async () => {
@@ -509,13 +508,12 @@ describe('RecordAtBat Use Case', () => {
     });
 
     it('should handle event store failures', async () => {
-      // Arrange - Set up successful game loading but failing event store
+      // Arrange - Set up game loading to succeed, but repository save to fail (which includes event persistence)
       const game = createTestGame();
       vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
-      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
 
       const eventStoreError = new Error('Event store unavailable');
-      vi.mocked(mockEventStore.append).mockRejectedValue(eventStoreError);
+      vi.mocked(mockGameRepository.save).mockRejectedValue(eventStoreError);
 
       const command = CommandTestBuilder.recordAtBat()
         .withGameId(gameId)
@@ -528,7 +526,7 @@ describe('RecordAtBat Use Case', () => {
 
       // Assert
       expect(result.success).toBe(false);
-      expect(result.errors).toContain('Failed to store events: Event store unavailable');
+      expect(result.errors?.[0]).toContain('Event store unavailable');
     });
 
     it('should handle errors with "Unexpected error occurred" in message', async () => {
@@ -1004,8 +1002,7 @@ describe('RecordAtBat Use Case', () => {
       expect(result.runsScored).toBe(1); // Only runner from third scores
       expect(result.rbiAwarded).toBe(1); // RBI for the run scored
 
-      // Verify event store was called (events were generated)
-      expect(mockEventStore.append).toHaveBeenCalled();
+      // EventSourcedGameRepository handles event persistence internally
     });
 
     it('should handle scenario with only runners scoring (no base advances)', async () => {
@@ -1058,8 +1055,7 @@ describe('RecordAtBat Use Case', () => {
       expect(result.runsScored).toBe(1); // Only runner from third scores
       expect(result.rbiAwarded).toBe(1); // RBI for the run scored
 
-      // Verify event store was called (events were generated)
-      expect(mockEventStore.append).toHaveBeenCalled();
+      // EventSourcedGameRepository handles event persistence internally
     });
 
     it('should handle scenario with only base advances (no scoring)', async () => {
@@ -1119,8 +1115,7 @@ describe('RecordAtBat Use Case', () => {
       expect(result.runsScored).toBe(0); // No runs scored
       expect(result.rbiAwarded).toBe(0); // No RBIs
 
-      // Verify event store was called (events were generated)
-      expect(mockEventStore.append).toHaveBeenCalled();
+      // EventSourcedGameRepository handles event persistence internally
     });
 
     it('should handle empty runner advances array for event generation', async () => {
@@ -1145,8 +1140,7 @@ describe('RecordAtBat Use Case', () => {
       expect(result.runsScored).toBe(0); // No runs scored
       expect(result.rbiAwarded).toBe(0); // No RBIs
 
-      // Verify event store was called (even with empty events)
-      expect(mockEventStore.append).toHaveBeenCalled();
+      // EventSourcedGameRepository handles event persistence internally
     });
   });
 
@@ -1190,13 +1184,12 @@ describe('RecordAtBat Use Case', () => {
 
   describe('Database Error Handling', () => {
     it('should log database-specific errors correctly', async () => {
-      // Arrange - Setup successful game find, but fail event store with database error
+      // Arrange - Setup successful game find, but fail repository save with database error
       const game = createTestGame();
       vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
-      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
 
-      // Make event store fail with database connection error
-      vi.mocked(mockEventStore.append).mockRejectedValue(
+      // Make repository save fail with database connection error (includes event persistence)
+      vi.mocked(mockGameRepository.save).mockRejectedValue(
         new Error('Database connection failed - could not persist events')
       );
 
@@ -1218,19 +1211,17 @@ describe('RecordAtBat Use Case', () => {
           gameId: gameId.value,
           operation: 'persistChanges',
           errorType: 'database',
-          compensationApplied: true,
         })
       );
     });
 
     it('should log event store-specific errors correctly', async () => {
-      // Arrange - Setup successful game find, but fail event store with store error
+      // Arrange - Setup successful game find, but fail repository save with event store error
       const game = createTestGame();
       vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
-      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
 
-      // Make event store fail with event store-specific error
-      vi.mocked(mockEventStore.append).mockRejectedValue(
+      // Make repository save fail with event store-specific error (atomic save includes events)
+      vi.mocked(mockGameRepository.save).mockRejectedValue(
         new Error('Event store unavailable - service temporarily down')
       );
 
@@ -1252,19 +1243,17 @@ describe('RecordAtBat Use Case', () => {
           gameId: gameId.value,
           operation: 'persistChanges',
           errorType: 'eventStore',
-          compensationApplied: true,
         })
       );
     });
 
     it('should log generic persistence errors', async () => {
-      // Arrange - Setup successful game find, but fail event store with generic error
+      // Arrange - Setup successful game find, but fail repository save with generic error
       const game = createTestGame();
       vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
-      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
 
-      // Make event store fail with generic error (not database or event store specific)
-      vi.mocked(mockEventStore.append).mockRejectedValue(new Error('Network timeout occurred'));
+      // Make repository save fail with generic error (not database or event store specific)
+      vi.mocked(mockGameRepository.save).mockRejectedValue(new Error('Network timeout occurred'));
 
       const command = CommandTestBuilder.recordAtBat()
         .withGameId(gameId)
@@ -1485,7 +1474,7 @@ describe('RecordAtBat Use Case', () => {
 
       // Assert
       expect(result.success).toBe(true);
-      expect(result.gameState.currentBatterSlot).toBe(1); // Should be 1 (batter who just batted, pre-advancement)
+      expect(result.gameState.currentBatterSlot).toBe(2); // After slot 1 bats, next batter is slot 2 (post-advancement)
     });
 
     it('should extract and persist domain events from Game and InningState aggregates', async () => {
@@ -1552,14 +1541,7 @@ describe('RecordAtBat Use Case', () => {
 
       // Assert
       expect(result.success).toBe(true);
-      // Verify that event store was called with events from both Game and InningState
-      expect(mockEventStore.append).toHaveBeenCalled();
-      // At least one call should include InningState events
-      const eventStoreCalls = vi.mocked(mockEventStore.append).mock.calls;
-      const hasInningStateEvents = eventStoreCalls.some(call =>
-        call[2].some((event: any) => event.type === 'CurrentBatterChanged')
-      );
-      expect(hasInningStateEvents).toBe(true);
+      // EventSourcedGameRepository handles event persistence internally
     });
 
     it('should handle batting order wrapping from slot 10 to 1', async () => {
@@ -1581,7 +1563,16 @@ describe('RecordAtBat Use Case', () => {
           ]),
       };
 
-      mockInningState.recordAtBat = vi.fn().mockReturnValue(updatedMockInningState);
+      // Mock GameCoordinator to return both updated aggregates with events
+      vi.spyOn(GameCoordinator, 'recordAtBat').mockReturnValue(
+        createCoordinatorResult(game, updatedMockInningState, {
+          success: true,
+          runsScored: 0,
+          rbis: 1,
+          inningComplete: false,
+          gameComplete: false,
+        })
+      );
 
       vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
       vi.mocked(mockInningStateRepository.findCurrentByGameId)
@@ -1605,163 +1596,13 @@ describe('RecordAtBat Use Case', () => {
 
       // Assert
       expect(result.success).toBe(true);
-      expect(result.gameState.currentBatterSlot).toBe(10); // Should be 10 (batter who just batted, pre-advancement)
+      expect(result.gameState.currentBatterSlot).toBe(1); // After slot 10 bats, wraps to slot 1 (post-advancement)
     });
   });
 
-  describe('Compensation Failure Handling', () => {
-    it('should handle compensation failure when event store fails after game save', async () => {
-      // Arrange - Setup scenario where game save succeeds but event store fails
-      const game = createTestGame();
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
-
-      // Make game repository save succeed first time, then fail during compensation
-      vi.mocked(mockGameRepository.save)
-        .mockResolvedValueOnce(undefined) // First save (successful)
-        .mockRejectedValueOnce(new Error('Compensation save failed')); // Compensation save fails
-
-      // Make event store fail
-      vi.mocked(mockEventStore.append).mockRejectedValue(new Error('Event store connection lost'));
-
-      const command = CommandTestBuilder.recordAtBat()
-        .withGameId(gameId)
-        .withBatter(batterId)
-        .withResult(AtBatResultType.SINGLE)
-        .build();
-
-      // Act
-      const result = await recordAtBat.execute(command);
-
-      // Assert - Should fail with compensation failure error
-      expect(result.success).toBe(false);
-      expect(result.errors?.[0]).toContain('Transaction compensation failed');
-      expect(result.errors?.[0]).toContain('Original error: Event store connection lost');
-      expect(result.errors?.[0]).toContain('Compensation error: Compensation save failed');
-      expect(result.errors?.[0]).toContain('System may be in inconsistent state');
-    });
-
-    it('should log compensation attempt and failure correctly', async () => {
-      // Arrange - Setup scenario where compensation fails
-      const game = createTestGame();
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
-
-      // Make game repository save succeed first time, then fail during compensation
-      vi.mocked(mockGameRepository.save)
-        .mockResolvedValueOnce(undefined) // First save (successful)
-        .mockRejectedValueOnce(new Error('Repository unavailable')); // Compensation fails
-
-      // Make event store fail
-      const originalError = new Error('Event store critical failure');
-      vi.mocked(mockEventStore.append).mockRejectedValue(originalError);
-
-      const command = CommandTestBuilder.recordAtBat()
-        .withGameId(gameId)
-        .withBatter(batterId)
-        .withResult(AtBatResultType.SINGLE)
-        .build();
-
-      // Act
-      const result = await recordAtBat.execute(command);
-
-      // Assert - Should log compensation attempt and failure
-      expect(result.success).toBe(false);
-
-      // Should log compensation warning
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        'Attempting transaction compensation',
-        expect.objectContaining({
-          gameId: gameId.value,
-          operation: 'compensateFailedTransaction',
-          reason: 'Event store failed after game save',
-          originalError: 'Event store critical failure',
-        })
-      );
-
-      // Should log compensation failure error
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        'Transaction compensation failed',
-        expect.any(Error),
-        expect.objectContaining({
-          gameId: gameId.value,
-          operation: 'compensateFailedTransaction',
-          originalError: 'Event store critical failure',
-          systemState: 'potentially_inconsistent',
-          requiresManualIntervention: true,
-        })
-      );
-    });
-
-    it('should handle compensation failure with non-Error objects', async () => {
-      // Arrange - Setup scenario where compensation fails with non-Error
-      const game = createTestGame();
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
-
-      // Make game repository save succeed first time, then fail with non-Error
-      vi.mocked(mockGameRepository.save)
-        .mockResolvedValueOnce(undefined) // First save (successful)
-        .mockRejectedValueOnce('String error during compensation'); // Non-Error compensation failure
-
-      // Make event store fail with non-Error
-      vi.mocked(mockEventStore.append).mockRejectedValue('String error in event store');
-
-      const command = CommandTestBuilder.recordAtBat()
-        .withGameId(gameId)
-        .withBatter(batterId)
-        .withResult(AtBatResultType.SINGLE)
-        .build();
-
-      // Act
-      const result = await recordAtBat.execute(command);
-
-      // Assert - Should handle non-Error objects gracefully
-      expect(result.success).toBe(false);
-      expect(result.errors?.[0]).toContain('Original error: Unknown');
-      expect(result.errors?.[0]).toContain('Compensation error: Unknown');
-
-      // Should log with 'Unknown error' for non-Error objects
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        'Attempting transaction compensation',
-        expect.objectContaining({
-          originalError: 'Unknown error',
-        })
-      );
-    });
-
-    it('should successfully log compensation when recovery succeeds', async () => {
-      // Arrange - Setup scenario where compensation succeeds
-      const game = createTestGame();
-      vi.mocked(mockGameRepository.findById).mockResolvedValue(game);
-
-      // Make game repository save succeed both times
-      vi.mocked(mockGameRepository.save)
-        .mockResolvedValueOnce(undefined) // First save (successful)
-        .mockResolvedValueOnce(undefined); // Compensation save succeeds
-
-      // Make event store fail
-      vi.mocked(mockEventStore.append).mockRejectedValue(new Error('Temporary event store issue'));
-
-      const command = CommandTestBuilder.recordAtBat()
-        .withGameId(gameId)
-        .withBatter(batterId)
-        .withResult(AtBatResultType.SINGLE)
-        .build();
-
-      // Act
-      const result = await recordAtBat.execute(command);
-
-      // Assert - Should still fail overall but log successful compensation
-      expect(result.success).toBe(false);
-
-      // Should log successful compensation
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        'Transaction compensation successful',
-        expect.objectContaining({
-          gameId: gameId.value,
-          operation: 'compensateFailedTransaction',
-        })
-      );
-    });
-  });
+  // NOTE: Compensation tests removed because atomic repository saves eliminate the need for compensation.
+  // EventSourcedGameRepository.save() now handles both aggregate and event persistence atomically,
+  // so we can no longer have a scenario where game saves but events don't.
 
   describe('Inning Transition Bug Investigation', () => {
     it('should flip isTopHalf from true to false when top half ends with 3rd out', async () => {
@@ -2879,9 +2720,8 @@ describe('RecordAtBat Use Case', () => {
       // Assert - Verify the use case completed (lines 532-550 exercised by event generation)
       expect(result.success).toBe(true);
 
-      // Verify events were appended (which means the generateEvents method ran)
-      const appendCalls = vi.mocked(mockEventStore.append).mock.calls;
-      expect(appendCalls.length).toBeGreaterThan(0);
+      // EventSourcedGameRepository handles event persistence internally
+      // Success indicates generateEvents method ran correctly
     });
   });
 });

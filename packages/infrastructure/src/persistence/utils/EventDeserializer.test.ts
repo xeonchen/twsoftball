@@ -3,7 +3,7 @@
  * Tests for event deserialization functionality to improve coverage.
  */
 
-import { GameId, PlayerId, AtBatResultType } from '@twsoftball/domain';
+import { GameId, PlayerId, AtBatResultType, InningAdvanced } from '@twsoftball/domain';
 import { describe, it, expect } from 'vitest';
 
 import { deserializeEvent } from './EventDeserializer';
@@ -103,6 +103,28 @@ describe('EventDeserializer', () => {
 
       expect(result.type).toBe('ScoreUpdated');
       expect(result.gameId.value).toBe(testGameId.value);
+    });
+
+    it('should deserialize InningAdvanced events', () => {
+      const rawEvent = {
+        type: 'InningAdvanced',
+        eventId: 'test-event-6',
+        gameId: testGameId.value,
+        newInning: 2,
+        isTopHalf: true,
+        timestamp: new Date().toISOString(),
+        aggregateVersion: 6,
+        version: 6,
+      };
+
+      const result = deserializeEvent(rawEvent);
+
+      expect(result.type).toBe('InningAdvanced');
+      expect(result.gameId.value).toBe(testGameId.value);
+      // Verify the InningAdvanced-specific properties are correctly deserialized
+      const advancedEvent = result as InningAdvanced;
+      expect(advancedEvent.newInning).toBe(2);
+      expect(advancedEvent.isTopHalf).toBe(true);
     });
   });
 

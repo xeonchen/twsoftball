@@ -645,17 +645,10 @@ export class DIContainer {
           await this.resolve<InningStateRepository>('inningStateRepository');
         const teamLineupRepository =
           await this.resolve<TeamLineupRepository>('teamLineupRepository');
-        const eventStore = await this.resolve<EventStore>('eventStore');
         const logger = await this.resolve<Logger>('logger');
-        return new RecordAtBat(
-          gameRepository,
-          inningStateRepository,
-          teamLineupRepository,
-          eventStore,
-          logger
-        );
+        return new RecordAtBat(gameRepository, inningStateRepository, teamLineupRepository, logger);
       },
-      ['gameRepository', 'inningStateRepository', 'teamLineupRepository', 'eventStore', 'logger'],
+      ['gameRepository', 'inningStateRepository', 'teamLineupRepository', 'logger'],
       { description: 'RecordAtBat use case with dependencies' }
     );
 

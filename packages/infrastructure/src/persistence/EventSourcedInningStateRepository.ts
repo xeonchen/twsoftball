@@ -172,13 +172,19 @@ export class EventSourcedInningStateRepository implements InningStateRepository 
    */
   private async findByIdFromEvents(id: InningStateId): Promise<InningState | null> {
     const storedEvents = await this.eventStore.getEvents(id);
-    if (!storedEvents || storedEvents.length === 0) return null;
+
+    if (!storedEvents || storedEvents.length === 0) {
+      return null;
+    }
 
     // Convert StoredEvents to DomainEvents for InningState reconstruction
-    const domainEvents = storedEvents.map(
-      storedEvent => JSON.parse(storedEvent.eventData) as DomainEvent
-    );
-    return InningState.fromEvents(domainEvents);
+    const domainEvents = storedEvents.map(storedEvent => {
+      const domainEvent = JSON.parse(storedEvent.eventData) as DomainEvent;
+      return domainEvent;
+    });
+    const reconstructedInningState = InningState.fromEvents(domainEvents);
+
+    return reconstructedInningState;
   }
 
   async findCurrentByGameId(gameId: GameId): Promise<InningState | null> {

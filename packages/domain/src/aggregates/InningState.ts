@@ -874,16 +874,15 @@ export class InningState {
       this.version
     );
 
-    updatedState.addEvent(
-      new HalfInningEnded(
-        this.gameId,
-        this.inningNumber,
-        this.topHalfOfInning,
-        this.outsCount,
-        this.awayTeamBatterSlot,
-        this.homeTeamBatterSlot
-      )
+    const halfInningEndedEvent = new HalfInningEnded(
+      this.gameId,
+      this.inningNumber,
+      this.topHalfOfInning,
+      this.outsCount,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot
     );
+    updatedState.addEvent(halfInningEndedEvent);
 
     // Determine next inning state
     let newInning = this.inningNumber;
@@ -895,7 +894,8 @@ export class InningState {
       newIsTopHalf = true;
 
       // Emit InningAdvanced event
-      updatedState.addEvent(new InningAdvanced(this.gameId, newInning, newIsTopHalf));
+      const inningAdvancedEvent = new InningAdvanced(this.gameId, newInning, newIsTopHalf);
+      updatedState.addEvent(inningAdvancedEvent);
     }
 
     // Create new state with reset values, preserving both team slots
@@ -1713,12 +1713,14 @@ export class InningState {
    * @returns Updated InningState with incremented out count
    */
   private addOut(): InningState {
+    const newOuts = this.outsCount + 1;
+
     const newState = new InningState(
       this.id,
       this.gameId,
       this.inningNumber,
       this.topHalfOfInning,
-      this.outsCount + 1,
+      newOuts,
       this.awayTeamBatterSlot,
       this.homeTeamBatterSlot,
       this.currentBasesState,
@@ -2044,13 +2046,12 @@ export class InningState {
     // Switch from top to bottom half (or prepare for next inning)
     const wasTopHalf = event.wasTopHalf ?? this.topHalfOfInning;
 
-    if (wasTopHalf) {
-      // Top half ended, switch to bottom half of same inning
-      (this as unknown as { topHalfOfInning: boolean }).topHalfOfInning = false;
-    } else {
-      // Bottom half ended - this will be followed by InningAdvanced event
-      // InningAdvanced will handle the actual inning progression
-    }
+    // Always flip the half: if wasTopHalf=true, set to false; if wasTopHalf=false, set to true
+    // This handles both cases:
+    // - Top half ended → switch to bottom half (wasTopHalf=true → topHalfOfInning=false)
+    // - Bottom half ended → switch to top half of next inning (wasTopHalf=false → topHalfOfInning=true)
+    // Note: When bottom half ends, InningAdvanced event will also fire to update the inning number
+    (this as unknown as { topHalfOfInning: boolean }).topHalfOfInning = !wasTopHalf;
 
     // Reconstruct both team batting slots from event
     if (event.awayTeamBatterSlot && typeof event.awayTeamBatterSlot === 'number') {

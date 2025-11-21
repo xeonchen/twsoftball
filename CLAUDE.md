@@ -349,6 +349,257 @@ Port interfaces, type definitions, constants, simple getters
 - **E2E Tests**: Complete user workflows
 - **TDD Required**: Write tests before implementation
 
+## Complex Bug Investigation Methodology
+
+When facing complex bugs—especially those involving multiple test failures,
+cross-layer integration issues, flaky tests, production incidents, or CI/CD
+pipeline failures—use this systematic, hypothesis-driven investigation approach.
+This methodology respects the hexagonal architecture layers and prevents context
+loss during deep investigations.
+
+**File Convention**: Document investigations in `DEBUG-{issue-name}.local.md`
+files (e.g., `DEBUG-e2e-game-completion.local.md`,
+`DEBUG-ci-build-failure.local.md`). The `.local.md` suffix keeps investigation
+notes out of version control.
+
+**Works With Orchestrator-Worker Pattern**: While this methodology can be used
+independently by any agent, it pairs naturally with the orchestrator-worker
+pattern. The Main Agent creates the DEBUG file, forms hypotheses, and delegates
+investigation phases to the Worker Agent, with the DEBUG file preserving context
+across handoffs.
+
+### Core Investigation Principles
+
+1. **Structured Documentation First** Create the investigation file upfront with
+   clear sections. This prevents context loss, enables agent handoffs, and
+   provides an audit trail of what's been tried.
+
+2. **Architecture-Aware Investigation** Follow the hexagonal architecture
+   dependency flow. Start where symptoms appear and drill down through layers
+   only as needed: Web → Application → Domain → Infrastructure → Event Sourcing.
+
+3. **Hypothesis-Driven Approach** Apply the scientific method: form multiple
+   hypotheses upfront, define validation methods for each, then systematically
+   eliminate or confirm with evidence. Update documentation as hypotheses are
+   proven/disproven.
+
+4. **Enhanced Diagnostic Logging** Add targeted logging at suspected failure
+   points. Log actual vs expected values, state transitions, and architectural
+   layer boundaries. Make logs actionable and interpretable.
+
+5. **Single Failure Deep-Dive** Focus on ONE representative case at a time, not
+   all failures simultaneously. Analyze logs thoroughly before attempting fixes.
+   This prevents information overload and reveals patterns.
+
+6. **Iterative Fix-Verify-Repeat** Acknowledge that multiple bugs may exist. Fix
+   one bug at a time, verify with tests, and if failures persist, repeat the
+   investigation cycle. Don't give up after the first fix.
+
+### Investigation Workflow
+
+#### Phase 1: Setup & Documentation
+
+- Create `DEBUG-{issue-name}.local.md` file
+- Catalog all failures/symptoms with file locations and line numbers
+- Identify test types affected (unit, integration, E2E, production)
+- Document environment details and architecture context
+
+#### Phase 2: Pattern Recognition
+
+- Group failures by common patterns or symptoms
+- Distinguish what's working vs what's failing
+- Identify scope: single layer, cross-layer, timing-related, data-related
+- Look for commonalities (same method, same layer, same scenario type)
+
+#### Phase 3: Hypothesis Formation
+
+- List 3-5 possible root causes based on patterns
+- For each hypothesis, define a clear validation method
+- Prioritize hypotheses by likelihood and ease of testing
+- Consider architecture boundaries (layer violations, circular deps, DI issues)
+
+#### Phase 4: Diagnostic Logging
+
+- Add logging at critical points based on top hypotheses
+- Log state before/after transitions
+- Log actual vs expected values at failure points
+- Add timestamps for async/timing issues
+
+#### Phase 5: Single Case Analysis
+
+- Select ONE representative failing case
+- Run with enhanced logging enabled
+- Analyze logs to understand actual behavior vs expected
+- Compare with passing cases if available
+
+#### Phase 6: Root Cause Analysis
+
+- Trace through architecture layers following the failure path
+- Verify assumptions at each layer boundary
+- Check event sourcing replay if applicable
+- Identify exact location and nature of bug
+
+#### Phase 7: Fix Implementation
+
+- Fix ONE bug at a time
+- Document the fix in DEBUG file with before/after code
+- Explain why the bug occurred and why the fix works
+- Update tests if needed
+
+#### Phase 8: Verification & Iteration
+
+**Step 1: Verify Original Fix**
+
+- Re-run the originally failing test(s) to confirm the fix resolved the issue
+- Document which specific tests now pass
+
+**Step 2: Regression Testing**
+
+- Run the full test suite for affected layers (Domain, Application,
+  Infrastructure, Web)
+- Check if the fix introduced new failures elsewhere
+- Pay special attention to:
+  - Tests in the same layer as the fix
+  - Tests that depend on the modified code
+  - Integration tests that cross layer boundaries
+  - E2E tests covering related user flows
+
+**Step 3: Decision Point**
+
+- If new failures appeared: acknowledge multiple bugs or unintended side effects
+  exist
+  - Document new failures in DEBUG file
+  - Return to Phase 5 with the new failure as the focus
+  - Consider if the original fix needs revision
+- If original tests still failing: acknowledge multiple bugs exist, return to
+  Phase 5
+- If all tests passing: proceed to documentation
+
+**Step 4: Final Documentation**
+
+- Document final findings and learnings in DEBUG file
+- Update complete resolution summary
+- Note any architectural insights or patterns discovered
+
+### Investigation Paths by Symptom Type
+
+**E2E/Integration Test Failures:** Start at Web layer → Application use cases →
+Domain aggregates → Infrastructure repositories → Event sourcing. Look for state
+synchronization issues, persistence timing, or business logic bugs.
+
+**Unit Test Failures:** Start at the failing layer, check test setup and mocks,
+verify dependencies are correct. If multiple layers affected, follow dependency
+flow downward.
+
+**CI/CD Pipeline Failures:** Build errors → Test failures → Infrastructure
+config → Environment variables → Dependency versions. Check for
+environment-specific issues.
+
+**Production Issues:** Application logs → Web layer → Application layer → Domain
+layer → Infrastructure layer → Event sourcing replay. Check for data corruption,
+concurrency issues, or state inconsistencies.
+
+**Flaky/Intermittent Failures:** Timing/async operations → State management race
+conditions → Event ordering → Persistence timing. Add extensive logging around
+async boundaries.
+
+**Regression Testing Strategy:** After any fix, run layer-specific tests to
+catch side effects early:
+
+- Domain changes: `pnpm --filter @twsoftball/domain test`
+- Application changes: `pnpm --filter @twsoftball/application test`
+- Infrastructure changes: `pnpm --filter @twsoftball/infrastructure test`
+- Web changes: `pnpm --filter @twsoftball/web test` + E2E tests
+- Cross-layer changes: `pnpm test` (full suite)
+
+### DEBUG File Structure
+
+Every investigation file should include these sections:
+
+**Executive Summary** High-level problem statement, impact (how many tests
+failing, severity), and key findings discovered so far.
+
+**Investigation Strategy** Architecture path chosen (top-down, bottom-up,
+targeted layer), reasoning for approach, and layer diagram showing investigation
+flow.
+
+**Failure Catalog** Organized by pattern/category, with test names, expected
+behavior, actual behavior, file paths, and line numbers. Use tables for clarity.
+
+**Common Error Patterns** What all failures share in common (same error message,
+same timeout, same layer, same scenario type).
+
+**Hypotheses** List of possible root causes with validation methods for each.
+Track status: pending, eliminated, or confirmed. Document evidence for
+eliminations/confirmations.
+
+**Investigation Log** Timestamped phases following the 8-phase workflow. For
+each phase: timestamp, action taken, finding/result, next step. Creates audit
+trail.
+
+**Key Files by Layer** Organized by Domain/Application/Infrastructure/Web. List
+relevant files with brief descriptions of their role in the investigation.
+
+**Reproduction Commands** Exact commands to reproduce the issue. Include
+environment setup, test commands, and any special flags needed.
+
+**Critical Context for Handoff** Current status, what's been tried, what's been
+ruled out, suspected issues remaining, next steps for continuation. Essential
+for agent handoffs.
+
+### Best Practices
+
+- **Use Layer Knowledge**: Hexagonal architecture guides investigation path.
+  Respect layer boundaries and follow dependency flow.
+- **Multi-Bug Awareness**: Don't assume a single root cause. After each fix,
+  re-verify all cases and continue if failures persist.
+- **Continuous Documentation**: Update the DEBUG file after each phase. Future
+  you (or another agent) will thank you.
+- **Agent Handoff Ready**: Write documentation assuming someone else will
+  continue the investigation. Include all context.
+- **Hypothesis Discipline**: Validate with concrete evidence before implementing
+  fixes. Avoid guessing.
+- **Enhanced Logging Strategy**: Make logs actionable. Show actual vs expected,
+  state transitions, and which conditions failed.
+- **Pattern Recognition First**: Common symptoms narrow the scope dramatically.
+  Find the pattern before diving into code.
+- **Respect TDD**: When writing tests to prove root cause, follow TDD
+  principles. Test first, then fix.
+- **Comprehensive Regression Testing**: Always run the full test suite (or at
+  minimum, all tests in affected layers) after applying a fix. A fix that solves
+  one problem but creates another is not a successful fix. Use the
+  layer-specific test commands from the Quick Reference section.
+
+### When to Use This Methodology
+
+- **Multiple test failures** sharing a common symptom or error pattern
+- **Cross-layer integration issues** where Domain ↔ Application ↔
+  Infrastructure boundaries are involved
+- **Flaky or intermittent failures** requiring systematic hypothesis testing
+- **Production bugs** needing root cause analysis and architectural
+  understanding
+- **CI/CD pipeline failures** with unclear origin spanning build/test/deploy
+- **Regression investigations** after significant architecture changes
+- **Any complex issue** requiring structured, systematic investigation across
+  multiple sessions
+
+### Orchestrator-Worker Integration
+
+When using the orchestrator-worker pattern for investigations:
+
+- **Main Agent (Orchestrator)**: Creates DEBUG file, catalogs failures, forms
+  hypotheses based on patterns, delegates investigation phases to Worker,
+  reviews findings, makes go/no-go decisions on fixes
+- **Worker Agent**: Implements diagnostic logging, runs tests with logging,
+  analyzes logs, traces through code layers, implements fixes, reports findings
+  back
+- **Handoff Pattern**: DEBUG file preserves complete context. Worker can pick up
+  investigation at any phase. Main Agent uses DEBUG file to track progress and
+  make strategic decisions.
+
+The methodology can also be used independently by any agent for focused
+investigation when the scope is clear and delegation isn't needed.
+
 ### E2E Testing with Playwright
 
 **Architecture:** Zustand store with sessionStorage persistence (offline-first

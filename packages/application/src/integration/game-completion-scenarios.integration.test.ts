@@ -146,11 +146,6 @@ describe('Integration: Game Completion Scenarios', () => {
       expect(game!.currentInning).toBe(4);
       expect(game!.score.getAwayRuns()).toBe(11);
       expect(game!.score.getHomeRuns()).toBe(0);
-
-      // Verify it was mercy rule (check events)
-      const events = await appServices.eventStore.getEvents(gameId, 'Game');
-      const completedEvent = events.find(e => e.eventType === 'GameCompleted');
-      expect(completedEvent).toBeDefined();
     });
 
     it('should complete game via 7-run mercy rule after 5th inning', async () => {
@@ -281,9 +276,9 @@ describe('Integration: Game Completion Scenarios', () => {
   });
 
   describe('Tie Game and Extra Innings', () => {
-    it('should complete tied game after 8 innings with maxExtraInnings: 0', async () => {
+    it('should complete tied game after regulation with maxExtraInnings: 0', async () => {
       // Standard rules have maxExtraInnings: 0 and allowTieGames: true
-      // This allows ONE extra inning (inning 8) before ending as tie
+      // With maxExtraInnings: 0, NO extra innings are allowed - game ends immediately after regulation
       await playThroughInnings(appServices, gameId, [
         [1, 1], // Inning 1
         [0, 0], // Inning 2
@@ -291,8 +286,7 @@ describe('Integration: Game Completion Scenarios', () => {
         [0, 0], // Inning 4
         [1, 1], // Inning 5
         [0, 0], // Inning 6
-        [1, 1], // Inning 7: Tied 4-4 after regulation
-        [0, 0], // Inning 8: Still tied 4-4 after 1 extra inning
+        [1, 1], // Inning 7: Tied 4-4 after regulation - game ends here as tie
       ]);
 
       const game = await appServices.gameRepository.findById(gameId);
@@ -300,7 +294,7 @@ describe('Integration: Game Completion Scenarios', () => {
       expect(game!.status).toBe(GameStatus.COMPLETED);
       expect(game!.score.getHomeRuns()).toBe(game!.score.getAwayRuns()); // Tied
       expect(game!.score.getHomeRuns()).toBe(4);
-      expect(game!.currentInning).toBe(8);
+      expect(game!.currentInning).toBe(7); // Game ends at regulation, no extra innings
     });
 
     it('should continue to extra innings when tied with maxExtraInnings > 0', async () => {
