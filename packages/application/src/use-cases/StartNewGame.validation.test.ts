@@ -244,16 +244,6 @@ describe('StartNewGame Validation', () => {
       expect(result.errors).toContain('Home and away team names must be different');
     });
 
-    it('should reject game date in the past', async () => {
-      const pastDate = new Date('2020-01-01T10:00:00Z');
-      const command = createValidCommand({ gameDate: pastDate });
-
-      const result = await startNewGame.execute(command);
-
-      expect(result.success).toBe(false);
-      expect(result.errors).toContain('Game date cannot be in the past');
-    });
-
     it('should reject empty initial lineup', async () => {
       const command = createValidCommand({ initialLineup: [] });
 

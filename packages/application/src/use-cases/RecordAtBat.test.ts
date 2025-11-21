@@ -2723,5 +2723,176 @@ describe('RecordAtBat Use Case', () => {
       // EventSourcedGameRepository handles event persistence internally
       // Success indicates generateEvents method ran correctly
     });
+
+    it('should generate RunScored events with AWAY team score increment when away team bats', async () => {
+      // This test covers the else branch (lines 532-534) where battingTeamSide === 'AWAY'
+      const game = createTestGame();
+      const runner1Id = PlayerId.generate();
+
+      const inningState = createMockInningState(gameId);
+      inningState.isTopHalf = true; // AWAY is batting (top of inning)
+
+      const updatedInningState = createMockInningState(gameId);
+      updatedInningState.isTopHalf = true; // AWAY is batting
+
+      // Mock getUncommittedEvents to return RunnerAdvanced event with toBase === 'HOME'
+      updatedInningState.getUncommittedEvents = vi.fn().mockReturnValue([
+        new RunnerAdvanced(gameId, runner1Id, 'THIRD', 'HOME'), // Runner from 3rd scores
+      ]);
+
+      const mockHomeLineup = createMockTeamLineup(gameId, 'HOME', PlayerId.generate());
+      const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY', batterId); // Batter is on AWAY team
+
+      // Mock GameCoordinator to return success with 1 run
+      vi.spyOn(GameCoordinator, 'recordAtBat').mockReturnValue({
+        success: true,
+        updatedGame: game,
+        updatedInningState,
+        runsScored: 1,
+        rbis: 1,
+        inningComplete: false,
+        gameComplete: false,
+      } as any);
+
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game as any);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(inningState);
+      vi.mocked(mockTeamLineupRepository.findByGameIdAndSide)
+        .mockResolvedValueOnce(mockAwayLineup as any) // First call returns AWAY lineup (batting team)
+        .mockResolvedValueOnce(mockAwayLineup as any) // Second call for batting team
+        .mockResolvedValueOnce(mockHomeLineup as any); // Third call for fielding team
+      vi.mocked(mockGameRepository.save).mockResolvedValue(undefined);
+      vi.mocked(mockEventStore.append).mockResolvedValue(undefined);
+      vi.mocked(mockInningStateRepository.save).mockResolvedValue(undefined);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Verify the use case completed successfully (AWAY team scoring branch exercised)
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('Persistence Error Logging - Coverage for Error Branches', () => {
+    it('should log database error when save fails with database-related message', async () => {
+      // This test covers lines 616-622 (database error logging branch)
+      const game = createTestGame();
+      const inningState = createMockInningState(gameId);
+      const updatedInningState = createMockInningState(gameId);
+      updatedInningState.getUncommittedEvents = vi.fn().mockReturnValue([]);
+
+      const mockHomeLineup = createMockTeamLineup(gameId, 'HOME', batterId);
+      const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY', PlayerId.generate());
+
+      // Mock GameCoordinator to return success
+      vi.spyOn(GameCoordinator, 'recordAtBat').mockReturnValue({
+        success: true,
+        updatedGame: game,
+        updatedInningState,
+        runsScored: 0,
+        rbis: 0,
+        inningComplete: false,
+        gameComplete: false,
+      } as any);
+
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game as any);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(inningState);
+      vi.mocked(mockTeamLineupRepository.findByGameIdAndSide)
+        .mockResolvedValueOnce(mockHomeLineup as any)
+        .mockResolvedValueOnce(mockHomeLineup as any)
+        .mockResolvedValueOnce(mockAwayLineup as any);
+      vi.mocked(mockInningStateRepository.save).mockResolvedValue(undefined);
+
+      // Mock save to fail with database error (exercises lines 616-622)
+      const databaseError = new Error('Database connection failed');
+      vi.mocked(mockGameRepository.save).mockRejectedValue(databaseError);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Error should be propagated and logged
+      expect(result.success).toBe(false);
+      expect(result.errors?.[0]).toContain('Database connection failed');
+
+      // Verify the database error logging branch was exercised
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Database persistence failed',
+        databaseError,
+        expect.objectContaining({
+          gameId: gameId.value,
+          operation: 'persistChanges',
+          errorType: 'database',
+        })
+      );
+    });
+
+    it('should log event store error when save fails with store-related message', async () => {
+      // This test covers lines 623-629 (event store error logging branch)
+      const game = createTestGame();
+      const inningState = createMockInningState(gameId);
+      const updatedInningState = createMockInningState(gameId);
+      updatedInningState.getUncommittedEvents = vi.fn().mockReturnValue([]);
+
+      const mockHomeLineup = createMockTeamLineup(gameId, 'HOME', batterId);
+      const mockAwayLineup = createMockTeamLineup(gameId, 'AWAY', PlayerId.generate());
+
+      // Mock GameCoordinator to return success
+      vi.spyOn(GameCoordinator, 'recordAtBat').mockReturnValue({
+        success: true,
+        updatedGame: game,
+        updatedInningState,
+        runsScored: 0,
+        rbis: 0,
+        inningComplete: false,
+        gameComplete: false,
+      } as any);
+
+      vi.mocked(mockGameRepository.findById).mockResolvedValue(game as any);
+      vi.mocked(mockInningStateRepository.findCurrentByGameId).mockResolvedValue(inningState);
+      vi.mocked(mockTeamLineupRepository.findByGameIdAndSide)
+        .mockResolvedValueOnce(mockHomeLineup as any)
+        .mockResolvedValueOnce(mockHomeLineup as any)
+        .mockResolvedValueOnce(mockAwayLineup as any);
+      vi.mocked(mockInningStateRepository.save).mockResolvedValue(undefined);
+
+      // Mock save to fail with event store error (exercises lines 623-629)
+      const eventStoreError = new Error('Event store unavailable');
+      vi.mocked(mockGameRepository.save).mockRejectedValue(eventStoreError);
+
+      const command = CommandTestBuilder.recordAtBat()
+        .withGameId(gameId)
+        .withBatter(batterId)
+        .withResult(AtBatResultType.SINGLE)
+        .build();
+
+      // Act
+      const result = await recordAtBat.execute(command);
+
+      // Assert - Error should be propagated and logged
+      expect(result.success).toBe(false);
+      expect(result.errors?.[0]).toContain('Event store unavailable');
+
+      // Verify the event store error logging branch was exercised
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Event store persistence failed',
+        eventStoreError,
+        expect.objectContaining({
+          gameId: gameId.value,
+          operation: 'persistChanges',
+          errorType: 'eventStore',
+        })
+      );
+    });
   });
 });

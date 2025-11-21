@@ -412,11 +412,6 @@ export class StartNewGame {
       errors.push('Team names must be different');
     }
 
-    // Validate game date
-    if (command.gameDate < new Date()) {
-      errors.push('Game date cannot be in the past');
-    }
-
     // Validate basic lineup structure
     if (!command.initialLineup || command.initialLineup.length === 0) {
       errors.push('Initial lineup cannot be empty');

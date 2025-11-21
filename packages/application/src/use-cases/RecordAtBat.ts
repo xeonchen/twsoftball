@@ -244,30 +244,27 @@ export class RecordAtBat {
         return await this.createFailureResult(null, [`Game not found: ${command.gameId.value}`]);
       }
 
-      // Step 2: Capture original state for transaction compensation
-      const originalGame = game; // In a full implementation, create deep copy for safety
-
-      // Step 3: Validate game state
+      // Step 2: Validate game state
       const gameStateValidation = this.validateGameState(game);
       if (!gameStateValidation.valid) {
         return await this.createFailureResult(game, gameStateValidation.errors);
       }
 
-      // Step 4: Load aggregates and process at-bat with full aggregate coordination
+      // Step 3: Load aggregates and process at-bat with full aggregate coordination
       // Note: Batting position persistence is now handled internally by InningState aggregate.
       // InningState tracks both awayTeamBatterSlot and homeTeamBatterSlot internally,
       // and endHalfInning() automatically preserves both slots without requiring parameters.
       // No cross-aggregate coordination needed for batting position persistence.
 
-      // Step 5: Apply business logic and calculate results
+      // Step 4: Apply business logic and calculate results
       const result = await this.processAtBat(game, command);
 
-      // Step 6: Generate events
+      // Step 5: Generate events
       const events = this.generateEvents(command, result);
 
-      // Step 7: Persist BOTH coordinator-returned aggregates atomically
+      // Step 6: Persist BOTH coordinator-returned aggregates atomically
       await this.inningStateRepository.save(result.updatedInningState);
-      await this.persistChanges(result.updatedGame, events, originalGame);
+      await this.persistChanges(result.updatedGame, events);
 
       this.logger.info('At-bat recorded successfully', {
         gameId: command.gameId.value,
@@ -515,12 +512,10 @@ export class RecordAtBat {
 
     // Generate RunScored events for each run with INCREMENTAL score progression
     // IMPORTANT: Use REAL runner IDs from domain events, not fabricated events
-    // Filter RunnerAdvanced events where toBase === 'HOME' to find actual scoring runners
+    // Filter RunnerAdvanced events where to === 'HOME' to find actual scoring runners
     const runnerAdvancedEvents = inningStateEvents.filter(
       (event): event is RunnerAdvanced =>
-        event.type === 'RunnerAdvanced' &&
-        event instanceof RunnerAdvanced &&
-        event['toBase'] === 'HOME'
+        event.type === 'RunnerAdvanced' && event instanceof RunnerAdvanced && event.to === 'HOME'
     );
 
     runnerAdvancedEvents.forEach((runnerAdvancedEvent, index) => {
@@ -537,7 +532,7 @@ export class RecordAtBat {
       events.push(
         new RunScored(
           command.gameId,
-          runnerAdvancedEvent['runnerId'], // REAL runner ID from domain event
+          runnerAdvancedEvent.runnerId, // REAL runner ID from domain event
           result.battingTeamSide, // Actual batting team
           command.batterId, // rbiCreditedTo
           incrementalScore // Real incremental score (not placeholder!)
@@ -557,44 +552,28 @@ export class RecordAtBat {
    * Persists all changes atomically to ensure consistency.
    *
    * @remarks
-   * Implements a transaction-safe persistence pattern using compensation logic.
-   * Ensures that either both the game aggregate and events are saved successfully,
-   * or the system remains in its original consistent state.
+   * Implements atomic persistence using EventSourcedGameRepository which handles
+   * both game aggregate state and event persistence in a single operation.
    *
-   * **Transaction Safety Strategy**:
-   * 1. Save Game aggregate first (most critical state)
-   * 2. Store domain events for audit trail
-   * 3. Implement compensation on partial failures
-   * 4. Maintain system consistency through rollback
+   * **Transaction Safety**:
+   * EventSourcedGameRepository.save() is atomic - it saves both the game aggregate
+   * and its domain events together. If the save fails, no partial changes are persisted.
    *
-   * **Failure Recovery**:
-   * - Game save fails: No changes persisted, system consistent
-   * - Event store fails: Compensate by reverting game state
-   * - Compensation fails: Log error and propagate (requires manual intervention)
-   *
-   * In a full implementation with multiple aggregates:
-   * - Save all aggregates atomically using Unit of Work pattern
-   * - Use distributed transaction patterns if needed
-   * - Implement comprehensive compensating actions
+   * **Error Handling**:
+   * - Database errors: Logged with 'database' error type
+   * - Event store errors: Logged with 'eventStore' error type
+   * - All errors are re-thrown for upstream handling
    *
    * @param game - Updated Game aggregate to persist
-   * @param events - Domain events to store
-   * @param originalGame - Original game state for compensation rollback
+   * @param events - Domain events (for logging purposes)
    * @throws Error for persistence failures requiring upstream handling
    */
-  private async persistChanges(
-    game: Game,
-    events: DomainEvent[],
-    originalGame?: Game
-  ): Promise<void> {
-    let gameWasSaved = false;
-
+  private async persistChanges(game: Game, events: DomainEvent[]): Promise<void> {
     try {
-      // Phase 1: Save game aggregate
+      // Save game aggregate atomically
       // NOTE: EventSourcedGameRepository.save() already appends events to eventStore
       // Do NOT call eventStore.append() again or we'll get duplicate key errors!
       await this.gameRepository.save(game);
-      gameWasSaved = true;
 
       this.logger.debug('Game aggregate and events saved successfully', {
         gameId: game.id.value,
@@ -603,98 +582,24 @@ export class RecordAtBat {
         operation: 'persistGame',
       });
     } catch (error) {
-      // Transaction failed during game save
-      // NOTE: Since EventSourcedGameRepository.save() is atomic (saves game + events together),
-      // we should not hit the compensation path anymore. Kept for safety.
-      if (gameWasSaved && originalGame) {
-        // Repository save failed mid-operation - attempt compensation
-        await this.compensateFailedTransaction(originalGame, error);
-      }
-
-      // Distinguish between different types of persistence failures
+      // Distinguish between different types of persistence failures for logging
       if (error instanceof Error) {
         if (error.message.includes('Database') || error.message.includes('connection')) {
           this.logger.error('Database persistence failed', error, {
             gameId: game.id.value,
             operation: 'persistChanges',
             errorType: 'database',
-            compensationApplied: gameWasSaved && originalGame !== undefined,
           });
         } else if (error.message.includes('Event store') || error.message.includes('store')) {
           this.logger.error('Event store persistence failed', error, {
             gameId: game.id.value,
             operation: 'persistChanges',
             errorType: 'eventStore',
-            compensationApplied: gameWasSaved && originalGame !== undefined,
           });
         }
       }
 
       throw error; // Re-throw for upstream error handling
-    }
-  }
-
-  /**
-   * Compensates for failed transaction by reverting game state.
-   *
-   * @remarks
-   * Implements compensation logic when repository save fails mid-operation.
-   * Attempts to restore system consistency by reverting the game aggregate
-   * to its original state.
-   *
-   * **NOTE**: This should rarely trigger now that EventSourcedGameRepository.save()
-   * handles both aggregate and event persistence atomically. Kept for safety.
-   *
-   * **Compensation Strategy**:
-   * - Restore original game state to maintain consistency
-   * - Log compensation attempt for audit purposes
-   * - Handle compensation failures gracefully
-   *
-   * This is a simplified compensation pattern. In production systems:
-   * - Use proper transaction managers or saga patterns
-   * - Implement retry mechanisms with exponential backoff
-   * - Provide manual intervention capabilities for failed compensations
-   * - Consider eventual consistency patterns for distributed scenarios
-   *
-   * @param originalGame - Original game state to restore
-   * @param originalError - The error that triggered compensation
-   * @throws Error if compensation itself fails (requires manual intervention)
-   */
-  private async compensateFailedTransaction(
-    originalGame: Game,
-    originalError: unknown
-  ): Promise<void> {
-    try {
-      this.logger.warn('Attempting transaction compensation', {
-        gameId: originalGame.id.value,
-        operation: 'compensateFailedTransaction',
-        reason: 'Repository save failed mid-operation',
-        originalError: originalError instanceof Error ? originalError.message : 'Unknown error',
-      });
-
-      // Restore original game state
-      await this.gameRepository.save(originalGame);
-
-      this.logger.info('Transaction compensation successful', {
-        gameId: originalGame.id.value,
-        operation: 'compensateFailedTransaction',
-      });
-    } catch (compensationError) {
-      // Compensation failed - system may be in inconsistent state
-      this.logger.error('Transaction compensation failed', compensationError as Error, {
-        gameId: originalGame.id.value,
-        operation: 'compensateFailedTransaction',
-        originalError: originalError instanceof Error ? originalError.message : 'Unknown error',
-        systemState: 'potentially_inconsistent',
-        requiresManualIntervention: true,
-      });
-
-      throw new Error(
-        `Transaction compensation failed for game ${originalGame.id.value}. ` +
-          `Original error: ${originalError instanceof Error ? originalError.message : 'Unknown'}. ` +
-          `Compensation error: ${compensationError instanceof Error ? compensationError.message : 'Unknown'}. ` +
-          `System may be in inconsistent state and requires manual intervention.`
-      );
     }
   }
 
