@@ -5,7 +5,9 @@ import { GameCompleted } from '../events/GameCompleted.js';
 import { GameCreated } from '../events/GameCreated.js';
 import { GameStarted } from '../events/GameStarted.js';
 import { InningAdvanced } from '../events/InningAdvanced.js';
+import { RunScored } from '../events/RunScored.js';
 import { ScoreUpdated } from '../events/ScoreUpdated.js';
+import { SoftballRules } from '../rules/SoftballRules.js';
 import { GameId } from '../value-objects/GameId.js';
 import { GameScore } from '../value-objects/GameScore.js';
 
@@ -84,9 +86,26 @@ export class Game {
 
   private currentOuts: number;
 
+  private gameStartTime: Date | null = null;
+
   private uncommittedEvents: DomainEvent[] = [];
 
   private version: number = 0;
+
+  /**
+   * Configurable softball rules for this game.
+   *
+   * @remarks
+   * Game rules define critical game parameters like:
+   * - Total innings (regulation length)
+   * - Mercy rule tiers and thresholds
+   * - Extra innings configuration
+   * - Time limits and tie game handling
+   *
+   * Rules are immutable and stored with the game for complete event sourcing.
+   * Each game can have different rules (youth leagues, tournaments, etc.).
+   */
+  readonly rules: SoftballRules;
 
   /**
    * Creates a Game instance with the specified state.
@@ -99,6 +118,7 @@ export class Game {
    * @param id - Unique identifier for this game
    * @param homeTeamName - Name of the home team
    * @param awayTeamName - Name of the away team
+   * @param rules - Softball rules configuration for this game
    * @param status - Current game status
    * @param score - Current game score
    * @param currentInning - Current inning number
@@ -109,6 +129,7 @@ export class Game {
     readonly id: GameId,
     readonly homeTeamName: string,
     readonly awayTeamName: string,
+    rules: SoftballRules = SoftballRules.standard(),
     status: GameStatus = GameStatus.NOT_STARTED,
     score: GameScore = GameScore.zero(),
     currentInning: number = 1,
@@ -120,6 +141,7 @@ export class Game {
     this.currentInningNumber = currentInning;
     this.topHalfOfInning = isTopHalf;
     this.currentOuts = outs;
+    this.rules = rules;
   }
 
   /**
@@ -134,6 +156,39 @@ export class Game {
    */
   get score(): GameScore {
     return this.gameScore;
+  }
+
+  /**
+   * Gets the current game score as a DTO suitable for the application layer.
+   *
+   * @returns GameScore data as a plain object with leader and difference calculated
+   *
+   * @remarks
+   * This method provides a DTO representation of the score that includes:
+   * - home: Home team runs
+   * - away: Away team runs
+   * - leader: Which team is ahead ('HOME', 'AWAY', or 'TIE')
+   * - difference: Absolute run differential
+   *
+   * The DTO format is required by the application layer for building GameStateDTO.
+   */
+  getScoreDTO(): {
+    home: number;
+    away: number;
+    leader: 'HOME' | 'AWAY' | 'TIE';
+    difference: number;
+  } {
+    const home = this.gameScore.getHomeRuns();
+    const away = this.gameScore.getAwayRuns();
+    const leader: 'HOME' | 'AWAY' | 'TIE' = this.gameScore.isHomeWinning()
+      ? 'HOME'
+      : this.gameScore.isAwayWinning()
+        ? 'AWAY'
+        : 'TIE';
+
+    const difference = Math.abs(this.gameScore.getRunDifferential());
+
+    return { home, away, leader, difference };
   }
 
   /**
@@ -159,21 +214,65 @@ export class Game {
   }
 
   /**
+   * Gets the timestamp when the game was started.
+   *
+   * @returns The game start timestamp, or null if the game hasn't started yet
+   */
+  get startTime(): Date | null {
+    return this.gameStartTime;
+  }
+
+  /**
    * Creates a new softball game with the specified teams.
    *
    * @param id - Unique identifier for the new game
    * @param homeTeamName - Name of the home team (cannot be empty or same as away)
    * @param awayTeamName - Name of the away team (cannot be empty or same as home)
+   * @param rules - Optional softball rules configuration (defaults to standard rules)
    * @returns New Game instance in NOT_STARTED status
    * @throws {DomainError} When parameters are invalid
+   *
+   * @remarks
+   * Rules configuration allows customization for different league types:
+   * - Youth leagues: Shorter games (5 innings), lenient mercy rules
+   * - Recreation leagues: Standard 7 innings, standard mercy rules
+   * - Tournament play: Potentially 9 innings, stricter mercy rules
+   *
+   * @example
+   * ```typescript
+   * // Standard game with default rules
+   * const game = Game.createNew(gameId, 'Tigers', 'Lions');
+   *
+   * // Youth game with custom rules
+   * const youthRules = new SoftballRules({ totalInnings: 5 });
+   * const youthGame = Game.createNew(gameId, 'Tigers', 'Lions', youthRules);
+   * ```
    */
-  static createNew(id: GameId, homeTeamName: string, awayTeamName: string): Game {
+  static createNew(
+    id: GameId,
+    homeTeamName: string,
+    awayTeamName: string,
+    rules?: SoftballRules
+  ): Game {
     if (!id) {
       throw new DomainError('Game ID cannot be null or undefined');
     }
 
-    const game = new Game(id, homeTeamName, awayTeamName);
-    game.addEvent(new GameCreated(id, homeTeamName, awayTeamName));
+    const game = new Game(id, homeTeamName, awayTeamName, rules);
+
+    // Serialize rules for event sourcing
+    const rulesConfig = {
+      totalInnings: game.rules.totalInnings,
+      maxPlayersPerTeam: game.rules.maxPlayersPerTeam,
+      timeLimitMinutes: game.rules.timeLimitMinutes,
+      allowReEntry: game.rules.allowReEntry,
+      mercyRuleEnabled: game.rules.mercyRuleEnabled,
+      mercyRuleTiers: [...game.rules.mercyRuleTiers],
+      maxExtraInnings: game.rules.maxExtraInnings,
+      allowTieGames: game.rules.allowTieGames,
+    };
+
+    game.addEvent(new GameCreated(id, homeTeamName, awayTeamName, rulesConfig));
     return game;
   }
 
@@ -199,6 +298,7 @@ export class Game {
     }
 
     this.gameStatus = GameStatus.IN_PROGRESS;
+    this.gameStartTime = new Date();
     this.addEvent(new GameStarted(this.id));
   }
 
@@ -353,69 +453,77 @@ export class Game {
   }
 
   /**
-   * Determines if the mercy rule should be triggered based on current game state.
-   *
-   * @returns True if mercy rule conditions are met, false otherwise
-   *
-   * @remarks
-   * **Mercy Rule Conditions:**
-   * - 15+ run differential after 5 complete innings
-   * - 10+ run differential after 7 complete innings
-   *
-   * **Business Logic:**
-   * - Designed to prevent lopsided games from continuing
-   * - Considers both inning completion and run differential
-   * - Uses standard slow-pitch softball mercy rules
-   */
-  isMercyRuleTriggered(): boolean {
-    const runDiff = Math.abs(this.gameScore.getRunDifferential());
-
-    // 15+ run lead after 5 complete innings
-    if (this.currentInningNumber >= 5 && runDiff >= 15) {
-      return true;
-    }
-
-    // 10+ run lead after 7 complete innings
-    if (this.currentInningNumber >= 7 && runDiff >= 10) {
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * Determines if regulation play is complete (7 full innings played).
+   * Determines if regulation play is complete based on configured totalInnings.
    *
    * @returns True if regulation innings are complete, false otherwise
    *
    * @remarks
    * **Regulation Completion:**
-   * - Standard softball games are 7 innings
+   * - Uses configurable totalInnings from SoftballRules (typically 5, 7, or 9 innings)
    * - Both teams must have had equal opportunity to bat
    * - May still require extra innings if tied
+   *
+   * **Configuration Examples:**
+   * - Youth leagues: 5 innings
+   * - Recreation leagues: 7 innings (standard)
+   * - Tournament play: 9 innings
    */
   isRegulationComplete(): boolean {
-    return this.currentInningNumber > 7 || (this.currentInningNumber === 7 && this.topHalfOfInning);
+    return (
+      this.currentInningNumber > this.rules.totalInnings ||
+      (this.currentInningNumber === this.rules.totalInnings && this.topHalfOfInning)
+    );
   }
 
   /**
-   * Determines if this is a walk-off scenario (home team ahead in bottom of inning after regulation).
+   * Checks if current game situation represents a walk-off scenario.
    *
-   * @returns True if walk-off conditions are met, false otherwise
+   * @param inningNumber - The current inning number
+   * @param isTopHalf - Whether this is the top half (true) or bottom half (false)
+   * @param runsAboutToScore - Number of runs about to score on this play
+   * @returns True if this is a walk-off scenario, false otherwise
    *
    * @remarks
-   * **Walk-off Conditions:**
-   * - Must be bottom half of an inning (home team batting)
-   * - Must be in or past regulation (inning 7+)
-   * - Home team must be winning
+   * **Walk-off Definition:**
+   * A walk-off occurs when the home team takes the lead in the bottom half
+   * of the final inning (or extra innings), ending the game immediately.
+   *
+   * **Required Conditions:**
+   * 1. Bottom half of the inning (home team batting)
+   * 2. Final inning or extra innings (inning >= totalInnings)
+   * 3. At least one run is about to score
+   * 4. Home team will take the lead after the run(s) score
    *
    * **Business Context:**
-   * - Walk-off wins end the game immediately
-   * - No need to complete the full inning
-   * - Common in extra-inning scenarios
+   * Walk-off victories are dramatic endings where the home team wins
+   * on their final at-bat. The game ends immediately when the winning
+   * run crosses home plate, even if there are runners still on base.
+   *
+   * **Configurable Regulation:**
+   * - Uses totalInnings from SoftballRules
+   * - Youth leagues (5 innings): Walk-off starts at inning 5
+   * - Standard leagues (7 innings): Walk-off starts at inning 7
+   * - Tournament play (9 innings): Walk-off starts at inning 9
+   *
+   * @example
+   * ```typescript
+   * // Bottom of 7th, tied 3-3, home run scored
+   * const isWalkOff = game.isWalkOffScenario(7, false, 1); // true
+   *
+   * // Top of 7th, home team ahead
+   * const isWalkOff = game.isWalkOffScenario(7, true, 1); // false (away team batting)
+   *
+   * // Bottom of 6th, home team scores
+   * const isWalkOff = game.isWalkOffScenario(6, false, 1); // false (not final inning)
+   * ```
    */
-  isWalkOffScenario(): boolean {
-    return !this.topHalfOfInning && this.currentInningNumber >= 7 && this.gameScore.isHomeWinning();
+  isWalkOffScenario(inningNumber: number, isTopHalf: boolean, runsAboutToScore: number): boolean {
+    return (
+      !isTopHalf && // Bottom half (home team batting)
+      inningNumber >= this.rules.totalInnings && // Final inning or extra innings
+      runsAboutToScore > 0 && // At least one run scores
+      this.score.getHomeRuns() + runsAboutToScore > this.score.getAwayRuns() // Home takes lead
+    );
   }
 
   /**
@@ -475,6 +583,13 @@ export class Game {
    * - Ensures all events belong to the same game aggregate
    * - Replays events in order to rebuild current game state
    * - Returns game with zero uncommitted events (all events are already committed)
+   * - Extracts rules from GameCreated event for complete game reconstruction
+   *
+   * **Rules Extraction:**
+   * - Rules are extracted from the GameCreated event's rulesConfig field
+   * - This ensures historical games maintain their original rule configuration
+   * - Prevents "rule drift" when replaying old games
+   * - If rulesConfig is missing (old events), defaults to standard rules for backward compatibility
    *
    * **Validation Rules:**
    * - Events array cannot be null, undefined, or empty
@@ -486,21 +601,20 @@ export class Game {
    * - Creates initial game instance from GameCreated event
    * - Applies each subsequent event to update game state
    * - Maintains all domain invariants throughout reconstruction
-   * - Preserves immutability of game core properties (id, team names)
+   * - Preserves immutability of game core properties (id, team names, rules)
    *
    * @example
    * ```typescript
    * const events = [
-   *   new GameCreated(gameId, 'Home Tigers', 'Away Lions'),
+   *   new GameCreated(gameId, 'Home Tigers', 'Away Lions', rulesConfig),
    *   new GameStarted(gameId),
    *   new ScoreUpdated(gameId, 'HOME', 2, { home: 2, away: 0 }),
    *   new InningAdvanced(gameId, 1, false)
    * ];
    *
+   * // Reconstruct from events (rules extracted from GameCreated event)
    * const game = Game.fromEvents(events);
-   * console.log(game.status);        // IN_PROGRESS
-   * console.log(game.score.getHomeRuns()); // 2
-   * console.log(game.isTopHalf);     // false
+   * console.log(game.rules.totalInnings); // Uses rules from GameCreated event
    * ```
    */
   static fromEvents(events: DomainEvent[]): Game {
@@ -525,7 +639,18 @@ export class Game {
 
     // Create initial game instance from GameCreated event
     const gameCreatedEvent = firstEvent as GameCreated;
-    const game = new Game(gameId, gameCreatedEvent.homeTeamName, gameCreatedEvent.awayTeamName);
+
+    // Extract rules from GameCreated event (or use standard rules for old events)
+    const rules = gameCreatedEvent.rulesConfig
+      ? new SoftballRules(gameCreatedEvent.rulesConfig)
+      : SoftballRules.standard();
+
+    const game = new Game(
+      gameId,
+      gameCreatedEvent.homeTeamName,
+      gameCreatedEvent.awayTeamName,
+      rules
+    );
 
     // Apply remaining events to reconstruct state
     for (let i = 1; i < events.length; i += 1) {
@@ -554,9 +679,16 @@ export class Game {
    * @remarks
    * **Snapshot Reconstruction Process:**
    * - Validates snapshot structure and aggregate type compatibility
-   * - Creates Game instance from snapshot data
+   * - Deserializes SoftballRules from snapshot data (or uses defaults if missing)
+   * - Creates Game instance from snapshot data with reconstructed rules
    * - Applies any subsequent events to reach current state
    * - Returns fully reconstructed aggregate with correct version
+   *
+   * **Rules Serialization:**
+   * - SoftballRules are stored in snapshot data for complete game reconstruction
+   * - If rules are missing (old snapshots), defaults to standard rules
+   * - Ensures historical games maintain their original rule configuration
+   * - Prevents "rule drift" when replaying old games
    *
    * **Validation Rules:**
    * - Snapshot cannot be null or undefined
@@ -587,7 +719,20 @@ export class Game {
    *     awayRuns: 2,
    *     currentInning: 5,
    *     isTopHalf: false,
-   *     outs: 1
+   *     outs: 1,
+   *     rules: {
+   *       totalInnings: 7,
+   *       maxPlayersPerTeam: 25,
+   *       timeLimitMinutes: 60,
+   *       allowReEntry: true,
+   *       mercyRuleEnabled: true,
+   *       mercyRuleTiers: [
+   *         { differential: 10, afterInning: 4 },
+   *         { differential: 7, afterInning: 5 }
+   *       ],
+   *       maxExtraInnings: 0,
+   *       allowTieGames: true
+   *     }
    *   },
    *   timestamp: new Date()
    * };
@@ -599,6 +744,7 @@ export class Game {
    * const game = Game.fromSnapshot(snapshot, subsequentEvents);
    * console.log(game.score.getHomeRuns()); // 4
    * console.log(game.getVersion());        // 101
+   * console.log(game.rules.totalInnings);  // 7
    * ```
    */
   static fromSnapshot<T>(
@@ -639,6 +785,17 @@ export class Game {
       currentInning: number;
       isTopHalf: boolean;
       outs: number;
+      startTime?: Date | string | null;
+      rules?: {
+        totalInnings: number;
+        maxPlayersPerTeam: number;
+        timeLimitMinutes: number | null;
+        allowReEntry: boolean;
+        mercyRuleEnabled: boolean;
+        mercyRuleTiers: Array<{ differential: number; afterInning: number }>;
+        maxExtraInnings: number | null;
+        allowTieGames: boolean;
+      };
     };
 
     // Validate required fields exist
@@ -698,17 +855,31 @@ export class Game {
       throw new DomainError('Outs must be between 0 and 2');
     }
 
+    // Deserialize SoftballRules from snapshot (or use defaults if not present)
+    const rules = snapshotData.rules
+      ? new SoftballRules(snapshotData.rules)
+      : SoftballRules.standard();
+
     // Create game instance from snapshot
     const game = new Game(
       snapshotGameId,
       snapshotData.homeTeamName,
       snapshotData.awayTeamName,
+      rules,
       snapshotData.status,
       GameScore.fromRuns(snapshotData.homeRuns, snapshotData.awayRuns),
       snapshotData.currentInning,
       snapshotData.isTopHalf,
       snapshotData.outs
     );
+
+    // Set startTime if present in snapshot
+    if (snapshotData.startTime) {
+      game.gameStartTime =
+        snapshotData.startTime instanceof Date
+          ? snapshotData.startTime
+          : new Date(snapshotData.startTime);
+    }
 
     // Set version from snapshot
     game.version = snapshot.version;
@@ -766,7 +937,8 @@ export class Game {
    * @remarks
    * **Event Application Logic:**
    * - GameStarted: Changes status from NOT_STARTED to IN_PROGRESS
-   * - ScoreUpdated: Updates game score with new totals
+   * - RunScored: Updates game score when runs are scored during at-bats
+   * - ScoreUpdated: Updates game score with new totals (legacy, used in tests)
    * - InningAdvanced: Updates current inning and half-inning state
    * - GameCompleted: Changes status to COMPLETED
    *
@@ -786,6 +958,7 @@ export class Game {
     switch (event.type) {
       case 'GameStarted':
         this.gameStatus = GameStatus.IN_PROGRESS;
+        this.gameStartTime = event.timestamp;
         break;
 
       case 'ScoreUpdated': {
@@ -810,6 +983,12 @@ export class Game {
           completedEvent.finalScore.home,
           completedEvent.finalScore.away
         );
+        break;
+      }
+
+      case 'RunScored': {
+        const runEvent = event as RunScored;
+        this.gameScore = GameScore.fromRuns(runEvent.newScore.home, runEvent.newScore.away);
         break;
       }
 

@@ -364,7 +364,8 @@ export class GameAdapter {
 
     try {
       const command = this.toRecordAtBatCommand(uiData);
-      return await this.config.recordAtBat.execute(command);
+      const result = await this.config.recordAtBat.execute(command);
+      return result;
     } catch (error) {
       this.config.logger.error(
         'Game adapter: Failed to record at-bat',
@@ -810,29 +811,36 @@ export class GameAdapter {
   }
 
   private toRecordAtBatCommand(uiData: UIRecordAtBatData): RecordAtBatCommand {
+    // Derive advance reason from at-bat result
+    const advanceReason = this.deriveAdvanceReason(uiData.result);
+
     // Convert runner advances to proper DTO format with required fields
-    const runnerAdvances: RunnerAdvanceDTO[] = uiData.runnerAdvances.map(advance => ({
-      playerId: new PlayerId(advance.runnerId),
-      fromBase:
-        advance.fromBase === 1
-          ? 'FIRST'
-          : advance.fromBase === 2
-            ? 'SECOND'
-            : advance.fromBase === 3
-              ? 'THIRD'
-              : null,
-      toBase:
-        advance.toBase === 1
-          ? 'FIRST'
-          : advance.toBase === 2
-            ? 'SECOND'
-            : advance.toBase === 3
-              ? 'THIRD'
-              : advance.toBase === 0
-                ? 'HOME'
-                : 'OUT',
-      advanceReason: 'BATTED_BALL', // Default advance reason
-    }));
+    const runnerAdvances: RunnerAdvanceDTO[] = uiData.runnerAdvances.map(advance => {
+      const dto: RunnerAdvanceDTO = {
+        playerId: new PlayerId(advance.runnerId),
+        fromBase:
+          advance.fromBase === 1
+            ? 'FIRST'
+            : advance.fromBase === 2
+              ? 'SECOND'
+              : advance.fromBase === 3
+                ? 'THIRD'
+                : null,
+        toBase:
+          advance.toBase === 1
+            ? 'FIRST'
+            : advance.toBase === 2
+              ? 'SECOND'
+              : advance.toBase === 3
+                ? 'THIRD'
+                : advance.toBase === 0
+                  ? 'HOME'
+                  : 'OUT',
+        advanceReason,
+      };
+
+      return dto;
+    });
 
     return {
       gameId: new GameId(uiData.gameId),
@@ -840,6 +848,68 @@ export class GameAdapter {
       result: uiData.result as AtBatResultType, // Cast string to enum
       runnerAdvances,
     };
+  }
+
+  /**
+   * Derives the appropriate advance reason from the at-bat result.
+   *
+   * @remarks
+   * Maps UI at-bat result types to Domain AdvanceReason enum values.
+   * This ensures that runner advances have semantically correct reasons
+   * based on the type of at-bat result that occurred.
+   *
+   * Mapping Logic:
+   * - Hits (SINGLE, DOUBLE, TRIPLE, HOME_RUN) → 'HIT'
+   * - WALK → 'WALK' (forces runners to advance)
+   * - Sacrifice plays → 'SACRIFICE'
+   * - FIELDERS_CHOICE → 'FIELDERS_CHOICE'
+   * - ERROR → 'ERROR'
+   * - Outs (OUT, STRIKEOUT, GROUND_OUT, FLY_OUT, etc.) → 'HIT' (safe default for tag-up scenarios)
+   *
+   * @param atBatResult - The at-bat result type from the UI
+   * @returns The corresponding advance reason string matching AdvanceReason enum
+   */
+  private deriveAdvanceReason(atBatResult: string): string {
+    // Map at-bat results to advance reasons
+    switch (atBatResult) {
+      // Hits advance runners due to the hit
+      case 'SINGLE':
+      case 'DOUBLE':
+      case 'TRIPLE':
+      case 'HOME_RUN':
+        return 'HIT';
+
+      // Walk forces runners to advance
+      case 'WALK':
+        return 'WALK';
+
+      // Sacrifice plays
+      case 'SACRIFICE_FLY':
+      case 'SACRIFICE_BUNT':
+        return 'SACRIFICE';
+
+      // Fielder's choice
+      case 'FIELDERS_CHOICE':
+        return 'FIELDERS_CHOICE';
+
+      // Error allows runners to advance
+      case 'ERROR':
+        return 'ERROR';
+
+      // For outs, if runners advance it's typically on a hit ball
+      // (e.g., sacrifice fly, runner tagging up)
+      case 'OUT':
+      case 'STRIKEOUT':
+      case 'GROUND_OUT':
+      case 'FLY_OUT':
+      case 'DOUBLE_PLAY':
+      case 'TRIPLE_PLAY':
+        return 'HIT'; // Safe default for outs
+
+      default:
+        // Safe default for any unmapped result types
+        return 'HIT';
+    }
   }
 
   /**

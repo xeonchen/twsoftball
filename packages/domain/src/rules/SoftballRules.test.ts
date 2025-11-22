@@ -438,7 +438,12 @@ describe('SoftballRules', () => {
     it('should handle tie games at regulation', () => {
       const rules = new SoftballRules({ totalInnings: 7 });
 
-      expect(rules.isGameComplete(5, 5, 7)).toBe(true); // tied, ends due to no extra innings and ties allowed
+      // At end of regulation (inning 7) with tied score and maxExtraInnings: 0:
+      // extraInningsPlayed = 0, which IS >= 0, so game ends immediately (no extras allowed)
+      expect(rules.isGameComplete(5, 5, 7)).toBe(true); // ends as tie at regulation
+
+      // If somehow we reach inning 8, game is definitely complete
+      expect(rules.isGameComplete(5, 5, 8)).toBe(true); // ends as tie (beyond regulation)
     });
 
     it('should handle extra innings', () => {
@@ -460,13 +465,37 @@ describe('SoftballRules', () => {
       });
 
       // Game tied 5-5, in the 10th inning (3 extra innings played)
-      expect(rules.isGameComplete(5, 5, 10)).toBe(true); // Tie game ends
+      // extraInningsPlayed = 3, maxExtraInnings = 3, 3 >= 3 is TRUE, so end
+      expect(rules.isGameComplete(5, 5, 10)).toBe(true); // Reached limit, tie game ends
+
+      // Game tied 5-5, in the 11th inning (4 extra innings played)
+      // extraInningsPlayed = 4, maxExtraInnings = 3, 4 >= 3 is TRUE, so end
+      expect(rules.isGameComplete(5, 5, 11)).toBe(true); // Exceeded limit, tie game ends
 
       // Game tied 5-5, in the 9th inning (2 extra innings played)
       expect(rules.isGameComplete(5, 5, 9)).toBe(false); // Continue playing
 
       // Game with winner should still end normally
       expect(rules.isGameComplete(6, 5, 9)).toBe(true); // Winner in extra innings
+    });
+
+    it('should end tie game at exact maxExtraInnings boundary (regression test for >= fix)', () => {
+      const rules = new SoftballRules({
+        totalInnings: 7,
+        maxExtraInnings: 2,
+        allowTieGames: true,
+      });
+
+      // Regression test for bug fix: changed from > to >=
+      // At inning 9: extraInningsPlayed = 9 - 7 = 2
+      // Should end because 2 >= 2 is TRUE (was broken when using > 2)
+      expect(rules.isGameComplete(5, 5, 9)).toBe(true);
+
+      // Still playing at inning 8 (1 extra inning)
+      expect(rules.isGameComplete(5, 5, 8)).toBe(false);
+
+      // Also ends at inning 10 (exceeds limit)
+      expect(rules.isGameComplete(5, 5, 10)).toBe(true);
     });
 
     it('should continue tie games when maxExtraInnings reached but allowTieGames is false', () => {

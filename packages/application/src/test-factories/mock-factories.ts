@@ -46,13 +46,17 @@ import {
   DomainEvent,
   TeamLineupId,
   InningStateId,
+  InningState,
+  TeamLineup,
 } from '@twsoftball/domain';
 import { vi } from 'vitest';
 
 import { EventStore, StoredEvent } from '../ports/out/EventStore.js';
 import { GameRepository } from '../ports/out/GameRepository.js';
+import { InningStateRepository } from '../ports/out/InningStateRepository.js';
 import { Logger } from '../ports/out/Logger.js';
 import { NotificationService } from '../ports/out/NotificationService.js';
+import { TeamLineupRepository } from '../ports/out/TeamLineupRepository.js';
 
 // Mock event interface for internal use
 interface MockDomainEvent {
@@ -137,6 +141,201 @@ export function createMockGameRepository(): GameRepository {
     setMockGame: (game: Game) => void;
     clear: () => void;
   };
+}
+
+/**
+ * Creates a mock InningStateRepository with all methods implemented as Vitest mocks.
+ *
+ * @remarks
+ * The repository includes a simple in-memory storage mechanism that can be used
+ * for basic tests. For more complex scenarios, individual methods can be mocked
+ * with specific behavior using vi.fn().mockResolvedValue() or similar.
+ *
+ * **Default Behavior**:
+ * - findById: Returns null (inning state not found)
+ * - findCurrentByGameId: Returns null (no current inning state)
+ * - save: Resolves successfully
+ * - delete: Resolves successfully
+ *
+ * @param overrides - Optional method overrides for specific test scenarios
+ * @returns Fully mocked InningStateRepository instance
+ *
+ * @example
+ * ```typescript
+ * const mockRepo = createMockInningStateRepository({
+ *   findCurrentByGameId: vi.fn().mockResolvedValue(mockInningState)
+ * });
+ * ```
+ */
+export function createMockInningStateRepository(
+  overrides?: Partial<InningStateRepository>
+): InningStateRepository {
+  const inningStates = new Map<string, InningState>();
+  const gameIdToInningStateId = new Map<string, string>(); // Track current inning state per game
+
+  return {
+    findById: vi.fn().mockImplementation((id: InningStateId): Promise<InningState | null> => {
+      return Promise.resolve(inningStates.get(id.value) || null);
+    }),
+
+    findCurrentByGameId: vi
+      .fn()
+      .mockImplementation((gameId: GameId): Promise<InningState | null> => {
+        // Use gameId-to-inningStateId mapping for efficient lookup
+        const inningStateId = gameIdToInningStateId.get(gameId.value);
+        if (inningStateId) {
+          const inningState = inningStates.get(inningStateId);
+          if (inningState) {
+            return Promise.resolve(inningState);
+          }
+        }
+
+        // Fallback: search through all inning states (for backward compatibility)
+        for (const [, inningState] of inningStates) {
+          if (inningState.gameId.value === gameId.value) {
+            // Update mapping for future lookups
+            gameIdToInningStateId.set(gameId.value, inningState.id.value);
+            return Promise.resolve(inningState);
+          }
+        }
+        return Promise.resolve(null);
+      }),
+
+    save: vi.fn().mockImplementation((inningState: InningState): Promise<void> => {
+      inningStates.set(inningState.id.value, inningState);
+      // Update gameId mapping to track current inning state
+      gameIdToInningStateId.set(inningState.gameId.value, inningState.id.value);
+      return Promise.resolve();
+    }),
+
+    delete: vi.fn().mockImplementation((id: InningStateId): Promise<void> => {
+      const inningState = inningStates.get(id.value);
+      if (inningState) {
+        // Remove gameId mapping when deleting
+        gameIdToInningStateId.delete(inningState.gameId.value);
+      }
+      inningStates.delete(id.value);
+      return Promise.resolve();
+    }),
+
+    ...overrides,
+  } as InningStateRepository;
+}
+
+/**
+ * Creates a mock TeamLineupRepository with all methods implemented as Vitest mocks.
+ *
+ * @remarks
+ * The repository includes a simple in-memory storage mechanism that can be used
+ * for basic tests. For more complex scenarios, individual methods can be mocked
+ * with specific behavior using vi.fn().mockResolvedValue() or similar.
+ *
+ * **Default Behavior**:
+ * - findById: Returns null (lineup not found)
+ * - findByGameId: Returns empty array
+ * - findByGameIdAndSide: Returns null (lineup not found)
+ * - save: Resolves successfully
+ * - delete: Resolves successfully
+ *
+ * @param overrides - Optional method overrides for specific test scenarios
+ * @returns Fully mocked TeamLineupRepository instance
+ *
+ * @example
+ * ```typescript
+ * const mockRepo = createMockTeamLineupRepository({
+ *   findByGameIdAndSide: vi.fn().mockImplementation((gameId, side) => {
+ *     return side === 'AWAY' ? mockAwayLineup : mockHomeLineup;
+ *   })
+ * });
+ * ```
+ */
+export function createMockTeamLineupRepository(
+  overrides?: Partial<TeamLineupRepository>
+): TeamLineupRepository {
+  const lineups = new Map<string, TeamLineup>();
+  const gameLineups = new Map<string, Map<'HOME' | 'AWAY', TeamLineup>>(); // Track lineups by game+side
+
+  return {
+    findById: vi.fn().mockImplementation((id: TeamLineupId): Promise<TeamLineup | null> => {
+      return Promise.resolve(lineups.get(id.value) || null);
+    }),
+
+    findByGameId: vi.fn().mockImplementation((gameId: GameId): Promise<TeamLineup[]> => {
+      const result: TeamLineup[] = [];
+      for (const [, lineup] of lineups) {
+        if (lineup.gameId.value === gameId.value) {
+          result.push(lineup);
+        }
+      }
+      return Promise.resolve(result);
+    }),
+
+    findByGameIdAndSide: vi
+      .fn()
+      .mockImplementation((gameId: GameId, side: 'HOME' | 'AWAY'): Promise<TeamLineup | null> => {
+        const gameKey = gameId.value;
+        const cached = gameLineups.get(gameKey)?.get(side);
+        if (cached) {
+          return Promise.resolve(cached);
+        }
+
+        for (const lineup of lineups.values()) {
+          if (lineup.gameId.value !== gameKey) continue;
+          const lineupSide = lineup.teamSide;
+          if (lineupSide === 'HOME' || lineupSide === 'AWAY') {
+            let sideMap = gameLineups.get(gameKey);
+            if (!sideMap) {
+              sideMap = new Map<'HOME' | 'AWAY', TeamLineup>();
+              gameLineups.set(gameKey, sideMap);
+            }
+            sideMap.set(lineupSide, lineup);
+            if (lineupSide === side) {
+              return Promise.resolve(lineup);
+            }
+          }
+        }
+
+        return Promise.resolve(null);
+      }),
+
+    save: vi.fn().mockImplementation((lineup: TeamLineup): Promise<void> => {
+      lineups.set(lineup.id.value, lineup);
+
+      const gameKey = lineup.gameId.value;
+      let gameSideMap = gameLineups.get(gameKey);
+      if (!gameSideMap) {
+        gameSideMap = new Map<'HOME' | 'AWAY', TeamLineup>();
+        gameLineups.set(gameKey, gameSideMap);
+      }
+      const lineupSide = lineup.teamSide;
+      if (lineupSide === 'HOME' || lineupSide === 'AWAY') {
+        gameSideMap.set(lineupSide, lineup);
+      }
+
+      return Promise.resolve();
+    }),
+
+    delete: vi.fn().mockImplementation((id: TeamLineupId): Promise<void> => {
+      const lineup = lineups.get(id.value);
+      if (lineup) {
+        const gameKey = lineup.gameId.value;
+        const gameSideMap = gameLineups.get(gameKey);
+        if (gameSideMap) {
+          const lineupSide = lineup.teamSide;
+          if (lineupSide === 'HOME' || lineupSide === 'AWAY') {
+            gameSideMap.delete(lineupSide);
+          }
+          if (gameSideMap.size === 0) {
+            gameLineups.delete(gameKey);
+          }
+        }
+      }
+      lineups.delete(id.value);
+      return Promise.resolve();
+    }),
+
+    ...overrides,
+  } as TeamLineupRepository;
 }
 
 /**
@@ -563,12 +762,16 @@ export function createMockNotificationService(): NotificationService & {
  */
 export function createMockDependencies(): {
   gameRepository: ReturnType<typeof createMockGameRepository>;
+  inningStateRepository: ReturnType<typeof createMockInningStateRepository>;
+  teamLineupRepository: ReturnType<typeof createMockTeamLineupRepository>;
   eventStore: ReturnType<typeof createMockEventStore>;
   logger: ReturnType<typeof createMockLogger>;
   notificationService: ReturnType<typeof createMockNotificationService>;
 } {
   return {
     gameRepository: createMockGameRepository(),
+    inningStateRepository: createMockInningStateRepository(),
+    teamLineupRepository: createMockTeamLineupRepository(),
     eventStore: createMockEventStore(),
     logger: createMockLogger(),
     notificationService: createMockNotificationService(),
@@ -579,6 +782,8 @@ export function createMockDependencies(): {
  * Type definitions for enhanced mock instances with helper methods.
  */
 export type EnhancedMockGameRepository = ReturnType<typeof createMockGameRepository>;
+export type EnhancedMockInningStateRepository = ReturnType<typeof createMockInningStateRepository>;
+export type EnhancedMockTeamLineupRepository = ReturnType<typeof createMockTeamLineupRepository>;
 export type EnhancedMockEventStore = ReturnType<typeof createMockEventStore>;
 export type EnhancedMockLogger = ReturnType<typeof createMockLogger>;
 export type EnhancedMockNotificationService = ReturnType<typeof createMockNotificationService>;

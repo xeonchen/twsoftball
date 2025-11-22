@@ -19,7 +19,8 @@ import { DomainEvent } from './DomainEvent.js';
  * const event = new TeamLineupCreated(
  *   teamLineupId,
  *   gameId,
- *   'Springfield Tigers'
+ *   'Springfield Tigers',
+ *   'HOME'
  * );
  * ```
  */
@@ -32,7 +33,9 @@ export class TeamLineupCreated extends DomainEvent {
     /** The unique identifier of the game this lineup belongs to */
     readonly gameId: GameId,
     /** The name of the team this lineup represents */
-    readonly teamName: string
+    readonly teamName: string,
+    /** Which team this lineup represents (HOME or AWAY) */
+    readonly teamSide: 'HOME' | 'AWAY' = 'HOME'
   ) {
     super();
   }

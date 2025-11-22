@@ -3,7 +3,7 @@ import { InningState, RunnerMovement } from '../aggregates/InningState.js';
 import { TeamLineup } from '../aggregates/TeamLineup.js';
 import { AtBatResultType } from '../constants/AtBatResultType.js';
 import { DomainError } from '../errors/DomainError.js';
-import { SoftballRules } from '../rules/SoftballRules.js';
+import type { SoftballRules } from '../rules/SoftballRules.js';
 import { BasesState, Base } from '../value-objects/BasesState.js';
 import { PlayerId } from '../value-objects/PlayerId.js';
 
@@ -16,14 +16,20 @@ import { RBICalculator } from './RBICalculator.js';
  * Simplified interface for specifying runner advancement during at-bat coordination.
  * Used by the GameCoordinator to accept runner movement overrides and calculate
  * automatic advancement patterns.
+ *
+ * **Movement Types:**
+ * - `fromBase: Base` - Runner advancing from an occupied base
+ * - `fromBase: null` - Batter advancing from home plate (e.g., batter put out, batter reaching base)
+ * - `toBase: Base | 'HOME'` - Successful advancement to a base or scoring
+ * - `toBase: 'OUT'` - Runner or batter being put out during the play
  */
 export interface RunnerAdvancement {
   /** The player who is advancing */
   runnerId: PlayerId;
-  /** The base they are leaving */
-  fromBase: Base;
-  /** The base they are advancing to, or 'HOME' if scoring */
-  toBase: Base | 'HOME';
+  /** The base they are leaving (null for batter starting from home plate) */
+  fromBase: Base | null;
+  /** The base they are advancing to, 'HOME' if scoring, or 'OUT' if put out */
+  toBase: Base | 'HOME' | 'OUT';
 }
 
 /**
@@ -163,39 +169,35 @@ export class GameCoordinator {
    * - Ensures batter is eligible and in correct batting order
    * - Validates runner advancement instructions against current base state
    * - Applies softball-specific rules (walk-offs, mercy rule, etc.)
+   * - Rules are now injected via the Game aggregate (uses game.rules)
    *
    * **Error Handling**:
    * Returns success/failure status with detailed error information rather than throwing,
    * enabling calling code to handle edge cases gracefully.
    *
-   * @param game - Current game state
+   * @param game - Current game state (contains rules configuration)
    * @param homeLineup - Home team lineup and player information
    * @param awayLineup - Away team lineup and player information
    * @param inningState - Current inning state with bases and outs
    * @param batterId - The player recording the at-bat
    * @param result - The type of at-bat result (hit, walk, out, etc.)
    * @param runnerAdvancementOverrides - Optional custom runner movements (empty for auto-calculation)
-   * @param rules - Optional softball rules configuration (uses defaults if not provided)
+   * @param _deprecatedRules - DEPRECATED: Rules are now part of Game aggregate. This parameter is ignored.
    * @returns Complete result including updated aggregates and statistical information
    *
    * @example
    * ```typescript
-   * // Automatic runner advancement with default rules
+   * // Automatic runner advancement (game contains rules)
    * const result = GameCoordinator.recordAtBat(
    *   game, homeLineup, awayLineup, inningState,
    *   batterId, AtBatResultType.DOUBLE, []
    * );
    *
-   * // Custom runner advancement with specific rules
-   * const customRules = SoftballRules.create({
-   *   mercyRuleEnabled: true,
-   *   mercyRuleTiers: [{ differential: 10, afterInning: 5 }]
-   * });
+   * // Custom runner advancement
    * const customResult = GameCoordinator.recordAtBat(
    *   game, homeLineup, awayLineup, inningState,
    *   batterId, AtBatResultType.SINGLE,
-   *   [{ runnerId: runnerId, fromBase: 'SECOND', toBase: 'HOME' }],
-   *   customRules
+   *   [{ runnerId: runnerId, fromBase: 'SECOND', toBase: 'HOME' }]
    * );
    *
    * // Handle results
@@ -219,8 +221,12 @@ export class GameCoordinator {
     batterId: PlayerId,
     result: AtBatResultType,
     runnerAdvancementOverrides: RunnerAdvancement[],
-    rules: SoftballRules
+    /** @deprecated Rules are now part of Game aggregate. This parameter is ignored. */
+    _deprecatedRules?: SoftballRules
   ): AtBatRecordingResult {
+    // Note: _deprecatedRules parameter is ignored (see @deprecated JSDoc above)
+    // TypeScript/IDE will warn developers about usage via JSDoc annotation
+
     try {
       // 1. Validate preconditions
       this.validateGameState(game);
@@ -228,38 +234,78 @@ export class GameCoordinator {
       this.validateRunnerAdvancement(inningState, runnerAdvancementOverrides);
 
       // 2. Determine runner advancement (use overrides or calculate automatically)
-      const runnerAdvancement =
-        runnerAdvancementOverrides.length > 0
-          ? runnerAdvancementOverrides
-          : this.determineRunnerAdvancement(result, inningState.basesState, batterId);
+      let runnerAdvancement: RunnerAdvancement[];
+      let runsScored: number;
+
+      if (runnerAdvancementOverrides.length > 0) {
+        runnerAdvancement = runnerAdvancementOverrides;
+        runsScored = this.calculateRunsScored(runnerAdvancement);
+      } else {
+        const advancementResult = this.determineRunnerAdvancement(
+          result,
+          inningState.basesState,
+          batterId
+        );
+        runnerAdvancement = advancementResult.movements;
+        runsScored = advancementResult.runsScored;
+      }
 
       // 3. Calculate statistical outcomes
-      const runsScored = this.calculateRunsScored(runnerAdvancement);
       const rbis = RBICalculator.calculateRBIs(result, inningState.basesState, inningState.outs);
 
       // 4. Record at-bat with InningState (determine batting slot from lineup)
       const currentLineup = inningState.isTopHalf ? awayLineup : homeLineup;
       const activeBattingSlots = currentLineup.getActiveLineup();
-      const batterSlot = activeBattingSlots.find(slot => slot.getCurrentPlayer()?.equals(batterId));
+      // Use value comparison instead of .equals() for deserialized objects
+      // After deserialization from sessionStorage, PlayerId objects may be plain objects (_PlayerId)
+      // instead of actual PlayerId instances, causing instanceof checks in .equals() to fail
+      const batterSlot = activeBattingSlots.find(slot => {
+        const slotPlayer = slot.getCurrentPlayer();
+        return slotPlayer?.value === batterId.value;
+      });
 
       if (!batterSlot) {
         throw new DomainError('Batter not found in lineup'); // This should have been caught in validation
+      }
+
+      // Build gameContext for walk-off detection
+      const gameContext = {
+        homeScore: game.score.getHomeRuns(),
+        awayScore: game.score.getAwayRuns(),
+        totalInnings: game.rules.totalInnings,
+        runsAboutToScore: runsScored,
+      };
+
+      // 5. Precompute runner movements for hits (SINGLE, DOUBLE, TRIPLE) and pass to InningState
+      // This breaks the circular dependency by having GameCoordinator compute movements before calling InningState
+      let precomputedMovements: RunnerMovement[] | undefined;
+      const isHitType =
+        result === AtBatResultType.SINGLE ||
+        result === AtBatResultType.DOUBLE ||
+        result === AtBatResultType.TRIPLE;
+
+      if (isHitType) {
+        // For hits, always precompute movements (whether from overrides or automatic calculation)
+        precomputedMovements = this.convertToRunnerMovements(runnerAdvancement);
       }
 
       let updatedInningState = inningState.recordAtBat(
         batterId,
         batterSlot.position,
         result,
-        inningState.inning
+        inningState.inning,
+        gameContext,
+        precomputedMovements
       );
 
-      // 5. Apply custom runner advancement if provided
-      if (runnerAdvancementOverrides.length > 0) {
+      // 6. Apply custom runner advancement for non-hit results with overrides
+      // For hits, movements are already handled via precomputedMovements parameter
+      if (runnerAdvancementOverrides.length > 0 && !isHitType) {
         const runnerMovements = this.convertToRunnerMovements(runnerAdvancement);
         updatedInningState = updatedInningState.advanceRunners(result, runnerMovements);
       }
 
-      // 6. Update game state with score changes
+      // 7. Update game state with score changes
       const currentTeam = inningState.isTopHalf ? 'AWAY' : 'HOME';
       const updatedGame = game;
 
@@ -271,7 +317,7 @@ export class GameCoordinator {
         }
       }
 
-      // 7. Check for inning completion
+      // 8. Check for inning completion
       const inningComplete = updatedInningState.outs === 0 && inningState.outs === 2; // 3rd out resets outs to 0
       let inningTransition: InningTransition | null = null;
 
@@ -290,22 +336,27 @@ export class GameCoordinator {
             newTopHalf: true,
           };
         }
-
-        // Update game with inning advancement
-        updatedGame.advanceInning();
       }
 
-      // 8. Check for game completion
+      // 9. Check for game completion BEFORE advancing Game's inning
+      // Pass updatedInningState (after transition) - checkGameCompletion will
+      // adjust to evaluate the inning that just completed
       const gameCompletion = this.checkGameCompletion(
         updatedGame,
         updatedInningState,
         runsScored,
-        rules,
         inningComplete
       );
 
       if (gameCompletion.isComplete) {
         updatedGame.completeGame(gameCompletion.gameEndingType);
+        // Game completed - Game's inning state reflects WHERE it ended
+        // (current position), not where it would have advanced to
+        // Do NOT call advanceInning
+      } else if (inningComplete) {
+        // Game continues AND inning transitioned
+        // Sync Game to match updatedInningState
+        updatedGame.advanceInning();
       }
 
       return {
@@ -391,7 +442,9 @@ export class GameCoordinator {
    * @param resultType - The type of at-bat result
    * @param basesState - Current state of baserunners
    * @param batterId - The batter (becomes a runner on some results)
-   * @returns Array of automatic runner movements
+   * @returns Object containing movements array and runsScored count
+   *   - movements: Array of RunnerAdvancement objects describing each runner's movement
+   *   - runsScored: Number of runs that scored (count of movements to HOME)
    *
    * @example
    * ```typescript
@@ -399,17 +452,18 @@ export class GameCoordinator {
    *   .withRunnerOn('FIRST', runner1)
    *   .withRunnerOn('THIRD', runner2);
    *
-   * const movements = GameCoordinator.determineRunnerAdvancement(
+   * const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
    *   AtBatResultType.DOUBLE, bases, batterId
    * );
-   * // Returns: runner1 to HOME, runner2 to HOME, batter to SECOND
+   * // movements: runner1 to HOME, runner2 to HOME, batter to SECOND
+   * // runsScored: 2
    * ```
    */
   static determineRunnerAdvancement(
     resultType: AtBatResultType,
     basesState: BasesState,
     batterId: PlayerId
-  ): RunnerAdvancement[] {
+  ): { movements: RunnerAdvancement[]; runsScored: number } {
     const movements: RunnerAdvancement[] = [];
     const occupiedBases = basesState.getOccupiedBases();
 
@@ -422,7 +476,7 @@ export class GameCoordinator {
             movements.push({ runnerId, fromBase: base, toBase: 'HOME' });
           }
         });
-        movements.push({ runnerId: batterId, fromBase: 'FIRST' as Base, toBase: 'HOME' }); // Batter scores
+        movements.push({ runnerId: batterId, fromBase: null, toBase: 'HOME' }); // Batter scores
         break;
 
       case AtBatResultType.TRIPLE:
@@ -433,7 +487,7 @@ export class GameCoordinator {
             movements.push({ runnerId, fromBase: base, toBase: 'HOME' });
           }
         });
-        movements.push({ runnerId: batterId, fromBase: 'FIRST' as Base, toBase: 'THIRD' });
+        movements.push({ runnerId: batterId, fromBase: null, toBase: 'THIRD' });
         break;
 
       case AtBatResultType.DOUBLE:
@@ -444,7 +498,7 @@ export class GameCoordinator {
             movements.push({ runnerId, fromBase: base, toBase: 'HOME' });
           }
         });
-        movements.push({ runnerId: batterId, fromBase: 'FIRST' as Base, toBase: 'SECOND' });
+        movements.push({ runnerId: batterId, fromBase: null, toBase: 'SECOND' });
         break;
 
       case AtBatResultType.SINGLE: {
@@ -462,7 +516,7 @@ export class GameCoordinator {
         if (runnerOnThird) {
           movements.push({ runnerId: runnerOnThird, fromBase: 'THIRD', toBase: 'HOME' });
         }
-        movements.push({ runnerId: batterId, fromBase: 'FIRST' as Base, toBase: 'FIRST' });
+        movements.push({ runnerId: batterId, fromBase: null, toBase: 'FIRST' });
         break;
       }
 
@@ -485,7 +539,7 @@ export class GameCoordinator {
         }
 
         // Batter always goes to first on a walk
-        movements.push({ runnerId: batterId, fromBase: 'FIRST' as Base, toBase: 'FIRST' });
+        movements.push({ runnerId: batterId, fromBase: null, toBase: 'FIRST' });
         break;
       }
 
@@ -505,7 +559,8 @@ export class GameCoordinator {
         break;
     }
 
-    return movements;
+    const runsScored = movements.filter(movement => movement.toBase === 'HOME').length;
+    return { movements, runsScored };
   }
 
   /**
@@ -543,7 +598,15 @@ export class GameCoordinator {
 
     // Check if batter is in the current team's lineup
     const activeBattingSlots = currentLineup.getActiveLineup();
-    const isInLineup = activeBattingSlots.some(slot => slot.getCurrentPlayer()?.equals(batterId));
+
+    // Use value comparison instead of .equals() for deserialized objects
+    // After deserialization from sessionStorage, PlayerId objects may be plain objects (_PlayerId)
+    // instead of actual PlayerId instances, causing instanceof checks in .equals() to fail
+    const isInLineup = activeBattingSlots.some(slot => {
+      const slotPlayer = slot.getCurrentPlayer();
+      // Compare using .value property which works for both instances and deserialized objects
+      return slotPlayer?.value === batterId.value;
+    });
 
     if (!isInLineup) {
       throw new DomainError("Batter is not in the current batting team's lineup");
@@ -566,6 +629,12 @@ export class GameCoordinator {
     const { basesState } = inningState;
 
     runnerAdvancement.forEach(movement => {
+      // Skip validation for batter movements (fromBase: null)
+      // Batter is not on a base yet, so base state validation doesn't apply
+      if (movement.fromBase === null) {
+        return;
+      }
+
       // Validate that runner exists on the specified base
       const runnerOnBase = basesState.getRunner(movement.fromBase);
 
@@ -584,14 +653,21 @@ export class GameCoordinator {
    *
    * @param runnerAdvancement - Array of runner advancements
    * @returns Array of runner movements compatible with InningState
+   *
+   * @remarks
+   * This method now supports the full range of runner movements:
+   * - `fromBase: Base` - Runner advancing from occupied base
+   * - `fromBase: null` - Batter advancing from home plate
+   * - `toBase: Base | 'HOME'` - Successful advancement
+   * - `toBase: 'OUT'` - Runner or batter being put out
    */
   private static convertToRunnerMovements(
     runnerAdvancement: RunnerAdvancement[]
   ): RunnerMovement[] {
     return runnerAdvancement.map(advancement => ({
       runnerId: advancement.runnerId,
-      from: advancement.fromBase,
-      to: advancement.toBase === 'HOME' ? 'HOME' : advancement.toBase,
+      from: advancement.fromBase, // Can be null for batter
+      to: advancement.toBase, // Can be 'OUT' for outs
     }));
   }
 
@@ -607,26 +683,25 @@ export class GameCoordinator {
    * **Regulation Completion**: After completing regulation innings, if home team leads
    * after their at-bat opportunity (bottom half), game ends as regulation complete.
    *
-   * **Configurable Mercy Rule**: Uses SoftballRules configuration for mercy rule logic:
+   * **Configurable Mercy Rule**: Uses game's SoftballRules configuration for mercy rule logic:
    * - Supports both single-threshold and multi-tier mercy rule systems
    * - Multi-tier example: 10+ runs after 4th inning, 7+ runs after 5th inning
    * - Single-tier example: Traditional mercy rule with one threshold
-   * - Completely configurable based on SoftballRules instance
+   * - Completely configurable based on game's SoftballRules instance
    *
-   * The mercy rule only applies after the leading team has completed their half of the inning
-   * to ensure both teams have equal opportunities to bat.
+   * The mercy rule only applies after BOTH teams have had equal at-bat opportunities.
+   * This means it can only trigger after the BOTTOM half of an inning completes.
    *
-   * @param game - Current game state with score information
+   * @param game - Current game state with score information and rules configuration
    * @param inningState - Current inning state (inning number, half, outs)
    * @param runsScored - Runs scored in this at-bat (for walk-off detection)
-   * @param rules - Softball rules configuration (controls all mercy rule behavior)
+   * @param inningComplete - Whether the current inning half just completed
    * @returns Object indicating if game is complete, completion reason, and ending type
    */
-  private static checkGameCompletion(
+  static checkGameCompletion(
     game: Game,
     inningState: InningState,
     runsScored: number,
-    rules: SoftballRules,
     inningComplete: boolean = false
   ): {
     isComplete: boolean;
@@ -636,36 +711,88 @@ export class GameCoordinator {
     const { inning: currentInning } = inningState;
     const homeScore = game.score.getHomeRuns();
     const awayScore = game.score.getAwayRuns();
-    const { totalInnings } = rules;
+    const { totalInnings } = game.rules;
 
-    // Walk-off win (home team takes lead in final inning or later)
+    // CRITICAL: When inningComplete=true, inningState HAS ALREADY transitioned
+    // This happens in InningState.recordAtBat() which auto-advances on 3rd out
+    // Example: Bottom of inning 7 ends → state advances to Top of inning 8
+    // We need to "reverse" the transition to find which inning just completed
+    //
+    // State after transition:
+    // - Top half (isTopHalf=true) + inningComplete → bottom of PREVIOUS inning just ended
+    // - Bottom half (isTopHalf=false) + inningComplete → top of CURRENT inning just ended
+    //
+    const evaluationInning =
+      inningComplete && inningState.isTopHalf
+        ? currentInning - 1 // Now top of next inning → previous inning bottom just ended
+        : currentInning; // Now bottom OR mid-inning → use current inning number
+
+    // Walk-off win - Check FIRST as it takes highest priority
+    // Home team takes lead in bottom of final inning or later
+    // Ends IMMEDIATELY (not after 3 outs)
     if (
       !inningState.isTopHalf &&
-      currentInning >= totalInnings &&
+      evaluationInning >= totalInnings &&
       runsScored > 0 &&
       homeScore > awayScore
     ) {
       return { isComplete: true, reason: 'WALKOFF', gameEndingType: 'REGULATION' };
     }
 
-    // Regulation completion (regulation innings completed, home team leading after bottom)
-    if (currentInning >= totalInnings && !inningState.isTopHalf && inningComplete) {
+    // Mercy rule logic - Only applies after BOTTOM half completes
+    // IMPORTANT: Mercy rule requires both teams to have equal at-bat opportunities
+    // This means it can ONLY trigger after the bottom half completes, never after the top half
+    // When inningComplete && isTopHalf=true, state transitioned to top = bottom half just ended
+    if (
+      inningComplete &&
+      inningState.isTopHalf &&
+      game.rules.isMercyRule(homeScore, awayScore, evaluationInning)
+    ) {
+      return { isComplete: true, reason: 'MERCY_RULE', gameEndingType: 'MERCY_RULE' };
+    }
+
+    // Regulation completion in top of final inning
+    // Game ends if HOME team is ALREADY WINNING after top half completes
+    // (no need for home team to bat when they're already ahead)
+    // If home is losing or tied, they MUST get a chance to bat in the bottom half
+    // When inningComplete && !isTopHalf, state transitioned to bottom = top half just ended
+    if (evaluationInning >= totalInnings && !inningState.isTopHalf && inningComplete) {
       if (homeScore > awayScore) {
         return { isComplete: true, reason: 'REGULATION', gameEndingType: 'REGULATION' };
       }
     }
 
-    // Mercy rule logic - Fully configurable through SoftballRules
-    if (rules.isMercyRule(homeScore, awayScore, currentInning)) {
-      const leadingTeamIsHome = homeScore > awayScore;
-      const isAfterLeadingTeamBat = leadingTeamIsHome
-        ? !inningState.isTopHalf
-        : inningState.isTopHalf;
+    // Regulation completion in bottom of final inning
+    // Game ends after bottom half completes if home team is ahead or behind
+    // Tied games either end as ties OR continue to extra innings (depending on rules)
+    // When inningComplete && isTopHalf, state transitioned to top of next = bottom half just ended
+    if (evaluationInning === totalInnings && inningState.isTopHalf && inningComplete) {
+      if (homeScore !== awayScore) {
+        // Home team ahead or behind - game over
+        return { isComplete: true, reason: 'REGULATION', gameEndingType: 'REGULATION' };
+      }
 
-      // Check if leading team has completed their at-bat opportunity
-      // This ensures both teams have had equal opportunities to bat
-      if (isAfterLeadingTeamBat || inningState.outs === 0) {
-        return { isComplete: true, reason: 'MERCY_RULE', gameEndingType: 'MERCY_RULE' };
+      // Tied after regulation - check if ties are allowed
+      if (game.rules.maxExtraInnings === 0) {
+        // Ties are allowed (maxExtraInnings === 0) - game ends as a tie
+        return { isComplete: true, reason: 'REGULATION', gameEndingType: 'REGULATION' };
+      }
+
+      // Extra innings are allowed - game continues
+      // The game should proceed to extra innings
+      // Extra innings exhaustion is checked separately below
+    }
+
+    // Check if we're in extra innings and REACHED OR EXCEEDED the limit
+    if (evaluationInning > totalInnings && game.rules.maxExtraInnings !== null) {
+      const extraInningsPlayed = evaluationInning - totalInnings;
+      // Use >= comparison: game ends when we reach the limit (not after exceeding it)
+      if (extraInningsPlayed >= game.rules.maxExtraInnings) {
+        // Max extra innings EXCEEDED - game ends after bottom half completes
+        // When inningComplete && isTopHalf, state transitioned to top of next = bottom half just ended
+        if (inningState.isTopHalf && inningComplete) {
+          return { isComplete: true, reason: 'REGULATION', gameEndingType: 'REGULATION' };
+        }
       }
     }
 

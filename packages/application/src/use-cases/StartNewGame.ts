@@ -46,11 +46,13 @@
  * // Service setup with dependency injection
  * const startNewGame = new StartNewGame(
  *   gameRepository,
+ *   inningStateRepository,
+ *   teamLineupRepository,
  *   eventStore,
  *   logger
  * );
  *
- * // Create a new game with complete setup
+ * // Create a new game with custom rules configuration
  * const command: StartNewGameCommand = {
  *   gameId: GameId.generate(),
  *   homeTeamName: 'Springfield Tigers',
@@ -59,7 +61,19 @@
  *   gameDate: new Date('2024-08-30T14:00:00Z'),
  *   location: 'City Park Field 1',
  *   initialLineup: [...completeLineup],
- *   gameRules: standardRules
+ *   rulesConfig: {
+ *     totalInnings: 7,
+ *     maxPlayersPerTeam: 25,
+ *     timeLimitMinutes: 60,
+ *     allowReEntry: true,
+ *     mercyRuleEnabled: true,
+ *     mercyRuleTiers: [
+ *       { differential: 15, afterInning: 4 },
+ *       { differential: 10, afterInning: 5 }
+ *     ],
+ *     maxExtraInnings: 2,
+ *     allowTieGames: false
+ *   }
  * };
  *
  * const result = await startNewGame.execute(command);
@@ -73,6 +87,17 @@
  *   console.error('Game creation failed:', result.errors);
  *   // Handle validation errors and retry with corrections
  * }
+ *
+ * // Or create with default rules (omit rulesConfig)
+ * const commandWithDefaults: StartNewGameCommand = {
+ *   gameId: GameId.generate(),
+ *   homeTeamName: 'Eagles',
+ *   awayTeamName: 'Hawks',
+ *   ourTeamSide: 'HOME',
+ *   gameDate: new Date(),
+ *   initialLineup: [...completeLineup]
+ *   // rulesConfig omitted - uses SoftballRules.standard()
+ * };
  * ```
  */
 
@@ -92,7 +117,6 @@ import {
 
 import { GameStartResult } from '../dtos/GameStartResult.js';
 import { GameStateDTO } from '../dtos/GameStateDTO.js';
-import { PlayerStatisticsDTO, FieldingStatisticsDTO } from '../dtos/PlayerStatisticsDTO.js';
 import {
   StartNewGameCommand,
   LineupPlayerDTO,
@@ -102,7 +126,10 @@ import {
 import { TeamLineupDTO, BattingSlotDTO } from '../dtos/TeamLineupDTO.js';
 import { EventStore } from '../ports/out/EventStore.js';
 import { GameRepository } from '../ports/out/GameRepository.js';
+import { InningStateRepository } from '../ports/out/InningStateRepository.js';
 import { Logger } from '../ports/out/Logger.js';
+import { TeamLineupRepository } from '../ports/out/TeamLineupRepository.js';
+import { DTOMappingHelpers } from '../utils/DTOMappingHelpers.js';
 // Note: Reverted to direct error handling to maintain architecture compliance
 
 /**
@@ -146,16 +173,26 @@ export class StartNewGame {
    * concurrent execution with different command inputs.
    *
    * @param gameRepository - Port for Game aggregate persistence operations
+   * @param inningStateRepository - Port for InningState aggregate persistence operations
+   * @param teamLineupRepository - Port for TeamLineup aggregate persistence operations
    * @param eventStore - Port for domain event storage and retrieval
    * @param logger - Port for structured application logging
    */
   constructor(
     private readonly gameRepository: GameRepository,
+    private readonly inningStateRepository: InningStateRepository,
+    private readonly teamLineupRepository: TeamLineupRepository,
     private readonly eventStore: EventStore,
     private readonly logger: Logger
   ) {
     if (!gameRepository) {
       throw new Error('GameRepository is required');
+    }
+    if (!inningStateRepository) {
+      throw new Error('InningStateRepository is required');
+    }
+    if (!teamLineupRepository) {
+      throw new Error('TeamLineupRepository is required');
     }
     if (!eventStore) {
       throw new Error('EventStore is required');
@@ -181,6 +218,14 @@ export class StartNewGame {
    * 5. **Event Generation**: Create domain events for all state initialization
    * 6. **Atomic Persistence**: Save all aggregates and events consistently
    * 7. **State Assembly**: Build complete initial game state for presentation
+   *
+   * **Automatic First Batter Selection**:
+   * After game creation, the system automatically selects the first batter
+   * (away team, batting slot #1) so the game is immediately ready to record
+   * the first at-bat. No manual batter selection is required.
+   *
+   * For complete game flow documentation, see:
+   * {@link file://../../../docs/design/game-flow.md#automatic-batter-selection Automatic Batter Selection}
    *
    * **Error Handling Strategy**:
    * - Input validation errors provide specific field-level feedback
@@ -365,11 +410,6 @@ export class StartNewGame {
     }
     if (command.homeTeamName?.trim() === command.awayTeamName?.trim()) {
       errors.push('Team names must be different');
-    }
-
-    // Validate game date
-    if (command.gameDate < new Date()) {
-      errors.push('Game date cannot be in the past');
     }
 
     // Validate basic lineup structure
@@ -567,24 +607,41 @@ export class StartNewGame {
    * @returns Object containing all created aggregates
    */
   private createDomainAggregates(command: StartNewGameCommand): GameAggregates {
-    // Create Game aggregate
-    const game = Game.createNew(command.gameId, command.homeTeamName, command.awayTeamName);
+    // Create SoftballRules from command rulesConfig (or use defaults)
+    const softballRules = this.createSoftballRulesFromCommand(command);
+
+    // Create Game aggregate with rules
+    const game = Game.createNew(
+      command.gameId,
+      command.homeTeamName,
+      command.awayTeamName,
+      softballRules
+    );
 
     // Start the game immediately (ready for play)
     game.startGame();
 
     // Create home team lineup
+    // TeamLineup.createNew() initializes currentBatterSlot to 1 (leadoff batter)
     const homeLineupId = new TeamLineupId(`${command.gameId.value}-home`);
-    const homeLineup = TeamLineup.createNew(homeLineupId, command.gameId, command.homeTeamName);
+    const homeLineup = TeamLineup.createNew(
+      homeLineupId,
+      command.gameId,
+      command.homeTeamName,
+      'HOME'
+    );
 
     // Create away team lineup
+    // Both home and away teams start from batting slot 1 at game start
     const awayLineupId = new TeamLineupId(`${command.gameId.value}-away`);
-    const awayLineup = TeamLineup.createNew(awayLineupId, command.gameId, command.awayTeamName);
+    const awayLineup = TeamLineup.createNew(
+      awayLineupId,
+      command.gameId,
+      command.awayTeamName,
+      'AWAY'
+    );
 
-    // Create softball rules from command or use defaults
-    const softballRules = this.createSoftballRules(command.gameRules);
-
-    // Add players to the managed team lineup
+    // Add players to the managed team lineup (our team with full roster)
     let managedLineup = command.ourTeamSide === 'HOME' ? homeLineup : awayLineup;
     for (const player of command.initialLineup) {
       managedLineup = managedLineup.addPlayer(
@@ -597,22 +654,75 @@ export class StartNewGame {
       );
     }
 
-    // Update the managed lineup reference
+    // Create minimal opponent lineup with placeholder players
+    // This ensures both teams have valid lineups for game start
+    // In future: wizard will collect both team lineups, making this logic unnecessary
+    let opponentLineup = command.ourTeamSide === 'HOME' ? awayLineup : homeLineup;
+    opponentLineup = this.createOpponentPlaceholderLineup(
+      opponentLineup,
+      command.gameId,
+      command.ourTeamSide === 'HOME' ? command.awayTeamName : command.homeTeamName,
+      command.ourTeamSide === 'HOME' ? 'AWAY' : 'HOME',
+      softballRules
+    );
+
+    // Return aggregates with both lineups populated
     if (command.ourTeamSide === 'HOME') {
       return {
         game,
         homeLineup: managedLineup,
-        awayLineup,
+        awayLineup: opponentLineup,
         inningState: this.createInningState(command.gameId),
       };
     } else {
       return {
         game,
-        homeLineup,
+        homeLineup: opponentLineup,
         awayLineup: managedLineup,
         inningState: this.createInningState(command.gameId),
       };
     }
+  }
+
+  /**
+   * Creates SoftballRules instance from command rulesConfig or gameRules (deprecated).
+   *
+   * @remarks
+   * Converts the command's rulesConfig (preferred) or gameRules (deprecated) into
+   * a proper domain SoftballRules instance. If neither is provided, uses standard
+   * softball rules as the default.
+   *
+   * Priority order:
+   * 1. rulesConfig (new format matching Domain layer)
+   * 2. gameRules (deprecated format, converted to rulesConfig)
+   * 3. SoftballRules.standard() (default if neither provided)
+   *
+   * @param command - The game creation command
+   * @returns Configured SoftballRules instance
+   */
+  private createSoftballRulesFromCommand(command: StartNewGameCommand): SoftballRules {
+    // Priority 1: Use new rulesConfig format if provided
+    if (command.rulesConfig) {
+      const standardRules = SoftballRules.standard();
+      return new SoftballRules({
+        totalInnings: command.rulesConfig.totalInnings ?? standardRules.totalInnings,
+        maxPlayersPerTeam: command.rulesConfig.maxPlayersPerTeam ?? standardRules.maxPlayersPerTeam,
+        timeLimitMinutes: command.rulesConfig.timeLimitMinutes ?? standardRules.timeLimitMinutes,
+        allowReEntry: command.rulesConfig.allowReEntry ?? standardRules.allowReEntry,
+        mercyRuleEnabled: command.rulesConfig.mercyRuleEnabled ?? standardRules.mercyRuleEnabled,
+        mercyRuleTiers: command.rulesConfig.mercyRuleTiers ?? [...standardRules.mercyRuleTiers],
+        maxExtraInnings: command.rulesConfig.maxExtraInnings ?? standardRules.maxExtraInnings,
+        allowTieGames: command.rulesConfig.allowTieGames ?? standardRules.allowTieGames,
+      });
+    }
+
+    // Priority 2: Use deprecated gameRules if provided (for backward compatibility)
+    if (command.gameRules) {
+      return this.createSoftballRules(command.gameRules);
+    }
+
+    // Priority 3: Use standard rules as default
+    return SoftballRules.standard();
   }
 
   /**
@@ -623,6 +733,7 @@ export class StartNewGame {
    * domain SoftballRules instance. Uses recreation league defaults if
    * no custom rules are provided.
    *
+   * @deprecated Use createSoftballRulesFromCommand instead with rulesConfig
    * @param gameRulesDTO - Optional game rules from command
    * @returns Configured SoftballRules instance
    */
@@ -658,6 +769,81 @@ export class StartNewGame {
   private createInningState(gameId: GameId): InningState {
     const inningStateId = new InningStateId(`${gameId.value}-inning`);
     return InningState.createNew(inningStateId, gameId);
+  }
+
+  /**
+   * Creates a minimal opponent lineup with placeholder players.
+   *
+   * @remarks
+   * This is a temporary solution while the wizard only collects one team's lineup.
+   * Creates 9 generic players (one per defensive position) to satisfy the domain
+   * model's expectation that both teams have valid lineups.
+   *
+   * **Future Enhancement**: When the wizard is updated to collect both team lineups,
+   * this method can be removed entirely.
+   *
+   * **Design Decisions**:
+   * - Uses generic player names ("Player 1", "Player 2", etc.)
+   * - Assigns sequential jersey numbers (1-9)
+   * - Maps each player to required defensive positions
+   * - Sets batting order to match jersey number for simplicity
+   * - Generates unique PlayerId for each placeholder
+   *
+   * @param opponentLineup - Empty TeamLineup aggregate for opponent
+   * @param gameId - Game identifier for generating player IDs
+   * @param teamName - Opponent team name
+   * @param teamSide - Which side opponent plays on (HOME or AWAY)
+   * @param softballRules - Game rules for lineup validation
+   * @returns TeamLineup with 9 placeholder players
+   */
+  private createOpponentPlaceholderLineup(
+    opponentLineup: TeamLineup,
+    gameId: GameId,
+    _teamName: string,
+    _teamSide: 'HOME' | 'AWAY',
+    softballRules: SoftballRules
+  ): TeamLineup {
+    // Required defensive positions in batting order
+    const positions: FieldPosition[] = [
+      FieldPosition.PITCHER,
+      FieldPosition.CATCHER,
+      FieldPosition.FIRST_BASE,
+      FieldPosition.SECOND_BASE,
+      FieldPosition.THIRD_BASE,
+      FieldPosition.SHORTSTOP,
+      FieldPosition.LEFT_FIELD,
+      FieldPosition.CENTER_FIELD,
+      FieldPosition.RIGHT_FIELD,
+      FieldPosition.SHORT_FIELDER,
+    ];
+
+    let lineup = opponentLineup;
+
+    // Create one placeholder player per position
+    for (let i = 0; i < positions.length; i++) {
+      const battingOrder = i + 1; // 1-based batting order
+      const jerseyNum = battingOrder; // Jersey number matches batting order
+      const position = positions[i];
+      if (!position) {
+        throw new Error(`Missing position at index ${i}`);
+      }
+
+      // Generate unique player ID: gameId-opp-{battingOrder}
+      const playerId = new PlayerId(`${gameId.value}-opp-${battingOrder}`);
+      const jerseyNumber = new JerseyNumber(jerseyNum.toString());
+      const playerName = `Player ${battingOrder}`;
+
+      lineup = lineup.addPlayer(
+        playerId,
+        jerseyNumber,
+        playerName,
+        battingOrder,
+        position,
+        softballRules
+      );
+    }
+
+    return lineup;
   }
 
   /**
@@ -715,17 +901,17 @@ export class StartNewGame {
         operation: 'persistGame',
       });
 
-      // Save TeamLineup aggregates
-      // Note: In real implementation, would need proper adapter for TeamLineup persistence
-      // Note: In real implementation, would need proper adapter for TeamLineup persistence
+      // Save TeamLineup aggregates (home and away)
+      await this.teamLineupRepository.save(aggregates.homeLineup);
+      await this.teamLineupRepository.save(aggregates.awayLineup);
 
       this.logger.debug('TeamLineup aggregates saved successfully', {
         gameId: aggregates.game.id.value,
         operation: 'persistTeamLineups',
       });
 
-      // Save InningState aggregate (for now through same repository pattern)
-      // Note: In real implementation, would need proper adapter for InningState persistence
+      // Save InningState aggregate
+      await this.inningStateRepository.save(aggregates.inningState);
 
       this.logger.debug('InningState aggregate saved successfully', {
         gameId: aggregates.game.id.value,
@@ -813,10 +999,33 @@ export class StartNewGame {
     const homeLineupDTO = this.buildTeamLineupDTO(aggregates.homeLineup, 'HOME');
     const awayLineupDTO = this.buildTeamLineupDTO(aggregates.awayLineup, 'AWAY');
 
-    // Determine current batter (first in away team for top of 1st)
-    // Since away team bats first, get the first batting slot from away team
-    const firstBattingSlot = awayLineupDTO.battingSlots.find(slot => slot.slotNumber === 1);
-    const currentBatter = firstBattingSlot?.currentPlayer || null;
+    // Determine current batter for top of 1st inning (away team bats first)
+    // Both teams now have valid lineups (our team + opponent placeholders)
+    // Current batter should ALWAYS be set at game start
+    const currentBatterSlot = awayLineupDTO.battingSlots.find(slot => slot.slotNumber === 1);
+    const currentBatter = currentBatterSlot?.currentPlayer || null;
+
+    // VALIDATION: Current batter must be set at game start
+    // If this fails, it indicates a critical bug in lineup initialization
+    if (currentBatter === null) {
+      this.logger.error(
+        'Game initialization failed: currentBatter is null',
+        new Error('Invalid game state'),
+        {
+          gameId: aggregates.game.id.value,
+          ourTeamSide: command.ourTeamSide,
+          battingTeam: 'AWAY',
+          awayLineupSize: awayLineupDTO.battingSlots.length,
+          homeLineupSize: homeLineupDTO.battingSlots.length,
+          operation: 'buildInitialGameState',
+        }
+      );
+
+      throw new Error(
+        'Game initialization failed: No current batter available. ' +
+          'This indicates a bug in lineup setup. Please report this issue.'
+      );
+    }
 
     return {
       gameId: aggregates.game.id,
@@ -877,7 +1086,7 @@ export class StartNewGame {
               currentFieldPosition: playerInfo.currentPosition || FieldPosition.EXTRA_PLAYER,
               preferredPositions: playerInfo.currentPosition ? [playerInfo.currentPosition] : [], // Simplified for now
               plateAppearances: [], // No plate appearances yet in new game
-              statistics: this.createEmptyStatistics(
+              statistics: DTOMappingHelpers.createEmptyStatistics(
                 currentPlayerId,
                 playerInfo.playerName,
                 playerInfo.jerseyNumber
@@ -982,49 +1191,6 @@ export class StartNewGame {
       return 'An unexpected error occurred';
     }
     return 'An unexpected error occurred';
-  }
-
-  /**
-   * Creates empty player statistics for a new game.
-   *
-   * @param playerId - Player identifier
-   * @param name - Player display name
-   * @param jerseyNumber - Player jersey number
-   * @returns Empty PlayerStatisticsDTO with zero values
-   */
-  private createEmptyStatistics(
-    playerId: PlayerId,
-    name: string,
-    jerseyNumber: JerseyNumber
-  ): PlayerStatisticsDTO {
-    const emptyFielding: FieldingStatisticsDTO = {
-      positions: [],
-      putouts: 0,
-      assists: 0,
-      errors: 0,
-      fieldingPercentage: 1.0,
-    };
-
-    return {
-      playerId,
-      name,
-      jerseyNumber,
-      plateAppearances: 0,
-      atBats: 0,
-      hits: 0,
-      singles: 0,
-      doubles: 0,
-      triples: 0,
-      homeRuns: 0,
-      walks: 0,
-      strikeouts: 0,
-      rbi: 0,
-      runs: 0,
-      battingAverage: 0.0,
-      onBasePercentage: 0.0,
-      sluggingPercentage: 0.0,
-      fielding: emptyFielding,
-    };
   }
 }
 

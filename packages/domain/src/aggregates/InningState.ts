@@ -7,7 +7,6 @@ import { HalfInningEnded } from '../events/HalfInningEnded.js';
 import { InningAdvanced } from '../events/InningAdvanced.js';
 import { InningStateCreated } from '../events/InningStateCreated.js';
 import { RunnerAdvanced, AdvanceReason } from '../events/RunnerAdvanced.js';
-import { RunScored } from '../events/RunScored.js';
 import { BasesState, Base } from '../value-objects/BasesState.js';
 import { GameId } from '../value-objects/GameId.js';
 import { InningStateId } from '../value-objects/InningStateId.js';
@@ -54,6 +53,8 @@ interface CurrentBatterChangedEventData {
  */
 interface HalfInningEndedEventData {
   readonly wasTopHalf?: boolean;
+  readonly awayTeamBatterSlot?: number;
+  readonly homeTeamBatterSlot?: number;
   readonly [key: string]: unknown;
 }
 
@@ -93,6 +94,38 @@ export interface RunnerMovement {
   readonly from: Base | null;
   /** Destination position (Base, 'HOME' to score, or 'OUT' if put out) */
   readonly to: Base | 'HOME' | 'OUT';
+}
+
+/**
+ * Game context information for walk-off detection.
+ *
+ * @remarks
+ * This interface provides the InningState aggregate with game-level information
+ * needed to detect walk-off scenarios. Walk-offs occur when the home team scores
+ * the winning run in the bottom of the final inning (or extra innings), causing
+ * the game to end immediately without completing the half-inning.
+ *
+ * **Business Rule:**
+ * A walk-off is detected when ALL of these conditions are met:
+ * 1. Bottom half of inning (home team batting)
+ * 2. Final inning or later (inning >= totalInnings)
+ * 3. Home team takes the lead after runs score (homeScore + runsAboutToScore > awayScore)
+ * 4. At least one run scores on this at-bat (runsAboutToScore > 0)
+ *
+ * **Implementation Note:**
+ * This context is passed from the Application layer (RecordAtBat use case) to the
+ * Domain layer to enable proper walk-off detection without violating hexagonal
+ * architecture principles.
+ */
+export interface GameContext {
+  /** Current home team score before this at-bat */
+  readonly homeScore: number;
+  /** Current away team score before this at-bat */
+  readonly awayScore: number;
+  /** Total regulation innings for this game (typically 7) */
+  readonly totalInnings: number;
+  /** Number of runs that will score as a result of this at-bat */
+  readonly runsAboutToScore: number;
 }
 
 /**
@@ -219,7 +252,9 @@ export class InningState {
 
   private readonly outsCount: number;
 
-  private readonly currentBattingSlotNumber: number;
+  private readonly awayTeamBatterSlot: number;
+
+  private readonly homeTeamBatterSlot: number;
 
   private readonly currentBasesState: BasesState;
 
@@ -243,7 +278,8 @@ export class InningState {
    * @param inning - Current inning number (1 or greater)
    * @param isTopHalf - True if top half (away team), false if bottom half (home team)
    * @param outs - Current number of outs (0-2)
-   * @param currentBattingSlot - Current batting slot position (1-20)
+   * @param awayTeamBatterSlot - Away team's current batting slot position (1-20)
+   * @param homeTeamBatterSlot - Home team's current batting slot position (1-20)
    * @param basesState - Current state of all bases and runners
    * @param existingEvents - Any existing uncommitted events
    * @param version - Current version of the aggregate (for immutable operations)
@@ -254,7 +290,8 @@ export class InningState {
     inning: number = 1,
     isTopHalf: boolean = true,
     outs: number = 0,
-    currentBattingSlot: number = 1,
+    awayTeamBatterSlot: number = 1,
+    homeTeamBatterSlot: number = 1,
     basesState: BasesState = BasesState.empty(),
     existingEvents: DomainEvent[] = [],
     version: number = 0
@@ -262,7 +299,8 @@ export class InningState {
     this.inningNumber = inning;
     this.topHalfOfInning = isTopHalf;
     this.outsCount = outs;
-    this.currentBattingSlotNumber = currentBattingSlot;
+    this.awayTeamBatterSlot = awayTeamBatterSlot;
+    this.homeTeamBatterSlot = homeTeamBatterSlot;
     this.currentBasesState = basesState;
     this.uncommittedEvents = [...existingEvents];
     this.version = version;
@@ -308,9 +346,34 @@ export class InningState {
    * - Range: 1-20 (supports standard 10-player lineups plus Extra Players)
    * - Cycles: After slot 20 (or maximum slot), returns to slot 1
    * - Advances: Increments after each completed at-bat regardless of result
+   * - Returns the appropriate slot based on which team is currently batting
    */
   get currentBattingSlot(): number {
-    return this.currentBattingSlotNumber;
+    return this.isTopHalf ? this.awayTeamBatterSlot : this.homeTeamBatterSlot;
+  }
+
+  /**
+   * Gets the away team's current batting slot position.
+   *
+   * @remarks
+   * This getter exposes the away team's batting position for event generation
+   * and cross-aggregate coordination. Used by application layer use cases when
+   * emitting HalfInningEnded events to ensure proper event sourcing reconstruction.
+   */
+  get awayBatterSlot(): number {
+    return this.awayTeamBatterSlot;
+  }
+
+  /**
+   * Gets the home team's current batting slot position.
+   *
+   * @remarks
+   * This getter exposes the home team's batting position for event generation
+   * and cross-aggregate coordination. Used by application layer use cases when
+   * emitting HalfInningEnded events to ensure proper event sourcing reconstruction.
+   */
+  get homeBatterSlot(): number {
+    return this.homeTeamBatterSlot;
   }
 
   /**
@@ -325,6 +388,48 @@ export class InningState {
    */
   get basesState(): BasesState {
     return this.currentBasesState;
+  }
+
+  /**
+   * Gets the current bases state in DTO format for application layer consumption.
+   *
+   * @returns BasesStateDTO with runner positions and scoring situation
+   *
+   * @remarks
+   * Provides convenient access to bases state in the format expected by the
+   * Application layer. This method builds a DTO structure from the domain
+   * BasesState value object.
+   *
+   * **DTO Structure:**
+   * - first/second/third: PlayerId or null for each base
+   * - runnersInScoringPosition: Array of PlayerIds on second and/or third
+   * - basesLoaded: Boolean indicating all three bases occupied
+   *
+   * @example
+   * ```typescript
+   * const bases = inningState.getBases();
+   * if (bases.basesLoaded) {
+   *   console.log('Bases loaded!');
+   * }
+   * ```
+   */
+  getBases(): {
+    first: PlayerId | null;
+    second: PlayerId | null;
+    third: PlayerId | null;
+    runnersInScoringPosition: PlayerId[];
+    basesLoaded: boolean;
+  } {
+    return {
+      first: this.currentBasesState.getRunner('FIRST') || null,
+      second: this.currentBasesState.getRunner('SECOND') || null,
+      third: this.currentBasesState.getRunner('THIRD') || null,
+      runnersInScoringPosition: this.currentBasesState.getRunnersInScoringPosition(),
+      basesLoaded:
+        this.currentBasesState.getRunner('FIRST') !== undefined &&
+        this.currentBasesState.getRunner('SECOND') !== undefined &&
+        this.currentBasesState.getRunner('THIRD') !== undefined,
+    };
   }
 
   /**
@@ -460,8 +565,26 @@ export class InningState {
 
     // Extract creation event data with type safety
     const creationEvent = firstEvent as DomainEvent & InningStateCreatedEventData;
-    const inningStateId = creationEvent.inningStateId;
-    const gameId = creationEvent.gameId;
+
+    // Reconstruct value objects from deserialized events
+    // When events are loaded from storage and deserialized, value objects become plain objects
+    const inningStateId =
+      creationEvent.inningStateId instanceof InningStateId
+        ? creationEvent.inningStateId
+        : new InningStateId(
+            typeof creationEvent.inningStateId === 'string'
+              ? creationEvent.inningStateId
+              : (creationEvent.inningStateId as { value: string }).value
+          );
+
+    const gameId =
+      creationEvent.gameId instanceof GameId
+        ? creationEvent.gameId
+        : new GameId(
+            typeof creationEvent.gameId === 'string'
+              ? creationEvent.gameId
+              : (creationEvent.gameId as { value: string }).value
+          );
     const initialInning = creationEvent.inning ?? 1;
     const initialIsTopHalf = creationEvent.isTopHalf ?? true;
 
@@ -472,7 +595,8 @@ export class InningState {
       initialInning,
       initialIsTopHalf,
       0, // outs
-      1, // currentBattingSlot
+      1, // awayTeamBatterSlot
+      1, // homeTeamBatterSlot
       BasesState.empty(), // basesState
       [], // no uncommitted events initially
       1 // version starts at 1 for creation event
@@ -503,6 +627,7 @@ export class InningState {
    * @param battingSlot - Batting slot position of the batter (must match current slot)
    * @param result - The outcome of the at-bat (hit, out, walk, etc.)
    * @param inning - The inning number when this at-bat occurred
+   * @param gameContext - Optional game context for walk-off detection
    * @returns New InningState instance with all changes applied
    * @throws {DomainError} When parameters violate business rules
    *
@@ -564,9 +689,24 @@ export class InningState {
     batterId: PlayerId,
     battingSlot: number,
     result: AtBatResultType,
-    inning: number
+    inning: number,
+    gameContext?: GameContext,
+    precomputedMovements?: RunnerMovement[]
   ): InningState {
     this.validateAtBatParameters(batterId, battingSlot, result, inning);
+
+    // Validate GameContext if provided
+    if (gameContext) {
+      if (gameContext.homeScore < 0 || gameContext.awayScore < 0) {
+        throw new DomainError('GameContext scores cannot be negative');
+      }
+      if (gameContext.totalInnings < 1 || !Number.isInteger(gameContext.totalInnings)) {
+        throw new DomainError('GameContext totalInnings must be a positive integer');
+      }
+      if (gameContext.runsAboutToScore < 0 || !Number.isInteger(gameContext.runsAboutToScore)) {
+        throw new DomainError('GameContext runsAboutToScore must be a non-negative integer');
+      }
+    }
 
     // Create new state starting with current state
     let updatedState = new InningState(
@@ -575,7 +715,8 @@ export class InningState {
       this.inningNumber,
       this.topHalfOfInning,
       this.outsCount,
-      this.currentBattingSlotNumber,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot,
       this.currentBasesState,
       [...this.uncommittedEvents], // Copy events array
       this.version
@@ -587,13 +728,25 @@ export class InningState {
     );
 
     // Process the at-bat result
-    updatedState = updatedState.processAtBatResult(batterId, result);
+    updatedState = updatedState.processAtBatResult(batterId, result, precomputedMovements);
 
     // Advance batting order
     updatedState = updatedState.advanceBattingOrder(battingSlot);
 
-    // Check if inning ended due to 3 outs
-    if (updatedState.outsCount >= 3) {
+    // Check for walk-off scenario BEFORE checking for 3 outs
+    // Walk-off: Bottom half + final inning or later + home team takes lead + runs scored
+    // IMPORTANT: Walk-off status is provided via GameContext from Game.isWalkOffScenario()
+    // InningState does NOT import Game aggregate (maintains lightweight pattern)
+    const isWalkOff = gameContext
+      ? !this.topHalfOfInning && // Bottom half (home team batting)
+        this.inningNumber >= gameContext.totalInnings && // Final inning or extra innings
+        gameContext.runsAboutToScore > 0 && // At least one run scores
+        gameContext.homeScore + gameContext.runsAboutToScore > gameContext.awayScore // Home takes lead
+      : false;
+
+    // Check if inning ended due to 3 outs (BUT NOT if walk-off)
+    // Walk-off games end immediately without completing the half-inning
+    if (updatedState.outsCount >= 3 && !isWalkOff) {
       updatedState = updatedState.endHalfInning();
     }
 
@@ -646,7 +799,8 @@ export class InningState {
       this.inningNumber,
       this.topHalfOfInning,
       this.outsCount,
-      this.currentBattingSlotNumber,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot,
       this.currentBasesState,
       this.uncommittedEvents,
       this.version
@@ -668,23 +822,34 @@ export class InningState {
    * **Half-Inning Transition Logic:**
    * - **Top Half Ending**: Transitions to bottom half of same inning
    * - **Bottom Half Ending**: Advances to top half of next inning
-   * - **State Reset**: Clears bases, resets outs to 0, batting slot to 1
+   * - **State Reset**: Clears bases, resets outs to 0
+   * - **Batting Position**: Both teams' batting slots are preserved
    * - **Event Emission**: Emits HalfInningEnded and possibly InningAdvanced events
+   *
+   * **Batting Position Management:**
+   * Each team maintains their current batting position internally in InningState.
+   * The batting slots are preserved across half-inning transitions, ensuring
+   * continuous batting order progression throughout the game. Teams continue
+   * from where they left off when their turn to bat comes around again.
+   *
+   * For complete half-inning transition documentation, see:
+   * {@link file://../../../docs/design/game-flow.md#half-inning-transitions Half-Inning Transitions}
    *
    * **Business Rules:**
    * - Called automatically when 3rd out is recorded during at-bat processing
    * - Can be called manually for special situations (forfeit, walk-off, etc.)
    * - Always clears bases (runners left on base don't carry over)
    * - Always resets tactical state for fresh start
+   * - Both teams' batting slots are preserved (NOT reset to 1)
    *
    * **Event Sourcing:**
-   * - HalfInningEnded event captures which half just completed
+   * - HalfInningEnded event captures which half just completed and both team slots
    * - InningAdvanced event emitted when moving to next full inning
    * - Proper event ordering ensures accurate state reconstruction
    *
    * @example
    * ```typescript
-   * // Manual half-inning end (e.g., walkoff scenario)
+   * // End half-inning (batting slots preserved automatically)
    * const nextHalf = inningState.endHalfInning();
    *
    * if (nextHalf.inning > inningState.inning) {
@@ -695,22 +860,29 @@ export class InningState {
    * ```
    */
   endHalfInning(): InningState {
-    // Emit HalfInningEnded event
+    // Emit HalfInningEnded event with both team slots
     const updatedState = new InningState(
       this.id,
       this.gameId,
       this.inningNumber,
       this.topHalfOfInning,
       this.outsCount,
-      this.currentBattingSlotNumber,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot,
       this.currentBasesState,
       this.uncommittedEvents,
       this.version
     );
 
-    updatedState.addEvent(
-      new HalfInningEnded(this.gameId, this.inningNumber, this.topHalfOfInning, this.outsCount)
+    const halfInningEndedEvent = new HalfInningEnded(
+      this.gameId,
+      this.inningNumber,
+      this.topHalfOfInning,
+      this.outsCount,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot
     );
+    updatedState.addEvent(halfInningEndedEvent);
 
     // Determine next inning state
     let newInning = this.inningNumber;
@@ -722,17 +894,19 @@ export class InningState {
       newIsTopHalf = true;
 
       // Emit InningAdvanced event
-      updatedState.addEvent(new InningAdvanced(this.gameId, newInning, newIsTopHalf));
+      const inningAdvancedEvent = new InningAdvanced(this.gameId, newInning, newIsTopHalf);
+      updatedState.addEvent(inningAdvancedEvent);
     }
 
-    // Create new state with reset values
+    // Create new state with reset values, preserving both team slots
     const finalState = new InningState(
       this.id,
       this.gameId,
       newInning,
       newIsTopHalf,
       0, // Reset outs
-      1, // Reset to leadoff batter
+      this.awayTeamBatterSlot, // Preserve away team slot
+      this.homeTeamBatterSlot, // Preserve home team slot
       BasesState.empty(), // Clear bases
       updatedState.uncommittedEvents,
       updatedState.version
@@ -771,7 +945,7 @@ export class InningState {
       inning: this.inningNumber,
       isTopHalf: this.topHalfOfInning,
       outs: this.outsCount,
-      currentBattingSlot: this.currentBattingSlotNumber,
+      currentBattingSlot: this.currentBattingSlot,
       basesState: this.currentBasesState,
       runnersInScoringPosition: this.currentBasesState.getRunnersInScoringPosition(),
     };
@@ -830,7 +1004,8 @@ export class InningState {
       this.inningNumber,
       this.topHalfOfInning,
       this.outsCount,
-      this.currentBattingSlotNumber,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot,
       newBasesState,
       this.uncommittedEvents,
       this.version
@@ -864,7 +1039,8 @@ export class InningState {
       this.inningNumber,
       this.topHalfOfInning,
       outs,
-      this.currentBattingSlotNumber,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot,
       this.currentBasesState,
       this.uncommittedEvents,
       this.version
@@ -890,13 +1066,18 @@ export class InningState {
   withCurrentBattingSlot(battingSlot: number): InningState {
     InningState.validateBattingSlot(battingSlot);
 
+    // Update the appropriate team's slot based on which team is batting
+    const newAwaySlot = this.isTopHalf ? battingSlot : this.awayTeamBatterSlot;
+    const newHomeSlot = this.isTopHalf ? this.homeTeamBatterSlot : battingSlot;
+
     const newState = new InningState(
       this.id,
       this.gameId,
       this.inningNumber,
       this.topHalfOfInning,
       this.outsCount,
-      battingSlot,
+      newAwaySlot,
+      newHomeSlot,
       this.currentBasesState,
       this.uncommittedEvents,
       this.version
@@ -928,13 +1109,65 @@ export class InningState {
       inning,
       isTopHalf,
       this.outsCount,
-      this.currentBattingSlotNumber,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot,
       this.currentBasesState,
       this.uncommittedEvents,
       this.version
     );
 
     return newState;
+  }
+
+  /**
+   * Creates a new InningState with the inning number reverted to a completed inning.
+   * Used when game-ending rules (mercy rule, time limit) trigger after inning advancement.
+   *
+   * @param completedInning - The inning number where the game actually completed
+   * @returns New InningState instance with reverted inning number and bottom half flag
+   *
+   * @remarks
+   * When mercy rule triggers, the inning has already advanced (e.g., Bottom 4 → Top 5).
+   * This method reverts it back to the completion point (Bottom 4) for accurate DTO building.
+   *
+   * **Business Context:**
+   * Game-ending rules like mercy rule trigger AFTER the half-inning ends and inning state
+   * advances. However, for accurate game records, we need to show the inning where the
+   * game actually completed, not the next inning that never started.
+   *
+   * **Immutability Pattern:**
+   * Returns a new instance rather than modifying the existing state, maintaining the
+   * aggregate's immutability contract.
+   */
+  withRevertedInning(completedInning: number): InningState {
+    if (
+      typeof completedInning !== 'number' ||
+      completedInning < 1 ||
+      !Number.isInteger(completedInning)
+    ) {
+      throw new DomainError('Completed inning must be an integer of 1 or greater');
+    }
+
+    // Clone uncommitted events to prevent mutation of the original instance
+    const clonedEvents = [...this.uncommittedEvents];
+
+    // Create new instance with reverted inning state
+    // IMPORTANT: Pass cloned events to preserve event sourcing integrity
+    // The events were already saved with the original advanced inning state
+    const reverted = new InningState(
+      this.id,
+      this.gameId,
+      completedInning, // Reverted inning number
+      false, // isTopHalf = false (game ended at bottom)
+      this.outsCount,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot,
+      this.currentBasesState,
+      clonedEvents, // Clone events to prevent mutation
+      this.version
+    );
+
+    return reverted;
   }
 
   /**
@@ -1066,9 +1299,9 @@ export class InningState {
 
     InningState.validateBattingSlot(battingSlot);
 
-    if (battingSlot !== this.currentBattingSlotNumber) {
+    if (battingSlot !== this.currentBattingSlot) {
       throw new DomainError(
-        `Batting slot ${battingSlot} does not match current batter slot ${this.currentBattingSlotNumber}`
+        `Batting slot ${battingSlot} does not match current batter slot ${this.currentBattingSlot}`
       );
     }
 
@@ -1103,18 +1336,70 @@ export class InningState {
    *
    * @param batterId - The batter who completed the at-bat
    * @param result - The result of the at-bat
+   * @param precomputedMovements - Optional precomputed runner movements (provided by GameCoordinator)
    * @returns New InningState instance with result processed
    */
-  private processAtBatResult(batterId: PlayerId, result: AtBatResultType): InningState {
+  private processAtBatResult(
+    batterId: PlayerId,
+    result: AtBatResultType,
+    precomputedMovements?: RunnerMovement[]
+  ): InningState {
     switch (result) {
       case AtBatResultType.SINGLE:
-        return this.processBatterAdvancement(batterId, 'FIRST');
-
       case AtBatResultType.DOUBLE:
-        return this.processBatterAdvancement(batterId, 'SECOND');
+      case AtBatResultType.TRIPLE: {
+        // Use precomputed movements if provided, otherwise empty array (will be handled by GameCoordinator)
+        const movements = precomputedMovements || [];
 
-      case AtBatResultType.TRIPLE:
-        return this.processBatterAdvancement(batterId, 'THIRD');
+        // Start with current state
+        let newBasesState = this.currentBasesState;
+
+        // Clear bases first for clean state
+        newBasesState = BasesState.empty();
+
+        // Apply each movement
+        movements.forEach(movement => {
+          if (movement.to === 'HOME') {
+            // Runner scores - do not add to bases
+            // (handled by not adding them to newBasesState)
+          } else if (movement.to === 'OUT') {
+            // Runner put out - do not add to bases
+            // (handled by not adding them to newBasesState)
+          } else {
+            // Runner advances to base
+            newBasesState = newBasesState.withRunnerOn(movement.to, movement.runnerId);
+          }
+        });
+
+        // Create updated state with new bases
+        const updatedState = new InningState(
+          this.id,
+          this.gameId,
+          this.inningNumber,
+          this.topHalfOfInning,
+          this.outsCount,
+          this.awayTeamBatterSlot,
+          this.homeTeamBatterSlot,
+          newBasesState,
+          this.uncommittedEvents,
+          this.version
+        );
+
+        // Generate RunnerAdvanced events for each movement
+        movements.forEach(movement => {
+          updatedState.addEvent(
+            new RunnerAdvanced(
+              this.gameId,
+              movement.runnerId,
+              movement.from,
+              movement.to,
+              AdvanceReason.HIT
+            )
+          );
+        });
+
+        return updatedState;
+      }
 
       case AtBatResultType.HOME_RUN:
         return this.processHomeRun(batterId);
@@ -1145,7 +1430,8 @@ export class InningState {
           withOuts.inningNumber,
           withOuts.topHalfOfInning,
           withOuts.outsCount,
-          withOuts.currentBattingSlotNumber,
+          withOuts.awayTeamBatterSlot,
+          withOuts.homeTeamBatterSlot,
           BasesState.empty(),
           [...withOuts.uncommittedEvents],
           withOuts.version
@@ -1161,7 +1447,8 @@ export class InningState {
           withOuts.inningNumber,
           withOuts.topHalfOfInning,
           withOuts.outsCount,
-          withOuts.currentBattingSlotNumber,
+          withOuts.awayTeamBatterSlot,
+          withOuts.homeTeamBatterSlot,
           BasesState.empty(),
           [...withOuts.uncommittedEvents],
           withOuts.version
@@ -1189,7 +1476,8 @@ export class InningState {
       this.inningNumber,
       this.topHalfOfInning,
       this.outsCount,
-      this.currentBattingSlotNumber,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot,
       newBasesState,
       this.uncommittedEvents,
       this.version
@@ -1215,7 +1503,8 @@ export class InningState {
       this.inningNumber,
       this.topHalfOfInning,
       this.outsCount,
-      this.currentBattingSlotNumber,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot,
       this.currentBasesState,
       this.uncommittedEvents,
       this.version
@@ -1229,15 +1518,8 @@ export class InningState {
         updatedState.addEvent(
           new RunnerAdvanced(this.gameId, runner, base, 'HOME', AdvanceReason.HIT)
         );
-        updatedState.addEvent(
-          new RunScored(
-            this.gameId,
-            runner,
-            this.topHalfOfInning ? 'AWAY' : 'HOME',
-            batterId,
-            { home: 0, away: 0 } // Simplified scoring - actual scores would come from Game aggregate
-          )
-        );
+        // NOTE: RunScored events are generated by Application layer (RecordAtBat use case)
+        // which has access to actual game scores. InningState only emits RunnerAdvanced events.
       }
     });
 
@@ -1245,15 +1527,7 @@ export class InningState {
     updatedState.addEvent(
       new RunnerAdvanced(this.gameId, batterId, null, 'HOME', AdvanceReason.HIT)
     );
-    updatedState.addEvent(
-      new RunScored(
-        this.gameId,
-        batterId,
-        this.topHalfOfInning ? 'AWAY' : 'HOME',
-        batterId,
-        { home: 0, away: 0 } // Simplified scoring
-      )
-    );
+    // NOTE: RunScored event generated by Application layer with real scores
 
     // Clear all bases
     const finalUpdatedState = new InningState(
@@ -1262,7 +1536,8 @@ export class InningState {
       updatedState.inningNumber,
       updatedState.topHalfOfInning,
       updatedState.outsCount,
-      updatedState.currentBattingSlotNumber,
+      updatedState.awayTeamBatterSlot,
+      updatedState.homeTeamBatterSlot,
       BasesState.empty(),
       updatedState.uncommittedEvents,
       updatedState.version
@@ -1284,7 +1559,8 @@ export class InningState {
       this.inningNumber,
       this.topHalfOfInning,
       this.outsCount,
-      this.currentBattingSlotNumber,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot,
       this.currentBasesState,
       this.uncommittedEvents,
       this.version
@@ -1302,15 +1578,7 @@ export class InningState {
       updatedState.addEvent(
         new RunnerAdvanced(this.gameId, runnerOnThird, 'THIRD', 'HOME', AdvanceReason.FORCE)
       );
-      updatedState.addEvent(
-        new RunScored(
-          this.gameId,
-          runnerOnThird,
-          this.topHalfOfInning ? 'AWAY' : 'HOME',
-          batterId,
-          { home: 0, away: 0 } // Simplified scoring
-        )
-      );
+      // NOTE: RunScored event generated by Application layer with real scores
       newBasesState = newBasesState.withRunnerAdvanced('THIRD', 'HOME');
 
       // Runner on second advances to third
@@ -1358,7 +1626,8 @@ export class InningState {
       updatedState.inningNumber,
       updatedState.topHalfOfInning,
       updatedState.outsCount,
-      updatedState.currentBattingSlotNumber,
+      updatedState.awayTeamBatterSlot,
+      updatedState.homeTeamBatterSlot,
       newBasesState,
       updatedState.uncommittedEvents,
       updatedState.version
@@ -1369,10 +1638,10 @@ export class InningState {
   /**
    * Processes a sacrifice fly, adding an out and potentially scoring runners.
    *
-   * @param batterId - The batter who hit the sacrifice fly
+   * @param _batterId - The batter who hit the sacrifice fly (unused in current implementation)
    * @returns Updated InningState with out added and runners advanced
    */
-  private processSacrificeFly(batterId: PlayerId): InningState {
+  private processSacrificeFly(_batterId: PlayerId): InningState {
     let updatedState = this.addOut();
 
     // If runner on third, they score
@@ -1381,15 +1650,7 @@ export class InningState {
       updatedState.addEvent(
         new RunnerAdvanced(this.gameId, runnerOnThird, 'THIRD', 'HOME', AdvanceReason.SACRIFICE)
       );
-      updatedState.addEvent(
-        new RunScored(
-          this.gameId,
-          runnerOnThird,
-          this.topHalfOfInning ? 'AWAY' : 'HOME',
-          batterId,
-          { home: 0, away: 0 } // Simplified scoring
-        )
-      );
+      // NOTE: RunScored event generated by Application layer with real scores
       const newBasesState = updatedState.currentBasesState.withRunnerAdvanced('THIRD', 'HOME');
       updatedState = new InningState(
         updatedState.id,
@@ -1397,7 +1658,8 @@ export class InningState {
         updatedState.inningNumber,
         updatedState.topHalfOfInning,
         updatedState.outsCount,
-        updatedState.currentBattingSlotNumber,
+        updatedState.awayTeamBatterSlot,
+        updatedState.homeTeamBatterSlot,
         newBasesState,
         updatedState.uncommittedEvents,
         updatedState.version
@@ -1431,7 +1693,8 @@ export class InningState {
       updatedState.inningNumber,
       updatedState.topHalfOfInning,
       updatedState.outsCount,
-      updatedState.currentBattingSlotNumber,
+      updatedState.awayTeamBatterSlot,
+      updatedState.homeTeamBatterSlot,
       newBasesState,
       updatedState.uncommittedEvents,
       updatedState.version
@@ -1450,13 +1713,16 @@ export class InningState {
    * @returns Updated InningState with incremented out count
    */
   private addOut(): InningState {
+    const newOuts = this.outsCount + 1;
+
     const newState = new InningState(
       this.id,
       this.gameId,
       this.inningNumber,
       this.topHalfOfInning,
-      this.outsCount + 1,
-      this.currentBattingSlotNumber,
+      newOuts,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot,
       this.currentBasesState,
       this.uncommittedEvents,
       this.version
@@ -1482,6 +1748,18 @@ export class InningState {
    *
    * @param currentSlot - The slot that just batted
    * @returns Updated InningState with advanced batting order
+   *
+   * @remarks
+   * After each at-bat is recorded, the batting order automatically advances to the next
+   * slot in sequence (1 → 2 → 3 → ... → N → 1). This automatic progression means the
+   * system always knows who bats next without requiring manual user selection.
+   *
+   * The batting order cycles continuously through the entire game and does NOT reset
+   * between innings - teams continue from where they left off when their turn to bat
+   * comes around again.
+   *
+   * For complete game flow documentation, see:
+   * {@link file://../../../docs/design/game-flow.md#automatic-batter-advancement-after-each-at-bat Automatic Batter Advancement After Each At-Bat}
    */
   private advanceBattingOrder(currentSlot: number): InningState {
     // Determine lineup size based on current slot
@@ -1494,13 +1772,18 @@ export class InningState {
       nextSlot = currentSlot + 1;
     }
 
+    // Update the appropriate team's slot based on which team is batting
+    const newAwaySlot = this.isTopHalf ? nextSlot : this.awayTeamBatterSlot;
+    const newHomeSlot = this.isTopHalf ? this.homeTeamBatterSlot : nextSlot;
+
     const updatedState = new InningState(
       this.id,
       this.gameId,
       this.inningNumber,
       this.topHalfOfInning,
       this.outsCount,
-      nextSlot,
+      newAwaySlot,
+      newHomeSlot,
       this.currentBasesState,
       this.uncommittedEvents,
       this.version
@@ -1536,7 +1819,8 @@ export class InningState {
       this.inningNumber,
       this.topHalfOfInning,
       this.outsCount,
-      this.currentBattingSlotNumber,
+      this.awayTeamBatterSlot,
+      this.homeTeamBatterSlot,
       this.currentBasesState,
       this.uncommittedEvents,
       this.version
@@ -1549,16 +1833,8 @@ export class InningState {
     );
 
     if (movement.to === 'HOME') {
-      // Runner scored
-      updatedState.addEvent(
-        new RunScored(
-          this.gameId,
-          movement.runnerId,
-          this.topHalfOfInning ? 'AWAY' : 'HOME',
-          null, // Simplified - would need batter ID for RBI tracking
-          { home: 0, away: 0 } // Simplified scoring
-        )
-      );
+      // Runner scored - RunScored event generated by Application layer with real scores
+      // InningState only emits RunnerAdvanced event to 'HOME'
     } else if (movement.to === 'OUT') {
       // Runner was put out
       updatedState = new InningState(
@@ -1567,7 +1843,8 @@ export class InningState {
         updatedState.inningNumber,
         updatedState.topHalfOfInning,
         updatedState.outsCount + 1,
-        updatedState.currentBattingSlotNumber,
+        updatedState.awayTeamBatterSlot,
+        updatedState.homeTeamBatterSlot,
         updatedState.currentBasesState,
         updatedState.uncommittedEvents,
         updatedState.version
@@ -1589,7 +1866,8 @@ export class InningState {
           updatedState.inningNumber,
           updatedState.topHalfOfInning,
           updatedState.outsCount,
-          updatedState.currentBattingSlotNumber,
+          updatedState.awayTeamBatterSlot,
+          updatedState.homeTeamBatterSlot,
           newBasesState,
           updatedState.uncommittedEvents,
           updatedState.version
@@ -1615,7 +1893,8 @@ export class InningState {
         updatedState.inningNumber,
         updatedState.topHalfOfInning,
         updatedState.outsCount,
-        updatedState.currentBattingSlotNumber,
+        updatedState.awayTeamBatterSlot,
+        updatedState.homeTeamBatterSlot,
         newBasesStateForAdvance,
         updatedState.uncommittedEvents,
         updatedState.version
@@ -1693,6 +1972,9 @@ export class InningState {
       return; // Skip malformed events
     }
 
+    // Reconstruct value objects from deserialized event
+    const runnerId = InningState.reconstructPlayerId(event.runnerId);
+
     let newBasesState = this.currentBasesState;
 
     if (event.to === 'HOME') {
@@ -1708,7 +1990,7 @@ export class InningState {
 
         occupiedBases.forEach(base => {
           const runner = newBasesState.getRunner(base);
-          if (runner && event.runnerId && !runner.equals(event.runnerId)) {
+          if (runner && !runner.equals(runnerId)) {
             updatedBasesState = updatedBasesState.withRunnerOn(base, runner);
           }
         });
@@ -1722,7 +2004,7 @@ export class InningState {
           newBasesState = newBasesState.withRunnerAdvanced(event.from, event.to);
         } else {
           // New runner (batter) advancing to base
-          newBasesState = newBasesState.withRunnerOn(event.to, event.runnerId);
+          newBasesState = newBasesState.withRunnerOn(event.to, runnerId);
         }
       } catch {
         // If BasesState operation fails, continue without updating
@@ -1743,8 +2025,14 @@ export class InningState {
     if (event.newBattingSlot && typeof event.newBattingSlot === 'number') {
       // Validate the new batting slot is within range
       if (event.newBattingSlot >= 1 && event.newBattingSlot <= 20) {
-        (this as unknown as { currentBattingSlotNumber: number }).currentBattingSlotNumber =
-          event.newBattingSlot;
+        // Update the appropriate team's slot based on which team is batting
+        if (this.topHalfOfInning) {
+          (this as unknown as { awayTeamBatterSlot: number }).awayTeamBatterSlot =
+            event.newBattingSlot;
+        } else {
+          (this as unknown as { homeTeamBatterSlot: number }).homeTeamBatterSlot =
+            event.newBattingSlot;
+        }
       }
     }
   }
@@ -1758,17 +2046,25 @@ export class InningState {
     // Switch from top to bottom half (or prepare for next inning)
     const wasTopHalf = event.wasTopHalf ?? this.topHalfOfInning;
 
-    if (wasTopHalf) {
-      // Top half ended, switch to bottom half of same inning
-      (this as unknown as { topHalfOfInning: boolean }).topHalfOfInning = false;
-    } else {
-      // Bottom half ended - this will be followed by InningAdvanced event
-      // InningAdvanced will handle the actual inning progression
+    // Always flip the half: if wasTopHalf=true, set to false; if wasTopHalf=false, set to true
+    // This handles both cases:
+    // - Top half ended → switch to bottom half (wasTopHalf=true → topHalfOfInning=false)
+    // - Bottom half ended → switch to top half of next inning (wasTopHalf=false → topHalfOfInning=true)
+    // Note: When bottom half ends, InningAdvanced event will also fire to update the inning number
+    (this as unknown as { topHalfOfInning: boolean }).topHalfOfInning = !wasTopHalf;
+
+    // Reconstruct both team batting slots from event
+    if (event.awayTeamBatterSlot && typeof event.awayTeamBatterSlot === 'number') {
+      (this as unknown as { awayTeamBatterSlot: number }).awayTeamBatterSlot =
+        event.awayTeamBatterSlot;
+    }
+    if (event.homeTeamBatterSlot && typeof event.homeTeamBatterSlot === 'number') {
+      (this as unknown as { homeTeamBatterSlot: number }).homeTeamBatterSlot =
+        event.homeTeamBatterSlot;
     }
 
     // Reset tactical state
     (this as unknown as { outsCount: number }).outsCount = 0;
-    (this as unknown as { currentBattingSlotNumber: number }).currentBattingSlotNumber = 1;
     (this as unknown as { currentBasesState: BasesState }).currentBasesState = BasesState.empty();
   }
 
@@ -1788,5 +2084,35 @@ export class InningState {
 
     // State should already be reset by HalfInningEnded event
     // This event primarily updates inning number and half
+  }
+
+  /**
+   * Reconstructs a PlayerId value object from deserialized data.
+   *
+   * @param data - PlayerId data (can be PlayerId instance, string, or plain object)
+   * @returns Properly constructed PlayerId instance
+   *
+   * @remarks
+   * When events are deserialized from storage (IndexedDB, JSON), value objects
+   * become plain objects. This helper reconstructs them into proper value objects
+   * with all their methods (.equals(), etc.).
+   */
+  private static reconstructPlayerId(data: unknown): PlayerId {
+    // Already a PlayerId instance
+    if (data instanceof PlayerId) {
+      return data;
+    }
+
+    // String format
+    if (typeof data === 'string') {
+      return new PlayerId(data);
+    }
+
+    // Plain object format: { value: string }
+    if (typeof data === 'object' && data !== null && 'value' in data) {
+      return new PlayerId((data as { value: string }).value);
+    }
+
+    throw new DomainError(`Cannot reconstruct PlayerId from: ${JSON.stringify(data)}`);
   }
 }

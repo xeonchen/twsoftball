@@ -16,6 +16,7 @@ import {
   InningStateCreated,
   PlayerId,
   AtBatResultType,
+  SoftballRules,
 } from '@twsoftball/domain';
 
 /**
@@ -46,7 +47,7 @@ import {
  * ```
  */
 export const createMockGameCreatedEvent = (gameId: GameId): GameCreated => {
-  return new GameCreated(gameId, 'Mock Home Team', 'Mock Away Team');
+  return new GameCreated(gameId, 'Mock Home Team', 'Mock Away Team', SoftballRules.standard());
 };
 
 /**
@@ -162,9 +163,10 @@ export const createMockAtBatCompletedEvent = (gameId: GameId): AtBatCompleted =>
  */
 export const createMockTeamLineupCreatedEvent = (
   gameId: GameId,
-  teamLineupId: TeamLineupId
+  teamLineupId: TeamLineupId,
+  teamSide: 'HOME' | 'AWAY' = 'HOME'
 ): TeamLineupCreated => {
-  return new TeamLineupCreated(teamLineupId, gameId, 'Mock Team Name');
+  return new TeamLineupCreated(teamLineupId, gameId, 'Mock Team Name', teamSide);
 };
 
 /**

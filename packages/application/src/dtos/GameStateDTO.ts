@@ -69,8 +69,8 @@ export interface GameStateDTO {
   /** Current score for both teams with leader calculation */
   readonly score: GameScoreDTO;
 
-  /** When the game was started (first pitch time) */
-  readonly gameStartTime: Date;
+  /** When the game was started (first pitch time), null if not started yet */
+  readonly gameStartTime: Date | null;
 
   // From InningState aggregate - current play situation
   /** Current inning number (1-based) */

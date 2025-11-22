@@ -1,6 +1,7 @@
 import { FieldPosition } from '../constants/FieldPosition.js';
 import { JERSEY_NUMBERS } from '../constants/JerseyNumberConstants.js';
 import { DomainError } from '../errors/DomainError.js';
+import { BatterAdvancedInLineup } from '../events/BatterAdvancedInLineup.js';
 import { DomainEvent } from '../events/DomainEvent.js';
 import { FieldPositionChanged } from '../events/FieldPositionChanged.js';
 import { PlayerAddedToLineup } from '../events/PlayerAddedToLineup.js';
@@ -142,6 +143,9 @@ interface PlayerParticipationHistory {
  * ```
  */
 export class TeamLineup {
+  /** Team side identification (HOME or AWAY) */
+  readonly teamSide: 'HOME' | 'AWAY';
+
   /** Current batting lineup indexed by slot number */
   private readonly battingSlots = new Map<number, BattingSlot>();
 
@@ -153,6 +157,9 @@ export class TeamLineup {
 
   /** Jersey number assignments to prevent duplicates */
   private readonly jerseyAssignments = new Map<number, PlayerId>();
+
+  /** Current batter slot position (1-based index) */
+  private currentBatterSlot: number = 1;
 
   /** Uncommitted domain events */
   private uncommittedEvents: DomainEvent[] = [];
@@ -184,21 +191,28 @@ export class TeamLineup {
    * @param id - Unique identifier for this team lineup
    * @param gameId - Unique identifier of the game this lineup belongs to
    * @param teamName - Name of the team this lineup represents
+   * @param teamSide - Which team this lineup represents (HOME or AWAY)
    * @param battingSlots - Current batting slot assignments
    * @param fieldPositions - Current field position assignments
    * @param playerHistory - Complete player participation history
    * @param jerseyAssignments - Current jersey number assignments
+   * @param currentBatterSlot - Current batting position (1-based index)
+   * @param existingEvents - Existing uncommitted events
    */
   private constructor(
     readonly id: TeamLineupId,
     readonly gameId: GameId,
     readonly teamName: string,
+    teamSide: 'HOME' | 'AWAY',
     battingSlots: Map<number, BattingSlot> = new Map(),
     fieldPositions: Map<FieldPosition, PlayerId> = new Map(),
     playerHistory: Map<string, PlayerParticipationHistory> = new Map(),
     jerseyAssignments: Map<number, PlayerId> = new Map(),
-    existingEvents: DomainEvent[] = []
+    currentBatterSlot: number = 1,
+    existingEvents: DomainEvent[] = [],
+    currentVersion: number = 0
   ) {
+    this.teamSide = teamSide;
     // Deep copy all maps to ensure immutability
     this.battingSlots = new Map(battingSlots);
     this.fieldPositions = new Map(fieldPositions);
@@ -206,8 +220,9 @@ export class TeamLineup {
       Array.from(playerHistory.entries()).map(([key, history]) => [key, { ...history }])
     );
     this.jerseyAssignments = new Map(jerseyAssignments);
+    this.currentBatterSlot = currentBatterSlot;
     this.uncommittedEvents = [...existingEvents];
-    this.version = 0;
+    this.version = currentVersion;
   }
 
   /**
@@ -216,6 +231,7 @@ export class TeamLineup {
    * @param id - Unique identifier for the new team lineup
    * @param gameId - Unique identifier of the game this lineup belongs to
    * @param teamName - Name of the team (cannot be empty, max 50 characters)
+   * @param teamSide - Which team this lineup represents (HOME or AWAY)
    * @returns New TeamLineup instance with no players
    * @throws {DomainError} When parameters are invalid
    *
@@ -223,6 +239,7 @@ export class TeamLineup {
    * **Business Rules:**
    * - Team name must not be empty or only whitespace
    * - Team name cannot exceed 50 characters for display purposes
+   * - Team side must be either HOME or AWAY
    * - Initial lineup has no players and requires setup before game start
    * - Emits TeamLineupCreated event to establish lineup existence
    *
@@ -232,7 +249,12 @@ export class TeamLineup {
    * - Empty player roster
    * - No jersey number assignments
    */
-  static createNew(id: TeamLineupId, gameId: GameId, teamName: string): TeamLineup {
+  static createNew(
+    id: TeamLineupId,
+    gameId: GameId,
+    teamName: string,
+    teamSide: 'HOME' | 'AWAY'
+  ): TeamLineup {
     if (!id) {
       throw new DomainError('TeamLineupId cannot be null or undefined');
     }
@@ -245,9 +267,12 @@ export class TeamLineup {
     if (teamName.length > 50) {
       throw new DomainError('Team name cannot exceed 50 characters');
     }
+    if (teamSide !== 'HOME' && teamSide !== 'AWAY') {
+      throw new DomainError('Team side must be either HOME or AWAY');
+    }
 
-    const lineup = new TeamLineup(id, gameId, teamName);
-    lineup.addEvent(new TeamLineupCreated(id, gameId, teamName));
+    const lineup = new TeamLineup(id, gameId, teamName, teamSide);
+    lineup.addEvent(new TeamLineupCreated(id, gameId, teamName, teamSide));
     return lineup;
   }
 
@@ -315,8 +340,26 @@ export class TeamLineup {
 
     // Validate all events belong to the same team lineup and game
     const teamLineupCreatedEvent = firstEvent as TeamLineupCreated;
-    const expectedGameId = teamLineupCreatedEvent.gameId;
-    const expectedTeamLineupId = teamLineupCreatedEvent.teamLineupId;
+
+    // Reconstruct value objects from deserialized events
+    // When events are loaded from storage and deserialized, value objects become plain objects
+    const expectedGameId =
+      teamLineupCreatedEvent.gameId instanceof GameId
+        ? teamLineupCreatedEvent.gameId
+        : new GameId(
+            typeof teamLineupCreatedEvent.gameId === 'string'
+              ? teamLineupCreatedEvent.gameId
+              : (teamLineupCreatedEvent.gameId as { value: string }).value
+          );
+
+    const expectedTeamLineupId =
+      teamLineupCreatedEvent.teamLineupId instanceof TeamLineupId
+        ? teamLineupCreatedEvent.teamLineupId
+        : new TeamLineupId(
+            typeof teamLineupCreatedEvent.teamLineupId === 'string'
+              ? teamLineupCreatedEvent.teamLineupId
+              : (teamLineupCreatedEvent.teamLineupId as { value: string }).value
+          );
 
     // Check for duplicate TeamLineupCreated events
     let teamLineupCreatedCount = 0;
@@ -328,13 +371,33 @@ export class TeamLineup {
         }
       }
 
-      if (!event.gameId.equals(expectedGameId)) {
+      // Reconstruct event's gameId for comparison (handle deserialized events)
+      const eventGameId =
+        event.gameId instanceof GameId
+          ? event.gameId
+          : new GameId(
+              typeof event.gameId === 'string'
+                ? event.gameId
+                : (event.gameId as { value: string }).value
+            );
+
+      if (!eventGameId.equals(expectedGameId)) {
         throw new DomainError('All events must belong to the same game');
       }
 
       // Check if event has teamLineupId property and validate it
       if (TeamLineup.hasTeamLineupId(event)) {
-        if (!event.teamLineupId.equals(expectedTeamLineupId)) {
+        // Reconstruct event's teamLineupId for comparison (handle deserialized events)
+        const eventTeamLineupId =
+          event.teamLineupId instanceof TeamLineupId
+            ? event.teamLineupId
+            : new TeamLineupId(
+                typeof event.teamLineupId === 'string'
+                  ? event.teamLineupId
+                  : (event.teamLineupId as { value: string }).value
+              );
+
+        if (!eventTeamLineupId.equals(expectedTeamLineupId)) {
           throw new DomainError('All events must belong to the same team lineup');
         }
       }
@@ -344,7 +407,8 @@ export class TeamLineup {
     const lineup = new TeamLineup(
       expectedTeamLineupId,
       expectedGameId,
-      teamLineupCreatedEvent.teamName
+      teamLineupCreatedEvent.teamName,
+      teamLineupCreatedEvent.teamSide
     );
 
     // Apply remaining events to reconstruct state
@@ -459,11 +523,14 @@ export class TeamLineup {
       this.id,
       this.gameId,
       this.teamName,
+      this.teamSide,
       newBattingSlots,
       newFieldPositions,
       newPlayerHistory,
       newJerseyAssignments,
-      this.uncommittedEvents
+      this.currentBatterSlot,
+      this.uncommittedEvents,
+      this.version
     );
 
     newLineup.addEvent(
@@ -660,11 +727,14 @@ export class TeamLineup {
       this.id,
       this.gameId,
       this.teamName,
+      this.teamSide,
       newBattingSlots,
       newFieldPositions,
       newPlayerHistory,
       newJerseyAssignments,
-      this.uncommittedEvents
+      this.currentBatterSlot,
+      this.uncommittedEvents,
+      this.version
     );
 
     newLineup.addEvent(
@@ -755,11 +825,14 @@ export class TeamLineup {
       this.id,
       this.gameId,
       this.teamName,
+      this.teamSide,
       this.battingSlots,
       newFieldPositions,
       newPlayerHistory,
       this.jerseyAssignments,
-      this.uncommittedEvents
+      this.currentBatterSlot,
+      this.uncommittedEvents,
+      this.version
     );
 
     if (currentPosition) {
@@ -793,6 +866,40 @@ export class TeamLineup {
   }
 
   /**
+   * Gets the player currently occupying the specified batting slot.
+   *
+   * @param slotNumber - The batting slot number (1-20)
+   * @returns The PlayerId of the current player in that slot, or null if slot is empty
+   *
+   * @remarks
+   * This method provides convenient access to the current batter at a specific
+   * batting slot position without needing to retrieve the entire active lineup.
+   * Returns null if the slot number is not found in the lineup.
+   *
+   * **Use Cases:**
+   * - Determining the current batter for game state display
+   * - Validating batter identity before recording at-bats
+   * - Application layer game state building
+   *
+   * @example
+   * ```typescript
+   * const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers', 'HOME');
+   * // After adding players...
+   * const batterId = lineup.getPlayerAtSlot(3); // Get player in 3rd batting slot
+   * if (batterId) {
+   *   console.log(`Batter at slot 3: ${batterId.value}`);
+   * }
+   * ```
+   */
+  getPlayerAtSlot(slotNumber: number): PlayerId | null {
+    const battingSlot = this.battingSlots.get(slotNumber);
+    if (!battingSlot) {
+      return null;
+    }
+    return battingSlot.getCurrentPlayer();
+  }
+
+  /**
    * Gets the current defensive field position assignments.
    *
    * @returns Map of field positions to player IDs for active defenders
@@ -804,6 +911,100 @@ export class TeamLineup {
    */
   getFieldingPositions(): Map<FieldPosition, PlayerId> {
     return new Map(this.fieldPositions);
+  }
+
+  /**
+   * Gets the current batting slot position for this team lineup.
+   *
+   * @returns Current batting slot number (1-based index)
+   *
+   * @remarks
+   * Returns the current position in the batting order that indicates which
+   * player is scheduled to bat next. This value persists across half-innings
+   * and is the source of truth for batting position tracking.
+   *
+   * **Business Rules:**
+   * - Batting slot starts at 1 (leadoff batter)
+   * - Advances sequentially after each at-bat
+   * - Cycles back to 1 after reaching the end of the lineup
+   * - Maintained independently for each team (HOME and AWAY)
+   */
+  getCurrentBatterSlot(): number {
+    return this.currentBatterSlot;
+  }
+
+  /**
+   * Advances to the next batter in the lineup, cycling back to leadoff if needed.
+   *
+   * @param totalSlots - Total number of batting slots in the lineup (typically 9-10)
+   * @returns New TeamLineup instance with advanced batting position
+   * @throws {DomainError} When totalSlots is invalid
+   *
+   * @remarks
+   * **Business Rules:**
+   * - Advances from current slot to next slot (N -> N+1)
+   * - When current slot equals totalSlots, cycles back to slot 1 (leadoff)
+   * - Total slots must be between 1 and maxPlayersPerTeam (20)
+   * - Emits BatterAdvancedInLineup event for event sourcing
+   *
+   * **State Changes:**
+   * - Updates currentBatterSlot to next position
+   * - Emits domain event with previous and new slot numbers
+   * - Increments aggregate version
+   * - Returns new instance (immutable pattern)
+   *
+   * **Event Sourcing:**
+   * - Event captures both previous and new slot for reconstruction
+   * - Enables complete audit trail of batting order progression
+   * - Supports undo/redo functionality
+   *
+   * @example
+   * ```typescript
+   * // Advance from slot 3 to slot 4
+   * const lineup = TeamLineup.createNew(lineupId, gameId, 'Home Tigers');
+   * let current = lineup.advanceBatter(9); // 1 -> 2
+   * current = current.advanceBatter(9);    // 2 -> 3
+   * current = current.advanceBatter(9);    // 3 -> 4
+   *
+   * // Cycle from slot 9 back to slot 1
+   * for (let i = 0; i < 8; i++) {
+   *   lineup = lineup.advanceBatter(9);
+   * }
+   * console.log(lineup.getCurrentBatterSlot()); // 9
+   * lineup = lineup.advanceBatter(9);
+   * console.log(lineup.getCurrentBatterSlot()); // 1 (cycled back)
+   * ```
+   */
+  advanceBatter(totalSlots: number): TeamLineup {
+    // Validate totalSlots
+    if (totalSlots < 1 || totalSlots > 20) {
+      throw new DomainError('Total slots must be between 1 and 20');
+    }
+
+    // Calculate next slot with cycling
+    const previousSlot = this.currentBatterSlot;
+    const nextSlot = previousSlot >= totalSlots ? 1 : previousSlot + 1;
+
+    // Create new lineup with updated batting position
+    const newLineup = new TeamLineup(
+      this.id,
+      this.gameId,
+      this.teamName,
+      this.teamSide,
+      this.battingSlots,
+      this.fieldPositions,
+      this.playerHistory,
+      this.jerseyAssignments,
+      nextSlot,
+      this.uncommittedEvents,
+      this.version
+    );
+
+    newLineup.addEvent(
+      new BatterAdvancedInLineup(this.gameId, this.id, previousSlot, nextSlot, this.teamSide)
+    );
+
+    return newLineup;
   }
 
   /**
@@ -980,6 +1181,11 @@ export class TeamLineup {
    * - Tracks player participation, substitutions, and re-entry eligibility
    * - Handles EXTRA_PLAYER position logic correctly
    *
+   * **Value Object Reconstruction:**
+   * - When events are deserialized from storage, value objects become plain objects
+   * - This method reconstructs PlayerId, JerseyNumber, and other value objects
+   * - Ensures .equals() and other value object methods are available
+   *
    * **Error Handling:**
    * - Unknown event types are ignored to support forward compatibility
    * - Invalid event data may cause reconstruction failures
@@ -994,21 +1200,25 @@ export class TeamLineup {
       case 'PlayerAddedToLineup': {
         const addedEvent = event as PlayerAddedToLineup;
 
+        // Reconstruct value objects from deserialized event
+        const playerId = TeamLineup.reconstructPlayerId(addedEvent.playerId);
+        const jerseyNumber = TeamLineup.reconstructJerseyNumber(addedEvent.jerseyNumber);
+
         // Add batting slot
         this.battingSlots.set(
           addedEvent.battingSlot,
-          BattingSlot.createWithStarter(addedEvent.battingSlot, addedEvent.playerId)
+          BattingSlot.createWithStarter(addedEvent.battingSlot, playerId)
         );
 
         // Add field position (unless EXTRA_PLAYER)
         if (addedEvent.fieldPosition !== FieldPosition.EXTRA_PLAYER) {
-          this.fieldPositions.set(addedEvent.fieldPosition, addedEvent.playerId);
+          this.fieldPositions.set(addedEvent.fieldPosition, playerId);
         }
 
         // Add to player history
-        this.playerHistory.set(addedEvent.playerId.value, {
-          playerId: addedEvent.playerId,
-          jerseyNumber: addedEvent.jerseyNumber,
+        this.playerHistory.set(playerId.value, {
+          playerId,
+          jerseyNumber,
           playerName: addedEvent.playerName,
           isStarter: true,
           currentPosition:
@@ -1021,26 +1231,28 @@ export class TeamLineup {
         });
 
         // Assign jersey
-        this.jerseyAssignments.set(addedEvent.jerseyNumber.toNumber(), addedEvent.playerId);
+        this.jerseyAssignments.set(jerseyNumber.toNumber(), playerId);
         break;
       }
       case 'PlayerSubstitutedIntoGame': {
         const substitutionEvent = event as PlayerSubstitutedIntoGame;
 
+        // Reconstruct value objects from deserialized event
+        const outgoingPlayerId = TeamLineup.reconstructPlayerId(substitutionEvent.outgoingPlayerId);
+        const incomingPlayerId = TeamLineup.reconstructPlayerId(substitutionEvent.incomingPlayerId);
+
         // Get current batting slot and update with substitution
         const currentBattingSlot = this.battingSlots.get(substitutionEvent.battingSlot);
         if (currentBattingSlot) {
           // Determine if this is a re-entry based on whether incoming player was previously in lineup
-          const incomingPlayerHistory = this.playerHistory.get(
-            substitutionEvent.incomingPlayerId.value
-          );
+          const incomingPlayerHistory = this.playerHistory.get(incomingPlayerId.value);
           const isReentry =
             incomingPlayerHistory?.isStarter && incomingPlayerHistory.hasBeenSubstituted;
 
           this.battingSlots.set(
             substitutionEvent.battingSlot,
             currentBattingSlot.substitutePlayer(
-              substitutionEvent.incomingPlayerId,
+              incomingPlayerId,
               substitutionEvent.inning,
               isReentry || false
             )
@@ -1048,22 +1260,17 @@ export class TeamLineup {
         }
 
         // Update field positions
-        const outgoingPlayerHistory = this.playerHistory.get(
-          substitutionEvent.outgoingPlayerId.value
-        );
+        const outgoingPlayerHistory = this.playerHistory.get(outgoingPlayerId.value);
         if (outgoingPlayerHistory?.currentPosition) {
           this.fieldPositions.delete(outgoingPlayerHistory.currentPosition);
         }
         if (substitutionEvent.fieldPosition !== FieldPosition.EXTRA_PLAYER) {
-          this.fieldPositions.set(
-            substitutionEvent.fieldPosition,
-            substitutionEvent.incomingPlayerId
-          );
+          this.fieldPositions.set(substitutionEvent.fieldPosition, incomingPlayerId);
         }
 
         // Update outgoing player history
         if (outgoingPlayerHistory) {
-          this.playerHistory.set(substitutionEvent.outgoingPlayerId.value, {
+          this.playerHistory.set(outgoingPlayerId.value, {
             ...outgoingPlayerHistory,
             currentPosition: undefined,
             hasBeenSubstituted: true,
@@ -1072,11 +1279,11 @@ export class TeamLineup {
         }
 
         // Update incoming player history
-        const incomingHistory = this.playerHistory.get(substitutionEvent.incomingPlayerId.value);
+        const incomingHistory = this.playerHistory.get(incomingPlayerId.value);
         if (incomingHistory) {
           // Re-entering player
           const wasReentry = incomingHistory.isStarter && incomingHistory.hasBeenSubstituted;
-          this.playerHistory.set(substitutionEvent.incomingPlayerId.value, {
+          this.playerHistory.set(incomingPlayerId.value, {
             ...incomingHistory,
             currentPosition:
               substitutionEvent.fieldPosition === FieldPosition.EXTRA_PLAYER
@@ -1102,10 +1309,10 @@ export class TeamLineup {
           }
           const placeholderJersey = new JerseyNumber(jerseyNum.toString());
 
-          this.playerHistory.set(substitutionEvent.incomingPlayerId.value, {
-            playerId: substitutionEvent.incomingPlayerId,
+          this.playerHistory.set(incomingPlayerId.value, {
+            playerId: incomingPlayerId,
             jerseyNumber: placeholderJersey,
-            playerName: `Substitute ${substitutionEvent.incomingPlayerId.value.slice(-8)}`, // Use part of player ID
+            playerName: `Substitute ${incomingPlayerId.value.slice(-8)}`, // Use part of player ID
             isStarter: false,
             currentPosition:
               substitutionEvent.fieldPosition === FieldPosition.EXTRA_PLAYER
@@ -1115,15 +1322,15 @@ export class TeamLineup {
             hasUsedReentry: false,
             currentBattingSlot: substitutionEvent.battingSlot,
           });
-          this.jerseyAssignments.set(
-            placeholderJersey.toNumber(),
-            substitutionEvent.incomingPlayerId
-          );
+          this.jerseyAssignments.set(placeholderJersey.toNumber(), incomingPlayerId);
         }
         break;
       }
       case 'FieldPositionChanged': {
         const positionEvent = event as FieldPositionChanged;
+
+        // Reconstruct value objects from deserialized event
+        const playerId = TeamLineup.reconstructPlayerId(positionEvent.playerId);
 
         // Remove from current position
         if (positionEvent.fromPosition) {
@@ -1132,13 +1339,13 @@ export class TeamLineup {
 
         // Add to new position (unless EXTRA_PLAYER)
         if (positionEvent.toPosition !== FieldPosition.EXTRA_PLAYER) {
-          this.fieldPositions.set(positionEvent.toPosition, positionEvent.playerId);
+          this.fieldPositions.set(positionEvent.toPosition, playerId);
         }
 
         // Update player history
-        const playerHistory = this.playerHistory.get(positionEvent.playerId.value);
+        const playerHistory = this.playerHistory.get(playerId.value);
         if (playerHistory) {
-          this.playerHistory.set(positionEvent.playerId.value, {
+          this.playerHistory.set(playerId.value, {
             ...playerHistory,
             currentPosition:
               positionEvent.toPosition === FieldPosition.EXTRA_PLAYER
@@ -1146,6 +1353,12 @@ export class TeamLineup {
                 : positionEvent.toPosition,
           });
         }
+        break;
+      }
+      case 'BatterAdvancedInLineup': {
+        const batterEvent = event as BatterAdvancedInLineup;
+        // Update current batter slot to the new slot from the event
+        this.currentBatterSlot = batterEvent.newSlot;
         break;
       }
       // Ignore unknown event types for forward compatibility
@@ -1220,5 +1433,75 @@ export class TeamLineup {
     if (inning < 1) {
       throw new DomainError('Inning must be 1 or greater');
     }
+  }
+
+  /**
+   * Reconstructs a PlayerId value object from deserialized data.
+   *
+   * @param data - PlayerId data (can be PlayerId instance, string, or plain object)
+   * @returns Properly constructed PlayerId instance
+   *
+   * @remarks
+   * When events are deserialized from storage (IndexedDB, JSON), value objects
+   * become plain objects. This helper reconstructs them into proper value objects
+   * with all their methods (.equals(), etc.).
+   */
+  private static reconstructPlayerId(data: unknown): PlayerId {
+    // Already a PlayerId instance
+    if (data instanceof PlayerId) {
+      return data;
+    }
+
+    // String format
+    if (typeof data === 'string') {
+      return new PlayerId(data);
+    }
+
+    // Plain object format: { value: string }
+    if (typeof data === 'object' && data !== null && 'value' in data) {
+      return new PlayerId((data as { value: string }).value);
+    }
+
+    throw new DomainError(`Cannot reconstruct PlayerId from: ${JSON.stringify(data)}`);
+  }
+
+  /**
+   * Reconstructs a JerseyNumber value object from deserialized data.
+   *
+   * @param data - JerseyNumber data (can be JerseyNumber instance, number, string, or plain object)
+   * @returns Properly constructed JerseyNumber instance
+   *
+   * @remarks
+   * When events are deserialized from storage, value objects become plain objects.
+   * This helper reconstructs them into proper value objects with all their methods.
+   */
+  private static reconstructJerseyNumber(data: unknown): JerseyNumber {
+    // Already a JerseyNumber instance
+    if (data instanceof JerseyNumber) {
+      return data;
+    }
+
+    // Number format
+    if (typeof data === 'number') {
+      return new JerseyNumber(data.toString());
+    }
+
+    // String format
+    if (typeof data === 'string') {
+      return new JerseyNumber(data);
+    }
+
+    // Plain object format: { value: number } or { value: string }
+    if (typeof data === 'object' && data !== null && 'value' in data) {
+      const value = (data as { value: unknown }).value;
+      if (typeof value === 'number') {
+        return new JerseyNumber(value.toString());
+      }
+      if (typeof value === 'string') {
+        return new JerseyNumber(value);
+      }
+    }
+
+    throw new DomainError(`Cannot reconstruct JerseyNumber from: ${JSON.stringify(data)}`);
   }
 }

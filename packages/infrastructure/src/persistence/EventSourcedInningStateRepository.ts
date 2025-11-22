@@ -12,11 +12,13 @@
  * domain knowledge, serving purely as an infrastructure adapter.
  */
 
-import type { EventStore, StoredEvent } from '@twsoftball/application/ports/out/EventStore';
+import type { EventStore } from '@twsoftball/application/ports/out/EventStore';
 import type { InningStateRepository } from '@twsoftball/application/ports/out/InningStateRepository';
 import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore';
 import { SnapshotManager } from '@twsoftball/application/services/SnapshotManager';
 import { InningStateId, InningState, GameId, DomainEvent } from '@twsoftball/domain';
+
+import { EventSourcingHelpers } from './utils/EventSourcingHelpers.js';
 
 interface EventSourcedAggregate {
   getId(): InningStateId;
@@ -170,13 +172,19 @@ export class EventSourcedInningStateRepository implements InningStateRepository 
    */
   private async findByIdFromEvents(id: InningStateId): Promise<InningState | null> {
     const storedEvents = await this.eventStore.getEvents(id);
-    if (!storedEvents || storedEvents.length === 0) return null;
+
+    if (!storedEvents || storedEvents.length === 0) {
+      return null;
+    }
 
     // Convert StoredEvents to DomainEvents for InningState reconstruction
-    const domainEvents = storedEvents.map(
-      storedEvent => JSON.parse(storedEvent.eventData) as DomainEvent
-    );
-    return InningState.fromEvents(domainEvents);
+    const domainEvents = storedEvents.map(storedEvent => {
+      const domainEvent = JSON.parse(storedEvent.eventData) as DomainEvent;
+      return domainEvent;
+    });
+    const reconstructedInningState = InningState.fromEvents(domainEvents);
+
+    return reconstructedInningState;
   }
 
   async findCurrentByGameId(gameId: GameId): Promise<InningState | null> {
@@ -189,7 +197,10 @@ export class EventSourcedInningStateRepository implements InningStateRepository 
     }
 
     // Group events by streamId to reconstruct each inning state
-    const inningStateEventGroups = this.groupEventsByStreamId(allEvents, 'InningState');
+    const inningStateEventGroups = EventSourcingHelpers.groupEventsByStreamId(
+      allEvents,
+      'InningState'
+    );
 
     // Reconstruct inning states and filter by gameId
     const inningStates: InningState[] = [];
@@ -217,27 +228,5 @@ export class EventSourcedInningStateRepository implements InningStateRepository 
     // Use properly typed EventStore interface extension
     const eventStoreWithDelete = this.eventStore as EventStoreWithDelete;
     await eventStoreWithDelete.delete(id);
-  }
-
-  /**
-   * Groups events by streamId for a specific aggregate type
-   */
-  private groupEventsByStreamId(
-    allEvents: StoredEvent[],
-    aggregateType: string
-  ): Map<string, StoredEvent[]> {
-    const groupedEvents = new Map<string, StoredEvent[]>();
-
-    for (const event of allEvents) {
-      if (event.aggregateType === aggregateType) {
-        const streamId = event.streamId;
-        if (!groupedEvents.has(streamId)) {
-          groupedEvents.set(streamId, []);
-        }
-        groupedEvents.get(streamId)!.push(event);
-      }
-    }
-
-    return groupedEvents;
   }
 }

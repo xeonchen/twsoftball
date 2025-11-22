@@ -165,7 +165,7 @@ class IndexedDBInfrastructureFactory implements InfrastructureFactory {
 
       // Create repositories using EventSourcing pattern
       const gameRepository = new EventSourcedGameRepository(eventStore);
-      const teamLineupRepository = new EventSourcedTeamLineupRepository(eventStore, gameRepository);
+      const teamLineupRepository = new EventSourcedTeamLineupRepository(eventStore);
       const inningStateRepository = new EventSourcedInningStateRepository(eventStore);
 
       logger.info('IndexedDB infrastructure services initialized successfully', {

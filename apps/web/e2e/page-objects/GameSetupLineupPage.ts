@@ -183,6 +183,40 @@ export class GameSetupLineupPage {
     await this.page.waitForTimeout(300); // Wait for all updates
   }
 
+  /**
+   * Add first N players from available list
+   *
+   * @param count - Number of players to add
+   *
+   * @remarks
+   * Adds the first N players from the available players list without needing to know their IDs.
+   * Useful when player IDs are UUIDs or randomly generated.
+   *
+   * @example
+   * ```typescript
+   * await lineupPage.addFirstNPlayers(10); // Add first 10 players
+   * ```
+   */
+  async addFirstNPlayers(count: number): Promise<void> {
+    // Get all "Add" buttons from available players section
+    const addButtons = this.page.locator('[data-testid^="add-player-"]');
+    const buttonCount = await addButtons.count();
+
+    if (buttonCount < count) {
+      throw new Error(
+        `Not enough available players. Requested ${count}, but only ${buttonCount} available.`
+      );
+    }
+
+    // Click the first N add buttons
+    for (let i = 0; i < count; i++) {
+      await addButtons.nth(i).click();
+      await this.page.waitForTimeout(100); // Wait for lineup to update
+    }
+
+    await this.page.waitForTimeout(300); // Wait for all updates
+  }
+
   // ==================== Manual Player Input Methods ====================
 
   /**

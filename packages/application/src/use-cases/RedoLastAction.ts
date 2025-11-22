@@ -81,7 +81,10 @@ import { RedoCommand, RedoCommandValidator } from '../dtos/RedoCommand.js';
 import { RedoResult, RedoStackInfo, RedoneActionDetail } from '../dtos/RedoResult.js';
 import { EventStore, StoredEvent } from '../ports/out/EventStore.js';
 import { GameRepository } from '../ports/out/GameRepository.js';
+import { InningStateRepository } from '../ports/out/InningStateRepository.js';
 import { Logger } from '../ports/out/Logger.js';
+import { TeamLineupRepository } from '../ports/out/TeamLineupRepository.js';
+import { GameStateDTOBuilder } from '../utils/GameStateDTOBuilder.js';
 import { UseCaseErrorHandler } from '../utils/UseCaseErrorHandler.js';
 
 /**
@@ -122,17 +125,27 @@ export class RedoLastAction {
    * concurrent execution with different command inputs.
    *
    * @param gameRepository - Port for Game aggregate persistence operations
+   * @param inningStateRepository - Port for InningState aggregate persistence operations
+   * @param teamLineupRepository - Port for TeamLineup aggregate persistence operations
    * @param eventStore - Port for domain event storage and retrieval
    * @param logger - Port for structured application logging
    * @throws {Error} If any required dependency is null or undefined
    */
   constructor(
     private readonly gameRepository: GameRepository,
+    private readonly inningStateRepository: InningStateRepository,
+    private readonly teamLineupRepository: TeamLineupRepository,
     private readonly eventStore: EventStore,
     private readonly logger: Logger
   ) {
     if (!gameRepository) {
       throw new Error('GameRepository is required');
+    }
+    if (!inningStateRepository) {
+      throw new Error('InningStateRepository is required');
+    }
+    if (!teamLineupRepository) {
+      throw new Error('TeamLineupRepository is required');
     }
     if (!eventStore) {
       throw new Error('EventStore is required');
@@ -294,7 +307,7 @@ export class RedoLastAction {
 
       // Step 9: Build result with undo stack information
       const undoStackInfo = await this.buildRedoStackInfo(command.gameId, eventsToRedo.length);
-      const restoredState = this.buildGameStateDTO();
+      const restoredState = await this.buildGameStateDTO(command.gameId);
 
       const duration = Date.now() - startTime;
 
@@ -944,12 +957,28 @@ export class RedoLastAction {
   }
 
   /**
-   * Builds the game state DTO for the result (placeholder implementation).
+   * Builds complete game state DTO after redo operation.
+   *
+   * @param gameId - The game identifier
+   * @returns Complete game state including current batter
+   *
+   * @remarks
+   * Loads Game, InningState, and both TeamLineup aggregates to construct
+   * the complete state. The currentBatter field represents the player who
+   * will bat NEXT after the redo completes.
    */
-  private buildGameStateDTO(): GameStateDTO {
-    // This would build a proper GameStateDTO from the game aggregate
-    // For now, return a minimal implementation
-    return {} as GameStateDTO;
+  private async buildGameStateDTO(gameId: GameId): Promise<GameStateDTO> {
+    // Load Game aggregate explicitly (GameStateDTOBuilder requires pre-loaded Game)
+    const game = await this.gameRepository.findById(gameId);
+    if (!game) {
+      throw new Error(`Game not found: ${gameId.value}`);
+    }
+
+    return GameStateDTOBuilder.buildGameStateDTO(
+      game,
+      this.inningStateRepository,
+      this.teamLineupRepository
+    );
   }
 
   /**

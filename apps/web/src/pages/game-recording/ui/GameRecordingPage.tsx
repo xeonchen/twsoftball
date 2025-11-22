@@ -9,11 +9,11 @@ import {
 } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
-import { useGameStore } from '../../../entities/game';
 import {
   useRecordAtBat,
   useRunnerAdvancement,
   useGameWithUndoRedo,
+  useGameStateSync,
 } from '../../../features/game-core';
 import {
   LineupEditor,
@@ -21,6 +21,7 @@ import {
   SubstitutionHistory,
 } from '../../../features/lineup-management';
 import { useSubstitutePlayerAPI } from '../../../features/substitute-player';
+import { createLogger } from '../../../shared/api';
 import { useErrorRecovery, useNavigationGuard, useTimerManager } from '../../../shared/lib/hooks';
 import { useUIStore } from '../../../shared/lib/store';
 import { debounce } from '../../../shared/lib/utils';
@@ -30,6 +31,59 @@ import { RunnerAdvancementPanel } from '../../../widgets/runner-advancement';
 
 /** Duration to show RBI notification in milliseconds */
 const RBI_NOTIFICATION_DURATION_MS = 3000;
+
+/** Logger for this component */
+const logger = createLogger('development', 'GameRecordingPage');
+
+/**
+ * Map action button IDs to domain at-bat result types
+ */
+const mapActionToAtBatResult = (actionType: string): AtBatResultType => {
+  const actionMap: Record<string, AtBatResultType> = {
+    single: AtBatResultType.SINGLE,
+    double: AtBatResultType.DOUBLE,
+    triple: AtBatResultType.TRIPLE,
+    homerun: AtBatResultType.HOME_RUN,
+    walk: AtBatResultType.WALK,
+    out: AtBatResultType.GROUND_OUT, // Default 'out' to ground out
+    strikeout: AtBatResultType.STRIKEOUT,
+    groundout: AtBatResultType.GROUND_OUT,
+    flyout: AtBatResultType.FLY_OUT,
+    error: AtBatResultType.ERROR,
+    fielderschoice: AtBatResultType.FIELDERS_CHOICE,
+    sacfly: AtBatResultType.SACRIFICE_FLY,
+    doubleplay: AtBatResultType.DOUBLE_PLAY,
+    tripleplay: AtBatResultType.TRIPLE_PLAY,
+  };
+  return actionMap[actionType] || (actionType.toUpperCase() as AtBatResultType);
+};
+
+/**
+ * Map action button IDs to result strings for the API
+ * This mapping is used when sending data to the application layer
+ *
+ * IMPORTANT: Must return the actual enum VALUES from AtBatResultType,
+ * not the enum key names. The DTO validation checks against enum values.
+ */
+const mapActionToResultString = (actionType: string): string => {
+  const resultMap: Record<string, string> = {
+    single: AtBatResultType.SINGLE, // '1B'
+    double: AtBatResultType.DOUBLE, // '2B'
+    triple: AtBatResultType.TRIPLE, // '3B'
+    homerun: AtBatResultType.HOME_RUN, // 'HR'
+    walk: AtBatResultType.WALK, // 'BB'
+    out: AtBatResultType.GROUND_OUT, // 'GO' (default out type)
+    strikeout: AtBatResultType.STRIKEOUT, // 'SO'
+    groundout: AtBatResultType.GROUND_OUT, // 'GO'
+    flyout: AtBatResultType.FLY_OUT, // 'FO'
+    error: AtBatResultType.ERROR, // 'E'
+    fielderschoice: AtBatResultType.FIELDERS_CHOICE, // 'FC'
+    sacfly: AtBatResultType.SACRIFICE_FLY, // 'SF'
+    doubleplay: AtBatResultType.DOUBLE_PLAY, // 'DP'
+    tripleplay: AtBatResultType.TRIPLE_PLAY, // 'TP'
+  };
+  return resultMap[actionType] || actionType.toUpperCase();
+};
 
 /**
  * Game Recording Page Component
@@ -65,8 +119,6 @@ export function GameRecordingPage(): ReactElement {
     error: gameError,
   } = useGameWithUndoRedo();
 
-  // Keep updateScore from original useGameStore for score updates
-  const { updateScore } = useGameStore();
   const { showNavigationWarning, showInfo } = useUIStore();
   const timers = useTimerManager();
 
@@ -96,6 +148,9 @@ export function GameRecordingPage(): ReactElement {
   // Phase 1 hooks integration
   const { recordAtBat, isLoading, error, result, reset } = useRecordAtBat();
   const { runnerAdvances, clearAdvances, isValidAdvancement } = useRunnerAdvancement();
+
+  // Phase 5.3.F: Automatic game state sync from Application layer to Zustand store
+  useGameStateSync(result?.gameState);
 
   // Phase 5: Substitute player integration
   const substitutePlayerAPI = useSubstitutePlayerAPI();
@@ -160,29 +215,6 @@ export function GameRecordingPage(): ReactElement {
   }, [error, setErrorRecovery, resetErrorRecovery]);
 
   /**
-   * Map action button IDs to domain at-bat result types
-   */
-  const mapActionToAtBatResult = (actionType: string): AtBatResultType => {
-    const actionMap: Record<string, AtBatResultType> = {
-      single: AtBatResultType.SINGLE,
-      double: AtBatResultType.DOUBLE,
-      triple: AtBatResultType.TRIPLE,
-      homerun: AtBatResultType.HOME_RUN,
-      walk: AtBatResultType.WALK,
-      out: AtBatResultType.GROUND_OUT, // Default 'out' to ground out
-      strikeout: AtBatResultType.STRIKEOUT,
-      groundout: AtBatResultType.GROUND_OUT,
-      flyout: AtBatResultType.FLY_OUT,
-      error: AtBatResultType.ERROR,
-      fielderschoice: AtBatResultType.FIELDERS_CHOICE,
-      sacfly: AtBatResultType.SACRIFICE_FLY,
-      doubleplay: AtBatResultType.DOUBLE_PLAY,
-      tripleplay: AtBatResultType.TRIPLE_PLAY,
-    };
-    return actionMap[actionType] || (actionType.toUpperCase() as AtBatResultType);
-  };
-
-  /**
    * Determine if an at-bat result requires manual runner advancement
    */
   const needsManualAdvancement = useCallback(
@@ -197,21 +229,22 @@ export function GameRecordingPage(): ReactElement {
       if (!hasRunners) return false;
 
       // Automatic advancement scenarios (no manual input needed)
+      // Domain layer (GameCoordinator) handles: HOME_RUN, WALK, SINGLE, DOUBLE, TRIPLE
       const automaticResults = [
         AtBatResultType.HOME_RUN,
         AtBatResultType.WALK,
+        AtBatResultType.SINGLE,
+        AtBatResultType.DOUBLE,
+        AtBatResultType.TRIPLE,
         AtBatResultType.DOUBLE_PLAY,
         AtBatResultType.TRIPLE_PLAY,
       ];
       if (automaticResults.includes(atBatResult)) return false;
 
-      // Manual advancement needed for hits with runners
-      const hitsRequiringAdvancement = [
-        AtBatResultType.SINGLE,
-        AtBatResultType.DOUBLE,
-        AtBatResultType.TRIPLE,
-        AtBatResultType.SACRIFICE_FLY,
-      ];
+      // Manual advancement needed for:
+      // - Sacrifice flies (custom advancement logic)
+      // - Other non-automatic result types
+      const hitsRequiringAdvancement = [AtBatResultType.SACRIFICE_FLY];
       return hitsRequiringAdvancement.includes(atBatResult);
     },
     [activeGameState]
@@ -219,62 +252,57 @@ export function GameRecordingPage(): ReactElement {
 
   /**
    * Get automatic runner advances for at-bat result
+   *
+   * @param atBatResult - The type of at-bat result
+   * @param batter - The current batter (captured before state changes)
+   * @param bases - The current base state (captured before state changes)
+   * @returns Array of runner advances with runner IDs and base movements
    */
   const getAutomaticAdvances = useCallback(
     (
-      atBatResult: AtBatResultType
+      atBatResult: AtBatResultType,
+      batter: { id: string; name: string; jerseyNumber: string | number },
+      bases: {
+        first: { id: string } | null;
+        second: { id: string } | null;
+        third: { id: string } | null;
+      }
     ): Array<{ runnerId: string; fromBase: number; toBase: number }> => {
-      if (!activeGameState?.currentBatter) return [];
-
       const advances: Array<{ runnerId: string; fromBase: number; toBase: number }> = [];
-      const batter = activeGameState.currentBatter;
 
       switch (atBatResult) {
         case AtBatResultType.SINGLE:
-          advances.push({ runnerId: batter.id, fromBase: 0, toBase: 1 });
-          break;
         case AtBatResultType.DOUBLE:
-          advances.push({ runnerId: batter.id, fromBase: 0, toBase: 2 });
-          break;
         case AtBatResultType.TRIPLE:
-          advances.push({ runnerId: batter.id, fromBase: 0, toBase: 3 });
-          // Auto-score runners on second and third
-          if (activeGameState.bases?.second) {
-            advances.push({ runnerId: activeGameState.bases.second.id, fromBase: 2, toBase: 0 });
-          }
-          if (activeGameState.bases?.third) {
-            advances.push({ runnerId: activeGameState.bases.third.id, fromBase: 3, toBase: 0 });
-          }
+          // Delegate to domain layer (GameCoordinator) for automatic advancement
+          // Return empty array to let domain logic handle these cases
+          // This maintains manual override capability while centralizing logic
           break;
         case AtBatResultType.HOME_RUN:
           advances.push({ runnerId: batter.id, fromBase: 0, toBase: 0 });
           // All runners score
-          if (activeGameState.bases?.first) {
-            advances.push({ runnerId: activeGameState.bases.first.id, fromBase: 1, toBase: 0 });
+          if (bases.first) {
+            advances.push({ runnerId: bases.first.id, fromBase: 1, toBase: 0 });
           }
-          if (activeGameState.bases?.second) {
-            advances.push({ runnerId: activeGameState.bases.second.id, fromBase: 2, toBase: 0 });
+          if (bases.second) {
+            advances.push({ runnerId: bases.second.id, fromBase: 2, toBase: 0 });
           }
-          if (activeGameState.bases?.third) {
-            advances.push({ runnerId: activeGameState.bases.third.id, fromBase: 3, toBase: 0 });
+          if (bases.third) {
+            advances.push({ runnerId: bases.third.id, fromBase: 3, toBase: 0 });
           }
           break;
         case AtBatResultType.WALK:
           advances.push({ runnerId: batter.id, fromBase: 0, toBase: 1 });
           // Force advances if bases loaded
-          if (
-            activeGameState.bases?.first &&
-            activeGameState.bases?.second &&
-            activeGameState.bases?.third
-          ) {
-            advances.push({ runnerId: activeGameState.bases.first.id, fromBase: 1, toBase: 2 });
-            advances.push({ runnerId: activeGameState.bases.second.id, fromBase: 2, toBase: 3 });
-            advances.push({ runnerId: activeGameState.bases.third.id, fromBase: 3, toBase: 0 });
-          } else if (activeGameState.bases?.first && activeGameState.bases?.second) {
-            advances.push({ runnerId: activeGameState.bases.first.id, fromBase: 1, toBase: 2 });
-            advances.push({ runnerId: activeGameState.bases.second.id, fromBase: 2, toBase: 3 });
-          } else if (activeGameState.bases?.first) {
-            advances.push({ runnerId: activeGameState.bases.first.id, fromBase: 1, toBase: 2 });
+          if (bases.first && bases.second && bases.third) {
+            advances.push({ runnerId: bases.first.id, fromBase: 1, toBase: 2 });
+            advances.push({ runnerId: bases.second.id, fromBase: 2, toBase: 3 });
+            advances.push({ runnerId: bases.third.id, fromBase: 3, toBase: 0 });
+          } else if (bases.first && bases.second) {
+            advances.push({ runnerId: bases.first.id, fromBase: 1, toBase: 2 });
+            advances.push({ runnerId: bases.second.id, fromBase: 2, toBase: 3 });
+          } else if (bases.first) {
+            advances.push({ runnerId: bases.first.id, fromBase: 1, toBase: 2 });
           }
           break;
         // OUT, STRIKEOUT, etc. - no advances
@@ -282,7 +310,7 @@ export function GameRecordingPage(): ReactElement {
 
       return advances;
     },
-    [activeGameState]
+    []
   );
 
   /**
@@ -290,11 +318,24 @@ export function GameRecordingPage(): ReactElement {
    */
   const handleActionInternal = useCallback(
     async (actionType: string): Promise<void> => {
-      // Action recording started - would be logged via DI container logger in full implementation
-      // eslint-disable-next-line no-console -- Required for action logging in tests
-      console.log(`Recording action: ${actionType}`);
+      // Action recording started - logged via logger
+      logger.debug(`Recording action: ${actionType}`);
 
-      if (isLoading || !activeGameState?.currentBatter) return;
+      if (isLoading) return;
+
+      // CAPTURE currentBatter AND bases EARLY to avoid reading stale state later
+      const currentBatter = activeGameState?.currentBatter;
+      const bases = activeGameState?.bases;
+      if (!currentBatter) {
+        // eslint-disable-next-line no-console -- Intentional error logging for debugging invalid state
+        console.error('[GameRecordingPage] No current batter available');
+        return;
+      }
+      if (!bases) {
+        // eslint-disable-next-line no-console -- Intentional error logging for debugging invalid state
+        console.error('[GameRecordingPage] No bases state available');
+        return;
+      }
 
       const atBatResult = mapActionToAtBatResult(actionType);
 
@@ -306,25 +347,37 @@ export function GameRecordingPage(): ReactElement {
         return;
       }
 
-      // Get automatic advances and record immediately
-      const advances = getAutomaticAdvances(atBatResult);
+      // Pass captured batter AND bases explicitly to avoid race condition
+      const advances = getAutomaticAdvances(atBatResult, currentBatter, bases);
+
+      // DIAGNOSTIC: Log before recordAtBat call
+      logger.debug(`Calling recordAtBat with ${advances.length} advances`);
+      if (advances.length > 0 && advances[0]) {
+        logger.debug(
+          `First advance: runnerId=${advances[0].runnerId}, from=${advances[0].fromBase}, to=${advances[0].toBase}`
+        );
+      }
 
       try {
         await recordAtBat({
-          result: actionType,
+          result: mapActionToResultString(actionType),
           runnerAdvances: advances,
         });
-      } catch (_err) {
+        logger.debug('recordAtBat completed successfully');
+
+        // DIAGNOSTIC: Check hook result state after recording
+        logger.debug('Hook result state after recordAtBat:', {
+          hasResult: !!result,
+          result: result,
+          error: error,
+        });
+      } catch (err) {
+        logger.error('recordAtBat failed', err as Error);
         // Error handled by hook state
       }
     },
-    [
-      isLoading,
-      activeGameState?.currentBatter,
-      recordAtBat,
-      needsManualAdvancement,
-      getAutomaticAdvances,
-    ]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- error and result are stable references from useRecordAtBat hook
+    [isLoading, activeGameState, recordAtBat, needsManualAdvancement, getAutomaticAdvances]
   );
 
   /**
@@ -357,7 +410,7 @@ export function GameRecordingPage(): ReactElement {
 
     try {
       await recordAtBat({
-        result: pendingAtBatResult,
+        result: mapActionToResultString(pendingAtBatResult),
         runnerAdvances,
       });
 
@@ -392,8 +445,8 @@ export function GameRecordingPage(): ReactElement {
       // Hook should handle error state, but provide fallback notification
       const errorMessage = error instanceof Error ? error.message : 'Unknown error during undo';
 
-      // eslint-disable-next-line no-console -- Error logging is necessary for debugging
-      console.error('Undo failed:', error);
+      // Log error for debugging
+      logger.error('Undo failed', error instanceof Error ? error : new Error(String(error)));
 
       // Fallback: show error notification if hook doesn't provide lastUndoRedoResult
       // The error notification UI will display if lastUndoRedoResult updates,
@@ -417,8 +470,8 @@ export function GameRecordingPage(): ReactElement {
       // Hook should handle error state, but provide fallback notification
       const errorMessage = error instanceof Error ? error.message : 'Unknown error during redo';
 
-      // eslint-disable-next-line no-console -- Error logging is necessary for debugging
-      console.error('Redo failed:', error);
+      // Log error for debugging
+      logger.error('Redo failed', error instanceof Error ? error : new Error(String(error)));
 
       // Fallback: show error notification if hook doesn't provide lastUndoRedoResult
       // The error notification UI will display if lastUndoRedoResult updates,
@@ -441,20 +494,12 @@ export function GameRecordingPage(): ReactElement {
           timers.setTimeout(() => setRbiNotification(null), RBI_NOTIFICATION_DURATION_MS);
         }
 
-        // Update game state through store
-        if (result.gameState) {
-          updateScore({
-            home: result.gameState.score.home,
-            away: result.gameState.score.away,
-          });
-        }
-
         // Reset recording state
         reset();
       }
     };
     handleResult();
-  }, [result, reset, updateScore, timers]);
+  }, [result, reset, timers]);
 
   /**
    * Handle retry after error with enhanced recovery
@@ -488,8 +533,7 @@ export function GameRecordingPage(): ReactElement {
     void errorRecovery.reportError(
       data => {
         // In a real app, this would send to error tracking service
-        // eslint-disable-next-line no-console -- Error reporting requires console output for debugging
-        console.error('Error Report:', data);
+        logger.error('Error Report', new Error(JSON.stringify(data)));
         return Promise.resolve({ reportId: `ERR-${Date.now()}` });
       },
       {
@@ -508,8 +552,8 @@ export function GameRecordingPage(): ReactElement {
    */
   const handleComponentError = useCallback(
     (error: Error, errorInfo: ErrorInfo) => {
-      // eslint-disable-next-line no-console -- Error logging is necessary for debugging
-      console.error('GameRecordingPage component error:', error, errorInfo);
+      // Log component error for debugging
+      logger.error('GameRecordingPage component error', error);
 
       // Handle nullable componentStack from React's ErrorInfo
       const componentStack = errorInfo.componentStack || 'Unknown component';
@@ -605,8 +649,7 @@ export function GameRecordingPage(): ReactElement {
         // Process substitution data if provided
         if (data) {
           // Log substitution data for debugging in development
-          // eslint-disable-next-line no-console -- Required for debugging substitution data
-          console.log('Substitution completed with data:', data);
+          logger.debug('Substitution completed with data', { data });
         }
 
         // Close dialogs
@@ -619,8 +662,10 @@ export function GameRecordingPage(): ReactElement {
         // The game state will be updated automatically through the store
       } catch (error) {
         // Error handling is managed by the substitute player feature
-        // eslint-disable-next-line no-console -- Error logging is necessary for debugging
-        console.error('Substitution completion error:', error);
+        logger.error(
+          'Substitution completion error',
+          error instanceof Error ? error : new Error(String(error))
+        );
       }
     },
     [showInfo]

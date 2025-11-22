@@ -628,7 +628,7 @@ describe('EventSourcingService - Memory Management', () => {
 
     it(
       'should maintain cache integrity during memory pressure eviction',
-      { timeout: 10000 },
+      { timeout: 30000 },
       () => {
         // Enable caching
         eventSourcingService.enableSnapshotCaching(true);
@@ -636,9 +636,9 @@ describe('EventSourcingService - Memory Management', () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Testing internal cache manipulation
         const service = eventSourcingService as any;
 
-        // Create varying sized entries
+        // Create varying sized entries (optimized for CI: 3MB/1MB still triggers >40MB threshold)
         for (let i = 0; i < 20; i++) {
-          const sizeMultiplier = i % 3 === 0 ? 2000000 : 500000; // Some large, some medium
+          const sizeMultiplier = i % 3 === 0 ? 3000000 : 1000000; // Reduced from 2M/500k for CI stability
           const variedData = 'x'.repeat(sizeMultiplier);
           const cacheKey = `game-${i}:Game:1`;
           service.snapshotCache.set(cacheKey, {

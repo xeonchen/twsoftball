@@ -755,18 +755,19 @@ describe('EventSourcedTeamLineupRepository', () => {
       (mockEventStore.getAllEvents as Mock).mockResolvedValue(allEvents);
 
       // Mock TeamLineup.fromEvents to return lineups with different sides
-      // Note: Side determination logic will be implemented in the repository
       const mockHomeLineup = {
         ...mockTeamLineup,
         id: homeLineupId,
         gameId,
         teamName: 'Home Team',
+        teamSide: 'HOME' as const,
       } as unknown as TeamLineup;
       const mockAwayLineup = {
         ...mockTeamLineup,
         id: awayLineupId,
         gameId,
         teamName: 'Away Team',
+        teamSide: 'AWAY' as const,
       } as unknown as TeamLineup;
 
       vi.spyOn(TeamLineup, 'fromEvents')
@@ -822,12 +823,14 @@ describe('EventSourcedTeamLineupRepository', () => {
         id: homeLineupId,
         gameId,
         teamName: 'Home Team',
+        teamSide: 'HOME' as const,
       } as unknown as TeamLineup;
       const mockAwayLineup = {
         ...mockTeamLineup,
         id: awayLineupId,
         gameId,
         teamName: 'Away Team',
+        teamSide: 'AWAY' as const,
       } as unknown as TeamLineup;
 
       vi.spyOn(TeamLineup, 'fromEvents')
@@ -1048,31 +1051,15 @@ describe('EventSourcedTeamLineupRepository', () => {
       await expect(repository.findById(nullTeamLineupId)).rejects.toThrow();
     });
 
-    it('should return null in findByGameIdAndSide when game is not found', async () => {
-      // Setup: Mock that lineups exist for the game
-      const mockTeamLineupEvents = mockEvents.map((event, index) => ({
-        eventId: event.eventId,
-        streamId: teamLineupId.value,
-        streamType: 'TeamLineup',
-        aggregateType: 'TeamLineup' as const,
-        eventType: event.type,
-        eventData: JSON.stringify(event),
-        eventVersion: 1,
-        streamVersion: index + 1,
-        timestamp: event.timestamp,
-        metadata: { source: 'test', createdAt: event.timestamp },
-      }));
-
-      (mockEventStore.getAllEvents as Mock).mockResolvedValue(mockTeamLineupEvents);
-      vi.spyOn(TeamLineup, 'fromEvents').mockReturnValue(mockTeamLineup);
-      (mockGameRepository.findById as Mock).mockResolvedValue(null); // No game found
+    it('should return null in findByGameIdAndSide when game has no lineups', async () => {
+      // Setup: Mock that NO lineups exist for this game
+      (mockEventStore.getAllEvents as Mock).mockResolvedValue([]);
 
       // Execute
       const result = await repository.findByGameIdAndSide(gameId, 'HOME');
 
-      // Verify: null returned when game not found
+      // Verify: null returned when no lineups found for game
       expect(result).toBeNull();
-      expect(mockGameRepository.findById).toHaveBeenCalledWith(gameId);
     });
 
     it('should handle malformed events during reconstruction', async () => {

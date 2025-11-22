@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, memo, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { v4 as uuidv4 } from 'uuid';
 
 import { useGameStore } from '../../../entities/game';
 import {
@@ -323,17 +324,17 @@ export function GameSetupLineupPage(): ReactElement {
    */
   function generateSamplePlayers(): Player[] {
     return [
-      { id: '1', name: 'Mike Chen', jerseyNumber: '8', position: 'SS', battingOrder: 0 },
-      { id: '2', name: 'Lisa Park', jerseyNumber: '5', position: 'CF', battingOrder: 0 },
-      { id: '3', name: 'Sara Johnson', jerseyNumber: '12', position: 'RF', battingOrder: 0 },
-      { id: '4', name: 'Dave Wilson', jerseyNumber: '24', position: '3B', battingOrder: 0 },
-      { id: '5', name: 'Amy Wu', jerseyNumber: '19', position: 'LF', battingOrder: 0 },
-      { id: '6', name: 'Alex Kim', jerseyNumber: '22', position: 'SF', battingOrder: 0 },
-      { id: '7', name: 'Tom Garcia', jerseyNumber: '15', position: '1B', battingOrder: 0 },
-      { id: '8', name: 'Kim Lee', jerseyNumber: '7', position: 'C', battingOrder: 0 },
-      { id: '9', name: 'Jose Rodriguez', jerseyNumber: '11', position: '2B', battingOrder: 0 },
-      { id: '10', name: 'Beth Cooper', jerseyNumber: '9', position: 'P', battingOrder: 0 },
-      { id: '11', name: 'Sam Taylor', jerseyNumber: '14', position: 'EP', battingOrder: 0 },
+      { id: uuidv4(), name: 'Mike Chen', jerseyNumber: '8', position: 'SS', battingOrder: 0 },
+      { id: uuidv4(), name: 'Lisa Park', jerseyNumber: '5', position: 'CF', battingOrder: 0 },
+      { id: uuidv4(), name: 'Sara Johnson', jerseyNumber: '12', position: 'RF', battingOrder: 0 },
+      { id: uuidv4(), name: 'Dave Wilson', jerseyNumber: '24', position: '3B', battingOrder: 0 },
+      { id: uuidv4(), name: 'Amy Wu', jerseyNumber: '19', position: 'LF', battingOrder: 0 },
+      { id: uuidv4(), name: 'Alex Kim', jerseyNumber: '22', position: 'SF', battingOrder: 0 },
+      { id: uuidv4(), name: 'Tom Garcia', jerseyNumber: '15', position: '1B', battingOrder: 0 },
+      { id: uuidv4(), name: 'Kim Lee', jerseyNumber: '7', position: 'C', battingOrder: 0 },
+      { id: uuidv4(), name: 'Jose Rodriguez', jerseyNumber: '11', position: '2B', battingOrder: 0 },
+      { id: uuidv4(), name: 'Beth Cooper', jerseyNumber: '9', position: 'P', battingOrder: 0 },
+      { id: uuidv4(), name: 'Sam Taylor', jerseyNumber: '14', position: 'EP', battingOrder: 0 },
     ];
   }
 

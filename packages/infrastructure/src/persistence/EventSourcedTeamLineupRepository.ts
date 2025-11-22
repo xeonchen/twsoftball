@@ -12,12 +12,13 @@
  * domain knowledge, serving purely as an infrastructure adapter.
  */
 
-import type { EventStore, StoredEvent } from '@twsoftball/application/ports/out/EventStore';
-import type { GameRepository } from '@twsoftball/application/ports/out/GameRepository';
+import type { EventStore } from '@twsoftball/application/ports/out/EventStore';
 import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore';
 import type { TeamLineupRepository } from '@twsoftball/application/ports/out/TeamLineupRepository';
 import { SnapshotManager } from '@twsoftball/application/services/SnapshotManager';
 import { TeamLineupId, TeamLineup, GameId, DomainEvent } from '@twsoftball/domain';
+
+import { EventSourcingHelpers } from './utils/EventSourcingHelpers.js';
 
 interface EventSourcedAggregate {
   getId(): TeamLineupId;
@@ -45,7 +46,6 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
 
   constructor(
     private readonly eventStore: EventStore,
-    private readonly gameRepository: GameRepository,
     snapshotStore?: SnapshotStore
   ) {
     // Create SnapshotManager only when SnapshotStore is provided for backward compatibility
@@ -181,12 +181,20 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
     }
 
     // Group events by streamId to reconstruct each lineup
-    const lineupEventGroups = this.groupEventsByStreamId(allEvents, 'TeamLineup');
+    const lineupEventGroups = EventSourcingHelpers.groupEventsByStreamId(allEvents, 'TeamLineup');
 
     // Reconstruct lineups and filter by gameId
     const lineups: TeamLineup[] = [];
-    for (const [_streamId, events] of Array.from(lineupEventGroups)) {
+    for (const [streamId, events] of Array.from(lineupEventGroups)) {
       if (events.length > 0) {
+        // [FAIL FAST] Validate first event is TeamLineupCreated
+        if (events[0]?.eventType !== 'TeamLineupCreated') {
+          throw new Error(
+            `[Repository.findByGameId] Event ordering violation: streamId ${streamId} starts with ${events[0]?.eventType} instead of TeamLineupCreated. ` +
+              `This indicates events are being grouped incorrectly or stored with wrong streamId.`
+          );
+        }
+
         const domainEvents = events.map(e => JSON.parse(e.eventData) as DomainEvent);
         const lineup = TeamLineup.fromEvents(domainEvents);
         if (lineup.gameId.equals(gameId)) {
@@ -205,22 +213,8 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
       return null;
     }
 
-    // Get game to determine home/away team names
-    const game = await this.gameRepository.findById(gameId);
-    if (!game) {
-      return null;
-    }
-
-    // Find lineup by comparing team name with game's home/away team names
-    return (
-      gameLineups.find(lineup => {
-        if (side === 'HOME') {
-          return lineup.teamName === game.homeTeamName;
-        } else {
-          return lineup.teamName === game.awayTeamName;
-        }
-      }) ?? null
-    );
+    // Find lineup by teamSide (more reliable than team name matching)
+    return gameLineups.find(lineup => lineup.teamSide === side) ?? null;
   }
 
   async delete(id: TeamLineupId): Promise<void> {
@@ -232,27 +226,5 @@ export class EventSourcedTeamLineupRepository implements TeamLineupRepository {
     // Use properly typed EventStore interface extension
     const eventStoreWithDelete = this.eventStore as EventStoreWithDelete;
     await eventStoreWithDelete.delete(id);
-  }
-
-  /**
-   * Groups events by streamId for a specific aggregate type
-   */
-  private groupEventsByStreamId(
-    allEvents: StoredEvent[],
-    aggregateType: string
-  ): Map<string, StoredEvent[]> {
-    const groupedEvents = new Map<string, StoredEvent[]>();
-
-    for (const event of allEvents) {
-      if (event.aggregateType === aggregateType) {
-        const streamId = event.streamId;
-        if (!groupedEvents.has(streamId)) {
-          groupedEvents.set(streamId, []);
-        }
-        groupedEvents.get(streamId)!.push(event);
-      }
-    }
-
-    return groupedEvents;
   }
 }

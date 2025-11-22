@@ -37,7 +37,8 @@ describe('GameCoordinator - Core Functionality', () => {
   const createTestGame = (): Game => Game.createNew(gameId, 'Home Team', 'Away Team');
 
   const createTestLineup = (lineupId: TeamLineupId, teamName: string): TeamLineup => {
-    let lineup = TeamLineup.createNew(lineupId, gameId, teamName);
+    const teamSide = teamName.includes('Home') ? 'HOME' : 'AWAY';
+    let lineup = TeamLineup.createNew(lineupId, gameId, teamName, teamSide);
 
     // Standard softball positions for 9 players
     const positions = [
@@ -680,7 +681,7 @@ describe('GameCoordinator - Core Functionality', () => {
           .withRunnerOn('FIRST', runner2Id)
           .withRunnerOn('THIRD', runner3Id);
 
-        const movements = GameCoordinator.determineRunnerAdvancement(
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
           AtBatResultType.HOME_RUN,
           bases,
           batterId
@@ -688,6 +689,7 @@ describe('GameCoordinator - Core Functionality', () => {
 
         expect(movements).toHaveLength(3); // 2 runners + batter
         expect(movements.filter(m => m.toBase === 'HOME')).toHaveLength(3);
+        expect(runsScored).toBe(3);
       });
 
       it('should determine WALK advancement with bases loaded', () => {
@@ -696,7 +698,7 @@ describe('GameCoordinator - Core Functionality', () => {
           .withRunnerOn('SECOND', runner3Id)
           .withRunnerOn('THIRD', runner4Id);
 
-        const movements = GameCoordinator.determineRunnerAdvancement(
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
           AtBatResultType.WALK,
           bases,
           batterId
@@ -706,6 +708,93 @@ describe('GameCoordinator - Core Functionality', () => {
         const runner4Movement = movements.find(m => m.runnerId.equals(runner4Id));
         expect(runner4Movement).toBeDefined();
         expect(runner4Movement!.toBase).toBe('HOME');
+        expect(runsScored).toBe(1);
+      });
+
+      it('should force WALK advancement with runner on 1st only', () => {
+        // Only runner on 1st - force advance to 2nd, batter takes 1st
+        const bases = BasesState.empty().withRunnerOn('FIRST', runner2Id);
+
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
+          AtBatResultType.WALK,
+          bases,
+          batterId
+        );
+
+        expect(movements).toHaveLength(2); // Runner on 1st + batter
+        const runner2Movement = movements.find(m => m.runnerId.equals(runner2Id));
+        expect(runner2Movement).toBeDefined();
+        expect(runner2Movement!.fromBase).toBe('FIRST');
+        expect(runner2Movement!.toBase).toBe('SECOND'); // Forced to 2nd
+        const batterMovement = movements.find(m => m.runnerId.equals(batterId));
+        expect(batterMovement).toBeDefined();
+        expect(batterMovement!.toBase).toBe('FIRST');
+        expect(runsScored).toBe(0); // No runs scored
+      });
+
+      it('should force WALK advancement with runners on 1st and 2nd', () => {
+        // Runners on 1st and 2nd - both forced to advance (1st→2nd→3rd)
+        const bases = BasesState.empty()
+          .withRunnerOn('FIRST', runner2Id)
+          .withRunnerOn('SECOND', runner3Id);
+
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
+          AtBatResultType.WALK,
+          bases,
+          batterId
+        );
+
+        expect(movements).toHaveLength(3); // 2 runners + batter
+        const runner2Movement = movements.find(m => m.runnerId.equals(runner2Id));
+        expect(runner2Movement).toBeDefined();
+        expect(runner2Movement!.fromBase).toBe('FIRST');
+        expect(runner2Movement!.toBase).toBe('SECOND'); // Forced
+        const runner3Movement = movements.find(m => m.runnerId.equals(runner3Id));
+        expect(runner3Movement).toBeDefined();
+        expect(runner3Movement!.fromBase).toBe('SECOND');
+        expect(runner3Movement!.toBase).toBe('THIRD'); // Forced
+        const batterMovement = movements.find(m => m.runnerId.equals(batterId));
+        expect(batterMovement).toBeDefined();
+        expect(batterMovement!.toBase).toBe('FIRST');
+        expect(runsScored).toBe(0); // No runs scored
+      });
+
+      it('should NOT force WALK advancement with runner on 2nd only', () => {
+        // Runner on 2nd only - no force advance (gap on 1st breaks chain)
+        const bases = BasesState.empty().withRunnerOn('SECOND', runner2Id);
+
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
+          AtBatResultType.WALK,
+          bases,
+          batterId
+        );
+
+        expect(movements).toHaveLength(1); // Only batter moves
+        const runner2Movement = movements.find(m => m.runnerId.equals(runner2Id));
+        expect(runner2Movement).toBeUndefined(); // Runner on 2nd does NOT advance
+        const batterMovement = movements.find(m => m.runnerId.equals(batterId));
+        expect(batterMovement).toBeDefined();
+        expect(batterMovement!.toBase).toBe('FIRST');
+        expect(runsScored).toBe(0);
+      });
+
+      it('should NOT force WALK advancement with runner on 3rd only', () => {
+        // Runner on 3rd only - no force advance (gaps on 1st and 2nd break chain)
+        const bases = BasesState.empty().withRunnerOn('THIRD', runner3Id);
+
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
+          AtBatResultType.WALK,
+          bases,
+          batterId
+        );
+
+        expect(movements).toHaveLength(1); // Only batter moves
+        const runner3Movement = movements.find(m => m.runnerId.equals(runner3Id));
+        expect(runner3Movement).toBeUndefined(); // Runner on 3rd does NOT advance
+        const batterMovement = movements.find(m => m.runnerId.equals(batterId));
+        expect(batterMovement).toBeDefined();
+        expect(batterMovement!.toBase).toBe('FIRST');
+        expect(runsScored).toBe(0);
       });
 
       it('should determine SINGLE advancement correctly', () => {
@@ -713,7 +802,7 @@ describe('GameCoordinator - Core Functionality', () => {
           .withRunnerOn('FIRST', runner2Id)
           .withRunnerOn('SECOND', runner3Id);
 
-        const movements = GameCoordinator.determineRunnerAdvancement(
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
           AtBatResultType.SINGLE,
           bases,
           batterId
@@ -726,12 +815,13 @@ describe('GameCoordinator - Core Functionality', () => {
         const runner2Movement = movements.find(m => m.runnerId.equals(runner2Id));
         expect(runner2Movement).toBeDefined();
         expect(runner2Movement!.toBase).toBe('SECOND');
+        expect(runsScored).toBe(1);
       });
 
       it('should determine TRIPLE advancement correctly', () => {
         const bases = BasesState.empty().withRunnerOn('FIRST', runner2Id);
 
-        const movements = GameCoordinator.determineRunnerAdvancement(
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
           AtBatResultType.TRIPLE,
           bases,
           batterId
@@ -744,12 +834,13 @@ describe('GameCoordinator - Core Functionality', () => {
         const batterMovement = movements.find(m => m.runnerId.equals(batterId));
         expect(batterMovement).toBeDefined();
         expect(batterMovement!.toBase).toBe('THIRD');
+        expect(runsScored).toBe(1);
       });
 
       it('should determine DOUBLE advancement correctly', () => {
         const bases = BasesState.empty().withRunnerOn('SECOND', runner2Id);
 
-        const movements = GameCoordinator.determineRunnerAdvancement(
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
           AtBatResultType.DOUBLE,
           bases,
           batterId
@@ -762,12 +853,13 @@ describe('GameCoordinator - Core Functionality', () => {
         const batterMovement = movements.find(m => m.runnerId.equals(batterId));
         expect(batterMovement).toBeDefined();
         expect(batterMovement!.toBase).toBe('SECOND');
+        expect(runsScored).toBe(1);
       });
 
       it('should determine SACRIFICE_FLY advancement correctly', () => {
         const bases = BasesState.empty().withRunnerOn('THIRD', runner3Id);
 
-        const movements = GameCoordinator.determineRunnerAdvancement(
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
           AtBatResultType.SACRIFICE_FLY,
           bases,
           batterId
@@ -777,24 +869,26 @@ describe('GameCoordinator - Core Functionality', () => {
         const runner3Movement = movements.find(m => m.runnerId.equals(runner3Id));
         expect(runner3Movement).toBeDefined();
         expect(runner3Movement!.toBase).toBe('HOME');
+        expect(runsScored).toBe(1);
       });
 
       it('should determine no advancement for outs', () => {
         const bases = BasesState.empty().withRunnerOn('FIRST', runner2Id);
 
-        const movements = GameCoordinator.determineRunnerAdvancement(
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
           AtBatResultType.STRIKEOUT,
           bases,
           batterId
         );
 
         expect(movements).toHaveLength(0); // No automatic advancement
+        expect(runsScored).toBe(0);
       });
 
       it('should handle empty bases state', () => {
         const bases = BasesState.empty();
 
-        const movements = GameCoordinator.determineRunnerAdvancement(
+        const { movements, runsScored } = GameCoordinator.determineRunnerAdvancement(
           AtBatResultType.SINGLE,
           bases,
           batterId
@@ -804,6 +898,7 @@ describe('GameCoordinator - Core Functionality', () => {
         expect(movements[0]).toBeDefined();
         expect(movements[0]!.runnerId).toEqual(batterId);
         expect(movements[0]!.toBase).toBe('FIRST');
+        expect(runsScored).toBe(0);
       });
     });
   });
@@ -845,6 +940,206 @@ describe('GameCoordinator - Core Functionality', () => {
 
       // 6. Team coordination (home vs away)
       expect(result.updatedGame!.score).toBeDefined();
+    });
+  });
+
+  describe('Runner Advancement Overrides', () => {
+    describe('Batter Override (fromBase: null)', () => {
+      it('should handle batter being put out with fromBase: null and toBase: OUT', () => {
+        game.startGame();
+
+        // Sacrifice fly scenario: runner on third scores, batter out
+        const runnerOnThirdId = runner3Id;
+        inningState = inningState.withRunnerOnBase('THIRD', runnerOnThirdId);
+
+        const runnerAdvancementOverrides: RunnerAdvancement[] = [
+          { runnerId: runnerOnThirdId, fromBase: 'THIRD', toBase: 'HOME' }, // Runner scores
+          { runnerId: batterId, fromBase: null, toBase: 'OUT' }, // Batter out
+        ];
+
+        const result = GameCoordinator.recordAtBat(
+          game,
+          homeLineup,
+          awayLineup,
+          inningState,
+          batterId,
+          AtBatResultType.SACRIFICE_FLY,
+          runnerAdvancementOverrides,
+          rules
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.runsScored).toBe(1); // Runner from third scored
+        // Out should be added by the at-bat result type processing
+        expect(result.updatedInningState!.outs).toBeGreaterThan(inningState.outs);
+      });
+
+      it('should handle batter reaching base with fromBase: null', () => {
+        game.startGame();
+
+        const runnerAdvancementOverrides: RunnerAdvancement[] = [
+          { runnerId: batterId, fromBase: null, toBase: 'FIRST' }, // Batter to first
+        ];
+
+        const result = GameCoordinator.recordAtBat(
+          game,
+          homeLineup,
+          awayLineup,
+          inningState,
+          batterId,
+          AtBatResultType.SINGLE,
+          runnerAdvancementOverrides,
+          rules
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.updatedInningState!.basesState.getRunner('FIRST')).toEqual(batterId);
+      });
+    });
+
+    describe('Runner Out Override (toBase: OUT)', () => {
+      it('should handle fielders choice with runner put out at second', () => {
+        game.startGame();
+
+        const runnerOnFirstId = runner2Id;
+        inningState = inningState.withRunnerOnBase('FIRST', runnerOnFirstId);
+
+        const runnerAdvancementOverrides: RunnerAdvancement[] = [
+          { runnerId: runnerOnFirstId, fromBase: 'FIRST', toBase: 'OUT' }, // Runner forced out
+          { runnerId: batterId, fromBase: null, toBase: 'FIRST' }, // Batter safe at first
+        ];
+
+        const result = GameCoordinator.recordAtBat(
+          game,
+          homeLineup,
+          awayLineup,
+          inningState,
+          batterId,
+          AtBatResultType.FIELDERS_CHOICE,
+          runnerAdvancementOverrides,
+          rules
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.updatedInningState!.basesState.getRunner('FIRST')).toEqual(batterId);
+        // Runner should not be on base (put out)
+        expect(result.updatedInningState!.basesState.getRunner('SECOND')).toBeUndefined();
+        expect(result.updatedInningState!.outs).toBeGreaterThan(inningState.outs);
+      });
+
+      it('should handle caught stealing with toBase: OUT', () => {
+        game.startGame();
+
+        const runnerOnFirstId = runner2Id;
+        inningState = inningState.withRunnerOnBase('FIRST', runnerOnFirstId);
+
+        const runnerAdvancementOverrides: RunnerAdvancement[] = [
+          { runnerId: runnerOnFirstId, fromBase: 'FIRST', toBase: 'OUT' }, // Caught stealing
+        ];
+
+        const result = GameCoordinator.recordAtBat(
+          game,
+          homeLineup,
+          awayLineup,
+          inningState,
+          batterId,
+          AtBatResultType.STRIKEOUT,
+          runnerAdvancementOverrides,
+          rules
+        );
+
+        expect(result.success).toBe(true);
+        // Runner should be out
+        expect(result.updatedInningState!.basesState.getRunner('FIRST')).toBeUndefined();
+        expect(result.updatedInningState!.basesState.getRunner('SECOND')).toBeUndefined();
+      });
+    });
+
+    describe('Complex Scenarios', () => {
+      it('should handle sacrifice fly with runner scoring and batter out', () => {
+        game.startGame();
+
+        const runnerOnThirdId = runner3Id;
+        inningState = inningState.withRunnerOnBase('THIRD', runnerOnThirdId);
+
+        const runnerAdvancementOverrides: RunnerAdvancement[] = [
+          { runnerId: runnerOnThirdId, fromBase: 'THIRD', toBase: 'HOME' },
+          { runnerId: batterId, fromBase: null, toBase: 'OUT' },
+        ];
+
+        const result = GameCoordinator.recordAtBat(
+          game,
+          homeLineup,
+          awayLineup,
+          inningState,
+          batterId,
+          AtBatResultType.SACRIFICE_FLY,
+          runnerAdvancementOverrides,
+          rules
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.runsScored).toBe(1);
+        expect(result.updatedInningState!.basesState.getRunner('THIRD')).toBeUndefined();
+        expect(result.rbis).toBe(1); // Batter gets RBI for sacrifice fly
+      });
+
+      it('should handle double play with multiple outs', () => {
+        game.startGame();
+
+        const runnerOnFirstId = runner2Id;
+        inningState = inningState.withRunnerOnBase('FIRST', runnerOnFirstId);
+
+        const runnerAdvancementOverrides: RunnerAdvancement[] = [
+          { runnerId: runnerOnFirstId, fromBase: 'FIRST', toBase: 'OUT' }, // Runner forced out at second
+          { runnerId: batterId, fromBase: null, toBase: 'OUT' }, // Batter out at first
+        ];
+
+        const result = GameCoordinator.recordAtBat(
+          game,
+          homeLineup,
+          awayLineup,
+          inningState,
+          batterId,
+          AtBatResultType.DOUBLE_PLAY,
+          runnerAdvancementOverrides,
+          rules
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.runsScored).toBe(0);
+        // Both should be out
+        expect(result.updatedInningState!.basesState.getRunner('FIRST')).toBeUndefined();
+        expect(result.updatedInningState!.basesState.getRunner('SECOND')).toBeUndefined();
+      });
+
+      it('should handle error with runner advancing and batter reaching base', () => {
+        game.startGame();
+
+        const runnerOnSecondId = runner2Id;
+        inningState = inningState.withRunnerOnBase('SECOND', runnerOnSecondId);
+
+        const runnerAdvancementOverrides: RunnerAdvancement[] = [
+          { runnerId: runnerOnSecondId, fromBase: 'SECOND', toBase: 'HOME' }, // Runner scores on error
+          { runnerId: batterId, fromBase: null, toBase: 'SECOND' }, // Batter to second on error
+        ];
+
+        const result = GameCoordinator.recordAtBat(
+          game,
+          homeLineup,
+          awayLineup,
+          inningState,
+          batterId,
+          AtBatResultType.ERROR,
+          runnerAdvancementOverrides,
+          rules
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.runsScored).toBe(1);
+        expect(result.updatedInningState!.basesState.getRunner('SECOND')).toEqual(batterId);
+        expect(result.rbis).toBe(0); // No RBI on error
+      });
     });
   });
 });

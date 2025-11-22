@@ -417,7 +417,7 @@ apps/web/src/
 **Purpose**: Application-wide configuration and initialization
 
 ```typescript
-// apps/web/src/app/index.tsx
+// apps/web/src/app/index.ts
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router } from 'app/router';
 import { GameStateProvider } from './providers/GameStateProvider';

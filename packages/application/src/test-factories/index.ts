@@ -34,11 +34,15 @@
 // Export all mock factories
 export {
   createMockGameRepository,
+  createMockInningStateRepository,
+  createMockTeamLineupRepository,
   createMockEventStore,
   createMockLogger,
   createMockNotificationService,
   createMockDependencies,
   type EnhancedMockGameRepository,
+  type EnhancedMockInningStateRepository,
+  type EnhancedMockTeamLineupRepository,
   type EnhancedMockEventStore,
   type EnhancedMockLogger,
   type EnhancedMockNotificationService,

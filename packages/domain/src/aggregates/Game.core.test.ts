@@ -1,6 +1,7 @@
 import { GameStatus } from '../constants/GameStatus.js';
 import { DomainError } from '../errors/DomainError.js';
 import { GameCompleted } from '../events/GameCompleted.js';
+import { SoftballRules } from '../rules/SoftballRules.js';
 import { GameId } from '../value-objects/GameId.js';
 import { GameScore } from '../value-objects/GameScore.js';
 
@@ -231,7 +232,14 @@ describe('Game Aggregate Root - Core Operations', () => {
     let game: Game;
 
     beforeEach(() => {
-      game = Game.createNew(gameId, 'Home Tigers', 'Away Lions');
+      // Use custom rules matching old hard-coded behavior for these tests
+      const customRules = new SoftballRules({
+        mercyRuleTiers: [
+          { differential: 15, afterInning: 5 }, // Old: 15+ after 5
+          { differential: 10, afterInning: 7 }, // Old: 10+ after 7
+        ],
+      });
+      game = Game.createNew(gameId, 'Home Tigers', 'Away Lions', customRules);
       game.startGame();
       game.markEventsAsCommitted();
     });
@@ -244,7 +252,14 @@ describe('Game Aggregate Root - Core Operations', () => {
       }
       game.addHomeRuns(15); // 15-0 lead
 
-      expect(game.isMercyRuleTriggered()).toBe(true);
+      // Delegate mercy rule logic to SoftballRules
+      expect(
+        game.rules.isMercyRule(
+          game.score.getHomeRuns(),
+          game.score.getAwayRuns(),
+          game.currentInning
+        )
+      ).toBe(true);
     });
 
     it('should detect mercy rule condition with 10+ run lead after 7 innings', () => {
@@ -255,7 +270,14 @@ describe('Game Aggregate Root - Core Operations', () => {
       }
       game.addAwayRuns(10); // 0-10 lead
 
-      expect(game.isMercyRuleTriggered()).toBe(true);
+      // Delegate mercy rule logic to SoftballRules
+      expect(
+        game.rules.isMercyRule(
+          game.score.getHomeRuns(),
+          game.score.getAwayRuns(),
+          game.currentInning
+        )
+      ).toBe(true);
     });
 
     it('should not trigger mercy rule with insufficient run lead', () => {
@@ -266,7 +288,14 @@ describe('Game Aggregate Root - Core Operations', () => {
       }
       game.addHomeRuns(14);
 
-      expect(game.isMercyRuleTriggered()).toBe(false);
+      // Delegate mercy rule logic to SoftballRules
+      expect(
+        game.rules.isMercyRule(
+          game.score.getHomeRuns(),
+          game.score.getAwayRuns(),
+          game.currentInning
+        )
+      ).toBe(false);
     });
 
     it('should not trigger mercy rule before required innings', () => {
@@ -277,7 +306,14 @@ describe('Game Aggregate Root - Core Operations', () => {
       }
       game.addHomeRuns(15);
 
-      expect(game.isMercyRuleTriggered()).toBe(false);
+      // Delegate mercy rule logic to SoftballRules
+      expect(
+        game.rules.isMercyRule(
+          game.score.getHomeRuns(),
+          game.score.getAwayRuns(),
+          game.currentInning
+        )
+      ).toBe(false);
     });
   });
 
@@ -308,7 +344,7 @@ describe('Game Aggregate Root - Core Operations', () => {
       }
       game.addHomeRuns(1); // Home team takes lead in bottom of 7th
 
-      expect(game.isWalkOffScenario()).toBe(true);
+      expect(game.isWalkOffScenario(7, false, 1)).toBe(true);
     });
 
     it('should require extra innings when tied after regulation', () => {
@@ -321,7 +357,8 @@ describe('Game Aggregate Root - Core Operations', () => {
 
       expect(game.isRegulationComplete()).toBe(true);
       expect(game.score.isTied()).toBe(true);
-      expect(game.isWalkOffScenario()).toBe(false);
+      // Not a walk-off if no runs score (tied game continues)
+      expect(game.isWalkOffScenario(8, false, 0)).toBe(false);
     });
   });
 
@@ -465,6 +502,74 @@ describe('Game Aggregate Root - Core Operations', () => {
         expect(event.type).toBeDefined();
         expect(typeof event.type).toBe('string');
       });
+    });
+  });
+
+  describe('Score DTO', () => {
+    it('should return score DTO with TIE leader when scores are equal', () => {
+      const game = Game.createNew(gameId, 'Home Tigers', 'Away Lions');
+      game.startGame();
+
+      const scoreDTO = game.getScoreDTO();
+
+      expect(scoreDTO.home).toBe(0);
+      expect(scoreDTO.away).toBe(0);
+      expect(scoreDTO.leader).toBe('TIE');
+      expect(scoreDTO.difference).toBe(0);
+    });
+
+    it('should return score DTO with HOME leader when home team is winning', () => {
+      const game = Game.createNew(gameId, 'Home Tigers', 'Away Lions');
+      game.startGame();
+      game.addHomeRuns(3);
+
+      const scoreDTO = game.getScoreDTO();
+
+      expect(scoreDTO.home).toBe(3);
+      expect(scoreDTO.away).toBe(0);
+      expect(scoreDTO.leader).toBe('HOME');
+      expect(scoreDTO.difference).toBe(3);
+    });
+
+    it('should return score DTO with AWAY leader when away team is winning', () => {
+      const game = Game.createNew(gameId, 'Home Tigers', 'Away Lions');
+      game.startGame();
+      game.addAwayRuns(5);
+
+      const scoreDTO = game.getScoreDTO();
+
+      expect(scoreDTO.home).toBe(0);
+      expect(scoreDTO.away).toBe(5);
+      expect(scoreDTO.leader).toBe('AWAY');
+      expect(scoreDTO.difference).toBe(5);
+    });
+
+    it('should return correct difference for close games', () => {
+      const game = Game.createNew(gameId, 'Home Tigers', 'Away Lions');
+      game.startGame();
+      game.addHomeRuns(7);
+      game.addAwayRuns(6);
+
+      const scoreDTO = game.getScoreDTO();
+
+      expect(scoreDTO.home).toBe(7);
+      expect(scoreDTO.away).toBe(6);
+      expect(scoreDTO.leader).toBe('HOME');
+      expect(scoreDTO.difference).toBe(1);
+    });
+
+    it('should return correct difference regardless of which team is ahead', () => {
+      const game = Game.createNew(gameId, 'Home Tigers', 'Away Lions');
+      game.startGame();
+      game.addHomeRuns(2);
+      game.addAwayRuns(10);
+
+      const scoreDTO = game.getScoreDTO();
+
+      expect(scoreDTO.home).toBe(2);
+      expect(scoreDTO.away).toBe(10);
+      expect(scoreDTO.leader).toBe('AWAY');
+      expect(scoreDTO.difference).toBe(8);
     });
   });
 });

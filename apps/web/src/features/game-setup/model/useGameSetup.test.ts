@@ -114,7 +114,7 @@ describe('useGameSetup Hook', () => {
 
   const mockSuccessResult = {
     success: true as const,
-    gameId: 'test-game-id',
+    gameId: new GameId('test-game-id'),
     initialState: {
       gameId: new GameId('test-game-id'),
       status: 'WAITING_TO_START' as const,
@@ -210,7 +210,9 @@ describe('useGameSetup Hook', () => {
       expect(mockLogger.info).toHaveBeenCalledWith(
         'Game created successfully',
         expect.objectContaining({
-          gameId: 'test-game-id',
+          gameId: expect.objectContaining({
+            value: 'test-game-id',
+          }),
           homeTeam: 'Eagles',
           awayTeam: 'Hawks',
         })

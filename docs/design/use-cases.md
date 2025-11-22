@@ -51,8 +51,12 @@ acceptance criteria, and implementation priority.
 - [ ] Game starts in the top of the 1st inning
 - [ ] Initial score is 0-0
 
-**Pre-conditions**: None **Post-conditions**: New game exists in IN_PROGRESS
-status with complete lineup
+**Pre-conditions**: None **Post-conditions**:
+
+- New game exists in IN_PROGRESS status with complete lineup
+- System automatically selects first batter (away team batting slot #1)
+- Action buttons (SINGLE, OUT, HOMERUN, etc.) are enabled and ready for first
+  at-bat
 
 **Basic Flow**:
 
@@ -62,7 +66,9 @@ status with complete lineup
 4. User adds players to lineup with names, jersey numbers, and positions
 5. System validates lineup completeness and uniqueness
 6. User confirms lineup
-7. System creates game and displays recording interface
+7. System creates game and initializes game state
+8. System automatically selects first batter (away team batting slot #1)
+9. System displays recording interface with action buttons enabled
 
 **Alternative Flows**:
 
@@ -93,18 +99,28 @@ status with complete lineup
 - [ ] System applies mercy rule if conditions are met
 - [ ] All changes are immediately persisted for offline use
 
-**Pre-conditions**: Game is in progress, current batter is known
-**Post-conditions**: At-bat is recorded, game state is updated
+**Pre-conditions**:
+
+- Game is in progress
+- Current batter is automatically selected by the system based on batting order
+
+**Post-conditions**:
+
+- At-bat is recorded, game state is updated
+- System automatically advances batting order to next slot
+- Next batter is automatically selected
 
 **Basic Flow**:
 
 1. System displays current game situation (inning, score, bases, outs, current
-   batter)
+   batter - automatically selected)
 2. User selects at-bat result from available options
 3. System calculates runner advancement and RBI
 4. System presents preview of changes (score change, bases after)
 5. User confirms the at-bat
-6. System updates game state and displays next batter
+6. System updates game state and automatically advances to next batter in the
+   batting order
+7. System displays next batter (no user action required for batter selection)
 
 **Alternative Flows**:
 

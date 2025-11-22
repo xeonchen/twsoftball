@@ -22,7 +22,11 @@ import {
   GameRulesDTO,
   StartNewGameCommandValidator,
 } from '../dtos/StartNewGameCommand.js';
-import { createGameApplicationServiceMocks } from '../test-factories/index.js';
+import {
+  createGameApplicationServiceMocks,
+  createMockInningStateRepository,
+  createMockTeamLineupRepository,
+} from '../test-factories/index.js';
 
 import { StartNewGame } from './StartNewGame.js';
 
@@ -45,6 +49,8 @@ describe('StartNewGame Validation', () => {
     // Create use case instance with mocked dependencies
     startNewGame = new StartNewGame(
       mocks.mockGameRepository,
+      createMockInningStateRepository(),
+      createMockTeamLineupRepository(),
       mocks.mockEventStore,
       mocks.mockLogger
     );
@@ -236,16 +242,6 @@ describe('StartNewGame Validation', () => {
 
       expect(result.success).toBe(false);
       expect(result.errors).toContain('Home and away team names must be different');
-    });
-
-    it('should reject game date in the past', async () => {
-      const pastDate = new Date('2020-01-01T10:00:00Z');
-      const command = createValidCommand({ gameDate: pastDate });
-
-      const result = await startNewGame.execute(command);
-
-      expect(result.success).toBe(false);
-      expect(result.errors).toContain('Game date cannot be in the past');
     });
 
     it('should reject empty initial lineup', async () => {

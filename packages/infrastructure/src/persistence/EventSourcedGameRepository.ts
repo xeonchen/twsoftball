@@ -12,13 +12,14 @@
  * domain knowledge, serving purely as an infrastructure adapter.
  */
 
-import type { EventStore, StoredEvent } from '@twsoftball/application/ports/out/EventStore';
+import type { EventStore } from '@twsoftball/application/ports/out/EventStore';
 import type { GameRepository } from '@twsoftball/application/ports/out/GameRepository';
 import type { SnapshotStore } from '@twsoftball/application/ports/out/SnapshotStore';
 import { SnapshotManager } from '@twsoftball/application/services/SnapshotManager';
 import { GameId, Game, GameStatus } from '@twsoftball/domain';
 
 import { deserializeEvent } from './utils/EventDeserializer.js';
+import { EventSourcingHelpers } from './utils/EventSourcingHelpers.js';
 
 interface EventSourcedAggregate {
   getId(): GameId;
@@ -179,15 +180,22 @@ export class EventSourcedGameRepository implements GameRepository {
    */
   private async findByIdFromEvents(id: GameId): Promise<Game | null> {
     const storedEvents = await this.eventStore.getEvents(id);
-    if (!storedEvents || storedEvents.length === 0) return null;
+
+    if (!storedEvents || storedEvents.length === 0) {
+      return null;
+    }
 
     try {
       // Convert StoredEvents to DomainEvents for Game reconstruction
       const domainEvents = storedEvents.map(storedEvent => {
         const rawData = JSON.parse(storedEvent.eventData) as unknown;
-        return deserializeEvent(rawData);
+        const domainEvent = deserializeEvent(rawData);
+        return domainEvent;
       });
-      return Game.fromEvents(domainEvents);
+
+      const reconstructedGame = Game.fromEvents(domainEvents);
+
+      return reconstructedGame;
     } catch (error) {
       // Only wrap unknown event type errors, let other errors propagate
       if (error instanceof Error && error.message.startsWith('Unknown event type:')) {
@@ -207,7 +215,7 @@ export class EventSourcedGameRepository implements GameRepository {
     }
 
     // Group events by streamId to reconstruct each game
-    const gameEventGroups = this.groupEventsByStreamId(allEvents, 'Game');
+    const gameEventGroups = EventSourcingHelpers.groupEventsByStreamId(allEvents, 'Game');
 
     // Reconstruct games and filter by status
     const games: Game[] = [];
@@ -241,7 +249,7 @@ export class EventSourcedGameRepository implements GameRepository {
       return [];
     }
 
-    const gameEventGroups = this.groupEventsByStreamId(allEvents, 'Game');
+    const gameEventGroups = EventSourcingHelpers.groupEventsByStreamId(allEvents, 'Game');
 
     // Reconstruct games and filter by scheduled date
     const games: Game[] = [];
@@ -298,27 +306,5 @@ export class EventSourcedGameRepository implements GameRepository {
     // We use type assertion here since delete is not part of the core EventStore interface
     const eventStoreWithDelete = this.eventStore as EventStoreWithDelete;
     await eventStoreWithDelete.delete(id);
-  }
-
-  /**
-   * Groups events by streamId for a specific aggregate type
-   */
-  private groupEventsByStreamId(
-    allEvents: StoredEvent[],
-    aggregateType: string
-  ): Map<string, StoredEvent[]> {
-    const groupedEvents = new Map<string, StoredEvent[]>();
-
-    for (const event of allEvents) {
-      if (event.aggregateType === aggregateType) {
-        const streamId = event.streamId;
-        if (!groupedEvents.has(streamId)) {
-          groupedEvents.set(streamId, []);
-        }
-        groupedEvents.get(streamId)!.push(event);
-      }
-    }
-
-    return groupedEvents;
   }
 }

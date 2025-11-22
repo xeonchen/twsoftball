@@ -1,6 +1,8 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 // Import shared types
+import type { UIGameState } from '../../../shared/api';
 import type { Player, SetupWizardState } from '../../../shared/lib/types';
 
 // Re-export types for external use
@@ -49,6 +51,9 @@ interface GameState {
   setupWizard: SetupWizardState;
   activeGameState: ActiveGameState | null;
   isGameActive: boolean;
+
+  // Phase 5.3.F hydration tracking
+  _hasHydrated: boolean;
 }
 
 /**
@@ -77,6 +82,9 @@ interface GameActions {
   clearBase: (base: 'first' | 'second' | 'third') => void;
   advanceHalfInning: () => void;
   addOut: () => void;
+
+  // Phase 5.3.F DTO sync
+  updateFromDTO: (uiState: UIGameState) => void;
 }
 
 /**
@@ -102,6 +110,9 @@ const initialState: GameState = {
   },
   activeGameState: null,
   isGameActive: false,
+
+  // Phase 5.3.F hydration tracking
+  _hasHydrated: false, // Set to true after persist middleware rehydrates
 };
 
 /**
@@ -130,233 +141,297 @@ const initialState: GameState = {
  * setCurrentBatter(player);
  * ```
  */
-export const useGameStore = create<GameStore>((set, get) => ({
-  ...initialState,
+export const useGameStore = create<GameStore>()(
+  persist(
+    (set, get) => ({
+      ...initialState,
 
-  // Legacy actions (Phase 1B compatibility)
-  setCurrentGame: (game: GameData): void => {
-    set({
-      currentGame: game,
-      error: null, // Clear error when setting new game
-    });
-  },
-
-  setLoading: (loading: boolean): void => {
-    set({ isLoading: loading });
-  },
-
-  setError: (error: string | null): void => {
-    set({ error });
-  },
-
-  updateScore: (score: { home: number; away: number }): void => {
-    const { currentGame } = get();
-    if (currentGame) {
-      set({
-        currentGame: {
-          ...currentGame,
-          homeScore: score.home,
-          awayScore: score.away,
-        },
-      });
-    }
-  },
-
-  // Phase 2 enhanced actions
-  // Setup wizard actions
-  setSetupStep: (step: 'teams' | 'lineup' | 'confirm' | null): void => {
-    set(state => ({
-      setupWizard: {
-        ...state.setupWizard,
-        step,
+      // Legacy actions (Phase 1B compatibility)
+      setCurrentGame: (game: GameData): void => {
+        set({
+          currentGame: game,
+          error: null, // Clear error when setting new game
+        });
       },
-    }));
-  },
 
-  setTeams: (home: string, away: string, ourTeam: 'home' | 'away' | null): void => {
-    set(state => ({
-      setupWizard: {
-        ...state.setupWizard,
-        teams: { home, away, ourTeam },
+      setLoading: (loading: boolean): void => {
+        set({ isLoading: loading });
       },
-    }));
-  },
 
-  setLineup: (lineup: Player[]): void => {
-    set(state => ({
-      setupWizard: {
-        ...state.setupWizard,
-        lineup,
+      setError: (error: string | null): void => {
+        set({ error });
       },
-    }));
-  },
 
-  completeSetup: (): void => {
-    set(state => ({
-      setupWizard: {
-        ...state.setupWizard,
-        isComplete: true,
-      },
-    }));
-  },
-
-  isSetupStepValid: (step: 'teams' | 'lineup' | 'confirm'): boolean => {
-    const { setupWizard } = get();
-
-    switch (step) {
-      case 'teams':
-        return (
-          setupWizard.teams.home.trim() !== '' &&
-          setupWizard.teams.away.trim() !== '' &&
-          setupWizard.teams.home !== setupWizard.teams.away &&
-          setupWizard.teams.ourTeam !== null
-        );
-
-      case 'lineup':
-        return (
-          setupWizard.lineup.length >= 9 &&
-          setupWizard.lineup.every(
-            player =>
-              player.name.trim() !== '' &&
-              player.jerseyNumber.trim() !== '' &&
-              player.position.trim() !== ''
-          )
-        );
-
-      case 'confirm':
-        return setupWizard.isComplete;
-
-      default:
-        return false;
-    }
-  },
-
-  // Active game actions
-  startActiveGame: (gameData: GameData): void => {
-    set({
-      currentGame: gameData,
-      isGameActive: true,
-      activeGameState: {
-        currentInning: gameData.currentInning || 1,
-        isTopHalf: gameData.isTopHalf ?? true,
-        currentBatter: null,
-        bases: { first: null, second: null, third: null },
-        outs: 0,
-      },
-      error: null, // Clear any previous errors
-    });
-  },
-
-  setCurrentBatter: (player: Player): void => {
-    set(state => ({
-      activeGameState: state.activeGameState
-        ? {
-            ...state.activeGameState,
-            currentBatter: player,
-          }
-        : null,
-    }));
-  },
-
-  setBaseRunner: (base: 'first' | 'second' | 'third', player: Player | null): void => {
-    set(state => ({
-      activeGameState: state.activeGameState
-        ? {
-            ...state.activeGameState,
-            bases: {
-              ...state.activeGameState.bases,
-              [base]: player,
+      updateScore: (score: { home: number; away: number }): void => {
+        const { currentGame } = get();
+        if (currentGame) {
+          set({
+            currentGame: {
+              ...currentGame,
+              homeScore: score.home,
+              awayScore: score.away,
             },
-          }
-        : null,
-    }));
-  },
+          });
+        }
+      },
 
-  clearBase: (base: 'first' | 'second' | 'third'): void => {
-    set(state => ({
-      activeGameState: state.activeGameState
-        ? {
-            ...state.activeGameState,
-            bases: {
-              ...state.activeGameState.bases,
-              [base]: null,
-            },
-          }
-        : null,
-    }));
-  },
-
-  advanceHalfInning: (): void => {
-    set(state => {
-      if (!state.activeGameState) return state;
-
-      const newIsTopHalf = !state.activeGameState.isTopHalf;
-      const newInning = newIsTopHalf
-        ? state.activeGameState.currentInning + 1
-        : state.activeGameState.currentInning;
-
-      return {
-        activeGameState: {
-          ...state.activeGameState,
-          currentInning: newInning,
-          isTopHalf: newIsTopHalf,
-          outs: 0, // Reset outs
-          bases: { first: null, second: null, third: null }, // Clear bases
-        },
-        // Update current game state as well
-        currentGame: state.currentGame
-          ? {
-              ...state.currentGame,
-              currentInning: newInning,
-              isTopHalf: newIsTopHalf,
-            }
-          : null,
-      };
-    });
-  },
-
-  addOut: (): void => {
-    set(state => {
-      if (!state.activeGameState) return state;
-
-      const newOuts = state.activeGameState.outs + 1;
-
-      if (newOuts >= 3) {
-        // Advance half inning when 3 outs reached
-        const newIsTopHalf = !state.activeGameState.isTopHalf;
-        const newInning = newIsTopHalf
-          ? state.activeGameState.currentInning + 1
-          : state.activeGameState.currentInning;
-
-        return {
-          activeGameState: {
-            ...state.activeGameState,
-            currentInning: newInning,
-            isTopHalf: newIsTopHalf,
-            outs: 0,
-            bases: { first: null, second: null, third: null },
+      // Phase 2 enhanced actions
+      // Setup wizard actions
+      setSetupStep: (step: 'teams' | 'lineup' | 'confirm' | null): void => {
+        set(state => ({
+          setupWizard: {
+            ...state.setupWizard,
+            step,
           },
-          currentGame: state.currentGame
+        }));
+      },
+
+      setTeams: (home: string, away: string, ourTeam: 'home' | 'away' | null): void => {
+        set(state => ({
+          setupWizard: {
+            ...state.setupWizard,
+            teams: { home, away, ourTeam },
+          },
+        }));
+      },
+
+      setLineup: (lineup: Player[]): void => {
+        set(state => ({
+          setupWizard: {
+            ...state.setupWizard,
+            lineup,
+          },
+        }));
+      },
+
+      completeSetup: (): void => {
+        set(state => ({
+          setupWizard: {
+            ...state.setupWizard,
+            isComplete: true,
+          },
+        }));
+      },
+
+      isSetupStepValid: (step: 'teams' | 'lineup' | 'confirm'): boolean => {
+        const { setupWizard } = get();
+
+        switch (step) {
+          case 'teams':
+            return (
+              setupWizard.teams.home.trim() !== '' &&
+              setupWizard.teams.away.trim() !== '' &&
+              setupWizard.teams.home !== setupWizard.teams.away &&
+              setupWizard.teams.ourTeam !== null
+            );
+
+          case 'lineup':
+            return (
+              setupWizard.lineup.length >= 9 &&
+              setupWizard.lineup.every(
+                player =>
+                  player.name.trim() !== '' &&
+                  player.jerseyNumber.trim() !== '' &&
+                  player.position.trim() !== ''
+              )
+            );
+
+          case 'confirm':
+            return setupWizard.isComplete;
+
+          default:
+            return false;
+        }
+      },
+
+      // Active game actions
+      startActiveGame: (gameData: GameData): void => {
+        set({
+          currentGame: gameData,
+          isGameActive: true,
+          activeGameState: {
+            currentInning: gameData.currentInning || 1,
+            isTopHalf: gameData.isTopHalf ?? true,
+            currentBatter: null,
+            bases: { first: null, second: null, third: null },
+            outs: 0,
+          },
+          error: null, // Clear any previous errors
+        });
+      },
+
+      setCurrentBatter: (player: Player): void => {
+        set(state => ({
+          activeGameState: state.activeGameState
             ? {
-                ...state.currentGame,
-                currentInning: newInning,
-                isTopHalf: newIsTopHalf,
+                ...state.activeGameState,
+                currentBatter: player,
               }
             : null,
-        };
-      } else {
-        return {
-          activeGameState: {
-            ...state.activeGameState,
-            outs: newOuts,
-          },
-        };
-      }
-    });
-  },
+        }));
+      },
 
-  // Enhanced reset that clears all state
-  reset: (): void => {
-    set(initialState);
-  },
-}));
+      setBaseRunner: (base: 'first' | 'second' | 'third', player: Player | null): void => {
+        set(state => ({
+          activeGameState: state.activeGameState
+            ? {
+                ...state.activeGameState,
+                bases: {
+                  ...state.activeGameState.bases,
+                  [base]: player,
+                },
+              }
+            : null,
+        }));
+      },
+
+      clearBase: (base: 'first' | 'second' | 'third'): void => {
+        set(state => ({
+          activeGameState: state.activeGameState
+            ? {
+                ...state.activeGameState,
+                bases: {
+                  ...state.activeGameState.bases,
+                  [base]: null,
+                },
+              }
+            : null,
+        }));
+      },
+
+      advanceHalfInning: (): void => {
+        set(state => {
+          if (!state.activeGameState) return state;
+
+          const newIsTopHalf = !state.activeGameState.isTopHalf;
+          const newInning = newIsTopHalf
+            ? state.activeGameState.currentInning + 1
+            : state.activeGameState.currentInning;
+
+          return {
+            activeGameState: {
+              ...state.activeGameState,
+              currentInning: newInning,
+              isTopHalf: newIsTopHalf,
+              outs: 0, // Reset outs
+              bases: { first: null, second: null, third: null }, // Clear bases
+            },
+            // Update current game state as well
+            currentGame: state.currentGame
+              ? {
+                  ...state.currentGame,
+                  currentInning: newInning,
+                  isTopHalf: newIsTopHalf,
+                }
+              : null,
+          };
+        });
+      },
+
+      addOut: (): void => {
+        set(state => {
+          if (!state.activeGameState) return state;
+
+          const newOuts = state.activeGameState.outs + 1;
+
+          if (newOuts >= 3) {
+            // Advance half inning when 3 outs reached
+            const newIsTopHalf = !state.activeGameState.isTopHalf;
+            const newInning = newIsTopHalf
+              ? state.activeGameState.currentInning + 1
+              : state.activeGameState.currentInning;
+
+            return {
+              activeGameState: {
+                ...state.activeGameState,
+                currentInning: newInning,
+                isTopHalf: newIsTopHalf,
+                outs: 0,
+                bases: { first: null, second: null, third: null },
+              },
+              currentGame: state.currentGame
+                ? {
+                    ...state.currentGame,
+                    currentInning: newInning,
+                    isTopHalf: newIsTopHalf,
+                  }
+                : null,
+            };
+          } else {
+            return {
+              activeGameState: {
+                ...state.activeGameState,
+                outs: newOuts,
+              },
+            };
+          }
+        });
+      },
+
+      // Phase 5.3.F DTO sync
+      updateFromDTO: (uiState: UIGameState): void => {
+        set(() => ({
+          currentGame: {
+            id: uiState.gameId,
+            homeTeam: uiState.teams.home.name,
+            awayTeam: uiState.teams.away.name,
+            status:
+              uiState.status === 'IN_PROGRESS'
+                ? 'active'
+                : uiState.status === 'COMPLETED'
+                  ? 'completed'
+                  : 'waiting',
+            homeScore: uiState.score.home,
+            awayScore: uiState.score.away,
+            currentInning: uiState.inning.number,
+            isTopHalf: uiState.inning.half === 'top',
+          },
+          // ALWAYS update activeGameState to reflect current inning state, even when game is completed
+          // This ensures that E2E tests and UI components always have the accurate final inning number
+          activeGameState: {
+            currentInning: uiState.inning.number,
+            isTopHalf: uiState.inning.half === 'top',
+            currentBatter: uiState.currentBatter || null,
+            bases: uiState.bases || { first: null, second: null, third: null },
+            outs: uiState.outs || 0,
+          },
+          isGameActive: uiState.status === 'IN_PROGRESS',
+          error: null,
+        }));
+      },
+
+      // Enhanced reset that clears all state
+      reset: (): void => {
+        set(initialState);
+      },
+    }),
+    {
+      name: 'game-state', // sessionStorage key that E2E tests read
+      storage: createJSONStorage(() => ({
+        getItem: (name: string): string | null => {
+          const stored = window.sessionStorage.getItem(name);
+          return stored;
+        },
+        setItem: (name: string, value: string): void => {
+          window.sessionStorage.setItem(name, value);
+        },
+        removeItem: (name: string): void => {
+          window.sessionStorage.removeItem(name);
+        },
+      })),
+      onRehydrateStorage:
+        () =>
+        (state): void => {
+          if (state) {
+            state._hasHydrated = true;
+          }
+        },
+      partialize: state => ({
+        // Only persist relevant game state, not UI state
+        currentGame: state.currentGame,
+        activeGameState: state.activeGameState,
+        isGameActive: state.isGameActive,
+      }),
+    }
+  )
+);
