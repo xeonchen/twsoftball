@@ -464,6 +464,11 @@ export class GameRecordingPageObject {
     const runsToScore = options?.runs || 0;
     const walkOffOnFinalRun = options?.walkOffOnFinalRun || false;
 
+    // CRITICAL: Capture current inning state BEFORE recording any at-bats
+    // The state will transition after the 3rd out, so we need to know the
+    // starting state to correctly wait for the opposite value after transition
+    const wasTopHalf = await this.isTopOfInning();
+
     // Walk-off scenario: game ends on final run, no 3 outs recorded
     if (walkOffOnFinalRun && runsToScore > 0) {
       // Record (runs - 1) homeruns
@@ -475,13 +480,28 @@ export class GameRecordingPageObject {
       await this.recordAtBat({ result: 'homerun' });
 
       // Game should end immediately - NO 3 outs recorded
-      // Wait for game completion instead of inning transition
+      // Wait for game completion status first
       await this.page.waitForFunction(
         () => {
           const state = JSON.parse(sessionStorage.getItem('game-state') || '{}');
           return (state.state?.currentGame?.status || state.status) === 'completed';
         },
         { timeout: 10000 }
+      );
+
+      // Wait until score appears in sessionStorage
+      // This handles Firefox's async sessionStorage timing after walk-off
+      await this.page.waitForFunction(
+        () => {
+          const state = JSON.parse(sessionStorage.getItem('game-state') || '{}');
+          const homeScore = state.state?.currentGame?.homeScore ?? 0;
+          const awayScore = state.state?.currentGame?.awayScore ?? 0;
+
+          const hasValidScore = homeScore > 0 || awayScore > 0;
+          console.log(`[walk-off wait] Score check: home=${homeScore}, away=${awayScore}`);
+          return hasValidScore;
+        },
+        { timeout: 5000, polling: 100 }
       );
 
       return; // Skip the 3-outs logic below
@@ -503,12 +523,13 @@ export class GameRecordingPageObject {
     // We poll sessionStorage until we see outs === 0 AND correct isTopHalf value
     // This proves persist completed AND merge finished
     //
+    // Note: wasTopHalf was captured at the START of this method (before any at-bats)
+    // so we can correctly detect the state transition from wasTopHalf to !wasTopHalf
+    //
     // Special case: After bottom of inning 7, the game advances to top of inning 8
     // (isTopHalf flips true) and then immediately completes. So we wait for EITHER:
     // 1. Normal case: outs === 0 AND isTopHalf flipped
     // 2. Game completion case: outs === 0 AND game status === 'completed'
-    const wasTopHalf = await this.isTopOfInning();
-
     await this.page.waitForFunction(
       expectedIsTopHalf => {
         const stateJson = sessionStorage.getItem('game-state');

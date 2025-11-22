@@ -158,22 +158,39 @@ test.describe('Combined Edge Cases', () => {
     expect(await gamePageObject.isTopOfInning()).toBe(false);
 
     // Inning 7 bottom: Home scores 7 to win 16-15 (walk-off)
-    await gamePageObject.simulateHalfInning({ runs: 7 });
+    // Use walkOffOnFinalRun: true since this IS a walk-off scenario - avoids race condition
+    // with sessionStorage sync that caused Firefox-specific failures
+    await gamePageObject.simulateHalfInning({ runs: 7, walkOffOnFinalRun: true });
 
     // Verify game ended via walk-off (immediate completion, not mercy rule)
     expect(await gamePageObject.isGameComplete()).toBe(true);
     expect(await gamePageObject.getCurrentInning()).toBe(7);
 
     // Verify final scores from sessionStorage
+    // DEBUG: Log full state for investigation if test fails on CI
     const finalState = await page.evaluate(() => {
       const stateJson = sessionStorage.getItem('game-state');
-      if (!stateJson) return null;
+      if (!stateJson) {
+        console.log('[walk-off test] ERROR: No game-state in sessionStorage');
+        return null;
+      }
       const state = JSON.parse(stateJson);
-      return {
+      const result = {
         homeScore: state.state?.currentGame?.homeScore ?? 0,
         awayScore: state.state?.currentGame?.awayScore ?? 0,
+        status: state.state?.currentGame?.status ?? 'unknown',
+        completionReason: state.state?.currentGame?.completionReason ?? 'N/A',
+        currentInning: state.state?.activeGameState?.currentInning ?? 'N/A',
+        isTopHalf: state.state?.activeGameState?.isTopHalf ?? 'N/A',
       };
+      console.log('[walk-off test] Final state:', JSON.stringify(result, null, 2));
+      return result;
     });
+
+    // Log to test output for CI debugging
+    console.log(
+      `[walk-off test] Asserting: homeScore=${finalState?.homeScore} (expected 16), awayScore=${finalState?.awayScore} (expected 15)`
+    );
 
     expect(finalState?.homeScore).toBe(16);
     expect(finalState?.awayScore).toBe(15);
