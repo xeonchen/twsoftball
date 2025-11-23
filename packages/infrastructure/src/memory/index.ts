@@ -8,3 +8,4 @@
  */
 
 export * from './factory.js';
+export { InMemoryOfflineQueue } from './InMemoryOfflineQueue.js';

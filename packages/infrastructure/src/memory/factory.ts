@@ -40,6 +40,8 @@ import {
   EventSourcedInningStateRepository,
 } from '../persistence/index.js';
 
+import { InMemoryOfflineQueue } from './InMemoryOfflineQueue.js';
+
 /**
  * Memory logger implementation for testing and development.
  */
@@ -191,6 +193,9 @@ class MemoryInfrastructureFactory implements InfrastructureFactory {
       const teamLineupRepository = new EventSourcedTeamLineupRepository(eventStore);
       const inningStateRepository = new EventSourcedInningStateRepository(eventStore);
 
+      // Create in-memory offline queue for testing
+      const offlineQueue = new InMemoryOfflineQueue();
+
       logger.info('In-memory infrastructure services initialized successfully', {
         environment: config.environment,
         debug: config.debug,
@@ -203,6 +208,7 @@ class MemoryInfrastructureFactory implements InfrastructureFactory {
         inningStateRepository,
         eventStore,
         logger,
+        offlineQueue,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

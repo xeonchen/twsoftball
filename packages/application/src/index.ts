@@ -28,6 +28,12 @@ export type {
 export type { Logger, LogLevel, LogContext } from './ports/out/Logger';
 export type { NotificationService } from './ports/out/NotificationService';
 export type { AuthService } from './ports/out/AuthService';
+export type {
+  OfflineQueuePort,
+  QueueItem,
+  QueueItemStatus,
+  EnqueueInput,
+} from './ports/out/OfflineQueuePort';
 
 // Application Services - High-level orchestration and event sourcing
 export * from './services/GameApplicationService';

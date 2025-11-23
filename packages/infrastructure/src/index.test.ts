@@ -126,6 +126,8 @@ describe('Infrastructure Package Index', () => {
         'GameAdapter',
         'createMemoryFactory',
         'createIndexedDBFactory',
+        'IndexedDBOfflineQueue',
+        'InMemoryOfflineQueue',
       ];
 
       exportKeys.forEach(exportKey => {

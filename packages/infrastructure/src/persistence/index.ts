@@ -11,3 +11,6 @@ export { IndexedDBEventStore } from './IndexedDBEventStore';
 export { EventSourcedGameRepository } from './EventSourcedGameRepository';
 export { EventSourcedTeamLineupRepository } from './EventSourcedTeamLineupRepository';
 export { EventSourcedInningStateRepository } from './EventSourcedInningStateRepository';
+
+// Offline Queue implementations
+export { IndexedDBOfflineQueue } from './IndexedDBOfflineQueue';
