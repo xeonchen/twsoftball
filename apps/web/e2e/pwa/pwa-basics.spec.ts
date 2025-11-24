@@ -105,13 +105,16 @@ test.describe('PWA Basics', () => {
   test('should register service worker', async ({ page }) => {
     await page.goto('/');
 
-    // Wait for service worker to be registered
+    // Wait for service worker to be registered using event-driven approach
     const hasServiceWorker = await page.evaluate(async () => {
       if ('serviceWorker' in navigator) {
-        // Wait a bit for SW registration
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const registration = await navigator.serviceWorker.getRegistration();
-        return !!registration;
+        try {
+          // Use navigator.serviceWorker.ready which resolves when SW is active
+          const registration = await navigator.serviceWorker.ready;
+          return !!registration;
+        } catch {
+          return false;
+        }
       }
       return false;
     });
