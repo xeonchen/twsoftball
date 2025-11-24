@@ -393,6 +393,12 @@ const mockUIStore = {
   removeNotification: vi.fn(),
   clearAllNotifications: vi.fn(),
   isNavigationWarningVisible: false,
+  modals: {
+    navigationWarning: false,
+    runnerAdjustment: false,
+    substitution: false,
+    gameRecovery: false,
+  },
 };
 
 /**

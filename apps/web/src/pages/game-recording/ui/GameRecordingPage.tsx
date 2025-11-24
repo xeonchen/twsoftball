@@ -25,6 +25,7 @@ import { createLogger } from '../../../shared/api';
 import { useErrorRecovery, useNavigationGuard, useTimerManager } from '../../../shared/lib/hooks';
 import { useUIStore } from '../../../shared/lib/store';
 import { debounce } from '../../../shared/lib/utils';
+import { NavigationConfirmDialog } from '../../../shared/ui';
 import { BenchManagementWidget } from '../../../widgets/bench-management';
 import { ErrorBoundary } from '../../../widgets/error-boundary';
 import { RunnerAdvancementPanel } from '../../../widgets/runner-advancement';
@@ -119,7 +120,7 @@ export function GameRecordingPage(): ReactElement {
     error: gameError,
   } = useGameWithUndoRedo();
 
-  const { showNavigationWarning, showInfo } = useUIStore();
+  const { showNavigationWarning, hideNavigationWarning, modals, showInfo } = useUIStore();
   const timers = useTimerManager();
 
   // Browser navigation protection
@@ -128,6 +129,24 @@ export function GameRecordingPage(): ReactElement {
     () => showNavigationWarning(),
     "Game in progress. Your progress will be saved but you'll need to resume manually. Continue?"
   );
+
+  /**
+   * Handle user confirming navigation away from the game
+   * This allows the user to leave the page after acknowledging the warning
+   */
+  const handleConfirmNavigation = useCallback((): void => {
+    hideNavigationWarning();
+    // Navigate back - history will handle this
+    // The user confirmed they want to leave
+    window.history.back();
+  }, [hideNavigationWarning]);
+
+  /**
+   * Handle user canceling navigation - stay on the page
+   */
+  const handleCancelNavigation = useCallback((): void => {
+    hideNavigationWarning();
+  }, [hideNavigationWarning]);
 
   // Integration state
   const [showRunnerAdvancement, setShowRunnerAdvancement] = useState(false);
@@ -1468,6 +1487,15 @@ export function GameRecordingPage(): ReactElement {
             />
           </div>
         )}
+
+        {/* Navigation Confirmation Dialog */}
+        <NavigationConfirmDialog
+          isOpen={modals.navigationWarning}
+          onConfirm={handleConfirmNavigation}
+          onCancel={handleCancelNavigation}
+          title="Game in Progress"
+          message="Your progress will be saved, but you'll need to resume the game manually. Are you sure you want to leave?"
+        />
       </div>
     </ErrorBoundary>
   );
