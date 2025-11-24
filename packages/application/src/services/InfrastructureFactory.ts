@@ -36,6 +36,7 @@ import type {
   GameRepository,
   TeamLineupRepository,
   InningStateRepository,
+  OfflineQueuePort,
 } from '../ports/out/index.js';
 import type { Logger } from '../ports/out/Logger.js';
 
@@ -60,6 +61,11 @@ export interface InfrastructureServices {
   readonly inningStateRepository: InningStateRepository;
   readonly eventStore: EventStore;
   readonly logger: Logger;
+  /**
+   * Optional offline queue for PWA offline-first capabilities.
+   * Only available in environments that support IndexedDB.
+   */
+  readonly offlineQueue?: OfflineQueuePort;
 }
 
 /**

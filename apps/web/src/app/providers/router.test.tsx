@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { type ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { vi } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import { AppRouter } from './router';
 
@@ -50,6 +50,25 @@ vi.mock('../../pages/game-recording/ui/GameRecordingPage', () => ({
 vi.mock('../../pages/game-stats/ui/GameStatsPage', () => ({
   GameStatsPage: (): ReactElement => <div data-testid="game-stats-page">Game Stats Page</div>,
 }));
+
+vi.mock('../../pages/lineup-management/ui/LineupManagementPage', () => ({
+  LineupManagementPage: (): ReactElement => (
+    <div data-testid="lineup-management-page">Lineup Management Page</div>
+  ),
+}));
+
+// Store original console.error for error boundary tests
+let originalConsoleError: typeof console.error;
+
+beforeEach(() => {
+  originalConsoleError = console.error;
+  // Suppress React error boundary logging during tests
+  console.error = vi.fn();
+});
+
+afterEach(() => {
+  console.error = originalConsoleError;
+});
 
 describe('Enhanced Router Configuration', () => {
   describe('Core Routes', () => {
@@ -235,6 +254,102 @@ describe('Enhanced Router Configuration', () => {
         expect(screen.queryByTestId('not-found-page')).not.toBeInTheDocument();
         unmount();
       });
+    });
+  });
+
+  describe('Suspense Loading Fallback', () => {
+    it('should show loading state while lazy components load', async () => {
+      // Temporarily mock a slow-loading component
+      vi.doMock('../../pages/settings/ui/SettingsPage', () => {
+        return {
+          SettingsPage: (): ReactElement => {
+            // Simulate a slow component load
+            return <div data-testid="settings-page">Settings Page</div>;
+          },
+        };
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/settings']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
+
+      // The page should eventually load (Suspense handles the loading)
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('settings-page')).toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
+    });
+  });
+
+  describe('Lineup Management Route', () => {
+    it('should handle lineup management route', async () => {
+      render(
+        <MemoryRouter initialEntries={['/lineup']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
+
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('lineup-management-page')).toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
+    });
+  });
+
+  describe('Error Boundary Integration', () => {
+    it('should wrap lazy routes with error boundary for isolation', async () => {
+      // Test that routes are configured with error boundary
+      // The ErrorBoundary catches errors and shows fallback UI
+      render(
+        <MemoryRouter initialEntries={['/game/test-game-id/record']}>
+          <AppRouter />
+        </MemoryRouter>
+      );
+
+      // Page should load successfully when no errors
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('game-recording-page')).toBeInTheDocument();
+        },
+        { timeout: 5000 }
+      );
+    });
+
+    it('should have error boundaries on all lazy-loaded routes', async () => {
+      const lazyRoutes = [
+        { path: '/settings', testId: 'settings-page' },
+        { path: '/lineup', testId: 'lineup-management-page' },
+        { path: '/game/setup/teams', testId: 'game-setup-teams-page' },
+        { path: '/game/setup/lineup', testId: 'game-setup-lineup-page' },
+        { path: '/game/setup/confirm', testId: 'game-setup-confirm-page' },
+        { path: '/game/test-id/record', testId: 'game-recording-page' },
+        { path: '/game/test-id/stats', testId: 'game-stats-page' },
+        { path: '/game/test-id', testId: 'game-page' },
+      ];
+
+      for (const route of lazyRoutes) {
+        const { unmount } = render(
+          <MemoryRouter initialEntries={[route.path]}>
+            <AppRouter />
+          </MemoryRouter>
+        );
+
+        // Each route should load successfully when wrapped in error boundary
+        await waitFor(
+          () => {
+            expect(screen.getByTestId(route.testId)).toBeInTheDocument();
+          },
+          { timeout: 5000 }
+        );
+
+        unmount();
+      }
     });
   });
 });

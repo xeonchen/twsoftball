@@ -1,0 +1,27 @@
+{
+  "budgets": {
+    "initial": {
+      "maxSize": "512KB",
+      "warning": "450KB"
+    },
+    "chunks": {
+      "maxSize": "200KB"
+    }
+  },
+  "targets": {
+    "LCP": "2500ms",
+    "FCP": "1800ms",
+    "CLS": "0.1",
+    "TTI": "3000ms",
+    "TTFB": "800ms",
+    "INP": "200ms"
+  },
+  "notes": {
+    "LCP": "Largest Contentful Paint - measures loading performance",
+    "FCP": "First Contentful Paint - measures perceived load speed",
+    "CLS": "Cumulative Layout Shift - measures visual stability",
+    "TTI": "Time to Interactive - measures when page becomes fully interactive",
+    "TTFB": "Time to First Byte - measures server response time",
+    "INP": "Interaction to Next Paint - measures responsiveness (replaces FID)"
+  }
+}

@@ -401,6 +401,44 @@ export class MockIDBObjectStore {
     return request;
   }
 
+  delete(key: unknown): IDBRequest {
+    if (this.mockTransactionState === 'failed') {
+      return this.createMockRequest(
+        'error',
+        null,
+        new DOMException('Transaction failed', 'TransactionInactiveError')
+      );
+    }
+
+    this._data.delete(key as string);
+
+    // Update all indexes with the modified data
+    for (const index of this._mockIndexes.values()) {
+      index.setMockData(new Map(this._data));
+    }
+
+    return this.createMockRequest('done', undefined);
+  }
+
+  clear(): IDBRequest {
+    if (this.mockTransactionState === 'failed') {
+      return this.createMockRequest(
+        'error',
+        null,
+        new DOMException('Transaction failed', 'TransactionInactiveError')
+      );
+    }
+
+    this._data.clear();
+
+    // Update all indexes with the cleared data
+    for (const index of this._mockIndexes.values()) {
+      index.setMockData(new Map());
+    }
+
+    return this.createMockRequest('done', undefined);
+  }
+
   index(name: string): MockIDBIndex {
     const index = this._indexes.get(name);
     if (!index) {

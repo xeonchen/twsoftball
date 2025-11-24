@@ -259,6 +259,13 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>
 );
 
+// Initialize Web Vitals tracking in development mode
+if (import.meta.env.DEV) {
+  void import('./shared/lib/performance/webVitals').then(({ initWebVitals, consoleReporter }) => {
+    initWebVitals(consoleReporter);
+  });
+}
+
 // Export for testing
 export {
   showUpdateNotification,

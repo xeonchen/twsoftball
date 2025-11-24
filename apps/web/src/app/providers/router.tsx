@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 // Eager load essential pages for immediate navigation
 import { HomePage } from '../../pages/home';
 import { NotFoundPage } from '../../pages/not-found';
+import { ErrorBoundary, PageErrorFallback, SpinnerLoader } from '../../shared/ui';
 
 // Lazy load large and less frequently used pages
 const GamePage = lazy(() => import('../../pages/game').then(m => ({ default: m.GamePage })));
@@ -56,12 +57,45 @@ const SettingsPage = lazy(() =>
  * handling and maintain state across navigation events.
  */
 /**
- * Loading spinner component for lazy-loaded routes
+ * Page loading component for lazy-loaded routes
+ *
+ * Uses the SpinnerLoader component from the shared UI library
+ * wrapped in a full-screen container for consistent loading experience.
  */
-const LoadingSpinner = (): ReactElement => (
-  <div className="flex items-center justify-center min-h-screen">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-field-green-600"></div>
+const PageLoadingFallback = (): ReactElement => (
+  <div
+    className="flex items-center justify-center min-h-screen bg-gray-50"
+    data-testid="page-loading-fallback"
+  >
+    <SpinnerLoader message="Loading page..." size="large" variant="ring" color="success" />
   </div>
+);
+
+/**
+ * Route wrapper component that combines ErrorBoundary and Suspense
+ *
+ * Provides error handling and loading states for lazy-loaded page components.
+ * Each route is wrapped with its own ErrorBoundary for isolated error handling.
+ *
+ * @param props.children - The lazy-loaded page component
+ * @param props.pageName - Name of the page for error messages
+ * @param props.context - Context identifier for error tracking
+ */
+interface RouteWrapperProps {
+  children: ReactElement;
+  pageName: string;
+  context: string;
+}
+
+const RouteWrapper = ({ children, pageName, context }: RouteWrapperProps): ReactElement => (
+  <ErrorBoundary
+    fallback={<PageErrorFallback pageName={pageName} />}
+    context={context}
+    enableRetry
+    maxRetries={3}
+  >
+    <Suspense fallback={<PageLoadingFallback />}>{children}</Suspense>
+  </ErrorBoundary>
 );
 
 export const AppRouter = (): ReactElement => {
@@ -74,9 +108,9 @@ export const AppRouter = (): ReactElement => {
       <Route
         path="/settings"
         element={
-          <Suspense fallback={<LoadingSpinner />}>
+          <RouteWrapper pageName="Settings" context="settings-page">
             <SettingsPage />
-          </Suspense>
+          </RouteWrapper>
         }
       />
 
@@ -84,9 +118,9 @@ export const AppRouter = (): ReactElement => {
       <Route
         path="/lineup"
         element={
-          <Suspense fallback={<LoadingSpinner />}>
+          <RouteWrapper pageName="Lineup Management" context="lineup-management-page">
             <LineupManagementPage />
-          </Suspense>
+          </RouteWrapper>
         }
       />
 
@@ -94,25 +128,25 @@ export const AppRouter = (): ReactElement => {
       <Route
         path="/game/setup/teams"
         element={
-          <Suspense fallback={<LoadingSpinner />}>
+          <RouteWrapper pageName="Team Setup" context="game-setup-teams-page">
             <GameSetupTeamsPage />
-          </Suspense>
+          </RouteWrapper>
         }
       />
       <Route
         path="/game/setup/lineup"
         element={
-          <Suspense fallback={<LoadingSpinner />}>
+          <RouteWrapper pageName="Lineup Setup" context="game-setup-lineup-page">
             <GameSetupLineupPage />
-          </Suspense>
+          </RouteWrapper>
         }
       />
       <Route
         path="/game/setup/confirm"
         element={
-          <Suspense fallback={<LoadingSpinner />}>
+          <RouteWrapper pageName="Setup Confirmation" context="game-setup-confirm-page">
             <GameSetupConfirmPage />
-          </Suspense>
+          </RouteWrapper>
         }
       />
 
@@ -120,17 +154,17 @@ export const AppRouter = (): ReactElement => {
       <Route
         path="/game/:gameId/record"
         element={
-          <Suspense fallback={<LoadingSpinner />}>
+          <RouteWrapper pageName="Game Recording" context="game-recording-page">
             <GameRecordingPage />
-          </Suspense>
+          </RouteWrapper>
         }
       />
       <Route
         path="/game/:gameId/stats"
         element={
-          <Suspense fallback={<LoadingSpinner />}>
+          <RouteWrapper pageName="Game Statistics" context="game-stats-page">
             <GameStatsPage />
-          </Suspense>
+          </RouteWrapper>
         }
       />
 
@@ -138,9 +172,9 @@ export const AppRouter = (): ReactElement => {
       <Route
         path="/game/:gameId"
         element={
-          <Suspense fallback={<LoadingSpinner />}>
+          <RouteWrapper pageName="Game" context="game-page">
             <GamePage />
-          </Suspense>
+          </RouteWrapper>
         }
       />
 

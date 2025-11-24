@@ -39,6 +39,7 @@ import {
   EventSourcedGameRepository,
   EventSourcedTeamLineupRepository,
   EventSourcedInningStateRepository,
+  IndexedDBOfflineQueue,
 } from '../persistence/index.js';
 
 /**
@@ -168,6 +169,9 @@ class IndexedDBInfrastructureFactory implements InfrastructureFactory {
       const teamLineupRepository = new EventSourcedTeamLineupRepository(eventStore);
       const inningStateRepository = new EventSourcedInningStateRepository(eventStore);
 
+      // Create offline queue for PWA support
+      const offlineQueue = new IndexedDBOfflineQueue();
+
       logger.info('IndexedDB infrastructure services initialized successfully', {
         environment: config.environment,
         debug: config.debug,
@@ -180,6 +184,7 @@ class IndexedDBInfrastructureFactory implements InfrastructureFactory {
         inningStateRepository,
         eventStore,
         logger,
+        offlineQueue,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

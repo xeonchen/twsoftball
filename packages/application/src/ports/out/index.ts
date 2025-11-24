@@ -34,3 +34,9 @@ export type {
   InningStateSnapshot,
 } from './SnapshotStore.js';
 export type { TeamLineupRepository } from './TeamLineupRepository.js';
+export type {
+  OfflineQueuePort,
+  QueueItem,
+  QueueItemStatus,
+  EnqueueInput,
+} from './OfflineQueuePort.js';

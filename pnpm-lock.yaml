@@ -144,6 +144,9 @@ importers:
       uuid:
         specifier: ^13.0.0
         version: 13.0.0
+      web-vitals:
+        specifier: ^5.1.0
+        version: 5.1.0
       workbox-window:
         specifier: ^7.3.0
         version: 7.3.0
@@ -4488,6 +4491,9 @@ packages:
     resolution: {integrity: sha512-uG9qtQYoHqAsnT711nG5iZc/8M5inSmkGCOp7pFaytKG2aTfIca7p//CjiVzAE4P7hzaYuCozMjNNaLgmhbK5g==}
     engines: {node: ^18||>=20}
     hasBin: true
+
+  web-vitals@5.1.0:
+    resolution: {integrity: sha512-ArI3kx5jI0atlTtmV0fWU3fjpLmq/nD3Zr1iFFlJLaqa5wLBkUSzINwBPySCX/8jRyjlmy1Volw1kz1g9XE4Jg==}
 
   webidl-conversions@4.0.2:
     resolution: {integrity: sha512-YQ+BmxuTgd6UXZW3+ICGfyqRyHXVlD5GtQr5+qjiNW7bF0cqrzX500HVXPBOvgXb5YnzDd+h0zqyv61KUD7+Sg==}
@@ -9254,6 +9260,8 @@ snapshots:
       xml-name-validator: 5.0.0
 
   watskeburt@4.2.3: {}
+
+  web-vitals@5.1.0: {}
 
   webidl-conversions@4.0.2: {}
 

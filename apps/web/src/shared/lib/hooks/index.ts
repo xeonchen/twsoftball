@@ -11,5 +11,9 @@ export { useTimerManager } from './useTimerManager';
 export { usePerformanceMonitoring, useInteractionTracking } from './useMonitoring';
 export type { InteractionProperties } from './useMonitoring';
 
+// PWA/Offline hooks
+export { useSyncStatus } from './useSyncStatus';
+export type { UseSyncStatusOptions, SyncStatus } from './useSyncStatus';
+
 // Note: useRecordAtBat, useRunnerAdvancement, and usePerformanceOptimization
 // have been moved to features/game-core/ to comply with FSD architecture

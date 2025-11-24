@@ -201,19 +201,32 @@ export const createMockIndexedDB = (): {
 
     return request as unknown as IDBOpenDBRequest;
   }),
-  deleteDatabase: vi.fn(() => ({
-    readyState: 'pending',
-    result: null,
-    error: null,
-    source: null,
-    transaction: null,
-    onsuccess: null,
-    onerror: null,
-    onblocked: null,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
+  deleteDatabase: vi.fn(() => {
+    const request = {
+      readyState: 'pending',
+      result: null,
+      error: null,
+      source: null,
+      transaction: null,
+      onsuccess: null as ((event: Event) => void) | null,
+      onerror: null as ((event: Event) => void) | null,
+      onblocked: null as ((event: Event) => void) | null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    };
+
+    // Simulate async database deletion
+    setTimeout(() => {
+      request.readyState = 'done';
+      if (request.onsuccess) {
+        const successEvent = { target: request } as unknown as Event;
+        request.onsuccess(successEvent);
+      }
+    }, 0);
+
+    return request as unknown as IDBOpenDBRequest;
+  }),
   cmp: vi.fn((first: unknown, second: unknown) => {
     if (first === second) return 0;
     return (first as number) < (second as number) ? -1 : 1;
