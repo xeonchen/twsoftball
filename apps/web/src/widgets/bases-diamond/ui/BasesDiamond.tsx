@@ -55,14 +55,13 @@ const BaseComponent: React.FC<{
   baseKey: 'first' | 'second' | 'third';
   label: string;
   testId: string;
-  position: string;
+  style: React.CSSProperties;
   showLabels: boolean;
   interactive: boolean;
   onBaseClick: (baseKey: 'first' | 'second' | 'third') => void;
-}> = ({ player, baseKey, label, testId, position, showLabels, interactive, onBaseClick }) => {
+}> = ({ player, baseKey, label, testId, style, showLabels, interactive, onBaseClick }) => {
   const isOccupied = player !== null;
   const baseClasses = [
-    'absolute',
     'flex',
     'flex-col',
     'items-center',
@@ -76,7 +75,6 @@ const BaseComponent: React.FC<{
     'border-gray-600',
     'transition-colors',
     'duration-200',
-    position,
     isOccupied ? 'bg-warning-500' : 'bg-gray-300',
     interactive ? 'cursor-pointer hover:opacity-80' : '',
   ]
@@ -87,6 +85,7 @@ const BaseComponent: React.FC<{
     <div
       data-testid={testId}
       className={baseClasses}
+      style={style}
       onClick={() => onBaseClick(baseKey)}
       role={interactive ? 'button' : undefined}
       tabIndex={interactive ? 0 : undefined}
@@ -174,54 +173,76 @@ export const BasesDiamond: React.FC<BasesDiamondProps> = ({
       role="img"
       aria-label={ariaLabel}
     >
-      {/* Second Base - Top */}
+      {/* Second Base - Top Center */}
       <BaseComponent
         player={bases.second}
         baseKey="second"
         label="2B"
         testId="base-2b"
-        position="top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-full"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
+        }}
         showLabels={showLabels}
         interactive={interactive}
         onBaseClick={handleBaseClick}
       />
 
-      {/* Third Base - Left */}
+      {/* Third Base - Left Center */}
       <BaseComponent
         player={bases.third}
         baseKey="third"
         label="3B"
         testId="base-3b"
-        position="top-1/2 left-0 transform -translate-y-1/2 -translate-x-1/2"
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: 0,
+          transform: 'translateY(-50%)',
+        }}
         showLabels={showLabels}
         interactive={interactive}
         onBaseClick={handleBaseClick}
       />
 
-      {/* First Base - Right */}
+      {/* First Base - Right Center */}
       <BaseComponent
         player={bases.first}
         baseKey="first"
         label="1B"
         testId="base-1b"
-        position="top-1/2 right-0 transform -translate-y-1/2 translate-x-1/2"
+        style={{
+          position: 'absolute',
+          top: '50%',
+          right: 0,
+          transform: 'translateY(-50%)',
+        }}
         showLabels={showLabels}
         interactive={interactive}
         onBaseClick={handleBaseClick}
       />
 
-      {/* Home Plate - Bottom */}
+      {/* Home Plate - Bottom Center */}
       <div
         data-testid="base-home"
-        className={`absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2
-          flex flex-col items-center justify-center min-w-8 min-h-8 w-12 h-12
-          rounded-lg border-2 border-gray-600 bg-gray-300 transition-colors duration-200`}
+        className="flex flex-col items-center justify-center min-w-8 min-h-8 w-12 h-12 rounded-lg border-2 border-gray-600 bg-gray-300 transition-colors duration-200"
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
+        }}
       >
         {showLabels && <span className="text-xs font-bold text-gray-700">H</span>}
       </div>
 
       {/* Diamond outline for visual reference */}
-      <div className="absolute inset-4 border border-gray-400 transform rotate-45 pointer-events-none opacity-30" />
+      <div
+        className="absolute inset-4 border border-gray-400 pointer-events-none opacity-30"
+        style={{ transform: 'rotate(45deg)' }}
+      />
     </div>
   );
 };
