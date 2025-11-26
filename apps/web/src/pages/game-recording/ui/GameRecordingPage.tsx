@@ -26,6 +26,7 @@ import { useErrorRecovery, useNavigationGuard, useTimerManager } from '../../../
 import { useUIStore } from '../../../shared/lib/store';
 import { debounce } from '../../../shared/lib/utils';
 import { NavigationConfirmDialog } from '../../../shared/ui';
+import { BasesDiamond } from '../../../widgets/bases-diamond';
 import { BenchManagementWidget } from '../../../widgets/bench-management';
 import { ErrorBoundary } from '../../../widgets/error-boundary';
 import { RunnerAdvancementPanel } from '../../../widgets/runner-advancement';
@@ -735,6 +736,23 @@ export function GameRecordingPage(): ReactElement {
   const { homeScore = 0, awayScore = 0 } = currentGame || {};
   const { currentInning, isTopHalf, currentBatter, bases, outs } = activeGameState || {};
 
+  /**
+   * Generate accessible aria-label describing current base runners
+   */
+  const getBasesAriaLabel = useCallback((basesState: typeof bases): string => {
+    if (!basesState) return 'Bases: All empty';
+
+    const occupiedBases: string[] = [];
+
+    if (basesState.first) occupiedBases.push(`${basesState.first.name} on first`);
+    if (basesState.second) occupiedBases.push(`${basesState.second.name} on second`);
+    if (basesState.third) occupiedBases.push(`${basesState.third.name} on third`);
+
+    if (occupiedBases.length === 0) return 'Bases: All empty';
+
+    return `Bases: ${occupiedBases.join(', ')}`;
+  }, []);
+
   return (
     <ErrorBoundary
       onError={handleComponentError}
@@ -1261,29 +1279,14 @@ export function GameRecordingPage(): ReactElement {
           </div>
         </div>
 
-        {/* Base diamond display */}
-        <div className="bases-display">
-          <div className="base-diamond">
-            <div className={`base second-base ${bases?.second ? 'occupied' : 'empty'}`}>
-              <span className="base-label">2B</span>
-              {bases?.second && <span className="runner-indicator">◆</span>}
-            </div>
-            <div className="base-row">
-              <div className={`base third-base ${bases?.third ? 'occupied' : 'empty'}`}>
-                <span className="base-label">3B</span>
-                {bases?.third && <span className="runner-indicator">◆</span>}
-              </div>
-              <div className={`base first-base ${bases?.first ? 'occupied' : 'empty'}`}>
-                <span className="base-label">1B</span>
-                {bases?.first && <span className="runner-indicator">◆</span>}
-              </div>
-            </div>
-            <div className="home-plate">
-              <span className="base-label">H</span>
-              <span className="runner-indicator">◇</span>
-            </div>
-          </div>
-        </div>
+        {/* Base diamond display with runner details */}
+        <BasesDiamond
+          bases={bases || { first: null, second: null, third: null }}
+          size="medium"
+          showLabels={true}
+          interactive={false}
+          aria-label={getBasesAriaLabel(bases)}
+        />
 
         {/* Current batter section */}
         <div className="current-batter-section">

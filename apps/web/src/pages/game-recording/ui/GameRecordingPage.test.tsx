@@ -36,7 +36,7 @@
  * - Verify proper cleanup and memory management
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { AtBatResult, RunnerAdvanceDTO, GameStateDTO } from '@twsoftball/application';
 import React, { type JSX, type ReactElement } from 'react';
@@ -729,18 +729,20 @@ describe('GameRecordingPage Component', () => {
         </TestWrapper>
       );
 
-      // Check base labels
-      expect(screen.getByText('1B')).toBeInTheDocument();
-      expect(screen.getByText('2B')).toBeInTheDocument();
-      expect(screen.getByText('3B')).toBeInTheDocument();
-      expect(screen.getByText('H')).toBeInTheDocument();
+      // BasesDiamond component should render with data-testid attributes
+      const basesContainer = screen.getByTestId('bases-container');
+      expect(basesContainer).toBeInTheDocument();
 
-      // Check runner indicators - there should be runners on 1st and 3rd
-      const runnerIndicators = screen.getAllByText('◆');
-      expect(runnerIndicators).toHaveLength(2); // First and third base occupied
+      // Check that base elements exist with correct data-testid
+      expect(screen.getByTestId('base-1b')).toBeInTheDocument();
+      expect(screen.getByTestId('base-2b')).toBeInTheDocument();
+      expect(screen.getByTestId('base-3b')).toBeInTheDocument();
+      expect(screen.getByTestId('base-home')).toBeInTheDocument();
 
-      const homeIndicator = screen.getByText('◇');
-      expect(homeIndicator).toBeInTheDocument();
+      // Verify occupied bases show player info (first and third are occupied)
+      // mockActiveGameState has Mike Chen (#8) on first, Lisa Park (#5) on third
+      expect(screen.getByText('#8')).toBeInTheDocument();
+      expect(screen.getByText('#5')).toBeInTheDocument();
     });
 
     it('should render current batter information', () => {
@@ -1076,13 +1078,19 @@ describe('GameRecordingPage Component', () => {
         </TestWrapper>
       );
 
-      const firstBase = screen.getByText('1B').closest('.base');
-      const secondBase = screen.getByText('2B').closest('.base');
-      const thirdBase = screen.getByText('3B').closest('.base');
+      // BasesDiamond uses data-testid attributes
+      const firstBase = screen.getByTestId('base-1b');
+      const secondBase = screen.getByTestId('base-2b');
+      const thirdBase = screen.getByTestId('base-3b');
 
-      expect(firstBase).toHaveClass('occupied');
-      expect(secondBase).toHaveClass('empty');
-      expect(thirdBase).toHaveClass('occupied');
+      // Check Tailwind background classes (BasesDiamond style)
+      expect(firstBase).toHaveClass('bg-warning-500'); // occupied
+      expect(secondBase).toHaveClass('bg-gray-300'); // empty
+      expect(thirdBase).toHaveClass('bg-warning-500'); // occupied
+
+      // Verify player information is displayed (jersey numbers)
+      expect(screen.getByText('#8')).toBeInTheDocument(); // First base runner (Mike Chen)
+      expect(screen.getByText('#5')).toBeInTheDocument(); // Third base runner (Lisa Park)
     });
 
     it('should show all bases as empty when no runners', () => {
@@ -1111,16 +1119,24 @@ describe('GameRecordingPage Component', () => {
         </TestWrapper>
       );
 
-      const firstBase = screen.getByText('1B').closest('.base');
-      const secondBase = screen.getByText('2B').closest('.base');
-      const thirdBase = screen.getByText('3B').closest('.base');
+      // BasesDiamond uses data-testid attributes
+      const firstBase = screen.getByTestId('base-1b');
+      const secondBase = screen.getByTestId('base-2b');
+      const thirdBase = screen.getByTestId('base-3b');
 
-      expect(firstBase).toHaveClass('empty');
-      expect(secondBase).toHaveClass('empty');
-      expect(thirdBase).toHaveClass('empty');
+      // All bases should have gray background (empty)
+      expect(firstBase).toHaveClass('bg-gray-300');
+      expect(secondBase).toHaveClass('bg-gray-300');
+      expect(thirdBase).toHaveClass('bg-gray-300');
+
+      // No player names should be displayed within the bases (bases are empty)
+      // Note: We check within each base element since other jersey numbers exist on page
+      expect(within(firstBase).queryByText(/#\d+/)).not.toBeInTheDocument();
+      expect(within(secondBase).queryByText(/#\d+/)).not.toBeInTheDocument();
+      expect(within(thirdBase).queryByText(/#\d+/)).not.toBeInTheDocument();
     });
 
-    it('should show correct number of runner indicators', () => {
+    it('should display player names on occupied bases', () => {
       // Use game store with runners for this test
       mockUseGameStore.mockReturnValue(mockGameStoreWithRunners);
       mockUseGameWithUndoRedo.mockReturnValue(
@@ -1135,8 +1151,14 @@ describe('GameRecordingPage Component', () => {
         </TestWrapper>
       );
 
-      const runnerIndicators = screen.getAllByText('◆');
-      expect(runnerIndicators).toHaveLength(2); // Only first and third bases occupied
+      // Verify player information is displayed (abbreviated names from BasesDiamond)
+      // mockActiveGameState.bases.first = { name: 'Mike Chen', jerseyNumber: '8', ... }
+      // mockActiveGameState.bases.third = { name: 'Lisa Park', jerseyNumber: '5', ... }
+      expect(screen.getByText('M. Chen')).toBeInTheDocument();
+      expect(screen.getByText('L. Park')).toBeInTheDocument();
+
+      // Second base should be empty (no player info)
+      expect(screen.queryByText(/Player 2/)).not.toBeInTheDocument();
     });
 
     it('should show all bases occupied when runners on all bases', () => {
@@ -1171,16 +1193,20 @@ describe('GameRecordingPage Component', () => {
         </TestWrapper>
       );
 
-      const firstBase = screen.getByText('1B').closest('.base');
-      const secondBase = screen.getByText('2B').closest('.base');
-      const thirdBase = screen.getByText('3B').closest('.base');
+      // BasesDiamond uses data-testid attributes
+      const firstBase = screen.getByTestId('base-1b');
+      const secondBase = screen.getByTestId('base-2b');
+      const thirdBase = screen.getByTestId('base-3b');
 
-      expect(firstBase).toHaveClass('occupied');
-      expect(secondBase).toHaveClass('occupied');
-      expect(thirdBase).toHaveClass('occupied');
+      // All bases should have warning background (occupied)
+      expect(firstBase).toHaveClass('bg-warning-500');
+      expect(secondBase).toHaveClass('bg-warning-500');
+      expect(thirdBase).toHaveClass('bg-warning-500');
 
-      const runnerIndicators = screen.getAllByText('◆');
-      expect(runnerIndicators).toHaveLength(3);
+      // All three players' jersey numbers should be displayed
+      expect(screen.getByText('#1')).toBeInTheDocument();
+      expect(screen.getByText('#2')).toBeInTheDocument();
+      expect(screen.getByText('#3')).toBeInTheDocument();
     });
   });
 
