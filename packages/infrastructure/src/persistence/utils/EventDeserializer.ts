@@ -169,9 +169,18 @@ export function deserializeEvent(rawData: unknown): DomainEvent {
 /**
  * Reconstructs a GameId value object from stored data.
  */
-function reconstructGameId(gameIdData: string | { value: string }): GameId {
-  const value = typeof gameIdData === 'string' ? gameIdData : gameIdData.value;
-  return new GameId(value);
+function reconstructGameId(gameIdData: unknown): GameId {
+  if (typeof gameIdData === 'string') {
+    return new GameId(gameIdData);
+  }
+  if (gameIdData && typeof gameIdData === 'object' && 'value' in gameIdData) {
+    return new GameId((gameIdData as { value: string }).value);
+  }
+  // Handle null/undefined case
+  if (gameIdData === null || gameIdData === undefined) {
+    throw new Error('GameId data is null or undefined');
+  }
+  throw new Error('Invalid GameId data format');
 }
 
 /**

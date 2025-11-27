@@ -189,6 +189,45 @@ describe('EventDeserializer', () => {
 
       expect(() => deserializeEvent(rawEvent)).toThrow('Invalid PlayerId data format');
     });
+
+    it('should handle null GameId data', () => {
+      const rawEvent = {
+        type: 'GameStarted',
+        eventId: 'test-event-null-gameid',
+        gameId: null, // This should trigger error handling
+        timestamp: new Date().toISOString(),
+        aggregateVersion: 1,
+        version: 1,
+      };
+
+      expect(() => deserializeEvent(rawEvent)).toThrow('GameId data is null or undefined');
+    });
+
+    it('should handle undefined GameId data', () => {
+      const rawEvent = {
+        type: 'GameStarted',
+        eventId: 'test-event-undefined-gameid',
+        gameId: undefined, // This should trigger error handling
+        timestamp: new Date().toISOString(),
+        aggregateVersion: 1,
+        version: 1,
+      };
+
+      expect(() => deserializeEvent(rawEvent)).toThrow('GameId data is null or undefined');
+    });
+
+    it('should handle invalid GameId data format', () => {
+      const rawEvent = {
+        type: 'GameStarted',
+        eventId: 'test-event-invalid-gameid',
+        gameId: 123, // Invalid format - should be string or object with value
+        timestamp: new Date().toISOString(),
+        aggregateVersion: 1,
+        version: 1,
+      };
+
+      expect(() => deserializeEvent(rawEvent)).toThrow('Invalid GameId data format');
+    });
   });
 
   describe('Data Format Handling', () => {
