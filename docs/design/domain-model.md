@@ -1137,6 +1137,124 @@ These implementation examples demonstrate the key patterns for implementing the
 domain model using TypeScript with strict type safety, proper encapsulation, and
 event sourcing support.
 
+## Team Aggregate (Standalone Roster Management)
+
+### Context
+
+The Team aggregate manages player rosters independently of games. Unlike
+TeamLineup (which requires a GameId), Team persists across games and can
+optionally be used to pre-populate game lineups during game setup.
+
+This aggregate is planned for Phase 6 implementation. See
+[ADR-009](../adr/ADR-009-team-aggregate-design.md) for the design decision
+rationale.
+
+### Relationship with TeamLineup
+
+```
+Team (game-independent)          TeamLineup (game-bound)
+├── TeamId                       ├── TeamLineupId
+├── teamName                     ├── gameId (required)
+├── RosterPlayers[]              ├── teamName
+└── createdAt/updatedAt          ├── ActivePlayers[]
+                                 └── BenchPlayers[]
+```
+
+**Workflow**:
+
+1. User creates Team roster (one-time setup)
+2. When starting a game, user optionally selects Team
+3. System creates TeamLineup from Team's roster players (copy)
+4. TeamLineup is bound to the new Game
+5. Changes to TeamLineup do NOT affect original Team roster
+
+### Team Entity
+
+```typescript
+class Team {
+  readonly id: TeamId;
+  readonly teamName: string;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+
+  // Factory Methods
+  static create(id: TeamId, teamName: string): Team;
+  static reconstitute(id: TeamId, events: DomainEvent[]): Team;
+
+  // Commands
+  addPlayer(player: RosterPlayer): Team;
+  updatePlayer(playerId: RosterPlayerId, updates: Partial<RosterPlayer>): Team;
+  removePlayer(playerId: RosterPlayerId): Team;
+  renameTeam(newName: string): Team;
+
+  // Queries
+  getPlayers(): RosterPlayer[];
+  getActivePlayers(): RosterPlayer[];
+  getPlayerByJersey(jerseyNumber: JerseyNumber): RosterPlayer | undefined;
+}
+```
+
+### RosterPlayer Entity
+
+```typescript
+interface RosterPlayer {
+  readonly id: RosterPlayerId;
+  readonly playerId: PlayerId;
+  readonly name: string;
+  readonly jerseyNumber: JerseyNumber;
+  readonly preferredPositions: FieldPosition[];
+  readonly isActive: boolean;
+  readonly notes?: string;
+}
+```
+
+### Value Objects
+
+```typescript
+class TeamId {
+  constructor(readonly value: string);
+  static generate(): TeamId;
+  equals(other: TeamId): boolean;
+}
+
+class RosterPlayerId {
+  constructor(readonly value: string);
+  static generate(): RosterPlayerId;
+  equals(other: RosterPlayerId): boolean;
+}
+```
+
+### Domain Events
+
+| Event                     | Purpose                  |
+| ------------------------- | ------------------------ |
+| `TeamCreated`             | Team roster initialized  |
+| `PlayerAddedToRoster`     | Player added to team     |
+| `PlayerRemovedFromRoster` | Player removed from team |
+| `PlayerUpdatedOnRoster`   | Player info updated      |
+| `TeamRenamed`             | Team name changed        |
+| `TeamDeleted`             | Team roster deleted      |
+
+### Invariants
+
+1. Team names must be unique (case-insensitive)
+2. Jersey numbers must be unique within a team
+3. Player names are required (1-100 characters)
+4. Maximum 30 players per roster (configurable via SoftballRules)
+5. At least one player must remain in roster (cannot empty a team)
+
+### Repository Interface
+
+```typescript
+interface TeamRepository {
+  findById(id: TeamId): Promise<Team | null>;
+  findByName(name: string): Promise<Team | null>;
+  findAll(): Promise<Team[]>;
+  save(team: Team): Promise<void>;
+  delete(id: TeamId): Promise<void>;
+}
+```
+
 ## See Also
 
 - **[Architecture Guide](architecture.md)** - How DDD, Hexagonal, and SOLID work
