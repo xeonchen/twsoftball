@@ -395,6 +395,131 @@ COMPLETED, final statistics are available
 - [ ] Backup includes complete event history for full game reconstruction
 - [ ] Recovery process validates data integrity
 
+---
+
+### UC-015: Create Team Roster
+
+**Actor**: Coach, Team Manager **Priority**: Medium (Phase 6 - MVP)
+
+**User Story**:
+
+> As a coach, I want to create a team roster that persists across games, so that
+> I don't have to re-enter player information for every game.
+
+**Acceptance Criteria**:
+
+- [ ] User can create a new team with a unique name
+- [ ] User can add players with name, jersey number, preferred positions
+- [ ] System validates jersey number uniqueness within team
+- [ ] System prevents duplicate team names (case-insensitive)
+- [ ] Team roster is saved to persistent storage
+- [ ] Maximum 30 players per roster (configurable)
+
+**Pre-conditions**: None **Post-conditions**: New team exists in storage with
+player roster
+
+**Basic Flow**:
+
+1. User navigates to Roster Management from homepage
+2. User taps "Create New Team"
+3. User enters team name
+4. System validates team name uniqueness
+5. User adds players with name, jersey, and preferred positions
+6. System validates no duplicate jersey numbers
+7. User confirms roster creation
+8. System saves team to persistent storage
+
+**Alternative Flows**:
+
+- **3a**: Team name already exists - display error, prompt for different name
+- **6a**: Duplicate jersey number - display error, highlight conflicting entry
+
+---
+
+### UC-016: Manage Team Roster
+
+**Actor**: Coach, Team Manager **Priority**: Medium (Phase 6 - MVP)
+
+**User Story**:
+
+> As a coach, I want to manage my team roster (add, edit, remove players), so
+> that I can keep player information up to date.
+
+**Acceptance Criteria**:
+
+- [ ] User can view all teams they have created
+- [ ] User can add new players to existing roster
+- [ ] User can edit player information (name, jersey, positions)
+- [ ] User can remove players from roster
+- [ ] User can mark players as active/inactive
+- [ ] User can rename team
+- [ ] User can delete entire team
+
+**Pre-conditions**: At least one team exists **Post-conditions**: Team roster
+reflects changes
+
+**Basic Flow**:
+
+1. User navigates to Roster Management from homepage
+2. System displays list of saved teams
+3. User selects a team to manage
+4. System displays team roster with all players
+5. User performs desired action (add/edit/remove player)
+6. System validates changes
+7. System saves updated roster
+
+**Alternative Flows**:
+
+- **2a**: No teams exist - display "Create New Team" prompt
+- **5a**: User chooses to delete team - confirm deletion, remove all team data
+
+---
+
+### UC-017: Use Roster in Game Setup
+
+**Actor**: Coach, Scorekeeper **Priority**: Medium (Phase 6 - MVP)
+
+**User Story**:
+
+> As a scorekeeper, I want to select an existing team roster when setting up a
+> game, so that I can quickly populate the lineup without re-entering players.
+
+**Acceptance Criteria**:
+
+- [ ] During game setup (team selection step), user sees option to select
+      existing team
+- [ ] Lineup setup page shows two-panel view: - Left panel: Batting order slots
+      (drag targets) - Right panel: Roster players (drag sources)
+- [ ] User can drag/tap roster players to add them to batting slots
+- [ ] User can still add new players not in roster via "+ Add Player" button
+- [ ] User can reorder batting slots via drag-and-drop
+- [ ] User can choose to skip team selection and enter all players manually
+- [ ] Team roster is copied to game lineup (changes don't affect original
+      roster)
+- [ ] Position assignment available for each added player
+
+**Pre-conditions**: Game setup wizard is active **Post-conditions**: Game lineup
+populated with selected players
+
+**Basic Flow**:
+
+1. User reaches lineup setup step in game wizard
+2. System shows team selector dropdown with saved teams
+3. User selects a team (optional)
+4. System loads roster players into right panel
+5. User drags/taps players from roster to batting order slots
+6. User assigns field positions to each player
+7. User can add non-roster players via "+ Add Player"
+8. User confirms lineup and proceeds to next step
+
+**Alternative Flows**:
+
+- **3a**: No team selected - right panel shows empty state with "+ Add Player"
+  only
+- **5a**: User taps roster player - auto-assigns to next available slot
+- **7a**: User removes player from batting order - player returns to roster
+  panel
+
 ## Implementation Priority
 
 ### Phase 2 (Application Layer) - Current Focus
